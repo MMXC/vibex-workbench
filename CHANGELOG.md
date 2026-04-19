@@ -28,3 +28,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Right sidebar was 0px width — now renders at 320px
 - SSE connections now properly disconnected on component destroy
+- TS: add missing `Step` interface in generated types.ts
+- SSE: fix `$effect` cleanup to prevent memory leaks and double connections
