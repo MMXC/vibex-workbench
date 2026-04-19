@@ -1,0 +1,75 @@
+---
+spec:
+  name: vibex-workbench
+  level: 1_project_goal
+  version: "0.1.0"
+  status: draft
+  parent: null
+
+content:
+  project_name: "VibeX Workbench"
+  tagline: "Agent 工作台 + 画布可视化：把一次问题咨询，升级为可持续推进的任务链路"
+
+  mission: |
+    构建一个「多模态 Agent 窗口」，核心创新是：
+    - **画布即 Orchestration 层**：Canvas 不只是画图工具，而是任务编排的可视化画布
+    - Thread / Run / Artifact / ToolInvocation 是画布上的一等公民（节点类型）
+    - 用户可以把一个目标扔给系统，然后在画布上看到整个执行链路
+
+  target_users:
+    - primary: "AI 开发者 / 高级用户：希望看到 Agent 执行过程的可见性"
+    - secondary: "团队负责人：需要追踪多轮任务的上下文链路"
+
+  success_metrics:
+    - SM1: "用户能在 composer 输入目标，画布上自动生成 Run 节点链路"
+    - SM2: "Thread 可切换，历史上下文可见、可引用"
+    - SM3: "Artifact 可预览、可拖入下次 composer"
+    - SM4: "三层工具可见性可切换（自然语言→结构化→开发者日志）"
+    - SM5: "make generate 0.9s 内完成，make drift = 0"
+
+  constraints:
+    - "前端框架: SvelteKit（与现有 VibeX 前端一致）"
+    - "local-first 模式（Dexie.js / IndexedDB）"
+    - "不造轮子：复用在 vibex-spec 中已验证的生成器"
+    - "画布引擎: 复用 VibeX 现有的 canvas_feature.yaml 节点渲染逻辑"
+
+  scope:
+    in_scope:
+      - "workbench-shell: 三栏布局 + composer"
+      - "thread-manager: Thread CRUD + 上下文切换"
+      - "run-engine: Run 执行状态机 + SSE 事件流"
+      - "artifact-registry: Artifact 上传/预览/复用"
+      - "canvas-workbench: 画布作为 Run 可视化的 Orchestration 层"
+    out_of_scope:
+      - "多 Agent 协作调度（future work）"
+      - "server-first 模式 + REST API"
+      - "移动端适配"
+
+  milestone:
+    - id: "M0"
+      name: "骨架"
+      description: "项目结构 + Makefile + 空 spec 文件"
+    - id: "M1"
+      name: "workbench-shell"
+      description: "三栏布局 shell + composer 组件"
+    - id: "M2"
+      name: "thread-manager"
+      description: "Thread CRUD + 上下文管理"
+    - id: "M3"
+      name: "run-engine"
+      description: "Run 状态机 + SSE 事件流"
+    - id: "M4"
+      name: "artifact-registry"
+      description: "Artifact 上传 + 预览 + 复用"
+    - id: "M5"
+      name: "canvas-workbench 集成"
+      description: "Canvas 作为 Orchestration 可视化层"
+
+derived_from:
+  - source: "禹笑笑《从聊天框到工作台》2026-03-25"
+    key_insight: "4类核心实体（Thread/Artifact/Run/ToolInvocation）+ 三层可见性 + 事件流驱动"
+  - source: "vibex-spec existing canvas"
+    key_insight: "canvas_feature.yaml 节点渲染已验证，复用节点类型扩展"
+
+updated_by: "hermes"
+updated_at: "2026-04-19T20:00:00Z"

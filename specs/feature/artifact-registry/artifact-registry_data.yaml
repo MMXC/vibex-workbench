@@ -1,0 +1,486 @@
+# ============================================================
+# Level 5 — Artifact Registry 数据规格
+# Data Specification
+#
+# 从属于: artifact-registry_feature.yaml (L4)
+# ============================================================
+
+spec:
+  version: "0.1.0"
+  level: "5c_data"
+  name: "artifact-registry_data"
+  parent: "artifact-registry"
+
+meta:
+  feature: "artifact-registry"
+  generated_from: "artifact-registry_feature.yaml"
+  storage: "Dexie.js / IndexedDB (primary) + Svelte reactive store (memory)"
+
+content:
+  entities:
+    # ── Artifact ─────────────────────────────────────────────────
+    - name: "Artifact"
+      description: "AI 生成物实体：代码文件、文档、图表、数据集等"
+      fields:
+        - name: "id"
+          type: "string"
+          pk: true
+          description: "UUID，服务端 SSE 事件携带"
+          source: "nanoid(12)"
+
+        - name: "thread_id"
+          type: "string"
+          required: true
+          indexed: true
+          description: "所属 Thread ID"
+          foreign_key: "Thread.id"
+
+        - name: "run_id"
+          type: "string"
+          required: true
+          indexed: true
+          description: "生成此 Artifact 的 Run ID"
+          foreign_key: "Run.id"
+
+        - name: "type"
+          type: "string"
+          required: true
+          indexed: true
+          description: "artifact 类型：code | markdown | json | image | data | generic | diagram"
+          enum_values: ["code", "markdown", "json", "image", "data", "generic", "diagram"]
+
+        - name: "name"
+          type: "string"
+          required: true
+          description: "显示名称（可包含路径，如 'src/utils/helper.ts'）"
+          max_length: 500
+
+        - name: "content"
+          type: "string"
+          required: true
+          description: "artifact 正文内容（代码 / markdown / json string 等）"
+
+        - name: "language"
+          type: "string"
+          description: "代码语言（当 type=code 时，如 'typescript' / 'python'）"
+          enum_values: ["typescript", "javascript", "python", "bash", "yaml", "json", "sql", "html", "css", "go", "rust", "java", "other"]
+
+        - name: "version"
+          type: "number"
+          required: true
+          default: 1
+          description: "当前版本号，每次 updateArtifact +1"
+
+        - name: "mime_type"
+          type: "string"
+          description: "MIME 类型（如 'text/typescript' / 'image/png'）"
+
+        - name: "size_bytes"
+          type: "number"
+          description: "content 大小（字节数）"
+
+        - name: "tags"
+          type: "string[]"
+          default: "[]"
+          description: "用户/系统标签数组"
+
+        - name: "status"
+          type: "string"
+          required: true
+          default: "active"
+          description: "active | archived | deleted（软删除）"
+          enum_values: ["active", "archived", "deleted"]
+
+        - name: "deleted_at"
+          type: "string | null"
+          description: "软删除时间戳"
+
+        - name: "metadata"
+          type: "Record<string, unknown>"
+          default: "{}"
+          description: "扩展字段：{ lineCount, charCount, sha256?, url?, thumbnailBase64? }"
+
+        - name: "referenced_by"
+          type: "string[]"
+          default: "[]"
+          description: "引用此 artifact 的 runId[]（由 canvas-sync / run-engine 维护）"
+
+        - name: "created_at"
+          type: "string"
+          required: true
+          indexed: true
+          description: "首次创建时间（ISO8601）"
+
+        - name: "updated_at"
+          type: "string"
+          required: true
+          indexed: true
+          description: "最近更新时间（ISO8601）"
+
+        - name: "last_accessed_at"
+          type: "string"
+          indexed: true
+          description: "最近访问时间（用于 LRU 淘汰）"
+
+    # ── ArtifactVersion ──────────────────────────────────────────
+    - name: "ArtifactVersion"
+      description: "Artifact 的历史版本快照"
+      fields:
+        - name: "id"
+          type: "string"
+          pk: true
+          description: "UUID，格式 {artifactId}_v{version}"
+
+        - name: "artifact_id"
+          type: "string"
+          required: true
+          indexed: true
+          foreign_key: "Artifact.id"
+          description: "所属 Artifact ID"
+
+        - name: "version"
+          type: "number"
+          required: true
+          description: "版本号（与 artifact.version 对应）"
+
+        - name: "content"
+          type: "string"
+          required: true
+          description: "该版本的内容快照"
+
+        - name: "change_summary"
+          type: "string"
+          description: "变更摘要（diff 描述）"
+
+        - name: "created_by_run_id"
+          type: "string"
+          description: "生成此版本的 Run ID"
+
+        - name: "created_at"
+          type: "string"
+          required: true
+          indexed: true
+          description: "版本创建时间（ISO8601）"
+
+    # ── ArtifactTag ───────────────────────────────────────────────
+    - name: "ArtifactTag"
+      description: "Artifact 标签表（支持多对多，支持快速 tag 搜索）"
+      fields:
+        - name: "id"
+          type: "string"
+          pk: true
+          source: "nanoid(8)"
+
+        - name: "artifact_id"
+          type: "string"
+          required: true
+          indexed: true
+          foreign_key: "Artifact.id"
+          description: "关联的 Artifact ID"
+
+        - name: "tag"
+          type: "string"
+          required: true
+          indexed: true
+          description: "标签名（小写化，trimmed）"
+          max_length: 100
+
+        - name: "created_by"
+          type: "string"
+          default: "user"
+          description: "user | agent | system"
+
+        - name: "created_at"
+          type: "string"
+          required: true
+
+    # ── StorageStats ─────────────────────────────────────────────
+    - name: "StorageStats"
+      description: "存储使用统计（非持久化，内存计算）"
+      fields:
+        - name: "used_bytes"
+          type: "number"
+          description: "当前使用的字节数"
+        - name: "quota_bytes"
+          type: "number"
+          description: "浏览器 IndexedDB 配额（估算）"
+        - name: "artifact_count"
+          type: "number"
+          description: "活跃 artifact 数量"
+        - name: "version_count"
+          type: "number"
+          description: "历史版本快照总数"
+        - name: "last_calculated_at"
+          type: "string"
+          description: "最近计算时间"
+
+  store_schema:
+    artifactStore:
+      artifacts: "Artifact[]"
+      currentArtifactId: "string | null"
+      searchQuery: "string"
+      filters: "ArtifactFilters"
+      isLoading: "boolean"
+      error: "string | null"
+
+  type_definitions:
+    ts: |
+      // Artifact entity
+      interface Artifact {
+        id: string;
+        thread_id: string;
+        run_id: string;
+        type: 'code' | 'markdown' | 'json' | 'image' | 'data' | 'generic' | 'diagram';
+        name: string;
+        content: string;
+        language?: string;
+        version: number;
+        mime_type?: string;
+        size_bytes?: number;
+        tags: string[];
+        status: 'active' | 'archived' | 'deleted';
+        deleted_at?: string;
+        metadata: Record<string, unknown>;
+        referenced_by: string[];
+        created_at: string;
+        updated_at: string;
+        last_accessed_at?: string;
+      }
+
+      // ArtifactVersion entity
+      interface ArtifactVersion {
+        id: string;          // format: {artifactId}_v{version}
+        artifact_id: string;
+        version: number;
+        content: string;
+        change_summary?: string;
+        created_by_run_id?: string;
+        created_at: string;
+      }
+
+      // ArtifactTag entity
+      interface ArtifactTag {
+        id: string;
+        artifact_id: string;
+        tag: string;
+        created_by: 'user' | 'agent' | 'system';
+        created_at: string;
+      }
+
+      // Filters
+      interface ArtifactFilters {
+        type?: Artifact['type'][];
+        tags?: string[];
+        run_id?: string;
+        thread_id?: string;
+        status?: Artifact['status'];
+        date_from?: string;
+        date_to?: string;
+      }
+
+      // Input types
+      interface CreateArtifactInput {
+        thread_id: string;
+        run_id: string;
+        type: Artifact['type'];
+        name: string;
+        content: string;
+        language?: string;
+        mime_type?: string;
+        tags?: string[];
+        metadata?: Record<string, unknown>;
+      }
+
+      interface UpdateArtifactInput {
+        content?: string;
+        name?: string;
+        tags?: string[];
+        status?: Artifact['status'];
+        metadata?: Record<string, unknown>;
+      }
+
+      // Storage
+      interface StorageStats {
+        used_bytes: number;
+        quota_bytes: number;
+        artifact_count: number;
+        version_count: number;
+        last_calculated_at: string;
+      }
+
+      interface PruneOptions {
+        older_than_days?: number;
+        keep_versions?: number;
+        by_thread_id?: string;
+        dry_run?: boolean;
+      }
+
+      // ArtifactStore
+      interface ArtifactStore {
+        artifacts: Artifact[];
+        currentArtifactId: string | null;
+        searchQuery: string;
+        filters: ArtifactFilters;
+        isLoading: boolean;
+        error: string | null;
+      }
+
+  indexeddb_schema:
+    version: 1
+    tables:
+      - name: "artifacts"
+        primary_key: "id"
+        indexes:
+          - name: "by_thread"
+            key_path: "thread_id"
+          - name: "by_run"
+            key_path: "run_id"
+          - name: "by_type"
+            key_path: "type"
+          - name: "by_status"
+            key_path: "status"
+          - name: "by_created"
+            key_path: "created_at"
+          - name: "by_updated"
+            key_path: "updated_at"
+          - name: "by_accessed"
+            key_path: "last_accessed_at"
+          - name: "by_name"
+            key_path: "name"
+            unique: false
+        schema_definition: |
+          id: string (primary key)
+          thread_id: string (indexed)
+          run_id: string (indexed)
+          type: string (indexed)
+          name: string
+          content: string
+          language: string?
+          version: number
+          mime_type: string?
+          size_bytes: number?
+          tags: string[]
+          status: string (indexed)
+          deleted_at: string?
+          metadata: object
+          referenced_by: string[]
+          created_at: string (indexed)
+          updated_at: string (indexed)
+          last_accessed_at: string (indexed)
+
+      - name: "artifact_versions"
+        primary_key: "id"
+        indexes:
+          - name: "by_artifact"
+            key_path: "artifact_id"
+          - name: "by_version"
+            key_path: "version"
+          - name: "by_artifact_version"
+            key_path: ["artifact_id", "version"]
+            unique: true
+        schema_definition: |
+          id: string (primary key, format: {artifactId}_v{version})
+          artifact_id: string (indexed)
+          version: number
+          content: string
+          change_summary: string?
+          created_by_run_id: string?
+          created_at: string (indexed)
+
+      - name: "artifact_tags"
+        primary_key: "id"
+        indexes:
+          - name: "by_artifact"
+            key_path: "artifact_id"
+          - name: "by_tag"
+            key_path: "tag"
+          - name: "by_artifact_tag"
+            key_path: ["artifact_id", "tag"]
+            unique: true
+        schema_definition: |
+          id: string (primary key)
+          artifact_id: string (indexed)
+          tag: string (indexed)
+          created_by: string
+          created_at: string
+
+  validation_rules:
+    Artifact:
+      - rule: "id 必须唯一"
+        validator: "nanoid collision check"
+      - rule: "type 必须是枚举值之一"
+        validator: "enum check"
+      - rule: "content 不能为空"
+        validator: "content.length > 0"
+      - rule: "version >= 1"
+        validator: "range check"
+      - rule: "size_bytes 与 content.length 一致"
+        validator: "computed from Blob.size 或 new TextEncoder().encode(content).length"
+      - rule: "thread_id 引用存在的 Thread（可选，强校验时可关闭）"
+        validator: "foreign key check (optional)"
+
+    ArtifactVersion:
+      - rule: "id 格式为 {artifactId}_v{version}"
+        validator: "regex /^([a-zA-Z0-9]+)_v([0-9]+)$/"
+      - rule: "artifact_id 引用存在的 Artifact"
+        validator: "foreign key check"
+      - rule: "version 与 artifact 当前 version 一致"
+        validator: "version === artifact.version at creation time"
+
+    ArtifactTag:
+      - rule: "tag 不能为空且长度 <= 100"
+        validator: "trim(tag).length > 0 && tag.length <= 100"
+      - rule: "tag 统一小写"
+        validator: "toLowerCase()"
+      - rule: "同一 artifact_id 下 tag 不能重复"
+        validator: "UNIQUE constraint on (artifact_id, tag)"
+
+  default_values:
+    Artifact:
+      version: 1
+      tags: "[]"
+      status: "active"
+      deleted_at: "null"
+      metadata: "{}"
+      referenced_by: "[]"
+      created_at: "new Date().toISOString()"
+      updated_at: "new Date().toISOString()"
+      last_accessed_at: "null"
+
+    ArtifactTag:
+      created_by: "user"
+      created_at: "new Date().toISOString()"
+
+    StorageStats:
+      used_bytes: 0
+      quota_bytes: "navigator.storage.estimate() 的 quota 值"
+      artifact_count: 0
+      version_count: 0
+      last_calculated_at: "new Date().toISOString()"
+
+  indexes:
+    - entity: "Artifact"
+      fields: ["thread_id", "status", "created_at", "updated_at"]
+    - entity: "ArtifactVersion"
+      fields: ["artifact_id", "version", "created_at"]
+    - entity: "ArtifactTag"
+      fields: ["artifact_id", "tag"]
+
+  storage_quota_strategy:
+    warning_threshold: 0.8
+    critical_threshold: 0.95
+    default_quota_mb: 500
+    prune_batch_size: 50
+    lru_lookback_days: 30
+    min_versions_per_artifact: 3
+
+derived_from:
+  - parent: "artifact-registry_feature"
+    rationale: "artifact-registry_feature.yaml 中定义实体的数据结构落地"
+
+linked_data_specs:
+  - "run-engine_data (Artifact.run_id → Run.id)"
+  - "thread-manager_data (Artifact.thread_id → Thread.id)"
+
+updated_by: "hermes"
+updated_at: "2026-04-19T20:10:00Z"

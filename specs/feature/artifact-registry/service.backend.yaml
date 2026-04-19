@@ -1,0 +1,59 @@
+# ============================================================
+# Artifact Registry Backend Service 实现规格
+# Go Backend Implementation
+# ============================================================
+# 从属于: service.yaml (L5a_service) 接口契约
+# 下层依赖: artifact-registry_data.yaml (L5c)
+
+spec:
+  version: "0.1.0"
+  level: "5a_service_backend"
+  name: "artifact-registry-backend"
+  parent: "artifact-registry-feature"
+  status: "draft"
+
+meta:
+  owner: "backend"
+  tech_stack: ["Go", "pgx", "sse"]
+  description: "Artifact Registry Go 后端服务实现规格"
+
+content:
+  go_interface:
+    name: "ArtifactService"
+    package: "internal/service/artifact"
+    methods:
+      - name: "CreateArtifact"
+        signature: "func (s *ArtifactService) CreateArtifact(ctx context.Context, req *pb.CreateArtifactRequest) (*pb.Artifact, error)"
+      - name: "UpdateArtifact"
+        signature: "func (s *ArtifactService) UpdateArtifact(ctx context.Context, id string, req *pb.UpdateArtifactRequest) (*pb.Artifact, error)"
+      - name: "DeleteArtifact"
+        signature: "func (s *ArtifactService) DeleteArtifact(ctx context.Context, id string) error"
+      - name: "GetArtifact"
+        signature: "func (s *ArtifactService) GetArtifact(ctx context.Context, id string) (*pb.Artifact, error)"
+      - name: "SearchArtifacts"
+        signature: "func (s *ArtifactService) SearchArtifacts(ctx context.Context, req *pb.SearchRequest) ([]*pb.Artifact, error)"
+      - name: "GetVersions"
+        signature: "func (s *ArtifactService) GetVersions(ctx context.Context, artifactId string) ([]*pb.ArtifactVersion, error)"
+
+  http_handlers:
+    - path: "POST /api/artifacts"
+      impl: "CreateArtifact"
+    - path: "GET /api/artifacts/:id"
+      impl: "GetArtifact"
+    - path: "PUT /api/artifacts/:id"
+      impl: "UpdateArtifact"
+    - path: "DELETE /api/artifacts/:id"
+      impl: "DeleteArtifact"
+    - path: "GET /api/artifacts/:id/versions"
+      impl: "GetVersions"
+    - path: "POST /api/artifacts/search"
+      impl: "SearchArtifacts"
+
+  sse_endpoint:
+    path: "GET /api/sse/threads/:id/artifacts"
+    description: "Artifact 事件 SSE 流"
+
+  repository:
+    name: "ArtifactRepository"
+    package: "internal/data/artifact"
+    methods: ["Create", "Get", "Update", "Delete", "List", "CreateVersion", "GetVersions", "Search"]

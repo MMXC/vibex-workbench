@@ -1,0 +1,55 @@
+# ============================================================
+# Artifact Registry Service 接口契约
+# Interface Contract
+# ============================================================
+# 从属于: artifact-registry_feature.yaml (L4)
+# 用途: frontend 和 backend 共用接口定义
+
+spec:
+  version: "0.1.0"
+  level: "5a_service"
+  name: "artifact-registry-service"
+  parent: "artifact-registry-feature"
+  status: "contract"
+
+meta:
+  owner: "shared"
+  tech_stack: ["contract"]
+  description: "Artifact Registry 接口契约 — frontend 和 backend 共用"
+
+content:
+  public_api:
+    - method: "createArtifact"
+      signature: "createArtifact(threadId: string, runId: string, type: ArtifactType, name: string, content: string, options?: object): Artifact"
+    - method: "updateArtifact"
+      signature: "updateArtifact(id: string, content: string, options?: object): Artifact"
+    - method: "deleteArtifact"
+      signature: "deleteArtifact(id: string): void"
+    - method: "getArtifact"
+      signature: "getArtifact(id: string): Artifact | null"
+    - method: "searchArtifacts"
+      signature: "searchArtifacts(query: string, filters?: ArtifactFilters): Artifact[]"
+    - method: "getVersions"
+      signature: "getVersions(artifactId: string): ArtifactVersion[]"
+    - method: "addTag"
+      signature: "addTag(artifactId: string, tag: string): void"
+    - method: "getStorageStats"
+      signature: "getStorageStats(): StorageStats"
+
+  sse_events:
+    - event: "artifact.created"
+      payload: "{ artifact: Artifact }"
+    - event: "artifact.updated"
+      payload: "{ artifactId: string, content: string }"
+    - event: "artifact.deleted"
+      payload: "{ artifactId: string }"
+    - event: "artifact.tagged"
+      payload: "{ artifactId: string, tag: string }"
+
+  data_contract:
+    imports_from: "artifact-registry_data.yaml"
+    types: ["Artifact", "ArtifactVersion", "ArtifactTag", "StorageStats"]
+
+  error_codes:
+    ARTIFACT_001: Artifact not found (404)
+    ARTIFACT_002: Storage quota exceeded (507)

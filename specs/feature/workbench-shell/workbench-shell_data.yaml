@@ -1,0 +1,373 @@
+---
+spec:
+  name: workbench-shell-data
+  level: 5_data
+  version: "0.1.0"
+  status: draft
+  parent: "workbench-shell-feature"
+
+content:
+  entities:
+    - entity: "UIStore"
+      description: "全局 UI 布局状态 Store（Svelte 5 $state）"
+      storage: "memory (session 内), 不持久化到 IndexedDB"
+      fields:
+        - name: "leftSidebarOpen"
+          type: "boolean"
+          required: true
+          default: true
+          description: "左侧边栏展开/折叠状态"
+        - name: "rightSidebarOpen"
+          type: "boolean"
+          required: true
+          default: false
+          description: "右侧边栏展开/折叠状态"
+        - name: "leftSidebarWidth"
+          type: "number"
+          required: true
+          default: 260
+          description: "左侧边栏宽度（px），用户可拖拽调整"
+          constraints:
+            min: 180
+            max: 400
+        - name: "rightSidebarWidth"
+          type: "number"
+          required: true
+          default: 320
+          description: "右侧边栏宽度（px），用户可拖拽调整"
+          constraints:
+            min: 200
+            max: 480
+        - name: "activePanel"
+          type: "string"
+          required: true
+          default: "thread"
+          description: "当前激活的右侧面板 Tab"
+          enum_values:
+            - "artifact"
+            - "tool"
+            - "run"
+        - name: "toolVisibilityLayer"
+          type: "number"
+          required: true
+          default: 1
+          description: "工具可见性层级（1=自然语言 / 2=结构化 / 3=开发者）"
+          enum_values:
+            - 1
+            - 2
+            - 3
+        - name: "composerExpanded"
+          type: "boolean"
+          required: true
+          default: true
+          description: "Composer 是否展开（false=收起为单行输入框）"
+        - name: "composerText"
+          type: "string"
+          required: true
+          default: ""
+          description: "Composer 当前文本输入内容"
+        - name: "composerAttachments"
+          type: "json"
+          required: true
+          default: "[]"
+          description: "Composer 当前附件列表（ArtifactId[]）"
+          fk: null
+        - name: "selectedThreadId"
+          type: "string"
+          required: false
+          default: null
+          description: "当前选中的 Thread ID（同步 threadStore.currentThreadId）"
+        - name: "selectedArtifactId"
+          type: "string"
+          required: false
+          default: null
+          description: "当前选中的 Artifact ID（同步 artifactStore.selectedId）"
+        - name: "selectedToolInvocationId"
+          type: "string"
+          required: false
+          default: null
+          description: "当前选中的工具调用 ID"
+        - name: "modals"
+          type: "json"
+          required: true
+          default: "[]"
+          description: "当前打开的 Modal 队列（ModalInstance[]）"
+        - name: "dragState"
+          type: "json"
+          required: true
+          default: "null"
+          description: "当前拖拽状态（DragState | null）"
+
+    - entity: "ModalInstance"
+      description: "单个 Modal 实例的数据结构"
+      storage: "in-memory (uiStore.modals)"
+      fields:
+        - name: "id"
+          type: "string"
+          required: true
+          description: "Modal 实例唯一 ID（crypto.randomUUID）"
+        - name: "type"
+          type: "string"
+          required: true
+          description: "Modal 类型"
+          enum_values:
+            - "settings"
+            - "url-extract"
+            - "confirm"
+            - "thread-delete-confirm"
+        - name: "props"
+          type: "json"
+          required: false
+          default: "{}"
+          description: "Modal 专属 props（类型相关）"
+        - name: "priority"
+          type: "number"
+          required: true
+          default: 0
+          description: "优先级，数字越大越靠前"
+        - name: "createdAt"
+          type: "string"
+          required: true
+          description: "Modal 创建时间（ISO 8601）"
+
+    - entity: "DragState"
+      description: "全局拖拽状态"
+      storage: "in-memory (uiStore.dragState)"
+      fields:
+        - name: "type"
+          type: "string"
+          required: true
+          description: "拖拽类型"
+          enum_values:
+            - "artifact-reference"
+            - "thread-reorder"
+            - "attachment-reorder"
+            - null
+        - name: "sourceId"
+          type: "string"
+          required: false
+          description: "拖拽源 ID（artifactId / threadId）"
+        - name: "sourceIndex"
+          type: "number"
+          required: false
+          description: "拖拽源在列表中的索引"
+        - name: "ghost"
+          type: "json"
+          required: false
+          description: "拖拽预览 ghost 元素数据"
+
+    - entity: "ComposerAttachment"
+      description: "Composer 附件数据（存储于 uiStore.composerAttachments JSON）"
+      storage: "in-memory (uiStore.composerAttachments)"
+      fields:
+        - name: "id"
+          type: "string"
+          required: true
+          description: "附件唯一 ID（临时 UUID，提交后引用 artifactStore）"
+        - name: "artifactId"
+          type: "string"
+          required: false
+          description: "已上传的 Artifact ID（上传后填充）"
+        - name: "type"
+          type: "string"
+          required: true
+          description: "附件类型"
+          enum_values:
+            - "image"
+            - "pdf"
+            - "url"
+            - "text"
+        - name: "previewUrl"
+          type: "string"
+          required: false
+          description: "本地预览 URL（blob: URL 或 data: URL）"
+        - name: "fileName"
+          type: "string"
+          required: false
+          description: "文件名（image/pdf）或 URL（url 类型）"
+        - name: "fileSize"
+          type: "number"
+          required: false
+          description: "文件大小（bytes）"
+        - name: "mimeType"
+          type: "string"
+          required: false
+          description: "MIME type"
+        - name: "uploadStatus"
+          type: "string"
+          required: true
+          default: "pending"
+          description: "上传状态"
+          enum_values:
+            - "pending"
+            - "uploading"
+            - "uploaded"
+            - "failed"
+        - name: "uploadProgress"
+          type: "number"
+          required: true
+          default: 0
+          description: "上传进度（0-100）"
+          constraints:
+            min: 0
+            max: 100
+        - name: "extractedContent"
+          type: "string"
+          required: false
+          description: "URL/PDF 提取后的文本内容（可选）"
+
+  enums:
+    - name: "ToolVisibilityLayer"
+      description: "工具可见性层级枚举"
+      values:
+        - value: 1
+          name: "NATURAL_LANGUAGE"
+          description: "自然语言层：仅显示 LLM 自然语言回复"
+        - value: 2
+          name: "STRUCTURED"
+          description: "结构化层：显示工具名 + 参数摘要"
+        - value: 3
+          name: "DEVELOPER"
+          description: "开发者层：显示完整日志、token 计数、latency"
+
+    - name: "ActivePanel"
+      description: "右侧边栏面板 Tab 枚举"
+      values:
+        - value: "artifact"
+          description: "Artifact 预览面板"
+        - value: "tool"
+          description: "工具调用详情面板"
+        - value: "run"
+          description: "Run 状态面板"
+
+    - name: "ModalType"
+      description: "全局 Modal 类型枚举"
+      values:
+        - value: "settings"
+          description: "设置弹层"
+        - value: "url-extract"
+          description: "URL 内容提取弹层"
+        - value: "confirm"
+          description: "通用确认对话框"
+        - value: "thread-delete-confirm"
+          description: "删除 Thread 确认"
+
+    - name: "DragType"
+      description: "拖拽类型枚举"
+      values:
+        - value: "artifact-reference"
+          description: "Artifact 引用到 Composer"
+        - value: "thread-reorder"
+          description: "Thread 列表排序"
+        - value: "attachment-reorder"
+          description: "Composer 附件排序"
+
+    - name: "AttachmentUploadStatus"
+      description: "附件上传状态枚举"
+      values:
+        - value: "pending"
+          description: "等待上传"
+        - value: "uploading"
+          description: "上传中"
+        - value: "uploaded"
+          description: "上传完成"
+        - value: "failed"
+          description: "上传失败"
+
+    - name: "ComposerAttachmentType"
+      description: "Composer 附件类型枚举"
+      values:
+        - value: "image"
+          description: "图片文件"
+        - value: "pdf"
+          description: "PDF 文件"
+        - value: "url"
+          description: "URL 链接"
+        - value: "text"
+          description: "纯文本片段"
+
+  store_integration:
+    description: "uiStore 与其他模块 Store 的同步关系"
+    sync_rules:
+      - from: "uiStore.selectedThreadId"
+        to: "threadStore.currentThreadId"
+        direction: "bidirectional"
+        description: "UI 选中 Thread 时同步到 threadStore；threadStore 切换时同步到 UI"
+      - from: "uiStore.selectedArtifactId"
+        to: "artifactStore.selectedId"
+        direction: "bidirectional"
+        description: "Artifact 选中同步"
+      - from: "uiStore.selectedToolInvocationId"
+        to: "runStore.selectedToolInvocationId"
+        direction: "bidirectional"
+        description: "工具调用选中同步"
+      - from: "uiStore.toolVisibilityLayer"
+        to: "runStore.visibilityLayer"
+        direction: "unidirectional"
+        description: "uiStore 改变 → runStore 过滤渲染，不反向同步"
+      - from: "threadStore.threads"
+        to: "SidebarLeft (read-only)"
+        direction: "subscription"
+        description: "SidebarLeft 订阅 threadStore.threads 渲染列表，不写回"
+
+  persistence_policy:
+    description: "数据持久化策略"
+    rules:
+      - scope: "uiStore 布局状态"
+        persist: false
+        rationale: "布局偏好（侧边栏宽/展开状态）应由用户决定是否持久化，M1 阶段简化，不实现"
+      - scope: "uiStore.composerText"
+        persist: false
+        rationale: "防止刷新丢失草稿，M2 阶段可选实现 localStorage"
+      - scope: "threadStore.threads"
+        persist: true
+        storage: "Dexie.js IndexedDB (threads table)"
+        rationale: "核心数据，必须持久化"
+      - scope: "artifactStore.artifacts"
+        persist: true
+        storage: "Dexie.js IndexedDB (artifacts table)"
+        rationale: "Artifact 必须持久化以支持拖拽复用"
+
+  indexes:
+    description: "Dexie.js IndexedDB 表索引"
+    tables:
+      - table: "threads"
+        indexes:
+          - name: "by-id"
+            keyPath: "id"
+            unique: true
+          - name: "by-created-at"
+            keyPath: "created_at"
+          - name: "by-is-deleted"
+            keyPath: "is_deleted"
+      - table: "artifacts"
+        indexes:
+          - name: "by-id"
+            keyPath: "id"
+            unique: true
+          - name: "by-thread-id"
+            keyPath: "thread_id"
+          - name: "by-mime-type"
+            keyPath: "mime_type"
+          - name: "by-is-deleted"
+            keyPath: "is_deleted"
+      - table: "runs"
+        indexes:
+          - name: "by-id"
+            keyPath: "id"
+            unique: true
+          - name: "by-thread-id"
+            keyPath: "thread_id"
+          - name: "by-status"
+            keyPath: "status"
+          - name: "by-is-deleted"
+            keyPath: "is_deleted"
+
+derived_from:
+  - parent: "workbench-shell-feature"
+    rationale: "uiStore 及相关实体的数据结构定义"
+  - parent: "vibex-workbench-architecture"
+    rationale: "store_architecture.uiStore 字段细化"
+
+updated_by: "hermes"
+updated_at: "2026-04-19T20:08:00Z"

@@ -1,0 +1,354 @@
+# ============================================================
+# Level 5 — Run Engine Service 规格
+# Service Specification
+# ============================================================
+# 从属于: run-engine_feature.yaml (L4)
+# 下层依赖: run-engine_data.yaml (L5c)
+
+spec:
+  version: "0.1.0"
+  level: "5a_service_frontend"
+  name: "run-engine-frontend"
+  parent: "run-engine-feature"
+
+meta:
+  feature: "run-engine"
+  owner: "frontend"
+  tech_stack: ["Svelte 5", "TypeScript", "SSE Consumer"]
+  generated_from: "run-engine_feature.yaml"
+
+content:
+  # ── 接口来源 ─────────────────────────────────────────────
+  derived_from: "service.yaml 接口契约"
+
+  # ── 服务层架构 ─────────────────────────────────────────────
+  architecture:
+    description: "Run Engine 服务层采用事件驱动架构，通过 SSE Consumer 模块与后端通信，内部维护状态机管理 Run 生命周期"
+    pattern: "Svelte 5 Reactive Store + SSE Consumer"
+    layers:
+      - name: "API Layer"
+        description: "公开 TypeScript API（startRun / cancelRun / pauseRun / resumeRun / setVisibilityLayer）"
+      - name: "State Machine Layer"
+        description: "Run 状态转换引擎，维护 runStore 响应式状态"
+      - name: "SSE Consumer Layer"
+        description: "SSE 连接管理与事件解析，分发到对应 Store handlers"
+      - name: "Sync Layer"
+        description: "canvas-sync 桥接，将 Run/ToolInvocation 同步到 canvasStore"
+
+  # ── 核心服务模块 ─────────────────────────────────────────────
+  modules:
+    runStateMachine:
+      description: "Run 状态转换引擎"
+      responsibilities:
+        - "维护 runStore.runs[] 和 runStore.currentRunId"
+        - "处理状态转换：queued → planning → executing → completed | failed | cancelled | paused"
+        - "提供 runStore 的响应式 Svelte store 导出"
+      state_transitions:
+        - from: "queued"
+          to: "planning"
+          trigger: "run.started event"
+        - from: "planning"
+          to: "executing"
+          trigger: "run.stage_changed (stage='executing')"
+        - from: "executing"
+          to: "completed"
+          trigger: "run.completed event"
+        - from: "executing"
+          to: "failed"
+          trigger: "run.failed event"
+        - from: "executing"
+          to: "cancelled"
+          trigger: "cancelRun() called"
+        - from: "executing"
+          to: "paused"
+          trigger: "pauseRun() called"
+        - from: "paused"
+          to: "executing"
+          trigger: "resumeRun() called"
+
+    sseConsumer:
+      description: "SSE 事件流消费者"
+      responsibilities:
+        - "建立并维护 SSE 连接（基于当前 threadId）"
+        - "解析 Server-Sent Events 格式"
+        - "分发事件到对应 Store handlers"
+        - "处理重连逻辑和错误恢复"
+      connection_management:
+        max_retries: 3
+        retry_delay_ms: 1000
+        heartbeat_interval_ms: 30000
+        connection_timeout_ms: 60000
+      event_parsing:
+        format: "text/event-stream"
+        required_fields: ["event", "data"]
+        data_format: "JSON"
+
+    toolInvocationTracker:
+      description: "ToolInvocation 生命周期追踪"
+      responsibilities:
+        - "记录每个 tool.call（id / name / args / status）"
+        - "响应 tool.called / tool.completed / tool.failed 事件"
+        - "维护 runStore.toolInvocations[] 有序列表"
+      tracking_fields:
+        - "id: UUID from SSE event"
+        - "run_id: parent Run ID"
+        - "tool_name: tool identifier"
+        - "args: JSON input parameters"
+        - "result: JSON output (on completion)"
+        - "status: pending | running | completed | failed"
+        - "started_at / finished_at / duration_ms"
+
+    visibilityController:
+      description: "三层可见性控制服务"
+      responsibilities:
+        - "toolVisibilityLayer: 1（自然语言）| 2（结构化）| 3（开发者日志）"
+        - "根据层级过滤 messageStream 渲染内容"
+        - "暴露 setVisibilityLayer(layer: 1|2|3) API"
+      layer_behaviors:
+        layer_1:
+          name: "自然语言"
+          description: "LLM 摘要工具调用，显示为简洁的进度描述"
+          truncate_length: 200
+          show_raw_args: false
+          show_raw_result: false
+        layer_2:
+          name: "结构化"
+          description: "显示工具名、状态、简要参数"
+          truncate_length: 500
+          show_raw_args: false
+          show_raw_result: false
+        layer_3:
+          name: "开发者日志"
+          description: "完整 args/result 展开显示"
+          truncate_length: null
+          show_raw_args: true
+          show_raw_result: true
+
+    canvasSync:
+      description: "Run → Canvas 同步桥接"
+      responsibilities:
+        - "消费 run.started / tool.called / tool.completed / run.completed 事件"
+        - "将 Run / ToolInvocation 映射为 Canvas Node"
+        - "推送至 canvasStore.nodes[]"
+      node_types:
+        - "RunNode: 对应 Run 实体"
+        - "ToolNode: 对应 ToolInvocation 实体"
+      sync_triggers:
+        - "run.started → create RunNode"
+        - "tool.called → create ToolNode (child of RunNode)"
+        - "tool.completed → update ToolNode status"
+        - "run.completed → update RunNode status"
+
+  # ── Public API 详细规格 ─────────────────────────────────────
+  public_api:
+    startRun:
+      signature: "startRun(threadId: string, goal: string): Promise<Run>"
+      description: "发起新 Run，返回 Promise<Run> 对象"
+      parameters:
+        - name: "threadId"
+          type: "string"
+          required: true
+          description: "目标 Thread ID"
+        - name: "goal"
+          type: "string"
+          required: true
+          description: "本次 Run 的用户目标文本"
+      returns:
+        type: "Promise<Run>"
+        description: "新创建的 Run 对象"
+      behavior:
+        - "创建 Run 实体，status=queued"
+        - "向 SSE 端点发送 POST /api/runs 请求"
+        - "订阅 SSE 事件流"
+        - "触发 canvas-sync 创建 RunNode"
+      errors:
+        - code: "THREAD_NOT_FOUND"
+          message: "Thread 不存在"
+        - code: "RUN_IN_PROGRESS"
+          message: "当前 Thread 已有进行中的 Run"
+        - code: "NETWORK_ERROR"
+          message: "SSE 连接失败"
+
+    cancelRun:
+      signature: "cancelRun(runId: string): Promise<void>"
+      description: "取消指定 Run"
+      parameters:
+        - name: "runId"
+          type: "string"
+          required: true
+      behavior:
+        - "向 SSE 端点发送 DELETE /api/runs/:runId"
+        - "更新 runStore 中 Run status=cancelled"
+        - "更新 canvasStore 中 RunNode status=cancelled"
+      errors:
+        - code: "RUN_NOT_FOUND"
+          message: "Run 不存在"
+        - code: "RUN_ALREADY_COMPLETED"
+          message: "Run 已完成，无法取消"
+
+    pauseRun:
+      signature: "pauseRun(runId: string): Promise<void>"
+      description: "暂停指定 Run（executing → paused）"
+      parameters:
+        - name: "runId"
+          type: "string"
+          required: true
+      behavior:
+        - "向 SSE 端点发送 POST /api/runs/:runId/pause"
+        - "更新 runStore 中 Run status=paused"
+      errors:
+        - code: "RUN_NOT_FOUND"
+          message: "Run 不存在"
+        - code: "INVALID_STATE_TRANSITION"
+          message: "当前 Run 状态不允许暂停"
+
+    resumeRun:
+      signature: "resumeRun(runId: string): Promise<void>"
+      description: "恢复指定 Run（paused → executing）"
+      parameters:
+        - name: "runId"
+          type: "string"
+          required: true
+      behavior:
+        - "向 SSE 端点发送 POST /api/runs/:runId/resume"
+        - "更新 runStore 中 Run status=executing"
+      errors:
+        - code: "RUN_NOT_FOUND"
+          message: "Run 不存在"
+        - code: "INVALID_STATE_TRANSITION"
+          message: "当前 Run 状态不允许恢复"
+
+    setVisibilityLayer:
+      signature: "setVisibilityLayer(layer: 1 | 2 | 3): void"
+      description: "切换工具可见性层级"
+      parameters:
+        - name: "layer"
+          type: "1 | 2 | 3"
+          required: true
+          description: "1=自然语言 | 2=结构化 | 3=开发者日志"
+      behavior:
+        - "更新 runStore.visibilityLayer"
+        - "触发 messageStream 重新渲染过滤"
+
+    subscribeSSE:
+      signature: "subscribeSSE(threadId: string): void"
+      description: "订阅指定 Thread 的 SSE 事件流"
+      parameters:
+        - name: "threadId"
+          type: "string"
+          required: true
+      behavior:
+        - "先 unsubscribeSSE() 清理现有连接"
+        - "建立 EventSource 到 /api/sse/threads/:threadId"
+        - "注册所有事件处理器"
+        - "更新 sseStreamStore 状态"
+      errors:
+        - code: "SSE_CONNECTION_FAILED"
+          message: "无法建立 SSE 连接"
+
+    unsubscribeSSE:
+      signature: "unsubscribeSSE(): void"
+      description: "取消 SSE 订阅"
+      behavior:
+        - "关闭 EventSource 连接"
+        - "清空事件处理器"
+        - "更新 sseStreamStore 状态为 disconnected"
+
+  # ── SSE 事件处理器 ─────────────────────────────────────────────
+  sse_event_handlers:
+    - event: "run.started"
+      handler: "runStore.setCurrentRun(run)"
+      canvas_action: "create RunNode"
+      description: "设置 currentRunId，触发 canvas-sync"
+
+    - event: "run.stage_changed"
+      handler: "runStore.updateStage(stage)"
+      description: "更新 Run 阶段（planning / executing / ...）"
+
+    - event: "tool.called"
+      handler: "runStore.addToolInvocation(invocation)"
+      canvas_action: "create ToolNode"
+      description: "追加 ToolInvocation"
+
+    - event: "tool.completed"
+      handler: "runStore.updateToolInvocation(id, result)"
+      canvas_action: "update ToolNode status=completed"
+      description: "更新 ToolInvocation status=completed，附加 result"
+
+    - event: "tool.failed"
+      handler: "runStore.markToolFailed(id, error)"
+      canvas_action: "update ToolNode status=failed"
+      description: "更新 ToolInvocation status=failed，附加 error"
+
+    - event: "message.delta"
+      handler: "runStore.appendMessage(delta)"
+      description: "追加 message delta 到 messageStream"
+
+    - event: "artifact.created"
+      handler: "artifactStore.add(artifact)"
+      description: "透传给 artifact-registry"
+
+    - event: "run.completed"
+      handler: "runStore.markCompleted(summary)"
+      canvas_action: "update RunNode status=completed"
+      description: "设置 Run status=completed"
+
+    - event: "run.failed"
+      handler: "runStore.markFailed(error)"
+      canvas_action: "update RunNode status=failed"
+      description: "设置 Run status=failed"
+
+  # ── 错误处理策略 ─────────────────────────────────────────────
+  error_handling:
+    sse_connection_errors:
+      strategy: "Exponential Backoff Retry"
+      max_retries: 3
+      base_delay_ms: 1000
+      max_delay_ms: 10000
+      on_max_retries_exceeded: "Notify user, persist last_event_id for manual retry"
+
+    tool_invocation_errors:
+      strategy: "Mark as failed, continue Run"
+      behavior: "工具调用失败不中断 Run，更新 ToolInvocation status=failed"
+
+    run_state_errors:
+      invalid_transition:
+        strategy: "Log warning, no-op"
+        description: "忽略非法状态转换请求"
+
+  # ── 性能考虑 ─────────────────────────────────────────────
+  performance:
+    message_stream_buffer_size: 1000
+    delta_accumulation_threshold: 100
+    canvas_sync_debounce_ms: 50
+    tool_invocation_batch_size: 50
+
+  # ── 依赖关系 ─────────────────────────────────────────────
+  dependencies:
+    internal:
+      - module: "run-state-machine"
+        imports: ["runStore"]
+      - module: "sse-consumer"
+        imports: ["runStore", "sseStreamStore"]
+      - module: "tool-invocation-tracker"
+        imports: ["runStore"]
+      - module: "visibility-controller"
+        imports: ["runStore"]
+      - module: "canvas-sync"
+        imports: ["runStore", "canvasStore"]
+
+    external:
+      - module: "thread-manager"
+        description: "依赖 threadStore 获取 currentThreadId"
+      - module: "canvas-workbench"
+        description: "推送节点更新到 canvasStore"
+      - module: "artifact-registry"
+        description: "透传 artifact.created 事件"
+
+  # ── 非目标（Non-Goals）────────────────────────────────────────────
+  non_goals:
+    - "不实现 Run 的服务端重试逻辑（由后端 SSE 端点保证）"
+    - "不实现分布式 Run 调度"
+    - "不直接持久化 Run 数据（由 artifact-registry 通过 IndexedDB 存储）"
+    - "不实现 Run 的人工审批 gate"
+    - "不实现 Run 步骤级别的单步调试"

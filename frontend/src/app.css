@@ -1,0 +1,36 @@
+/* VibeX Workbench — Dark Theme */
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  --bg: #0f0f0f;
+  --surface: #1a1a1a;
+  --border: #2a2a2a;
+  --text: #e0e0e0;
+  --text-muted: #888;
+  --accent: #6c63ff;
+  --accent-hover: #7c75ff;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-hover); }
+
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  transition: background 0.15s;
+}
+button:hover { background: var(--accent-hover); }

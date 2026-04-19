@@ -1,0 +1,240 @@
+---
+spec:
+  name: thread-manager-feature
+  level: 4_feature
+  version: "0.1.0"
+  status: draft
+  parent: "vibex-workbench-architecture"
+
+content:
+  overview:
+    description: "Thread 生命周期管理模块：负责 Thread 的创建、切换、删除以及上下文调度"
+    purpose: "为 RunEngine 提供 Thread 上下文注入，为 CanvasWorkbench 提供 Thread 节点数据源"
+    scope: "Thread CRUD + Context Memory + 三层上下文协议"
+
+  responsibilities:
+    - "Thread 创建：基于用户输入目标（goal）生成 Thread 实体，注册到 threadStore"
+    - "Thread 切换：将 currentThreadId 更新为指定 Thread，支持快捷键触发"
+    - "Thread 删除：软删除（标记 deleted=true），保留历史数据"
+    - "Context Memory：维护 Thread 级别的记忆（目标/阶段结论/约束/偏好）"
+    - "上下文注入协议：三层（即时/线程/工作区）上下文组装"
+    - "Thread 元数据更新：title / description / stage / tags 的增删改"
+
+  public_api:
+    stores:
+      - store: "threadStore"
+        description: "线程状态管理 Store"
+        fields:
+          - name: "threads"
+            type: "Thread[]"
+            description: "所有 Thread 列表"
+          - name: "currentThreadId"
+            type: "string | null"
+            description: "当前激活的 Thread ID"
+          - name: "contextMemory"
+            type: "Record<string, ContextSlice>"
+            description: "每个 Thread 的上下文记忆"
+          - name: "threadMeta"
+            type: "Record<string, ThreadMeta>"
+            description: "Thread 的额外元数据（title/tags/stage）"
+
+    functions:
+      - name: "createThread"
+        signature: "(goal: string, options?: CreateThreadOptions) => Thread"
+        description: "创建新 Thread"
+        params:
+          - name: "goal"
+            type: "string"
+            required: true
+            description: "用户目标描述"
+          - name: "options"
+            type: "CreateThreadOptions"
+            required: false
+            description: "可选配置（parentThreadId, tags, description）"
+        returns: "Thread"
+        side_effects:
+          - "生成 threadId（nanoid）"
+          - "注册到 threads[]"
+          - "初始化 contextMemory[threadId]"
+          - "发送 thread.created SSE 事件"
+
+      - name: "switchThread"
+        signature: "(threadId: string) => void"
+        description: "切换当前 Thread"
+        params:
+          - name: "threadId"
+            type: "string"
+            required: true
+        throws: "Error('Thread not found')"
+        side_effects:
+          - "更新 currentThreadId"
+          - "组装三层上下文（assembleContext）"
+          - "发送 thread.switched SSE 事件"
+
+      - name: "deleteThread"
+        signature: "(threadId: string, hard?: boolean) => void"
+        description: "删除 Thread"
+        params:
+          - name: "threadId"
+            type: "string"
+            required: true
+          - name: "hard"
+            type: "boolean"
+            default: false
+            description: "true=硬删除（物理移除），false=软删除"
+        side_effects:
+          - "标记 thread.deleted = true 或物理移除"
+          - "清理关联的 contextMemory"
+          - "若删除 currentThread，自动切换到 threads[0]"
+          - "发送 thread.deleted SSE 事件"
+
+      - name: "updateThreadMeta"
+        signature: "(threadId: string, meta: Partial<ThreadMeta>) => void"
+        description: "更新 Thread 元数据"
+        params:
+          - name: "threadId"
+            type: "string"
+          - name: "meta"
+            type: "Partial<ThreadMeta>"
+        side_effects:
+          - "合并 threadMeta[threadId]"
+          - "发送 thread.updated SSE 事件"
+
+      - name: "pushContextSlice"
+        signature: "(threadId: string, slice: ContextSlice) => void"
+        description: "向 Thread 的 Context Memory 追加切片"
+        params:
+          - name: "threadId"
+            type: "string"
+          - name: "slice"
+            type: "ContextSlice"
+        side_effects:
+          - "追加到 contextMemory[threadId].slices[]"
+          - "触发 context.ingested SSE 事件"
+
+      - name: "assembleContext"
+        signature: "(threadId: string, layer: 'immediate' | 'thread' | 'workspace') => string"
+        description: "组装三层上下文之一"
+        params:
+          - name: "threadId"
+            type: "string"
+          - name: "layer"
+            type: "'immediate' | 'thread' | 'workspace'"
+        returns: "string（组装后的上下文文本）"
+
+  user_interactions:
+    - interaction: "composer 提交目标"
+      behavior: "createThread(goal) → 自动切换到新 Thread"
+      trigger: "Composer submit / Ctrl+Enter"
+
+    - interaction: "sidebar 切换 Thread"
+      behavior: "switchThread(threadId)"
+      trigger: "sidebar Thread 列表点击 / Ctrl+Tab"
+
+    - interaction: "thread 卡片右键菜单"
+      behavior: "显示 rename / delete / duplicate / export 操作"
+      trigger: "contextmenu on thread card"
+
+    - interaction: "快捷键支持"
+      bindings:
+        - key: "Ctrl+T"
+          action: "createThread"
+          description: "新建 Thread"
+        - key: "Ctrl+Tab"
+          action: "switchThread(next)"
+          description: "切换到下一个 Thread"
+        - key: "Ctrl+Shift+Tab"
+          action: "switchThread(prev)"
+          description: "切换到上一个 Thread"
+
+  sse_events:
+    - event: "thread.created"
+      payload: "{ threadId, goal, createdAt }"
+      handler: "canvasStore.addThreadNode (由 canvas-workbench 订阅)"
+    - event: "thread.switched"
+      payload: "{ threadId, previousThreadId }"
+      handler: "runStore.clearCurrent / uiStore.updateActivePanel"
+    - event: "thread.deleted"
+      payload: "{ threadId }"
+      handler: "canvasStore.removeThreadNode"
+    - event: "thread.updated"
+      payload: "{ threadId, meta }"
+      handler: "canvasStore.updateThreadNode"
+    - event: "context.ingested"
+      payload: "{ threadId, sliceCount }"
+      handler: "uiStore.showToast('Context updated')"
+
+  data_contracts:
+    incoming:
+      - from: "workbench-shell"
+        trigger: "Composer submit"
+        calls: "createThread(goal)"
+      - from: "run-engine"
+        trigger: "run.stage_changed"
+        calls: "pushContextSlice(threadId, slice)"
+      - from: "canvas-workbench"
+        trigger: "node interaction"
+        calls: "switchThread / deleteThread"
+
+    outgoing:
+      - to: "run-engine"
+        data: "assembleContext(currentThreadId, 'thread')"
+        description: "提供 Thread 级别上下文"
+      - to: "canvas-workbench"
+        data: "threads[] / currentThreadId / threadMeta"
+        description: "提供 Thread 树数据"
+
+  persistence:
+    engine: "Dexie.js (IndexedDB)"
+    tables:
+      - table: "threads"
+        schema: "++id, goal, createdAt, updatedAt, deleted"
+        indexes:
+          - "goal (full-text search)"
+          - "createdAt"
+          - "deleted"
+      - table: "context_memory"
+        schema: "++id, threadId, type, content, createdAt"
+        indexes:
+          - "threadId"
+          - "type"
+    sync_strategy: "local-first, eventual sync with backend (future)"
+
+  error_handling:
+    - error: "Thread not found"
+      code: "THREAD_001"
+      behavior: "throw Error，UI 提示 'Thread not found'"
+
+    - error: "Cannot delete current thread without alternatives"
+      code: "THREAD_002"
+      behavior: "throw Error，阻止删除最后一个 Thread"
+
+    - error: "IndexedDB write failure"
+      code: "THREAD_003"
+      behavior: "retry 3x → show error toast → fallback to memory"
+
+  test_scenarios:
+    - id: "TS-01"
+      description: "创建 Thread → 验证 threads[] 长度 +1，currentThreadId 指向新 Thread"
+    - id: "TS-02"
+      description: "切换 Thread → 验证 currentThreadId 更新，context 组装正确"
+    - id: "TS-03"
+      description: "删除 Thread → 验证 soft delete，切换到其他 Thread"
+    - id: "TS-04"
+      description: "pushContextSlice → 验证 contextMemory slice 追加"
+    - id: "TS-05"
+      description: "assembleContext 三层 → 验证即时/线程/工作区文本拼接"
+
+derived_from:
+  - parent: "vibex-workbench-architecture"
+    rationale: "thread-manager 模块的详细功能规格"
+  - source: "禹笑笑《从聊天框到工作台》"
+    key_insight: "Thread 作为上下文容器 + 三层可见性"
+
+linked_data_spec: "thread-manager-data"
+linked_modules:
+  - run-engine (依赖)
+  - canvas-workbench (消费 threads[])
+
+updated_by: "hermes"
+updated_at: "2026-04-19T20:08:00Z"

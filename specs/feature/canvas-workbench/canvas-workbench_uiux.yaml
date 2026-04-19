@@ -1,0 +1,1123 @@
+# ============================================================
+# Level 5 — Canvas Workbench UI/UX 规格
+# UI/UX Specification
+# ============================================================
+# 从属于: canvas-workbench_feature.yaml (L4)
+# 下层依赖: canvas-workbench_data.yaml (L5c), canvas-workbench_service.yaml (L5a)
+
+spec:
+  version: "0.1.0"
+  level: "5b_uiux"
+  name: "canvas-workbench_uiux"
+  parent: "canvas-workbench"
+
+meta:
+  feature: "canvas-workbench"
+  owner: "frontend"
+  generated_from: "canvas-workbench_feature.yaml"
+
+content:
+  # ── UI 组件概览 ─────────────────────────────────────────────
+  overview:
+    description: "Canvas Workbench UI 负责在 main-canvas 区域渲染节点和边的可视化，支持拖拽、缩放、框选、工具栏操作等交互"
+    component_locations:
+      - name: "CanvasRenderer"
+        location: "main-canvas 主区域"
+        description: "画布根组件，封装 ReactFlow 实例"
+      - name: "CanvasToolbar"
+        location: "画布左上角工具栏"
+        description: "缩放控制 + 布局按钮 + 可见性过滤"
+      - name: "CanvasMinimap"
+        location: "画布右下角"
+        description: "MiniMap 导航小窗"
+      - name: "CanvasSelectionBox"
+        location: "画布框选状态"
+        description: "框选交互状态指示器"
+      - name: "ThreadNode / RunNode / ArtifactNode / ToolNode / MessageNode"
+        location: "ReactFlow 节点区域"
+        description: "5 种画布节点类型组件"
+
+  # ── 组件规格 ─────────────────────────────────────────────
+  components:
+    # ── CanvasRenderer ───────────────────────────────────────
+    CanvasRenderer:
+      description: "画布根组件，封装 ReactFlow"
+      location: "main-canvas 主区域"
+      fill: "#ffffff"
+      background_color: "#f9fafb"
+      background_pattern: "dots"  # dot grid pattern
+
+      layout:
+        full_screen: true
+        overflow: "hidden"
+
+      reactflow_config:
+        nodes: "WorkbenchNode[] (from canvasStore)"
+        edges: "WorkbenchEdge[] (from canvasStore)"
+        viewport: "canvasStore.viewport"
+        node_types: "thread | run | artifact | tool | message"
+        edge_types: "causal | reference | streaming"
+        default_edge_options:
+          type: "causal"
+          animated: false
+        connection_line_type: "default"
+        snap_to_grid: true
+        snap_grid: [16, 16]
+        min_zoom: 0.1
+        max_zoom: 3.0
+        default_viewport:
+          x: 0
+          y: 0
+          zoom: 1
+
+      events:
+        - name: "onNodesChange"
+          handler: "同步节点变更到 canvasStore"
+        - name: "onEdgesChange"
+          handler: "同步边变更到 canvasStore"
+        - name: "onConnect"
+          handler: "addEdge(newConnection)"
+        - name: "onSelectionChange"
+          handler: "更新 selectedNodeIds"
+        - name: "onPaneClick"
+          handler: "clearSelection"
+        - name: "onMoveEnd"
+          handler: "更新 canvasStore.viewport"
+
+    # ── CanvasToolbar ────────────────────────────────────────
+    CanvasToolbar:
+      description: "画布工具栏"
+      location: "画布左上角（固定定位）"
+      z_index: 10
+
+      position:
+        top: "16px"
+        left: "16px"
+
+      layout:
+        display: "flex"
+        flex_direction: "row"
+        gap: "8px"
+        padding: "8px 12px"
+        background: "#ffffff"
+        border_radius: "12px"
+        box_shadow: "0 2px 12px rgba(0,0,0,0.1)"
+        border: "1px solid #e5e7eb"
+
+      button_groups:
+        zoom_controls:
+          - name: "zoom-out"
+            label: "−"
+            tooltip: "缩小"
+            handler: "zoomTo(currentZoom - 0.1)"
+          - name: "zoom-level"
+            label: "100%"
+            tooltip: "当前缩放"
+            display: true  # 显示当前缩放比例
+          - name: "zoom-in"
+            label: "+"
+            tooltip: "放大"
+            handler: "zoomTo(currentZoom + 0.1)"
+
+        view_controls:
+          - name: "fit-view"
+            label: "⊡"
+            tooltip: "适应画布 (F)"
+            handler: "fitView()"
+          - name: "reset-view"
+            label: "⟲"
+            tooltip: "重置视图"
+            handler: "resetView()"
+
+        layout_controls:
+          - name: "auto-layout"
+            label: "≡"
+            tooltip: "自动布局"
+            handler: "applyLayout()"
+          - name: "layout-preset"
+            label: "▾"
+            tooltip: "布局预设"
+            dropdown: true
+            options:
+              - label: "默认"
+                handler: "applyLayout('default')"
+              - label: "紧凑"
+                handler: "applyLayout('compact')"
+              - label: "宽松"
+                handler: "applyLayout('spacious')"
+
+        filter_controls:
+          - name: "toggle-thread"
+            label: "T"
+            tooltip: "显示/隐藏 Thread 节点"
+            active_color: "#6366f1"
+          - name: "toggle-run"
+            label: "R"
+            tooltip: "显示/隐藏 Run 节点"
+            active_color: "#8b5cf6"
+          - name: "toggle-tool"
+            label: "⚙"
+            tooltip: "显示/隐藏 Tool 节点"
+            active_color: "#06b6d4"
+          - name: "toggle-artifact"
+            label: "A"
+            tooltip: "显示/隐藏 Artifact 节点"
+            active_color: "#10b981"
+          - name: "toggle-message"
+            label: "M"
+            tooltip: "显示/隐藏 Message 节点"
+            active_color: "#f59e0b"
+
+        export_controls:
+          - name: "export-png"
+            label: "PNG"
+            tooltip: "导出 PNG"
+            handler: "exportCanvas('png')"
+          - name: "export-svg"
+            label: "SVG"
+            tooltip: "导出 SVG"
+            handler: "exportCanvas('svg')"
+
+      button_style:
+        width: "32px"
+        height: "32px"
+        border_radius: "6px"
+        border: "none"
+        background: "transparent"
+        color: "#374151"
+        font_size: "14px"
+        cursor: "pointer"
+        transition: "all 0.15s ease"
+        hover_background: "#f3f4f6"
+        active_background: "#e5e7eb"
+
+    # ── CanvasMinimap ────────────────────────────────────────
+    CanvasMinimap:
+      description: "MiniMap 导航小窗"
+      location: "画布右下角（固定定位）"
+      z_index: 10
+
+      position:
+        bottom: "16px"
+        right: "16px"
+
+      style:
+        width: "160px"
+        height: "100px"
+        border_radius: "8px"
+        background: "#ffffff"
+        box_shadow: "0 2px 12px rgba(0,0,0,0.1)"
+        border: "1px solid #e5e7eb"
+
+      minimap_config:
+        node_color:
+          thread: "#6366f1"
+          run: "#8b5cf6"
+          tool: "#06b6d4"
+          artifact: "#10b981"
+          message: "#f59e0b"
+        node_border_color: "#ffffff"
+        mask_color: "rgba(240,240,240,0.8)"
+        mask_border_color: "#d1d5db"
+
+      interactions:
+        - "点击小地图区域 → 跳转视口到点击位置"
+        - "拖拽小地图区域 → 实时平移视口"
+
+    # ── CanvasSelectionBox ─────────────────────────────────────
+    CanvasSelectionBox:
+      description: "框选交互状态指示器"
+      visible_when: "isSelecting = true"
+
+      style:
+        background: "rgba(59, 130, 246, 0.1)"
+        border: "1px dashed #3b82f6"
+        border_radius: "4px"
+        pointer_events: "none"
+
+    # ── ThreadNode ─────────────────────────────────────────────
+    ThreadNode:
+      description: "Thread 画布节点"
+      node_type: "thread"
+      base_style:
+        width: "240px"
+        min_height: "120px"
+        border_radius: "12px"
+        background: "#ffffff"
+        border: "2px solid #6366f1"
+        box_shadow: "0 2px 8px rgba(99,102,241,0.15)"
+        padding: "12px"
+
+      layout:
+        header:
+          height: "28px"
+          display: "flex"
+          align_items: "center"
+          gap: "8px"
+          background: "#ede9fe"
+          border_radius: "8px 8px 0 0"
+          padding: "0 12px"
+          margin: "-12px -12px 12px -12px"
+
+          icon:
+            name: "message-square"
+            color: "#6366f1"
+            size: "16px"
+
+          title:
+            text: "Thread"
+            font_size: "12px"
+            font_weight: "600"
+            color: "#6366f1"
+            flex: 1
+
+          run_count_badge:
+            text: "runCount"
+            background: "#6366f1"
+            color: "#ffffff"
+            border_radius: "10px"
+            font_size: "10px"
+            font_weight: "600"
+            padding: "2px 8px"
+            min_width: "20px"
+            text_align: "center"
+
+        body:
+          goal_text:
+            font_size: "13px"
+            color: "#374151"
+            line_height: 1.5
+            max_height: "52px"
+            overflow: "hidden"
+            text_overflow: "ellipsis"
+            display: "-webkit-box"
+            webkit_line_clamp: 2
+            webkit_box-orient: "vertical"
+
+        footer:
+          display: "flex"
+          align_items: "center"
+          justify_content: "space-between"
+          margin_top: "8px"
+          timestamp:
+            font_size: "11px"
+            color: "#9ca3af"
+          status_indicator:
+            width: "8px"
+            height: "8px"
+            border_radius: "50%"
+            background: "#22c55e"
+
+      states:
+        default:
+          border: "2px solid #6366f1"
+        hover:
+          box_shadow: "0 4px 16px rgba(99,102,241,0.25)"
+          transform: "scale(1.02)"
+        selected:
+          border: "2px solid #4338ca"
+          box_shadow: "0 0 0 3px rgba(99,102,241,0.2)"
+        archived:
+          opacity: 0.6
+          border_style: "dashed"
+
+      events:
+        - name: "onClick"
+          handler: "selectNode(nodeId)"
+          side_effect: "高亮 + 显示详情到 SidebarRight"
+        - name: "onDoubleClick"
+          handler: "expandThread(threadId)"
+          side_effect: "展开 Thread 详情面板"
+        - name: "onDragStart"
+          handler: "开始拖拽节点"
+        - name: "onDragEnd"
+          handler: "updateNodePosition(nodeId, newPosition)"
+
+    # ── RunNode ──────────────────────────────────────────────
+    RunNode:
+      description: "Run 画布节点"
+      node_type: "run"
+      base_style:
+        width: "200px"
+        height: "80px"
+        border_radius: "12px"
+        background: "#ffffff"
+        box_shadow: "0 2px 8px rgba(0,0,0,0.1)"
+        padding: "10px 12px"
+
+      layout:
+        header:
+          display: "flex"
+          align_items: "center"
+          gap: "6px"
+          margin_bottom: "6px"
+
+          status_dot:
+            width: "10px"
+            height: "10px"
+            border_radius: "50%"
+
+          icon:
+            name: "play-circle"
+            size: "14px"
+            color: "#8b5cf6"
+
+          title:
+            text: "run.goal (truncated 30 chars)"
+            font_size: "12px"
+            font_weight: "500"
+            color: "#111827"
+            flex: 1
+            overflow: "hidden"
+            text_overflow: "ellipsis"
+            white_space: "nowrap"
+
+        footer:
+          display: "flex"
+          align_items: "center"
+          justify_content: "space-between"
+
+          status_text:
+            font_size: "11px"
+            color: "#6b7280"
+
+          tool_count:
+            font_size: "11px"
+            color: "#9ca3af"
+            display: "flex"
+            align_items: "center"
+            gap: "4px"
+            icon: "tool"
+            size: "12px"
+
+      status_styles:
+        queued:
+          status_dot_color: "#94a3b8"
+          border_color: "#9ca3af"
+          header_bg: "#f3f4f6"
+        planning:
+          status_dot_color: "#a78bfa"
+          border_color: "#a78bfa"
+          header_bg: "#ede9fe"
+        executing:
+          status_dot_color: "#3b82f6"
+          border_color: "#3b82f6"
+          header_bg: "#dbeafe"
+          animation: "pulse 2s infinite"
+        paused:
+          status_dot_color: "#f59e0b"
+          border_color: "#f59e0b"
+          header_bg: "#fef3c7"
+        completed:
+          status_dot_color: "#22c55e"
+          border_color: "#22c55e"
+          header_bg: "#d1fae5"
+        failed:
+          status_dot_color: "#ef4444"
+          border_color: "#ef4444"
+          header_bg: "#fee2e2"
+        cancelled:
+          status_dot_color: "#6b7280"
+          border_color: "#6b7280"
+          header_bg: "#f3f4f6"
+          opacity: 0.7
+
+      states:
+        default:
+          border: "2px solid [status border color]"
+        hover:
+          box_shadow: "0 4px 16px rgba(0,0,0,0.15)"
+        selected:
+          box_shadow: "0 0 0 3px rgba(139,92,246,0.2)"
+        expanded:
+          height: "auto"
+          min_height: "120px"
+
+    # ── ToolNode ─────────────────────────────────────────────
+    ToolNode:
+      description: "ToolInvocation 画布节点"
+      node_type: "tool"
+      base_style:
+        width: "160px"
+        height: "60px"
+        border_radius: "8px"
+        background: "#fafafa"
+        border: "1px solid #e5e7eb"
+        padding: "8px 12px"
+
+      layer_1_display:
+        height: "44px"
+        display: "flex"
+        align_items: "center"
+        gap: "8px"
+
+        icon:
+          name: "[toolIcon]"
+          size: "16px"
+          color: "[status color]"
+
+        summary_text:
+          text: "summary (truncated 25 chars)"
+          font_size: "12px"
+          color: "#374151"
+          flex: 1
+          overflow: "hidden"
+          text_overflow: "ellipsis"
+          white_space: "nowrap"
+
+        status_dot:
+          width: "6px"
+          height: "6px"
+          border_radius: "50%"
+
+      layer_2_display:
+        height: "auto"
+        display: "flex"
+        flex_direction: "column"
+        gap: "4px"
+
+        tool_name:
+          font_size: "12px"
+          font_weight: "500"
+          color: "#111827"
+          display: "flex"
+          align_items: "center"
+          gap: "4px"
+
+        args_preview:
+          font_size: "11px"
+          color: "#6b7280"
+          max_height: "24px"
+          overflow: "hidden"
+
+      layer_3_display:
+        height: "auto"
+        min_height: "80px"
+        padding: "8px"
+        background: "#f9fafb"
+        border_radius: "6px"
+
+        args_section:
+          label: "args"
+          font_size: "11px"
+          font_weight: "600"
+          color: "#374151"
+          margin_bottom: "4px"
+
+        result_section:
+          label: "result"
+          font_size: "11px"
+          color: "#6b7280"
+          max_height: "60px"
+          overflow: "hidden"
+
+      status_styles:
+        pending:
+          status_dot_color: "#9ca3af"
+          border_color: "#d1d5db"
+        running:
+          status_dot_color: "#3b82f6"
+          border_color: "#3b82f6"
+          animation: "border-pulse 1.5s infinite"
+        completed:
+          status_dot_color: "#10b981"
+          border_color: "#10b981"
+        failed:
+          status_dot_color: "#ef4444"
+          border_color: "#ef4444"
+          background: "#fff5f5"
+
+    # ── ArtifactNode ──────────────────────────────────────────
+    ArtifactNode:
+      description: "Artifact 画布节点"
+      node_type: "artifact"
+      base_style:
+        width: "160px"
+        min_height: "140px"
+        border_radius: "10px"
+        background: "#ffffff"
+        border: "1px solid #e5e7eb"
+        box_shadow: "0 1px 4px rgba(0,0,0,0.08)"
+        overflow: "hidden"
+
+      layout:
+        preview:
+          height: "100px"
+          width: "100%"
+          background: "#f9fafb"
+          display: "flex"
+          align_items: "center"
+          justify_content: "center"
+          overflow: "hidden"
+
+          mime_type_display:
+            image:
+              preview: "img (object-fit: cover, full width/height)"
+            pdf:
+              icon: "file-text"
+              size: "32px"
+              color: "#ef4444"
+            code:
+              syntax_highlight: true
+              max_lines: 4
+              font_size: "10px"
+              font_family: "monospace"
+            default:
+              icon: "file"
+              size: "32px"
+              color: "#6b7280"
+
+        meta:
+          padding: "8px"
+          border_top: "1px solid #f3f4f6"
+
+          name:
+            font_size: "12px"
+            font_weight: "500"
+            color: "#111827"
+            max_height: "18px"
+            overflow: "hidden"
+            text_overflow: "ellipsis"
+            white_space: "nowrap"
+
+          footer:
+            display: "flex"
+            align_items: "center"
+            justify_content: "space-between"
+            margin_top: "4px"
+
+            mime_type_badge:
+              font_size: "9px"
+              color: "#9ca3af"
+              text_transform: "uppercase"
+
+            size:
+              font_size: "10px"
+              color: "#9ca3af"
+
+      states:
+        default:
+          border: "1px solid #e5e7eb"
+        hover:
+          border: "1px solid #10b981"
+          box_shadow: "0 2px 8px rgba(16,185,129,0.15)"
+          transform: "scale(1.03)"
+        selected:
+          border: "2px solid #10b981"
+          box_shadow: "0 0 0 3px rgba(16,185,129,0.2)"
+        drag_preview:
+          opacity: 0.7
+          transform: "scale(0.95)"
+
+      events:
+        - name: "onClick"
+          handler: "selectNode(nodeId)"
+        - name: "onDoubleClick"
+          handler: "openArtifactPreview(artifactId)"
+        - name: "onDragStart"
+          handler: "dragArtifactToComposer(artifactId)"
+        - name: "onContextMenu"
+          handler: "showArtifactContextMenu(artifactId)"
+          actions:
+            - "打开"
+            - "复制引用"
+            - "下载"
+            - "删除"
+
+    # ── MessageNode ──────────────────────────────────────────
+    MessageNode:
+      description: "Message 画布节点（LLM 消息）"
+      node_type: "message"
+      base_style:
+        width: "280px"
+        min_height: "60px"
+        border_radius: "12px"
+        padding: "12px 16px"
+
+      layout:
+        header:
+          display: "flex"
+          align_items: "center"
+          gap: "8px"
+          margin_bottom: "8px"
+
+          role_badge:
+            font_size: "10px"
+            font_weight: "600"
+            text_transform: "uppercase"
+            padding: "2px 8px"
+            border_radius: "4px"
+
+          role_styles:
+            user:
+              background: "#dbeafe"
+              color: "#2563eb"
+            assistant:
+              background: "#ede9fe"
+              color: "#6366f1"
+            system:
+              background: "#f0fdf4"
+              color: "#16a34a"
+            tool:
+              background: "#fef3c7"
+              color: "#d97706"
+
+          streaming_indicator:
+            text: "▋"
+            animation: "blink 1s step-end infinite"
+            color: "#3b82f6"
+            font_size: "12px"
+            visibility: "isStreaming = true"
+
+        body:
+          content:
+            font_size: "13px"
+            color: "#374151"
+            line_height: 1.6
+            max_height: "120px"
+            overflow: "hidden"
+            text_overflow: "ellipsis"
+
+            markdown_rendering:
+              enabled: true
+              code_theme: "github-light"
+              code_font_size: "12px"
+              max_code_height: "80px"
+
+      states:
+        streaming:
+          border: "1px solid #3b82f6"
+          box_shadow: "0 0 0 2px rgba(59,130,246,0.1)"
+        final:
+          border: "1px solid #e5e7eb"
+        hover:
+          background: "#f9fafb"
+
+  # ── 边样式规格 ─────────────────────────────────────────────
+  edge_styles:
+    causal:
+      color: "#94a3b8"
+      stroke_width: 2
+      stroke_style: "solid"
+      marker_end: "arrowclosed"
+      marker_color: "#94a3b8"
+
+    reference:
+      color: "#3b82f6"
+      stroke_width: 2
+      stroke_style: "dashed"
+      stroke_dasharray: "6 4"
+      marker_end: null
+
+    streaming:
+      color: "#22c55e"
+      stroke_width: 2
+      stroke_style: "dashed"
+      stroke_dasharray: "4 4"
+      marker_end: null
+      animated: true
+      animation: "flow 1s linear infinite"
+
+  # ── Canvas 整体交互规格 ─────────────────────────────────────────────
+  canvas_interactions:
+    mouse:
+      - action: "单击节点"
+        behavior: "选中节点，高亮 + 显示详情到 SidebarRight"
+        cursor: "default"
+      - action: "双击节点"
+        behavior: "展开节点详情面板 / 打开 Artifact 预览"
+        cursor: "pointer"
+      - action: "拖拽节点"
+        behavior: "移动节点位置，释放后调用 updateNode(nodeId, {position})"
+        cursor: "grabbing"
+      - action: "框选"
+        behavior: "按住鼠标拖拽，绘制矩形选区，释放后批量选中框内节点"
+        cursor: "crosshair"
+        selection_box_style:
+          background: "rgba(59,130,246,0.1)"
+          border: "1px dashed #3b82f6"
+      - action: "滚轮缩放"
+        behavior: "缩放画布（0.1x – 3x）"
+        step: 0.1
+        cursor: "zoom-in / zoom-out"
+      - action: "中键拖拽 / 右键拖拽"
+        behavior: "平移画布"
+        cursor: "grab"
+      - action: "节点悬停"
+        behavior: "显示 Tooltip（节点类型 / 状态 / 时间）"
+        delay_ms: 400
+      - action: "拖拽 Artifact 节点到 Composer"
+        behavior: "引用 Artifact 到 Composer 输入框"
+        visual_feedback: "虚影跟随鼠标"
+
+    keyboard_shortcuts:
+      - key: "Delete / Backspace"
+        action: "删除选中节点（仅 ArtifactNode 可删除）"
+        condition: "selectedNodeIds.length > 0"
+        handler: "removeNode(selectedNodeIds[0])"
+      - key: "Ctrl+A"
+        action: "全选节点"
+        handler: "selectNodes(allNodeIds)"
+      - key: "Escape"
+        action: "取消选中"
+        handler: "selectNodes([])"
+      - key: "Ctrl+Z"
+        action: "撤销"
+        handler: "undo()"
+      - key: "Ctrl+Shift+Z"
+        action: "重做"
+        handler: "redo()"
+      - key: "Space + 拖拽"
+        action: "平移画布（临时手型）"
+        cursor: "grab"
+      - key: "F"
+        action: "适应视图"
+        handler: "fitView()"
+      - key: "Ctrl+E"
+        action: "导出画布"
+        handler: "exportCanvas('png')"
+      - key: "Ctrl+["
+        action: "缩小"
+        handler: "zoomTo(currentZoom - 0.1)"
+      - key: "Ctrl+]"
+        action: "放大"
+        handler: "zoomTo(currentZoom + 0.1)"
+      - key: "Ctrl+0"
+        action: "重置缩放至 100%"
+        handler: "zoomTo(1)"
+      - key: "Ctrl+L"
+        action: "自动布局"
+        handler: "applyLayout()"
+
+  # ── 动画规格 ─────────────────────────────────────────────
+  animations:
+    node_appear:
+      selector: ".canvas-node"
+      animation: "nodeAppear 0.3s ease-out"
+      keyframes:
+        - "0% { opacity: 0; transform: scale(0.8) }"
+        - "100% { opacity: 1; transform: scale(1) }"
+
+    node_select:
+      selector: ".canvas-node.selected"
+      animation: "nodeSelect 0.2s ease"
+      keyframes:
+        - "0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.3) }"
+        - "100% { box-shadow: 0 0 0 4px rgba(99,102,241,0.15) }"
+
+    run_node_pulse:
+      selector: ".run-node.executing"
+      animation: "pulse 2s ease-in-out infinite"
+      keyframes:
+        - "0%, 100% { opacity: 1 }"
+        - "50% { opacity: 0.8 }"
+
+    tool_node_running:
+      selector: ".tool-node.running"
+      animation: "borderPulse 1.5s ease-in-out infinite"
+      keyframes:
+        - "0%, 100% { border-color: #3b82f6 }"
+        - "50% { border-color: #93c5fd }"
+
+    streaming_edge_flow:
+      selector: ".canvas-edge.streaming"
+      animation: "dashFlow 1s linear infinite"
+      keyframes:
+        - "from { stroke-dashoffset: 8 }"
+        - "to { stroke-dashoffset: 0 }"
+
+    message_streaming:
+      selector: ".message-node.streaming"
+      animation: "streamingGlow 2s ease-in-out infinite"
+      keyframes:
+        - "0%, 100% { box-shadow: 0 0 0 2px rgba(59,130,246,0.1) }"
+        - "50% { box-shadow: 0 0 0 4px rgba(59,130,246,0.2) }"
+
+    viewport_transition:
+      selector: ".react-viewport"
+      animation: "none"
+      description: "视口平移/缩放无动画，保证流畅性"
+
+    canvas_export_progress:
+      selector: ".export-loading"
+      animation: "fadeIn 0.2s ease"
+      spinner: true
+      overlay:
+        background: "rgba(0,0,0,0.4)"
+        color: "#ffffff"
+        font_size: "14px"
+
+  # ── 空状态 ─────────────────────────────────────────────
+  empty_states:
+    no_nodes:
+      icon: "◇"
+      icon_color: "#d1d5db"
+      title: "画布为空"
+      description: "开始一个 Run，节点将自动显示在这里"
+      hint: "在 Composer 中输入目标即可开始"
+
+    no_matching_filter:
+      icon: "⊘"
+      icon_color: "#d1d5db"
+      title: "当前筛选条件无结果"
+      description: "调整可见性过滤器以显示更多节点"
+      action:
+        label: "显示全部"
+        handler: "setVisibleNodeTypes(['thread','run','tool','artifact','message'])"
+
+  # ── 加载状态 ─────────────────────────────────────────────
+  loading_states:
+    canvas_initializing:
+      indicator: "加载画布..."
+      spinner: true
+      overlay: false
+
+    layout_calculating:
+      indicator: "计算布局..."
+      spinner: false
+      overlay: false
+      text: "≡"
+      text_animation: "spin 1s linear infinite"
+
+    export_rendering:
+      indicator: "导出中..."
+      spinner: true
+      overlay: true
+      overlay_text: "正在生成图片..."
+
+  # ── 错误状态 UI ─────────────────────────────────────────────
+  error_states:
+    node_add_failed:
+      icon: "⚠️"
+      title: "节点添加失败"
+      description: "已达最大节点数（1000）"
+      action:
+        label: "清除画布"
+        handler: "clearCanvas()"
+
+    export_failed:
+      icon: "⚠️"
+      title: "导出失败"
+      description: "无法生成画布图片"
+      action:
+        label: "重试"
+        handler: "exportCanvas(lastFormat)"
+
+    layout_timeout:
+      icon: "⚠️"
+      title: "布局计算超时"
+      description: "节点数量过多，布局已取消"
+      action:
+        label: "手动调整"
+        handler: "手动拖拽调整节点位置"
+
+  # ── 响应式断点 ─────────────────────────────────────────────
+  responsive_breakpoints:
+    desktop:
+      min_width: "1024px"
+      toolbar_position: "top-left"
+      minimap_size: "160x100px"
+      node_label_visible: true
+
+    tablet:
+      min_width: "768px"
+      max_width: "1023px"
+      toolbar_position: "top-left"
+      minimap_size: "120x80px"
+      node_label_visible: true
+
+    mobile:
+      max_width: "767px"
+      toolbar_style: "compact"  # 仅显示关键按钮
+      minimap_visibility: "hidden"
+      node_label_visible: false  # 仅显示图标
+      touch_optimized: true
+      pinch_zoom: true
+
+  # ── 无障碍（Accessibility） ─────────────────────────────────────────────
+  accessibility:
+    aria_labels:
+      canvas_area: "工作台画布区域"
+      toolbar: "画布工具栏"
+      minimap: "画布导航小地图"
+      node_thread: "Thread 节点: {title}"
+      node_run: "Run 节点: {goal truncated}"
+      node_tool: "工具调用节点: {toolName}"
+      node_artifact: "Artifact 节点: {name}"
+      node_message: "消息节点: {role}"
+
+    keyboard_navigation:
+      - "Tab: 在工具栏按钮间切换"
+      - "Enter/Space: 触发工具栏按钮动作"
+      - "Escape: 取消选中 / 关闭面板"
+      - "方向键: 微调选中节点位置（1px）"
+      - "Shift+方向键: 大幅调整选中节点位置（10px）"
+
+    focus_indicators:
+      button:
+        outline: "2px solid #3b82f6"
+        outline_offset: "2px"
+      node:
+        outline: "2px solid #3b82f6"
+        outline_offset: "2px"
+
+    screen_reader:
+      announcements:
+        - event: "node_selected"
+          message: "已选中 {nodeType} 节点: {label}"
+        - event: "node_deselected"
+          message: "已取消选中"
+        - event: "canvas_zoomed"
+          message: "画布缩放至 {percentage}%"
+        - event: "nodes_selected_batch"
+          message: "已选中 {count} 个节点"
+        - event: "export_complete"
+          message: "画布已导出为 {format}"
+
+  # ── 性能优化 UI 指标 ─────────────────────────────────────────────
+  performance_targets:
+    initial_render_ms: 200
+    node_add_ms: 16
+    viewport_update_ms: 16
+    selection_update_ms: 16
+    layout_trigger_ms: 100
+    export_trigger_ms: 5000
+
+  # ── Canvas Store 状态管理 ─────────────────────────────────────────────
+  # 来源：canvas-store.ts (frontend/src/lib/stores/)
+  # 对齐：前端实现与 spec 的 mutation 列表必须一致
+  state_management:
+    stores:
+      - store: "canvasStore"
+        description: "Canvas 节点图状态管理（nodes/edges/viewport/tool）"
+        state:
+          - name: "nodes"
+            type: "CanvasNode[]"
+            source: "frontend/src/lib/stores/canvas-store.ts:CanvasNode[]"
+          - name: "edges"
+            type: "CanvasEdge[]"
+            source: "frontend/src/lib/stores/canvas-store.ts:CanvasEdge[]"
+          - name: "selectedNodeIds"
+            type: "string[]"
+            source: "frontend/src/lib/stores/canvas-store.ts:selected_node_ids"
+          - name: "viewport"
+            type: "Viewport"
+            source: "frontend/src/lib/stores/canvas-store.ts:Viewport"
+          - name: "tool"
+            type: "'select' | 'pan' | 'add-node'"
+            source: "frontend/src/lib/stores/canvas-store.ts:tool"
+          - name: "canvasId"
+            type: "string"
+            description: "当前画布 ID（未保存时为 null）"
+            source: "新增字段"
+          - name: "executionStage"
+            type: "string | null"
+            description: "当前 Run 执行阶段（与 runStore.currentRun.stage 同步）"
+            source: "新增字段"
+        mutations:
+          - name: "addNode"
+            params: ["node: CanvasNode"]
+            source: "canvas-store.ts addNode()"
+          - name: "removeNode"
+            params: ["id: string"]
+            source: "canvas-store.ts removeNode()"
+          - name: "updateNode"
+            params: ["id: string", "patch: Partial<CanvasNode>"]
+            source: "canvas-store.ts updateNode()"
+          - name: "addEdge"
+            params: ["edge: CanvasEdge"]
+            source: "canvas-store.ts addEdge()"
+          - name: "removeEdge"
+            params: ["id: string"]
+            source: "canvas-store.ts removeEdge()"
+          - name: "selectNodes"
+            params: ["ids: string[]"]
+            source: "canvas-store.ts selectNodes()"
+          - name: "setViewport"
+            params: ["vp: Partial<Viewport>"]
+            source: "canvas-store.ts setViewport()"
+          - name: "setTool"
+            params: ["tool: CanvasState['tool']"]
+            source: "canvas-store.ts setTool()"
+          - name: "clear"
+            params: []
+            source: "canvas-store.ts clear()"
+
+  # ── SSE 事件流（Canvas 相关） ─────────────────────────────────────────────
+  # 来源：sse.ts HANDLERS（frontend/src/lib/stores/sse.ts）
+  # 对齐：后端发送的事件名必须与 handler 映射一致
+  sse_events:
+    - event: "node.added"
+      handler: "canvasStore.addNode"
+      payload_fields: ["node: CanvasNode"]
+      source: "sse.ts HANDLERS['node.added']"
+    - event: "node.removed"
+      handler: "canvasStore.removeNode"
+      payload_fields: ["node_id: string"]
+      source: "sse.ts HANDLERS['node.removed']"
+    - event: "edge.added"
+      handler: "canvasStore.addEdge"
+      payload_fields: ["edge: CanvasEdge"]
+      source: "sse.ts HANDLERS['edge.added']"
+    - event: "canvas.saved"
+      handler: "uiStore.showToast"
+      payload_fields: ["canvas_id: string", "saved_at: string"]
+      source: "TODO: 需在后端 sse.ts HANDLERS 中补充"
+      status: "pending"
+    - event: "canvas.deleted"
+      handler: "canvasStore.clear"
+      payload_fields: ["canvas_id: string"]
+      source: "TODO: 需在后端 sse.ts HANDLERS 中补充"
+      status: "pending"
+    - event: "canvas.layout_changed"
+      handler: "canvasStore.setViewport"
+      payload_fields: ["viewport: Viewport"]
+      source: "TODO: 需在后端 sse.ts HANDLERS 中补充"
+      status: "pending"
+
+  # ── 设计令牌（Design Tokens） ─────────────────────────────────────────────
+  # 替换原有硬编码色值，统一使用 CSS 变量或 token
+  design_tokens:
+    colors:
+      canvas_bg: "var(--color-bg-canvas, #0d0d1a)"
+      canvas_grid: "var(--color-bg-grid, #1a1a2e)"
+      canvas_node_bg: "var(--color-bg-node, #1e1e38)"
+      canvas_overlay: "var(--color-bg-overlay, #0a0a14cc)"
+      node_border_default: "var(--color-border-node, #3d3d7a)"
+      node_border_hover: "var(--color-border-hover, #7b68ee)"
+      node_border_selected: "var(--color-primary, #6366f1)"
+      node_border_error: "var(--color-error, #ef4444)"
+      edge_causal: "var(--color-text-secondary, #94a3b8)"
+      edge_reference: "var(--color-blue, #3b82f6)"
+      edge_streaming: "var(--color-success, #22c55e)"
+      empty_icon: "var(--color-text-muted, #d1d5db)"
+      selection_box_bg: "rgba(59,130,246,0.1)"
+      selection_box_border: "#3b82f6"
+    spacing:
+      base: 4
+      grid_snap: 16
+      node_padding: 12
+      toolbar_gap: 8
+      minimap_padding: 8
+    typography:
+      font_family: "system-ui, -apple-system, sans-serif"
+      font_mono: "ui-monospace, 'SF Mono', monospace"
+      node_label_size: 12
+      toolbar_label_size: 11
+      hint_size: 11
+    animation:
+      duration_fast: "120ms"
+      duration_normal: "200ms"
+      duration_node_appear: "300ms"
+      duration_node_select: "200ms"
+      easing: "cubic-bezier(0.4, 0, 0.2, 1)"
+      keyframes:
+        node_appear: "opacity 0→1, scale 0.8→1"
+        node_select: "box-shadow 扩展 0→4px"
+        viewport_pan: "none（保证流畅性）"
+    shadows:
+      node_default: "none"
+      node_selected: "0 0 0 4px rgba(99,102,241,0.15)"
+      node_dragging: "0 8px 24px rgba(0,0,0,0.4)"
+      toolbar: "0 4px 12px rgba(0,0,0,0.3)"
+      minimap: "0 2px 8px rgba(0,0,0,0.2)"

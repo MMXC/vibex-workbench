@@ -1,0 +1,540 @@
+#!/usr/bin/env python3
+"""
+VibeX Workbench — spec-to-code generator
+从 L5 data/uiux spec 生成 TypeScript types + 组件骨架
+
+双文件模式 (B):
+  *.Skeleton.svelte  ← gen.py 生成（可重跑覆盖）
+  *.svelte           ← 开发者写（永不覆盖）
+
+用法:
+  python3 gen.py <spec_dir> <output_dir>
+"""
+
+import sys
+import yaml
+from pathlib import Path
+from datetime import date
+
+SPEC_DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("specs")
+OUT_DIR  = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("frontend")
+SRC_DIR  = OUT_DIR / "src"
+
+GEN_HEADER = f"""// ============================================================
+// ⚠️  此文件由 spec-to-code 自动生成
+//     来自: {SPEC_DIR}
+//     生成时间: {date.today()}
+//     ⚠️  不要直接编辑此文件 — 改 *.svelte
+// ============================================================
+
+"""
+
+DEV_NOTICE = """// ============================================================
+// 此文件由开发者维护，gen.py 永不覆盖
+// ============================================================
+
+"""
+
+
+# ── helpers ──────────────────────────────────────────────────────
+def load_yaml(path: Path) -> dict:
+    with open(path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+def all_specs(root: Path):
+    for f in root.rglob("*.yaml"):
+        if "node_modules" in str(f):
+            continue
+        try:
+            data = load_yaml(f)
+            if data:
+                yield f, data
+        except Exception:
+            pass
+
+def spec_by_name(root: Path, name: str):
+    for f, data in all_specs(root):
+        if data.get("spec", {}).get("name") == name:
+            return f, data
+        if data.get("spec", {}).get("name", "").replace("-", "_") == name.replace("-", "_"):
+            return f, data
+    return None
+
+def ts_type(yaml_type: str) -> str:
+    if yaml_type is None:
+        return "unknown"
+    t = yaml_type.strip()
+    if t.endswith("[]"):
+        return f"{ts_type(t[:-2])}[]"
+    if t in ("ISO8601 string", "ISO8601 string | null", "datetime"):
+        return "string"
+    return {
+        "string": "string", "number": "number", "boolean": "boolean",
+        "array": "unknown[]", "object": "Record<string, unknown>",
+        "json": "Record<string, unknown>",
+        "string | null": "string | null",
+        "number | null": "number | null",
+        "boolean | null": "boolean | null",
+        "enum": "string",
+    }.get(t, t)
+
+
+# ── 1. TypeScript 类型 ──────────────────────────────────────────
+def gen_types() -> str:
+    out = [GEN_HEADER]
+    out.append("// ── Generated Types ──────────────────────────────────────────\n")
+
+    type_map = {
+        "thread-manager-data":   "Thread, Message, ThreadMetadata",
+        "run-engine-data":        "Run, RunStatus, Task, ToolInvocation",
+        "artifact-registry-data": "Artifact, ArtifactVersion",
+        "canvas-workbench-data":  "CanvasNode, CanvasEdge, Viewport",
+        "workbench-shell-data":   "WorkbenchLayout",
+    }
+    seen = set()
+
+    for spec_name, _ in type_map.items():
+        result = spec_by_name(SPEC_DIR, spec_name)
+        if not result:
+            continue
+        f, data = result
+        content = data.get("content", {})
+        entities = content.get("entities", {})
+
+        if isinstance(entities, dict):
+            items = entities.items()
+        elif isinstance(entities, list):
+            items = [(e.get("name") or e.get("entity"), e) for e in entities]
+        else:
+            items = []
+
+        for name, defn in items:
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            fields = defn.get("fields", []) if isinstance(defn, dict) else []
+            out.append(f"export interface {name} {{\n")
+            for field in fields:
+                fname  = field.get("name", "field")
+                raw    = field.get("type", "string")
+                ftype  = ts_type(raw)
+                opt    = "" if field.get("required") else "?"
+                desc   = field.get("description", "")
+                out.append(f"  {fname}{opt}: {ftype};  // {desc}\n")
+            out.append("}\n\n")
+
+    return "".join(out)
+
+
+def gen_base_types() -> str:
+    lines = [
+        GEN_HEADER,
+        "// ── Base Types (enum/union) ───────────────────────────────\n",
+        "export type RunStatus    = 'pending'|'planning'|'executing'|'completed'|'failed'|'cancelled';\n",
+        "export type TaskStatus   = 'pending'|'running'|'completed'|'failed';\n",
+        "export type ArtifactType = 'code'|'markdown'|'image'|'json'|'diagram'|'text';\n",
+        "export type NodeType     = 'thread'|'run'|'task'|'tool'|'artifact'|'message';\n",
+    ]
+    return "".join(lines)
+
+
+# ── 2. 组件 Skeleton 生成 ───────────────────────────────────────
+# 每个组件生成:
+#   Foo.Skeleton.svelte  ← gen.py 写（可覆盖）
+#   Foo.svelte           ← 开发者写（永不覆盖，由 gen.py 创建 stub）
+#
+# 开发者文件结构:
+#   import Skeleton from './Foo.Skeleton.svelte';
+#   let { ...props } = $props();
+#   // 自定义 snippet / 交互逻辑
+#   <Skeleton {sidebar} {main} {panel} {composer} />
+#
+# Skeleton 结构:
+#   interface Props { sidebar?: Snippet; main?: Snippet; panel?: Snippet; composer?: Snippet; }
+#   let { ... } = $props();
+#   // grid layout, {@render ...?.()}
+
+def gen_components() -> dict[str, tuple[str, str]]:
+    """
+    Returns dict: { "path": (skeleton_content, stub_content) }
+    - skeleton: written to path + ".Skeleton.svelte"  (gen.py owns)
+    - stub:      written to path                      (developer owns, only if file doesn't exist)
+    """
+    files = {}
+
+    # ── WorkbenchShell ─────────────────────────────────────────
+    skeleton = GEN_HEADER + """<script lang="ts">
+  import type { Snippet } from 'svelte';
+  // 三栏布局骨架 — Generated from workbench-shell_feature.yaml
+  interface Props {
+    sidebar?:  Snippet;
+    main?:     Snippet;
+    panel?:    Snippet;
+    composer?: Snippet;
+  }
+  let { sidebar, main, panel, composer }: Props = $props();
+</script>
+
+<div class="shell" style="
+  display: grid;
+  grid-template-columns: 280px 1fr 0px;
+  grid-template-rows: 1fr auto;
+  grid-template-areas:
+    'L M R'
+    'B B B';
+  height: 100vh; overflow: hidden;
+">
+  <aside class="sidebar-left" style="grid-area: L;">
+    {@render sidebar?.()}
+  </aside>
+  <main class="main-canvas" style="grid-area: M;">
+    {@render main?.()}
+  </main>
+  <aside class="sidebar-right" style="grid-area: R;">
+    {@render panel?.()}
+  </aside>
+  <footer class="composer-bar" style="grid-area: B;">
+    {@render composer?.()}
+  </footer>
+</div>
+"""
+    stub = DEV_NOTICE + """<script lang="ts">
+  import type { Snippet } from 'svelte';
+  import WorkbenchShellSkeleton from './WorkbenchShell.Skeleton.svelte';
+  // ── 填充 snippet 内容 ──────────────────────────────────────────
+  import ThreadList   from './ThreadList.svelte';
+  import ArtifactPanel from './ArtifactPanel.svelte';
+  import Composer      from './Composer.svelte';
+  interface Props {}
+  let {}: Props = $props();
+</script>
+
+<WorkbenchShellSkeleton>
+  {#snippet sidebar()}
+    <ThreadList />
+  {/snippet}
+  {#snippet main()}
+    <div class="canvas-area">
+      <p class="placeholder">Canvas Orchestration</p>
+    </div>
+  {/snippet}
+  {#snippet panel()}
+    <ArtifactPanel />
+  {/snippet}
+  {#snippet composer()}
+    <Composer />
+  {/snippet}
+</WorkbenchShellSkeleton>
+
+<style>
+  .canvas-area { flex: 1; overflow: hidden; }
+  .placeholder { color: #555; font-size: 13px; padding: 16px; }
+</style>
+"""
+    files["lib/components/workbench/WorkbenchShell.svelte"] = (skeleton, stub)
+
+    # ── Composer ───────────────────────────────────────────────
+    skeleton = GEN_HEADER + """<script lang="ts">
+  // Composer 骨架 — Generated from workbench-shell_uiux.yaml
+  // mode: text | image | file | url
+  interface Props {
+    onsubmit?: (content: string, mode: string) => void;
+  }
+  let { onsubmit }: Props = $props();
+  let content = $state('');
+  let mode    = $state<'text'|'image'|'file'|'url'>('text');
+
+  function submit() {
+    if (!content.trim()) return;
+    onsubmit?.(content, mode);
+    content = '';
+  }
+</script>
+
+<div class="composer">
+  <div class="mode-tabs">
+    <button class:active={mode==='text'}   onclick={() => mode='text'}>文本</button>
+    <button class:active={mode==='image'}  onclick={() => mode='image'}>图片</button>
+    <button class:active={mode==='file'}   onclick={() => mode='file'}>文件</button>
+    <button class:active={mode==='url'}     onclick={() => mode='url'}>URL</button>
+  </div>
+  <textarea
+    bind:value={content}
+    placeholder="输入消息，或 @ 引用 Artifact..."
+    rows={3}
+    onkeydown={(e) => { if (e.key === 'Enter' && e.ctrlKey) submit(); }}
+  ></textarea>
+  <div class="actions">
+    <button class="submit-btn" onclick={submit}>发送 ⌘↵</button>
+  </div>
+</div>
+
+<style>
+  .composer { padding: 8px 16px; background: #1a1a1a; border-top: 1px solid #333; }
+  textarea  { width: 100%; background: #222; border: 1px solid #444; border-radius: 8px; color: #eee; padding: 8px; resize: none; }
+  .mode-tabs { display: flex; gap: 4px; margin-bottom: 6px; }
+  .mode-tabs button { background: transparent; border: none; color: #888; cursor: pointer; padding: 4px 8px; border-radius: 4px; }
+  .mode-tabs button.active { background: #333; color: #fff; }
+  .actions  { display: flex; justify-content: flex-end; margin-top: 6px; }
+  .submit-btn { background: #4f46e5; color: white; border: none; padding: 6px 16px; border-radius: 6px; cursor: pointer; }
+</style>
+"""
+    stub = DEV_NOTICE + """<script lang="ts">
+  import ComposerSkeleton from './Composer.Skeleton.svelte';
+  // ── 开发者自定义 Composer 行为 ────────────────────────────────
+  interface Props {}
+  let {}: Props = $props();
+
+  function handleSubmit(content: string, mode: string) {
+    console.log('[Composer] Submit:', { content, mode });
+  }
+</script>
+
+<ComposerSkeleton onsubmit={handleSubmit} />
+"""
+    files["lib/components/workbench/Composer.svelte"] = (skeleton, stub)
+
+    # ── ThreadList ─────────────────────────────────────────────
+    skeleton = GEN_HEADER + """<script lang="ts">
+  import { threadStore, currentThread, threadCount } from '$lib/stores/thread-store';
+  // ThreadList 骨架 — Generated from thread-manager_uiux.yaml
+  interface Props {
+    onNewThread?: () => void;
+  }
+  let { onNewThread }: Props = $props();
+  let threads = $state($threadStore.threads);
+  let current = $state($currentThread);
+  let count   = $state($threadCount);
+
+  $effect(() => {
+    const unsub = threadStore.subscribe(s => { threads = s.threads; });
+    return unsub;
+  });
+</script>
+
+<div class="thread-list">
+  <div class="header">
+    <span>线程 ({count})</span>
+    <button onclick={() => onNewThread?.()}>+ 新建</button>
+  </div>
+  <div class="items">
+    {#each threads as thread (thread.id)}
+      <div
+        class="thread-item"
+        class:active={current?.id === thread.id}
+        onclick={() => threadStore.setCurrentThread(thread.id)}
+        onkeydown={(e) => e.key === 'Enter' && threadStore.setCurrentThread(thread.id)}
+        role="button"
+        tabindex="0"
+      >
+        <span class="name">{thread.title ?? thread.goal?.slice(0, 20) ?? '新线程'}</span>
+        <span class="meta">{thread.status ?? 'draft'}</span>
+      </div>
+    {/each}
+    {#if threads.length === 0}
+      <p class="empty">暂无线程，点击「+ 新建」创建</p>
+    {/if}
+  </div>
+</div>
+
+<style>
+  .thread-list  { height: 100%; display: flex; flex-direction: column; background: #111; }
+  .header       { display: flex; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #222; color: #ccc; font-size: 13px; }
+  .header button { background: #4f46e5; border: none; color: white; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+  .items        { flex: 1; overflow-y: auto; }
+  .thread-item  { padding: 10px 16px; cursor: pointer; border-bottom: 1px solid #1a1a1a; display: flex; justify-content: space-between; font-size: 13px; }
+  .thread-item:hover   { background: #1a1a1a; }
+  .thread-item.active  { background: #1e293b; border-left: 3px solid #4f46e5; }
+  .name         { color: #e2e8f0; }
+  .meta         { color: #666; font-size: 11px; }
+  .empty        { color: #555; font-size: 12px; padding: 16px; text-align: center; }
+</style>
+"""
+    stub = DEV_NOTICE + """<script lang="ts">
+  import ThreadListSkeleton from './ThreadList.Skeleton.svelte';
+  import type { Thread } from '$lib/types/generated';
+  // ── 开发者自定义 ThreadList ────────────────────────────────
+  interface Props {}
+  let {}: Props = $props();
+
+  function newThread() {
+    const t: Thread = {
+      id: crypto.randomUUID(),
+      goal: '新线程',
+      title: '新线程',
+      createdAt: new Date().toISOString(),
+    };
+    import { threadStore } from '$lib/stores/thread-store';
+    threadStore.addThread(t);
+    threadStore.setCurrentThread(t.id);
+  }
+</script>
+
+<ThreadListSkeleton onNewThread={newThread} />
+"""
+    files["lib/components/workbench/ThreadList.svelte"] = (skeleton, stub)
+
+    # ── ArtifactPanel ──────────────────────────────────────────
+    skeleton = GEN_HEADER + """<script lang="ts">
+  import { artifactStore, filteredArtifacts } from '$lib/stores/artifact-store';
+  // ArtifactPanel 骨架 — Generated from artifact-registry_uiux.yaml
+  let artifacts = $state($filteredArtifacts);
+
+  $effect(() => {
+    const unsub = artifactStore.subscribe(() => { artifacts = $filteredArtifacts; });
+    return unsub;
+  });
+</script>
+
+<div class="artifact-panel">
+  <div class="header">Artifacts ({artifacts.length})</div>
+  <div class="search">
+    <input
+      placeholder="搜索 artifacts..."
+      oninput={(e) => artifactStore.setSearch((e.target as HTMLInputElement).value)}
+    />
+  </div>
+  <div class="items">
+    {#each artifacts as a (a.id)}
+      <div
+        class="artifact-item"
+        role="button"
+        tabindex="0"
+        onclick={() => artifactStore.select(a.id ?? null)}
+        onkeydown={(e) => e.key === 'Enter' && artifactStore.select(a.id ?? null)}
+      >
+        <span class="type">[{a.type}]</span>
+        <span class="name">{a.name}</span>
+      </div>
+    {/each}
+    {#if artifacts.length === 0}
+      <p class="empty">暂无 Artifact</p>
+    {/if}
+  </div>
+</div>
+
+<style>
+  .artifact-panel  { background: #111; height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+  .header          { padding: 12px 16px; border-bottom: 1px solid #222; color: #ccc; font-size: 13px; }
+  .search          { padding: 8px; }
+  .search input    { width: 100%; background: #222; border: 1px solid #444; color: #eee; padding: 6px 10px; border-radius: 6px; font-size: 12px; }
+  .items           { flex: 1; overflow-y: auto; }
+  .artifact-item   { padding: 8px 16px; cursor: pointer; display: flex; gap: 8px; font-size: 12px; }
+  .artifact-item:hover { background: #1a1a1a; }
+  .type            { color: #4f46e5; }
+  .name            { color: #e2e8f0; }
+  .empty           { color: #555; font-size: 12px; padding: 16px; text-align: center; }
+</style>
+"""
+    stub = DEV_NOTICE + """<script lang="ts">
+  import ArtifactPanelSkeleton from './ArtifactPanel.Skeleton.svelte';
+  // ── 开发者自定义 ArtifactPanel ────────────────────────────
+  interface Props {}
+  let {}: Props = $props();
+</script>
+
+<ArtifactPanelSkeleton />
+"""
+    files["lib/components/workbench/ArtifactPanel.svelte"] = (skeleton, stub)
+
+    return files
+
+
+# ── 3. 路由生成 ─────────────────────────────────────────────────
+def gen_routes() -> dict[str, tuple[str, str]]:
+    files = {}
+
+    # +layout.svelte — 纯结构，写覆盖
+    skeleton = GEN_HEADER + """<script lang="ts">
+  import '../app.css';
+  import type { Snippet } from 'svelte';
+  interface Props { children?: Snippet; }
+  let { children }: Props = $props();
+</script>
+
+{@render children?.()}
+"""
+    files["routes/+layout.svelte"] = (skeleton, None)  # 无 stub
+
+    # +page.svelte — redirect stub，不覆盖
+    stub = DEV_NOTICE + """<script lang="ts">
+  import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
+  onMount(() => goto('/workbench'));
+</script>
+
+<div class="splash">
+  <p>⚡ VibeX Workbench — 加载中...</p>
+</div>
+
+<style>
+  .splash { display: flex; align-items: center; justify-content: center; height: 100vh; color: #888; }
+</style>
+"""
+    files["routes/+page.svelte"] = (None, stub)
+
+    # workbench/+page.svelte — 开发者写，不覆盖
+    stub = DEV_NOTICE + """<script lang="ts">
+  // VibeX Workbench — 主工作台页面
+  import WorkbenchShell from '$lib/components/workbench/WorkbenchShell.svelte';
+</script>
+
+<WorkbenchShell />
+"""
+    files["routes/workbench/+page.svelte"] = (None, stub)
+
+    return files
+
+
+# ── main ─────────────────────────────────────────────────────────
+def main():
+    print("VibeX Workbench — Code Generator (B 双文件模式)")
+    print(f"  Spec dir:   {SPEC_DIR}")
+    print(f"  Output dir: {OUT_DIR}")
+
+    # ── Types ────────────────────────────────────────────────
+    types_path = SRC_DIR / "lib/types/generated.ts"
+    types_path.parent.mkdir(parents=True, exist_ok=True)
+    types_path.write_text(gen_types() + gen_base_types(), encoding="utf-8")
+    print(f"  ✅ Types:   {types_path.relative_to(OUT_DIR)}")
+
+    # ── Components ───────────────────────────────────────────
+    for rel_path, (skeleton, stub) in gen_components().items():
+        skeleton_path = SRC_DIR / rel_path
+        skeleton_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Skeleton: 永远覆盖
+        skeleton_out = skeleton_path.with_name(skeleton_path.name + ".Skeleton.svelte")
+        skeleton_out.write_text(skeleton, encoding="utf-8")
+        print(f"  ✅ Skeleton: {skeleton_out.relative_to(OUT_DIR)}")
+
+        # Stub: 仅当文件不存在时创建
+        if stub and not skeleton_path.exists():
+            skeleton_path.write_text(stub, encoding="utf-8")
+            print(f"  ✅ Stub:     {skeleton_path.relative_to(OUT_DIR)}  ← 首次创建")
+        elif stub:
+            print(f"  ⏭️  Stub:     {skeleton_path.relative_to(OUT_DIR)}  ← 已存在，跳过")
+
+    # ── Routes ───────────────────────────────────────────────
+    for rel_path, (skeleton, stub) in gen_routes().items():
+        route_path = SRC_DIR / rel_path
+        route_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if skeleton and not route_path.exists():
+            route_path.write_text(skeleton, encoding="utf-8")
+            print(f"  ✅ Route:    {route_path.relative_to(OUT_DIR)}  ← 首次创建")
+        elif skeleton:
+            print(f"  ⏭️  Route:   {route_path.relative_to(OUT_DIR)}  ← 已存在，跳过")
+        elif stub:
+            if not route_path.exists():
+                route_path.write_text(stub, encoding="utf-8")
+                print(f"  ✅ Stub:     {route_path.relative_to(OUT_DIR)}  ← 首次创建")
+            else:
+                print(f"  ⏭️  Stub:    {route_path.relative_to(OUT_DIR)}  ← 已存在，跳过")
+
+    print(f"\n✅ 生成完成")
+    print(f"  运行: make dev")
+
+
+if __name__ == "__main__":
+    main()

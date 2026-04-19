@@ -1,0 +1,85 @@
+# ============================================================
+# Thread Manager — Backend Service Implementation
+# Level 5a — Service Backend
+# Parent: thread-manager-feature (L4)
+# Derived from: service.yaml (interface contract)
+# ============================================================
+
+spec:
+  version: "0.1.0"
+  level: "5a_service_backend"
+  name: "thread-manager-backend"
+  parent: "thread-manager-feature"
+  status: "draft"
+
+meta:
+  owner: "backend"
+  tech_stack: ["Go", "net/http", "sse", "pgx"]
+  description: "后端实现规格，从 service.yaml 接口契约派生"
+
+content:
+  derived_from: "service.yaml 接口契约"
+
+  # ============================================================
+  # 1. Go Interface
+  # ============================================================
+  go_interface:
+    name: "ThreadManagerService"
+    package: "internal/service/thread"
+    methods:
+      - name: "CreateThread"
+        signature: "func (s *ThreadManagerService) CreateThread(ctx context.Context, req *pb.CreateThreadRequest) (*pb.Thread, error)"
+      - name: "GetThread"
+        signature: "func (s *ThreadManagerService) GetThread(ctx context.Context, id string) (*pb.Thread, error)"
+      - name: "ListThreads"
+        signature: "func (s *ThreadManagerService) ListThreads(ctx context.Context) ([]*pb.Thread, error)"
+      - name: "UpdateThread"
+        signature: "func (s *ThreadManagerService) UpdateThread(ctx context.Context, id string, patch map[string]any) (*pb.Thread, error)"
+      - name: "DeleteThread"
+        signature: "func (s *ThreadManagerService) DeleteThread(ctx context.Context, id string, hard bool) error"
+      - name: "PushContextSlice"
+        signature: "func (s *ThreadManagerService) PushContextSlice(ctx context.Context, req *pb.PushContextRequest) (*pb.ContextSlice, error)"
+
+  # ============================================================
+  # 2. HTTP Handlers
+  # ============================================================
+  http_handlers:
+    - path: "POST /api/threads"
+      impl: "CreateThread"
+    - path: "GET /api/threads"
+      impl: "ListThreads"
+    - path: "GET /api/threads/:id"
+      impl: "GetThread"
+    - path: "PATCH /api/threads/:id"
+      impl: "UpdateThread"
+    - path: "DELETE /api/threads/:id"
+      impl: "DeleteThread"
+    - path: "POST /api/threads/:id/context"
+      impl: "PushContextSlice"
+
+  # ============================================================
+  # 3. SSE Endpoint
+  # ============================================================
+  sse_endpoint:
+    path: "GET /api/sse/threads/:id"
+    description: "Thread 事件 SSE 流，发送 thread.created / thread.updated / thread.deleted / context.ingested 事件"
+    events: ["thread.created", "thread.updated", "thread.deleted", "thread.switched", "context.ingested"]
+
+  # ============================================================
+  # 4. DTO Definitions
+  # ============================================================
+  dto_definitions:
+    - name: "CreateThreadRequest"
+      fields: "goal: string, options?: CreateThreadOptions"
+    - name: "ThreadResponse"
+      fields: "thread: Thread"
+    - name: "PushContextRequest"
+      fields: "threadId: string, type: string, content: string, importance?: number"
+
+  # ============================================================
+  # 5. Repository
+  # ============================================================
+  repository:
+    name: "ThreadRepository"
+    package: "internal/data/thread"
+    methods: ["Create", "Get", "List", "Update", "Delete", "SaveContextSlice", "GetContextSlices"]

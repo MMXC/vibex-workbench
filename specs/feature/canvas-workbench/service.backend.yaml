@@ -1,0 +1,44 @@
+---
+spec:
+  version: "0.1.0"
+  level: "5a_service_backend"
+  name: "canvas-workbench-backend"
+  parent: "canvas-workbench-feature"
+  status: "draft"
+meta:
+  owner: "backend"
+  tech_stack: ["Go", "sse"]
+  description: "后端实现规格，从 service.yaml 接口契约派生"
+content:
+  go_interface:
+    name: "CanvasService"
+    package: "internal/service/canvas"
+    methods:
+      - name: "CreateCanvas"
+        signature: "func (s *CanvasService) CreateCanvas(ctx context.Context) (*pb.Canvas, error)"
+      - name: "GetCanvas"
+        signature: "func (s *CanvasService) GetCanvas(ctx context.Context, id string) (*pb.Canvas, error)"
+      - name: "AddNode"
+        signature: "func (s *CanvasService) AddNode(ctx context.Context, canvasId string, node *pb.CanvasNode) error"
+      - name: "RemoveNode"
+        signature: "func (s *CanvasService) RemoveNode(ctx context.Context, nodeId string) error"
+      - name: "SyncCanvas"
+        signature: "func (s *CanvasService) SyncCanvas(ctx context.Context, canvasId string) (*pb.CanvasSyncResponse, error)"
+  http_handlers:
+    - path: "POST /api/canvases"
+      impl: "CreateCanvas"
+    - path: "GET /api/canvases/:id"
+      impl: "GetCanvas"
+    - path: "POST /api/canvases/:id/nodes"
+      impl: "AddNode"
+    - path: "DELETE /api/canvases/:id/nodes/:nodeId"
+      impl: "RemoveNode"
+    - path: "GET /api/canvases/:id/sync"
+      impl: "SyncCanvas"
+  sse_endpoint:
+    path: "GET /api/sse/canvases/:id"
+    description: "Canvas 同步 SSE 流"
+  repository:
+    name: "CanvasRepository"
+    package: "internal/data/canvas"
+    methods: ["Create", "Get", "SaveNode", "RemoveNode", "SaveEdge", "RemoveEdge"]

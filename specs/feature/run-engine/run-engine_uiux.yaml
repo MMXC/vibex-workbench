@@ -1,0 +1,525 @@
+# ============================================================
+# Level 5 — Run Engine UI/UX 规格
+# UI/UX Specification
+# ============================================================
+# 从属于: run-engine_feature.yaml (L4)
+# 下层依赖: run-engine_data.yaml (L5c), run-engine_service.yaml (L5a)
+
+spec:
+  version: "0.1.0"
+  level: "5b_uiux"
+  name: "run-engine_uiux"
+  parent: "run-engine"
+
+meta:
+  feature: "run-engine"
+  owner: "frontend"
+  generated_from: "run-engine_feature.yaml"
+
+content:
+  # ── UI 组件概览 ─────────────────────────────────────────────
+  overview:
+    description: "Run Engine UI 包含 Run 状态展示、ToolInvocation 可视化、MessageStream 渲染和可见性层切换控件"
+    component_locations:
+      - name: "RunStatusBar"
+        location: "主视图顶部状态栏"
+        description: "显示当前 Run 状态、进度和操作按钮"
+      - name: "ToolInvocationPanel"
+        location: "右侧 Sidebar 工具面板"
+        description: "展示 ToolInvocation 列表和详情"
+      - name: "MessageStreamView"
+        location: "主视图中央消息区域"
+        description: "流式渲染 LLM 输出和工具结果"
+      - name: "VisibilityLayerToggle"
+        location: "工具面板顶部"
+        description: "三层可见性切换控件"
+
+  # ── 组件规格 ─────────────────────────────────────────────
+  components:
+    # ── RunStatusBar ────────────────────────────────────────
+    RunStatusBar:
+      description: "Run 状态显示与操作控件"
+      location: "主视图顶部"
+      height: "48px"
+      visibility: "当存在 currentRun 时显示，否则隐藏"
+      layout:
+        left:
+          - component: "RunStatusBadge"
+            description: "Run 状态徽章"
+        center:
+          - component: "RunProgressText"
+            description: "当前阶段描述文本"
+        right:
+          - component: "RunActionButtons"
+            description: "操作按钮组"
+
+      states:
+        queued:
+          badge_color: "gray"
+          badge_text: "排队中"
+          progress_text: "等待执行..."
+          show_cancel: true
+          show_pause: false
+
+        planning:
+          badge_color: "blue"
+          badge_text: "规划中"
+          progress_text: "AI 正在分析任务..."
+          show_cancel: true
+          show_pause: false
+
+        executing:
+          badge_color: "green"
+          badge_text: "执行中"
+          progress_text: "正在执行工具..."
+          show_cancel: true
+          show_pause: true
+
+        paused:
+          badge_color: "yellow"
+          badge_text: "已暂停"
+          progress_text: "Run 已暂停"
+          show_cancel: true
+          show_resume: true
+
+        completed:
+          badge_color: "teal"
+          badge_text: "已完成"
+          progress_text: "Run 完成"
+          show_retry: false
+
+        failed:
+          badge_color: "red"
+          badge_text: "失败"
+          progress_text: "Run 执行失败"
+          show_retry: true
+
+        cancelled:
+          badge_color: "gray"
+          badge_text: "已取消"
+          progress_text: "Run 已取消"
+          show_retry: true
+
+      RunStatusBadge:
+        width: "80px"
+        height: "24px"
+        border_radius: "12px"
+        font_size: "12px"
+        font_weight: "600"
+        text_align: "center"
+        vertical_align: "middle"
+        colors:
+          queued: { bg: "#f3f4f6", text: "#6b7280" }
+          planning: { bg: "#dbeafe", text: "#2563eb" }
+          executing: { bg: "#d1fae5", text: "#059669" }
+          paused: { bg: "#fef3c7", text: "#d97706" }
+          completed: { bg: "#ccfbf1", text: "#0d9488" }
+          failed: { bg: "#fee2e2", text: "#dc2626" }
+          cancelled: { bg: "#f3f4f6", text: "#6b7280" }
+
+      RunProgressText:
+        font_size: "14px"
+        color: "#374151"
+        max_width: "400px"
+        ellipsis: true
+
+      RunActionButtons:
+        gap: "8px"
+        buttons:
+          - name: "cancel"
+            label: "取消"
+            icon: "×"
+            color: "red"
+            visibility: "executing | planning | queued | paused"
+          - name: "pause"
+            label: "暂停"
+            icon: "⏸"
+            color: "yellow"
+            visibility: "executing"
+          - name: "resume"
+            label: "继续"
+            icon: "▶"
+            color: "green"
+            visibility: "paused"
+          - name: "retry"
+            label: "重试"
+            icon: "↻"
+            color: "blue"
+            visibility: "failed | cancelled"
+
+    # ── ToolInvocationPanel ─────────────────────────────────
+    ToolInvocationPanel:
+      description: "ToolInvocation 列表和详情展示面板"
+      location: "右侧 Sidebar"
+      width: "360px"
+      max_height: "calc(100vh - 200px)"
+      overflow: "auto"
+
+      header:
+        title: "工具调用"
+        count_badge: "toolInvocations.length"
+        icon: "🔧"
+
+      list_item:
+        height: "auto"
+        min_height: "56px"
+        padding: "12px 16px"
+        border_bottom: "1px solid #e5e7eb"
+        hover_background: "#f9fafb"
+
+        layout:
+          left:
+            - component: "ToolStatusIcon"
+              width: "24px"
+              height: "24px"
+          center:
+            - component: "ToolName"
+              font_size: "13px"
+              font_weight: "500"
+              color: "#111827"
+            - component: "ToolBrief"
+              font_size: "12px"
+              color: "#6b7280"
+              max_lines: 1
+          right:
+            - component: "ToolDuration"
+              font_size: "11px"
+              color: "#9ca3af"
+
+        ToolStatusIcon:
+          width: "24px"
+          height: "24px"
+          border_radius: "4px"
+          display: "flex"
+          align_items: "center"
+          justify_content: "center"
+          icons:
+            pending: { icon: "○", color: "#9ca3af" }
+            running: { icon: "◐", color: "#3b82f6", animation: "spin" }
+            completed: { icon: "✓", color: "#10b981" }
+            failed: { icon: "✗", color: "#ef4444" }
+
+        ToolName:
+          truncate: true
+          tooltip: true  # 鼠标悬停显示完整名称
+
+        ToolBrief:
+          description: "Layer 1: 简短摘要 | Layer 2: 工具名 | Layer 3: 参数预览"
+          truncate_length:
+            layer_1: 40
+            layer_2: 60
+            layer_3: 80
+
+      expanded_detail:
+        description: "点击 List Item 展开显示完整详情"
+        padding: "16px"
+        background: "#f9fafb"
+        border_radius: "8px"
+        margin_top: "8px"
+
+        sections:
+          - name: "Arguments"
+            label: "参数"
+            visibility:
+              layer_1: hidden
+              layer_2: collapsed
+              layer_3: expanded
+          - name: "Result"
+            label: "结果"
+            visibility:
+              layer_1: hidden
+              layer_2: collapsed
+              layer_3: expanded
+          - name: "Summary"
+            label: "摘要"
+            visibility:
+              layer_1: expanded
+              layer_2: expanded
+              layer_3: collapsed
+
+        SyntaxHighlighter:
+          language: "json"
+          theme: "github-light"
+          font_size: "12px"
+          max_height: "200px"
+          scrollable: true
+
+    # ── MessageStreamView ────────────────────────────────────
+    MessageStreamView:
+      description: "流式渲染 LLM 输出和工具结果"
+      location: "主视图中央"
+      padding: "16px 24px"
+
+      message_types:
+        user:
+          background: "#f3f4f6"
+          border_radius: "12px"
+          max_width: "80%"
+          align: "right"
+
+        assistant:
+          background: "#ffffff"
+          border: "1px solid #e5e7eb"
+          border_radius: "12px"
+          max_width: "80%"
+          align: "left"
+
+        tool:
+          background: "#fef3c7"
+          border_radius: "8px"
+          max_width: "70%"
+          align: "left"
+          margin_left: "40px"
+
+        system:
+          background: "#f0f9ff"
+          border_radius: "8px"
+          max_width: "60%"
+          align: "center"
+          font_size: "12px"
+          color: "#64748b"
+
+      streaming_indicator:
+        description: "流式输出进行中指示器"
+        icon: "▋"
+        animation: "blink"
+        color: "#3b82f6"
+        font_size: "14px"
+
+      tool_result_block:
+        description: "工具调用结果块"
+        border_left: "3px solid #f59e0b"
+        background: "#fffbeb"
+        padding: "12px 16px"
+        border_radius: "0 8px 8px 0"
+        margin: "8px 0 8px 40px"
+
+    # ── VisibilityLayerToggle ───────────────────────────────
+    VisibilityLayerToggle:
+      description: "三层可见性切换控件"
+      location: "工具面板顶部"
+      height: "40px"
+      padding: "4px"
+      background: "#f3f4f6"
+      border_radius: "8px"
+
+      options:
+        - layer: 1
+          label: "摘要"
+          icon: "📝"
+          tooltip: "自然语言模式：LLM 摘要工具调用"
+          active_background: "#ffffff"
+          active_color: "#111827"
+          inactive_background: "transparent"
+          inactive_color: "#6b7280"
+
+        - layer: 2
+          label: "结构化"
+          icon: "📋"
+          tooltip: "结构化模式：工具名+状态"
+          active_background: "#ffffff"
+          active_color: "#111827"
+          inactive_background: "transparent"
+          inactive_color: "#6b7280"
+
+        - layer: 3
+          label: "日志"
+          icon: "📜"
+          tooltip: "开发者模式：完整 args/result"
+          active_background: "#ffffff"
+          active_color: "#111827"
+          inactive_background: "transparent"
+          inactive_color: "#6b7280"
+
+      button:
+        flex: 1
+        height: "32px"
+        border_radius: "6px"
+        font_size: "12px"
+        font_weight: "500"
+        cursor: "pointer"
+        transition: "all 0.2s ease"
+
+  # ── Canvas 可视化集成 ─────────────────────────────────────────────
+  canvas_integration:
+    description: "Run 和 ToolInvocation 在 Canvas 上的可视化"
+
+    run_node:
+      width: "200px"
+      height: "80px"
+      border_radius: "12px"
+      background: "#ffffff"
+      border: "2px solid"
+      shadow: "0 2px 8px rgba(0,0,0,0.1)"
+
+      status_styles:
+        queued: { border_color: "#9ca3af", header_color: "#f3f4f6" }
+        planning: { border_color: "#3b82f6", header_color: "#dbeafe" }
+        executing: { border_color: "#10b981", header_color: "#d1fae5", animation: "pulse" }
+        paused: { border_color: "#f59e0b", header_color: "#fef3c7" }
+        completed: { border_color: "#0d9488", header_color: "#ccfbf1" }
+        failed: { border_color: "#ef4444", header_color: "#fee2e2" }
+
+      content:
+        header: "Run"
+        title: "run.goal (truncated 30 chars)"
+        footer: "run.status | duration"
+
+    tool_node:
+      width: "160px"
+      height: "60px"
+      border_radius: "8px"
+      background: "#fafafa"
+      border: "1px solid #e5e7eb"
+
+      status_indicators:
+        pending: { border_color: "#d1d5db", dot_color: "#9ca3af" }
+        running: { border_color: "#3b82f6", dot_color: "#3b82f6", animation: "blink" }
+        completed: { border_color: "#10b981", dot_color: "#10b981" }
+        failed: { border_color: "#ef4444", dot_color: "#ef4444" }
+
+    canvas_edges:
+      run_to_tool:
+        style: "bezier"
+        color: "#cbd5e1"
+        width: "2px"
+        arrow: false
+      tool_to_tool:
+        style: "bezier"
+        color: "#e2e8f0"
+        width: "1px"
+        arrow: false
+
+  # ── 动画规格 ─────────────────────────────────────────────
+  animations:
+    status_badge_pulse:
+      selector: ".status-badge.executing"
+      animation: "pulse 2s infinite"
+      keyframes:
+        - "0%, 100% { opacity: 1 }"
+        - "50% { opacity: 0.7 }"
+
+    tool_running_spin:
+      selector: ".tool-status-icon.running"
+      animation: "spin 1s linear infinite"
+      keyframes:
+        - "from { transform: rotate(0deg) }"
+        - "to { transform: rotate(360deg) }"
+
+    streaming_cursor:
+      selector: ".streaming-indicator"
+      animation: "blink 1s step-end infinite"
+      keyframes:
+        - "0%, 100% { opacity: 1 }"
+        - "50% { opacity: 0 }"
+
+    node_highlight:
+      selector: ".canvas-node.highlighted"
+      animation: "highlight 0.5s ease"
+      keyframes:
+        - "0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5) }"
+        - "100% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0) }"
+
+  # ── 空状态 ─────────────────────────────────────────────
+  empty_states:
+    no_run:
+      icon: "⚡"
+      title: "暂无运行中的 Run"
+      description: "在 Composer 中输入目标即可开始执行"
+      action: null
+
+    no_tool_invocations:
+      icon: "🔧"
+      title: "暂无工具调用"
+      description: "工具调用将在这里显示"
+      action: null
+
+  # ── 加载状态 ─────────────────────────────────────────────
+  loading_states:
+    sse_connecting:
+      indicator: "连接中..."
+      spinner: true
+      timeout_ms: 10000
+      timeout_message: "连接超时，请检查网络"
+
+    run_starting:
+      indicator: "启动 Run..."
+      spinner: true
+
+  # ── 错误状态 UI ─────────────────────────────────────────────
+  error_states:
+    sse_connection_failed:
+      icon: "⚠️"
+      title: "SSE 连接失败"
+      description: "无法连接到服务器"
+      action:
+        label: "重试"
+        handler: "subscribeSSE()"
+
+    run_failed:
+      icon: "❌"
+      title: "Run 执行失败"
+      description: "error_message"
+      action:
+        label: "查看详情"
+        handler: "expandErrorDetails()"
+
+    tool_failed:
+      icon: "⚠️"
+      title: "工具调用失败"
+      description: "tool_name 执行失败"
+      action:
+        label: "重试"
+        handler: "retryToolInvocation(id)"
+
+  # ── 响应式断点 ─────────────────────────────────────────────
+  responsive_breakpoints:
+    desktop:
+      min_width: "1024px"
+      tool_panel_width: "360px"
+      message_max_width: "70%"
+
+    tablet:
+      min_width: "768px"
+      max_width: "1023px"
+      tool_panel_width: "280px"
+      message_max_width: "85%"
+
+    mobile:
+      max_width: "767px"
+      tool_panel_visibility: "hidden"  # 通过抽屉访问
+      message_max_width: "100%"
+      run_status_bar_compact: true
+
+  # ── 无障碍（Accessibility） ─────────────────────────────────────────────
+  accessibility:
+    keyboard_navigation:
+      RunStatusBar:
+        - "Tab: 在操作按钮间切换"
+        - "Enter/Space: 触发按钮动作"
+        - "Escape: 关闭下拉菜单"
+      ToolInvocationPanel:
+        - "↑/↓: 在列表项间导航"
+        - "Enter: 展开/收起详情"
+        - "Escape: 收起详情"
+      VisibilityLayerToggle:
+        - "Tab: 聚焦控件"
+        - "←/→: 切换层级"
+
+    aria_labels:
+      run_status_badge: "当前 Run 状态：{status}"
+      cancel_button: "取消当前 Run"
+      pause_button: "暂停当前 Run"
+      resume_button: "继续当前 Run"
+      retry_button: "重试 Run"
+      tool_invocation_item: "工具调用：{tool_name}，状态：{status}"
+      visibility_layer_option: "切换到 {layer} 可见性层级"
+
+    screen_reader_announcements:
+      run_started: "Run 已启动，状态：{status}"
+      run_completed: "Run 已完成"
+      run_failed: "Run 执行失败：{error}"
+      tool_called: "调用工具：{tool_name}"
+      tool_completed: "工具 {tool_name} 执行完成"
+      tool_failed: "工具 {tool_name} 执行失败"
+      visibility_changed: "可见性层级已切换到 {layer}"

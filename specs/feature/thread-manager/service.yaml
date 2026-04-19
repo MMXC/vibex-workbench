@@ -1,0 +1,69 @@
+# ============================================================
+# Thread Manager — Service Interface Contract
+# Level 5a — Service Contract
+# Parent: thread-manager-feature (L4)
+# Shared by: frontend (Svelte 5), backend (Go)
+# ============================================================
+
+spec:
+  version: "0.1.0"
+  level: "5a_service"
+  name: "thread-manager-service"
+  parent: "thread-manager-feature"
+  status: "contract"
+
+meta:
+  owner: "shared"
+  tech_stack: ["contract"]
+  description: "Thread Manager 接口契约 — frontend 和 backend 共用"
+
+content:
+  derived_from: "service.yaml 接口契约"
+
+  # ============================================================
+  # 1. Public API
+  # ============================================================
+  public_api:
+    - method: "createThread"
+      signature: "createThread(goal: string, options?: CreateThreadOptions): Thread"
+    - method: "switchThread"
+      signature: "switchThread(threadId: string): void"
+    - method: "deleteThread"
+      signature: "deleteThread(threadId: string, hard?: boolean): void"
+    - method: "updateThreadMeta"
+      signature: "updateThreadMeta(threadId: string, meta: Partial<ThreadMeta>): void"
+    - method: "pushContextSlice"
+      signature: "pushContextSlice(threadId: string, slice: Omit<ContextSlice>): ContextSlice"
+    - method: "assembleContext"
+      signature: "assembleContext(threadId: string, layer: 'immediate'|'thread'|'workspace'): string"
+
+  # ============================================================
+  # 2. SSE Events
+  # ============================================================
+  sse_events:
+    - event: "thread.created"
+      payload: "{ thread: Thread }"
+    - event: "thread.updated"
+      payload: "{ threadId: string, patch: Partial<Thread> }"
+    - event: "thread.deleted"
+      payload: "{ threadId: string }"
+    - event: "thread.switched"
+      payload: "{ previousId: string | null, currentId: string }"
+    - event: "context.ingested"
+      payload: "{ threadId: string, slice: ContextSlice }"
+
+  # ============================================================
+  # 3. Data Contract
+  # ============================================================
+  data_contract:
+    imports_from: "thread-manager_data.yaml"
+    types: ["Thread", "ContextSlice", "ThreadMeta", "CreateThreadOptions"]
+
+  # ============================================================
+  # 4. Error Codes
+  # ============================================================
+  error_codes:
+    THREAD_001: "Thread not found (404)"
+    THREAD_002: "Cannot delete last thread (409)"
+    THREAD_003: "Persistence failure (500)"
+    THREAD_004: "Invalid goal (400)"

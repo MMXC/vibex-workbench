@@ -1,0 +1,197 @@
+---
+spec:
+  name: vibex-workbench-architecture
+  level: 2_architecture
+  version: "0.1.0"
+  status: draft
+  parent: "vibex-workbench-goal"
+
+content:
+  modules:
+    - module: "workbench-shell"
+      description: "三栏布局外壳 + Composer 区域"
+      responsibilities:
+        - "渲染 workspace 布局（sidebar-left / main-canvas / sidebar-right）"
+        - "Composer 组件：多模态输入（text/image/pdf/url）"
+        - "全局布局状态管理（uiStore）"
+      depends_on: []
+      public_api:
+        - name: "WorkbenchShell.svelte"
+          description: "根布局组件"
+        - name: "Composer.svelte"
+          description: "多模态输入组合器"
+        - name: "uiStore"
+          description: "窗口/面板/弹层/选中项状态"
+
+    - module: "thread-manager"
+      description: "Thread CRUD + 上下文调度"
+      responsibilities:
+        - "创建 / 切换 / 删除 Thread"
+        - "维护 Thread 记忆（目标/阶段结论/约束）"
+        - "上下文注入协议（三层：即时/线程/工作区）"
+      depends_on: []
+      public_api:
+        - name: "threadStore"
+          description: "threads[] / currentThread / context_summary"
+        - name: "createThread(goal: string): Thread"
+        - name: "switchThread(threadId: string): void"
+
+    - module: "run-engine"
+      description: "Run 状态机 + SSE 事件流驱动"
+      responsibilities:
+        - "Run 生命周期管理（queued→planning→executing→completed/failed）"
+        - "SSE 事件流消费（run.started / tool.called / tool.completed / message.delta 等）"
+        - "三层可见性渲染控制"
+      depends_on: ["thread-manager"]
+      public_api:
+        - name: "runStore"
+          description: "runs[] / currentRun / toolInvocations[]"
+        - name: "startRun(threadId: string, goal: string): Run"
+        - name: "cancelRun(runId: string): void"
+
+    - module: "artifact-registry"
+      description: "Artifact 上传 / 解析 / 预览 / 复用"
+      responsibilities:
+        - "多模态输入标准化（text/image/pdf/url 预处理）"
+        - "Artifact 持久化（Dexie.js IndexedDB）"
+        - "Artifact 引用解析（拖入 Composer）"
+      depends_on: []
+      public_api:
+        - name: "artifactStore"
+          description: "artifacts[] / previews / references"
+        - name: "uploadArtifact(file: File): Artifact"
+        - name: "referenceArtifact(artifactId: string): void"
+
+    - module: "canvas-workbench"
+      description: "Canvas 作为 Orchestration 可视化层"
+      responsibilities:
+        - "画布节点类型扩展：ThreadNode / RunNode / ArtifactNode / ToolNode"
+        - "画布连接规则：Thread → Run → Artifact"
+        - "Canvas 状态与 runStore 双向同步"
+        - "复用 VibeX 现有 canvas_feature 渲染逻辑"
+      depends_on: ["run-engine", "artifact-registry", "thread-manager"]
+      public_api:
+        - name: "canvasStore"
+          description: "nodes[] / edges[] / viewport"
+        - name: "syncRunToCanvas(run: Run): void"
+        - name: "CanvasRenderer.svelte"
+          description: "复用 vibex-spec canvas_feature 渲染"
+
+  data_flow:
+    description: "Composer → ThreadManager → RunEngine → CanvasWorkbench → ArtifactRegistry"
+    steps:
+      - step: 1
+        actor: "User"
+        action: "在 Composer 输入目标 + 可选 Artifact"
+        output: "ThreadManager.createThread()"
+      - step: 2
+        actor: "ThreadManager"
+        action: "创建 Thread，注册到 threadStore"
+        output: "threadStore.add()"
+      - step: 3
+        actor: "RunEngine"
+        action: "startRun() → 启动异步执行"
+        output: "SSE 事件流（run.started / tool.* / message.delta / artifact.created）"
+      - step: 4
+        actor: "CanvasWorkbench"
+        action: "消费 SSE 事件 → 渲染 Run 节点链路到 Canvas"
+        output: "canvasStore.syncRun()"
+      - step: 5
+        actor: "ArtifactRegistry"
+        action: "消费 artifact.created 事件 → 持久化预览"
+        output: "artifactStore.add()"
+
+  store_architecture:
+    description: "5 个 Store，按领域拆分，组件按需订阅切片"
+    stores:
+      - store: "uiStore"
+        description: "窗口/面板/弹层/选中项/可见性层级"
+        fields:
+          - name: "leftSidebarOpen"
+            type: "boolean"
+          - name: "rightSidebarOpen"
+            type: "boolean"
+          - name: "toolVisibilityLayer"
+            type: "1 | 2 | 3"
+          - name: "activePanel"
+            type: "thread | artifact | tool | null"
+      - store: "threadStore"
+        description: "Thread 容器 + 上下文管理"
+        fields:
+          - name: "threads"
+            type: "Thread[]"
+          - name: "currentThreadId"
+            type: "string | null"
+          - name: "contextMemory"
+            type: "Record<string, ContextSlice>"
+      - store: "runStore"
+        description: "Run 状态机 + 工具调用记录"
+        fields:
+          - name: "runs"
+            type: "Run[]"
+          - name: "currentRunId"
+            type: "string | null"
+          - name: "toolInvocations"
+            type: "ToolInvocation[]"
+          - name: "messageStream"
+            type: "MessageDelta[]"
+      - store: "artifactStore"
+        description: "Artifact 持久化 + 预览"
+        fields:
+          - name: "artifacts"
+            type: "Artifact[]"
+          - name: "previews"
+            type: "Record<string, Blob | string>"
+          - name: "references"
+            type: "Record<string, string[]>"
+      - store: "canvasStore"
+        description: "Canvas Orchestration 可视化状态（复用 VibeX canvas 逻辑）"
+        fields:
+          - name: "nodes"
+            type: "WorkbenchNode[]"
+          - name: "edges"
+            type: "WorkbenchEdge[]"
+          - name: "viewport"
+            type: "{ x: number; y: number; zoom: number }"
+          - name: "selectedNodeIds"
+            type: "string[]"
+
+  sse_event_protocol:
+    description: "前端统一事件流驱动协议"
+    events:
+      - event: "thread.created"
+        handler: "threadStore.add"
+      - event: "run.started"
+        handler: "runStore.setCurrent"
+      - event: "run.stage_changed"
+        handler: "runStore.updateStage"
+      - event: "tool.called"
+        handler: "runStore.addToolInvocation"
+      - event: "tool.completed"
+        handler: "runStore.updateToolInvocation"
+      - event: "tool.failed"
+        handler: "runStore.markToolFailed"
+      - event: "message.delta"
+        handler: "runStore.appendMessage"
+      - event: "artifact.created"
+        handler: "artifactStore.add"
+      - event: "run.completed"
+        handler: "runStore.markCompleted"
+      - event: "run.failed"
+        handler: "runStore.markFailed"
+
+derived_from:
+  - parent: "vibex-workbench-goal"
+    rationale: "M1-M5 里程碑的架构落地"
+  - source: "禹笑笑《从聊天框到工作台》架构原则"
+    key_insight: "数据结构驱动 UI，Store 按领域拆分，事件流驱动而非消息数组"
+
+linked_modules:
+  - workbench-shell
+  - thread-manager
+  - run-engine
+  - artifact-registry
+  - canvas-workbench
+
+updated_by: "hermes"
+updated_at: "2026-04-19T20:00:00Z"

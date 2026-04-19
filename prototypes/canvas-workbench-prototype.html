@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VibeX Canvas Workbench — 原型</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --thread: #6366f1; --run: #8b5cf6; --artifact: #10b981;
+  --tool: #06b6d4; --message: #f59e0b;
+  --thread-bg: #ede9fe; --run-bg: #f3e8ff; --artifact-bg: #d1fae5;
+  --tool-bg: #cffafe; --message-bg: #fef3c7;
+  --canvas-bg: #0d0d1a; --canvas-grid: #1a1a2e;
+  --toolbar-bg: rgba(15,15,35,0.92); --toolbar-border: #2d2d4a;
+  --text-primary: #f1f5f9; --text-secondary: #94a3b8; --text-muted: #475569;
+}
+
+body {
+  background: var(--canvas-bg);
+  font-family: system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ── Toolbar ── */
+.toolbar {
+  position: fixed; top: 16px; left: 16px; z-index: 100;
+  background: var(--toolbar-bg);
+  border: 1px solid var(--toolbar-border);
+  border-radius: 12px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  backdrop-filter: blur(12px);
+}
+
+.toolbar-sep {
+  width: 1px; height: 24px;
+  background: var(--toolbar-border);
+  margin: 0 4px;
+}
+
+.tb-btn {
+  width: 32px; height: 32px;
+  border: none; border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+  position: relative;
+}
+.tb-btn:hover { background: #1e1e38; color: var(--text-primary); }
+.tb-btn.active { color: var(--text-primary); background: #1e1e3a; }
+.tb-btn.zoom-label { width: auto; padding: 0 8px; font-size: 11px; font-family: monospace; }
+
+.tb-btn[data-type="thread"].active { color: var(--thread); }
+.tb-btn[data-type="run"].active { color: var(--run); }
+.tb-btn[data-type="tool"].active { color: var(--tool); }
+.tb-btn[data-type="artifact"].active { color: var(--artifact); }
+.tb-btn[data-type="message"].active { color: var(--message); }
+
+/* Filter toggle badges */
+.tb-type-badge {
+  width: 20px; height: 20px;
+  border-radius: 4px;
+  font-size: 9px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  color: white;
+}
+.tb-type-badge.thread { background: var(--thread); }
+.tb-type-badge.run { background: var(--run); }
+.tb-type-badge.tool { background: var(--tool); }
+.tb-type-badge.artifact { background: var(--artifact); }
+.tb-type-badge.message { background: var(--message); }
+
+/* ── Canvas ── */
+.canvas-container {
+  position: fixed; inset: 0;
+  background: var(--canvas-bg);
+  background-image: radial-gradient(circle, var(--canvas-grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  cursor: grab;
+  overflow: hidden;
+}
+.canvas-container:active { cursor: grabbing; }
+
+/* ── Viewport transform ── */
+.viewport {
+  position: absolute;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* ── Nodes ── */
+.node {
+  position: absolute;
+  width: 240px;
+  min-height: 120px;
+  border-radius: 12px;
+  border: 2px solid;
+  background: #0f0f23;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  cursor: pointer;
+  transition: box-shadow 0.2s cubic-bezier(0.4,0,0.2,1), transform 0.2s cubic-bezier(0.4,0,0.2,1);
+  animation: nodeAppear 0.3s cubic-bezier(0.4,0,0.2,1);
+  font-size: 12px;
+}
+
+@keyframes nodeAppear {
+  from { opacity: 0; transform: scale(0.8); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.node:hover { transform: scale(1.02); z-index: 10; }
+.node.selected {
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.3), 0 4px 16px rgba(0,0,0,0.5);
+  z-index: 20;
+}
+.node.selected .node-handle { opacity: 1; }
+
+/* Node header */
+.node-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px 10px 0 0;
+  margin: -2px -2px 0 -2px;
+}
+.node-body {
+  padding: 10px 12px 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  max-height: 60px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+.node-footer {
+  padding: 6px 12px 10px;
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 10px; color: var(--text-muted);
+}
+
+/* Node type-specific */
+.node.thread { border-color: var(--thread); }
+.node.thread .node-header { background: var(--thread-bg); }
+.node.thread .node-icon { color: var(--thread); }
+.node.thread .node-type-label { color: var(--thread); }
+
+.node.run { border-color: var(--run); }
+.node.run .node-header { background: var(--run-bg); }
+.node.run .node-icon { color: var(--run); }
+.node.run .node-type-label { color: var(--run); }
+
+.node.artifact { border-color: var(--artifact); }
+.node.artifact .node-header { background: var(--artifact-bg); }
+.node.artifact .node-icon { color: var(--artifact); }
+.node.artifact .node-type-label { color: var(--artifact); }
+
+.node.tool { border-color: var(--tool); }
+.node.tool .node-header { background: var(--tool-bg); }
+.node.tool .node-icon { color: var(--tool); }
+.node.tool .node-type-label { color: var(--tool); }
+
+.node.message { border-color: var(--message); }
+.node.message .node-header { background: var(--message-bg); }
+.node.message .node-icon { color: var(--message); }
+.node.message .node-type-label { color: var(--message); }
+
+/* Status badges */
+.status-badge {
+  font-size: 9px; padding: 2px 7px;
+  border-radius: 10px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.status-badge.running {
+  background: rgba(245,158,11,0.2); color: #fbbf24;
+  animation: pulse 1.2s infinite;
+}
+.status-badge.completed {
+  background: rgba(34,197,94,0.2); color: #4ade80;
+}
+.status-badge.failed {
+  background: rgba(239,68,68,0.2); color: #f87171;
+}
+
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Run count badge */
+.run-count {
+  background: white; color: #374151;
+  border-radius: 10px; font-size: 10px;
+  font-weight: 700; padding: 1px 7px;
+  min-width: 18px; text-align: center;
+}
+
+/* Handles */
+.node-handle {
+  position: absolute; width: 10px; height: 10px;
+  background: white; border: 2px solid;
+  border-radius: 50%; opacity: 0;
+  transition: opacity 0.15s;
+}
+.node-handle.top { top: -6px; left: 50%; transform: translateX(-50%); }
+.node-handle.bottom { bottom: -6px; left: 50%; transform: translateX(-50%); }
+.node-handle.left { left: -6px; top: 50%; transform: translateY(-50%); }
+.node-handle.right { right: -6px; top: 50%; transform: translateY(-50%); }
+
+.thread .node-handle { border-color: var(--thread); }
+.run .node-handle { border-color: var(--run); }
+.artifact .node-handle { border-color: var(--artifact); }
+.tool .node-handle { border-color: var(--tool); }
+.message .node-handle { border-color: var(--message); }
+
+/* SVG edges */
+.edges-svg {
+  position: absolute;
+  top: 0; left: 0;
+  width: 4000px; height: 4000px;
+  pointer-events: none;
+  overflow: visible;
+}
+.edge-path {
+  fill: none;
+  stroke-width: 1.5;
+  opacity: 0.6;
+}
+.edge-path.causal { stroke: #475569; }
+.edge-path.reference { stroke: #3b82f6; stroke-dasharray: 6 3; }
+.edge-path.streaming { stroke: #22c55e; }
+
+/* ── Minimap ── */
+.minimap {
+  position: fixed; bottom: 16px; right: 16px; z-index: 100;
+  width: 180px; height: 110px;
+  background: rgba(15,15,35,0.9);
+  border: 1px solid var(--toolbar-border);
+  border-radius: 8px;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+}
+.minimap-viewport {
+  position: absolute;
+  border: 1px solid rgba(255,255,255,0.3);
+  background: rgba(99,102,241,0.1);
+  border-radius: 2px;
+}
+.minimap-node {
+  position: absolute;
+  border-radius: 2px;
+  opacity: 0.8;
+}
+
+/* ── Selection Box ── */
+.selection-box {
+  position: fixed;
+  border: 1px dashed #3b82f6;
+  background: rgba(59,130,246,0.08);
+  border-radius: 4px;
+  pointer-events: none;
+  display: none;
+  z-index: 50;
+}
+
+/* ── Tooltip ── */
+.tooltip {
+  position: fixed;
+  background: rgba(15,15,35,0.95);
+  border: 1px solid var(--toolbar-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  pointer-events: none;
+  z-index: 200;
+  display: none;
+  white-space: nowrap;
+}
+
+/* ── Node Detail Sidebar ── */
+.detail-sidebar {
+  position: fixed; top: 0; right: 0;
+  width: 320px; height: 100vh;
+  background: rgba(15,15,35,0.96);
+  border-left: 1px solid var(--toolbar-border);
+  backdrop-filter: blur(12px);
+  padding: 20px;
+  transform: translateX(100%);
+  transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+  z-index: 150;
+  overflow-y: auto;
+}
+.detail-sidebar.open { transform: translateX(0); }
+.detail-sidebar-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 16px;
+}
+.detail-sidebar-close {
+  margin-left: auto;
+  width: 28px; height: 28px;
+  border-radius: 6px; border: none;
+  background: #1e1e38; color: var(--text-secondary);
+  cursor: pointer; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+}
+.detail-sidebar-close:hover { background: #2d2d4a; color: var(--text-primary); }
+.detail-type-badge {
+  font-size: 9px; font-weight: 700; padding: 3px 8px;
+  border-radius: 20px; color: white;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.detail-section { margin-bottom: 16px; }
+.detail-label {
+  font-size: 10px; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+.detail-value { font-size: 13px; color: var(--text-primary); line-height: 1.5; }
+.detail-divider { height: 1px; background: var(--toolbar-border); margin: 16px 0; }
+
+/* ── Toast ── */
+.toast {
+  position: fixed; bottom: 140px; right: 16px;
+  background: rgba(34,197,94,0.9);
+  color: white; padding: 10px 16px;
+  border-radius: 8px; font-size: 12px;
+  backdrop-filter: blur(8px);
+  z-index: 300;
+  transform: translateY(60px); opacity: 0;
+  transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+
+/* ── Zoom indicator ── */
+.zoom-indicator {
+  position: fixed; bottom: 16px; left: 50%;
+  transform: translateX(-50%);
+  background: var(--toolbar-bg);
+  border: 1px solid var(--toolbar-border);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 11px; font-family: monospace;
+  color: var(--text-secondary);
+  backdrop-filter: blur(8px);
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.zoom-indicator.show { opacity: 1; }
+
+/* ── Node states ── */
+.node[data-state="executing"] {
+  border-color: #f59e0b !important;
+  animation: nodeExecuting 1.5s ease-in-out infinite;
+}
+@keyframes nodeExecuting {
+  0%,100% { box-shadow: 0 0 0 0 rgba(245,158,11,0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(245,158,11,0.1); }
+}
+</style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div class="toolbar" id="toolbar">
+  <!-- Zoom -->
+  <button class="tb-btn" id="btn-zoom-out" title="缩小 (−)">−</button>
+  <button class="tb-btn zoom-label" id="zoom-level">100%</button>
+  <button class="tb-btn" id="btn-zoom-in" title="放大 (+)">+</button>
+  <div class="toolbar-sep"></div>
+  <!-- View -->
+  <button class="tb-btn" id="btn-fit" title="适应画布 (F)">⊡</button>
+  <button class="tb-btn" id="btn-layout" title="自动布局">≡</button>
+  <div class="toolbar-sep"></div>
+  <!-- Filters -->
+  <button class="tb-btn active" data-type="thread" title="显示/隐藏 Thread">
+    <div class="tb-type-badge thread">T</div>
+  </button>
+  <button class="tb-btn active" data-type="run" title="显示/隐藏 Run">
+    <div class="tb-type-badge run">R</div>
+  </button>
+  <button class="tb-btn active" data-type="tool" title="显示/隐藏 Tool">
+    <div class="tb-type-badge tool">⚙</div>
+  </button>
+  <button class="tb-btn active" data-type="artifact" title="显示/隐藏 Artifact">
+    <div class="tb-type-badge artifact">A</div>
+  </button>
+  <button class="tb-btn active" data-type="message" title="显示/隐藏 Message">
+    <div class="tb-type-badge message">M</div>
+  </button>
+  <div class="toolbar-sep"></div>
+  <!-- Export -->
+  <button class="tb-btn" id="btn-export-png" title="导出 PNG">PNG</button>
+</div>
+
+<!-- Canvas -->
+<div class="canvas-container" id="canvas">
+  <div class="viewport" id="viewport">
+    <svg class="edges-svg" id="edges-svg">
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#475569"/>
+        </marker>
+      </defs>
+    </svg>
+    <!-- Nodes injected by JS -->
+  </div>
+</div>
+
+<!-- Selection Box -->
+<div class="selection-box" id="sel-box"></div>
+
+<!-- Tooltip -->
+<div class="tooltip" id="tooltip"></div>
+
+<!-- Zoom Indicator -->
+<div class="zoom-indicator" id="zoom-indicator"></div>
+
+<!-- Minimap -->
+<div class="minimap" id="minimap"></div>
+
+<!-- Node Detail Sidebar -->
+<div class="detail-sidebar" id="detail-sidebar">
+  <div class="detail-sidebar-header">
+    <div class="detail-type-badge" id="detail-type-badge">Thread</div>
+    <span style="color:var(--text-primary);font-size:14px;font-weight:600" id="detail-title">Thread 节点</span>
+    <button class="detail-sidebar-close" id="detail-close">×</button>
+  </div>
+  <div class="detail-divider"></div>
+  <div class="detail-section">
+    <div class="detail-label">Status</div>
+    <div class="detail-value" id="detail-status">—</div>
+  </div>
+  <div class="detail-section">
+    <div class="detail-label">Goal / Summary</div>
+    <div class="detail-value" id="detail-desc">—</div>
+  </div>
+  <div class="detail-section">
+    <div class="detail-label">Created</div>
+    <div class="detail-value" id="detail-time">—</div>
+  </div>
+  <div class="detail-divider"></div>
+  <div class="detail-section">
+    <div class="detail-label">Actions</div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="detail-expand" style="flex:1;padding:8px;border-radius:6px;border:1px solid #2d2d4a;background:#1e1e38;color:#e2e8f0;cursor:pointer;font-size:12px">Expand</button>
+      <button id="detail-delete" style="flex:1;padding:8px;border-radius:6px;border:1px solid #7f1d1d;background:rgba(239,68,68,0.1);color:#f87171;cursor:pointer;font-size:12px">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">✓ Canvas exported</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// SPEC: canvas-workbench_uiux.yaml
+// ══════════════════════════════════════════════════════
+
+const NODES = [
+  { id: 't1', type: 'thread', x: 120, y: 80,
+    title: 'Research LLM Papers', runCount: 3,
+    desc: 'Find recent papers on reasoning models and summarize key findings',
+    status: 'completed', time: '2m ago' },
+  { id: 'r1', type: 'run', x: 480, y: 40,
+    title: 'arXiv Search', desc: 'Searched arXiv for LLM reasoning papers',
+    status: 'completed', time: '1m ago', parent: 't1' },
+  { id: 'r2', type: 'run', x: 480, y: 200,
+    title: 'Web Browse', desc: 'Extracting key claims from top 5 papers',
+    status: 'executing', time: 'now', parent: 't1' },
+  { id: 'a1', type: 'artifact', x: 840, y: 80,
+    title: 'research_summary.md', desc: 'Markdown document with paper summaries',
+    status: 'completed', time: '1m ago' },
+  { id: 'tl1', type: 'tool', x: 600, y: 370,
+    title: 'arxiv.search', desc: 'args: query="reasoning models llm"',
+    status: 'completed', time: '1m ago', parent: 'r1' },
+  { id: 'tl2', type: 'tool', x: 750, y: 370,
+    title: 'browse.urls', desc: 'args: urls=[paper1, paper2, paper3]',
+    status: 'executing', time: 'now', parent: 'r2' },
+  { id: 'm1', type: 'message', x: 120, y: 280,
+    title: 'User Message', desc: 'Find recent papers on reasoning models...',
+    status: 'completed', time: '2m ago', parent: 't1' },
+  { id: 'r3', type: 'run', x: 840, y: 320,
+    title: 'Write Summary', desc: 'Generating markdown summary document',
+    status: 'executing', time: 'now' },
+  { id: 'a2', type: 'artifact', x: 1200, y: 200,
+    title: 'key_insights.json', desc: 'Structured JSON with key insights',
+    status: 'draft', time: 'draft' },
+];
+
+const EDGES = [
+  { from: 't1', to: 'r1', type: 'causal' },
+  { from: 't1', to: 'r2', type: 'causal' },
+  { from: 't1', to: 'm1', type: 'reference' },
+  { from: 'r1', to: 'tl1', type: 'causal' },
+  { from: 'r2', to: 'tl2', type: 'causal' },
+  { from: 'r1', to: 'a1', type: 'causal' },
+  { from: 'tl2', to: 'r3', type: 'causal' },
+  { from: 'r3', to: 'a2', type: 'causal' },
+  { from: 'a1', to: 'r3', type: 'reference' },
+];
+
+const ICONS = { thread:'▣', run:'▶', artifact:'◆', tool:'⚙', message:'💬' };
+const TYPE_LABELS = { thread:'Thread', run:'Run', artifact:'Artifact', tool:'Tool', message:'Message' };
+
+let state = {
+  zoom: 1, panX: 0, panY: 0,
+  isPanning: false, isSelecting: false,
+  selStart: null,
+  selectedIds: new Set(),
+  filterTypes: new Set(['thread','run','tool','artifact','message']),
+  dragNode: null, dragOffset: {x:0, y:0},
+  nodePositions: {},
+};
+
+NODES.forEach(n => state.nodePositions[n.id] = { x: n.x, y: n.y });
+
+// ── Build DOM nodes ──
+const viewport = document.getElementById('viewport');
+const edgesSvg = document.getElementById('edges-svg');
+const minimap = document.getElementById('minimap');
+const selBox = document.getElementById('sel-box');
+const tooltip = document.getElementById('tooltip');
+const zoomIndicator = document.getElementById('zoom-indicator');
+const detailSidebar = document.getElementById('detail-sidebar');
+const toast = document.getElementById('toast');
+
+function render() {
+  viewport.innerHTML = '';
+  if (edgesSvg.querySelector('defs')) {
+    viewport.appendChild(edgesSvg);
+  }
+
+  NODES.forEach(n => {
+    if (!state.filterTypes.has(n.type)) return;
+    const el = document.createElement('div');
+    el.className = `node ${n.type}`;
+    el.id = 'node-' + n.id;
+    if (state.selectedIds.has(n.id)) el.classList.add('selected');
+    if (n.status === 'executing') el.setAttribute('data-state', 'executing');
+
+    const { x, y } = state.nodePositions[n.id];
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+
+    el.innerHTML = `
+      <div class="node-header">
+        <span class="node-icon" style="font-size:14px">${ICONS[n.type]}</span>
+        <span class="node-type-label" style="font-size:11px;font-weight:600;flex:1">${TYPE_LABELS[n.type]}</span>
+        ${n.runCount ? `<span class="run-count">${n.runCount}</span>` : ''}
+      </div>
+      <div class="node-body">${n.desc}</div>
+      <div class="node-footer">
+        <span class="status-badge ${n.status === 'executing' ? 'running' : n.status === 'failed' ? 'failed' : 'completed'}">
+          ${n.status === 'executing' ? '◌ running' : n.status === 'draft' ? '○ draft' : '✓ ' + n.status}
+        </span>
+        <span>${n.time}</span>
+      </div>
+      <div class="node-handle top"></div>
+      <div class="node-handle bottom"></div>
+      <div class="node-handle left"></div>
+      <div class="node-handle right"></div>
+    `;
+
+    viewport.appendChild(el);
+  });
+
+  renderEdges();
+  renderMinimap();
+  applyTransform();
+}
+
+function renderEdges() {
+  edgesSvg.innerHTML = `
+    <defs>
+      <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 z" fill="#475569"/>
+      </marker>
+    </defs>
+  `;
+  EDGES.forEach(e => {
+    const from = state.nodePositions[e.from];
+    const to = state.nodePositions[e.to];
+    if (!from || !to) return;
+    if (!state.filterTypes.has(NODES.find(n=>n.id===e.from)?.type)) return;
+    if (!state.filterTypes.has(NODES.find(n=>n.id===e.to)?.type)) return;
+
+    const sx = from.x + 240;
+    const sy = from.y + 60;
+    const ex = to.x;
+    const ey = to.y + 60;
+    const mx = (sx + ex) / 2;
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('class', `edge-path ${e.type}`);
+    path.setAttribute('d', `M ${sx} ${sy} C ${mx} ${sy}, ${mx} ${ey}, ${ex} ${ey}`);
+    path.setAttribute('marker-end', 'url(#arrow)');
+    edgesSvg.appendChild(path);
+  });
+}
+
+function renderMinimap() {
+  minimap.innerHTML = '';
+  const scale = 0.04;
+  const totalW = 1400, totalH = 600;
+
+  // Viewport rect
+  const vx = (-state.panX * scale);
+  const vy = (-state.panY * scale);
+  const vw = (window.innerWidth * scale);
+  const vh = (window.innerHeight * scale);
+  const vr = document.createElement('div');
+  vr.className = 'minimap-viewport';
+  vr.style.cssText = `left:${vx}px;top:${vy}px;width:${vw}px;height:${vh}px;`;
+  minimap.appendChild(vr);
+
+  NODES.forEach(n => {
+    if (!state.filterTypes.has(n.type)) return;
+    const { x, y } = state.nodePositions[n.id];
+    const m = document.createElement('div');
+    m.className = 'minimap-node';
+    const colors = {thread:'#6366f1',run:'#8b5cf6',artifact:'#10b981',tool:'#06b6d4',message:'#f59e0b'};
+    m.style.cssText = `left:${x*scale}px;top:${y*scale}px;width:${10}px;height:${6}px;background:${colors[n.type]};`;
+    minimap.appendChild(m);
+  });
+}
+
+function applyTransform() {
+  viewport.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+  document.getElementById('zoom-level').textContent = Math.round(state.zoom * 100) + '%';
+}
+
+// ── Pan & Zoom ──
+document.getElementById('canvas').addEventListener('mousedown', e => {
+  if (e.target.closest('.node')) return;
+  if (e.button === 0 || e.button === 1 || e.button === 2) {
+    state.isPanning = true;
+    state.panStart = { x: e.clientX - state.panX, y: e.clientY - state.panY };
+    e.preventDefault();
+  }
+  if (e.button === 0 && e.shiftKey) {
+    // Shift+drag = box selection
+    state.isSelecting = true;
+    state.selStart = { x: e.clientX, y: e.clientY };
+    selBox.style.display = 'block';
+    selBox.style.left = e.clientX + 'px';
+    selBox.style.top = e.clientY + 'px';
+    selBox.style.width = '0px';
+    selBox.style.height = '0px';
+  }
+});
+
+document.addEventListener('mousemove', e => {
+  if (state.isPanning && !state.isSelecting) {
+    state.panX = e.clientX - state.panStart.x;
+    state.panY = e.clientY - state.panStart.y;
+    applyTransform();
+    renderMinimap();
+  }
+  if (state.isSelecting) {
+    const x = Math.min(state.selStart.x, e.clientX);
+    const y = Math.min(state.selStart.y, e.clientY);
+    const w = Math.abs(e.clientX - state.selStart.x);
+    const h = Math.abs(e.clientY - state.selStart.y);
+    selBox.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px;display:block`;
+  }
+});
+
+document.addEventListener('mouseup', e => {
+  if (state.isSelecting) {
+    // Box selection
+    const rect = { x: parseFloat(selBox.style.left), y: parseFloat(selBox.style.top),
+                   w: parseFloat(selBox.style.width), h: parseFloat(selBox.style.height) };
+    if (rect.w > 5 && rect.h > 5) {
+      const toVp = p => ({ x: (p.x - state.panX) / state.zoom, y: (p.y - state.panY) / state.zoom });
+      NODES.forEach(n => {
+        const pos = state.nodePositions[n.id];
+        const cx = pos.x + 120, cy = pos.y + 60;
+        const vp = toVp({ x: rect.x, y: rect.y });
+        if (cx >= vp.x && cx <= vp.x + rect.w/state.zoom &&
+            cy >= vp.y && cy <= vp.y + rect.h/state.zoom) {
+          state.selectedIds.add(n.id);
+        }
+      });
+      render();
+    }
+    selBox.style.display = 'none';
+    state.isSelecting = false;
+  }
+  state.isPanning = false;
+});
+
+document.getElementById('canvas').addEventListener('wheel', e => {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? -0.1 : 0.1;
+  const newZoom = Math.max(0.1, Math.min(3, state.zoom + delta));
+  const rect = document.getElementById('canvas').getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  state.panX = mx - (mx - state.panX) * (newZoom / state.zoom);
+  state.panY = my - (my - state.panY) * (newZoom / state.zoom);
+  state.zoom = newZoom;
+  applyTransform();
+  renderMinimap();
+  showZoomIndicator();
+}, { passive: false });
+
+// ── Node drag ──
+viewport.addEventListener('mousedown', e => {
+  const nodeEl = e.target.closest('.node');
+  if (!nodeEl) return;
+  const id = nodeEl.id.replace('node-', '');
+  state.dragNode = id;
+  const pos = state.nodePositions[id];
+  state.dragOffset = {
+    x: e.clientX / state.zoom - pos.x,
+    y: e.clientY / state.zoom - pos.y
+  };
+  nodeEl.style.cursor = 'grabbing';
+});
+
+document.addEventListener('mousemove', e => {
+  if (!state.dragNode) return;
+  const nx = e.clientX / state.zoom - state.dragOffset.x;
+  const ny = e.clientY / state.zoom - state.dragOffset.y;
+  // Snap to 16px grid
+  state.nodePositions[state.dragNode] = {
+    x: Math.round(nx / 16) * 16,
+    y: Math.round(ny / 16) * 16
+  };
+  render();
+});
+
+document.addEventListener('mouseup', () => {
+  if (state.dragNode) {
+    const el = document.getElementById('node-' + state.dragNode);
+    if (el) el.style.cursor = 'pointer';
+  }
+  state.dragNode = null;
+});
+
+// ── Node click → select + detail sidebar ──
+viewport.addEventListener('click', e => {
+  const nodeEl = e.target.closest('.node');
+  if (!nodeEl) {
+    state.selectedIds.clear();
+    detailSidebar.classList.remove('open');
+    render(); return;
+  }
+  const id = nodeEl.id.replace('node-', '');
+  if (state.selectedIds.has(id)) {
+    state.selectedIds.delete(id);
+  } else {
+    state.selectedIds.add(id);
+  }
+  render();
+  showDetail(id);
+});
+
+function showDetail(id) {
+  const n = NODES.find(x => x.id === id);
+  if (!n) return;
+  const colors = {thread:'#6366f1',run:'#8b5cf6',artifact:'#10b981',tool:'#06b6d4',message:'#f59e0b'};
+  document.getElementById('detail-type-badge').textContent = TYPE_LABELS[n.type];
+  document.getElementById('detail-type-badge').style.background = colors[n.type];
+  document.getElementById('detail-title').textContent = n.title;
+  document.getElementById('detail-status').textContent = n.status === 'executing' ? '◌ Running' : n.status.charAt(0).toUpperCase() + n.status.slice(1);
+  document.getElementById('detail-desc').textContent = n.desc;
+  document.getElementById('detail-time').textContent = n.time;
+  detailSidebar.classList.add('open');
+}
+
+document.getElementById('detail-close').onclick = () => {
+  state.selectedIds.clear();
+  detailSidebar.classList.remove('open');
+  render();
+};
+
+document.getElementById('detail-expand').onclick = () => {
+  showToast('Expand: ' + NODES.find(n => [...state.selectedIds][0] && n.id === [...state.selectedIds][0])?.title);
+};
+
+// ── Node hover tooltip ──
+let tooltipTimer;
+viewport.addEventListener('mouseover', e => {
+  const nodeEl = e.target.closest('.node');
+  if (!nodeEl) return;
+  clearTimeout(tooltipTimer);
+  const id = nodeEl.id.replace('node-', '');
+  const n = NODES.find(x => x.id === id);
+  tooltip.textContent = `${TYPE_LABELS[n.type]} · ${n.status} · ${n.time}`;
+  tooltip.style.display = 'block';
+  tooltipTimer = setTimeout(() => { tooltip.style.display = 'none'; }, 2000);
+});
+viewport.addEventListener('mousemove', e => {
+  if (tooltip.style.display === 'block') {
+    tooltip.style.left = (e.clientX + 12) + 'px';
+    tooltip.style.top = (e.clientY - 28) + 'px';
+  }
+});
+viewport.addEventListener('mouseout', e => {
+  if (!e.target.closest('.node')) tooltip.style.display = 'none';
+});
+
+// ── Toolbar buttons ──
+document.getElementById('btn-zoom-in').onclick = () => { state.zoom = Math.min(3, state.zoom + 0.1); applyTransform(); renderMinimap(); showZoomIndicator(); };
+document.getElementById('btn-zoom-out').onclick = () => { state.zoom = Math.max(0.1, state.zoom - 0.1); applyTransform(); renderMinimap(); showZoomIndicator(); };
+document.getElementById('btn-fit').onclick = () => {
+  // Fit all visible nodes
+  const visible = NODES.filter(n => state.filterTypes.has(n.type));
+  if (!visible.length) return;
+  const minX = Math.min(...visible.map(n => state.nodePositions[n.id].x));
+  const maxX = Math.max(...visible.map(n => state.nodePositions[n.id].x)) + 240;
+  const minY = Math.min(...visible.map(n => state.nodePositions[n.id].y));
+  const maxY = Math.max(...visible.map(n => state.nodePositions[n.id].y)) + 120;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const z = Math.min(vw / (maxX - minX + 80), vh / (maxY - minY + 80), 1.5);
+  state.zoom = z;
+  state.panX = (vw - (maxX + minX) * z) / 2;
+  state.panY = (vh - (maxY + minY) * z) / 2;
+  applyTransform(); renderMinimap();
+};
+document.getElementById('btn-layout').onclick = () => {
+  // Simple auto-layout
+  const visible = NODES.filter(n => state.filterTypes.has(n.type));
+  const byRow = {};
+  visible.forEach(n => {
+    const col = n.parent || n.type;
+    if (!byRow[col]) byRow[col] = [];
+    byRow[col].push(n);
+  });
+  let cx = 100, cy = 60;
+  Object.values(byRow).forEach((row, ri) => {
+    row.forEach((n, ci) => {
+      state.nodePositions[n.id] = { x: cx + ci * 320, y: cy + ri * 200 };
+    });
+  });
+  render();
+  showToast('Auto layout applied');
+};
+document.getElementById('btn-export-png').onclick = () => showToast('Exporting PNG…');
+
+// Filter toggles
+document.querySelectorAll('.tb-btn[data-type]').forEach(btn => {
+  btn.onclick = () => {
+    const t = btn.dataset.type;
+    if (state.filterTypes.has(t)) {
+      state.filterTypes.delete(t);
+      btn.classList.remove('active');
+    } else {
+      state.filterTypes.add(t);
+      btn.classList.add('active');
+    }
+    render();
+  };
+});
+
+// ── Keyboard shortcuts ──
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'Escape') { state.selectedIds.clear(); detailSidebar.classList.remove('open'); render(); }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedIds.size > 0) {
+    const ids = [...state.selectedIds];
+    ids.forEach(id => {
+      const idx = NODES.findIndex(n => n.id === id);
+      if (idx !== -1) NODES.splice(idx, 1);
+    });
+    state.selectedIds.clear();
+    detailSidebar.classList.remove('open');
+    render();
+    showToast(`Deleted ${ids.length} node(s)`);
+  }
+  if (e.key === 'f' || e.key === 'F') document.getElementById('btn-fit').click();
+  if (e.key === '+' || e.key === '=') document.getElementById('btn-zoom-in').click();
+  if (e.key === '-') document.getElementById('btn-zoom-out').click();
+});
+
+// ── Helpers ──
+function showZoomIndicator() {
+  zoomIndicator.textContent = Math.round(state.zoom * 100) + '%';
+  zoomIndicator.classList.add('show');
+  clearTimeout(window._zTimer);
+  window._zTimer = setTimeout(() => zoomIndicator.classList.remove('show'), 1500);
+}
+
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(window._tTimer);
+  window._tTimer = setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+// ── Simulate streaming updates ──
+let simTimer;
+function startSimulation() {
+  let step = 0;
+  simTimer = setInterval(() => {
+    step++;
+    const r2 = NODES.find(n => n.id === 'r2');
+    const tl2 = NODES.find(n => n.id === 'tl2');
+    if (step === 3) { if(r2) r2.status = 'completed'; if(tl2) tl2.status = 'completed'; render(); }
+    if (step === 6) { showToast('Canvas auto-saved'); }
+  }, 3000);
+}
+
+// ── Init ──
+render();
+startSimulation();
+document.getElementById('zoom-level').textContent = '100%';
+</script>
+</body>
+</html>

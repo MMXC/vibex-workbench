@@ -1,0 +1,557 @@
+# ============================================================
+# Level 5 — Canvas Workbench Service 规格
+# Service Specification
+# ============================================================
+# 从属于: canvas-workbench_feature.yaml (L4)
+# 下层依赖: canvas-workbench_data.yaml (L5c)
+
+spec:
+  version: "0.1.0"
+  level: "5a_service_frontend"
+  name: "canvas-workbench-frontend"
+  parent: "canvas-workbench"
+
+meta:
+  feature: "canvas-workbench"
+  owner: "frontend"
+  tech_stack: ["Svelte 5", "TypeScript"]
+  generated_from: "canvas-workbench_feature.yaml"
+
+content:
+  derived_from: "service.yaml 接口契约"
+  # ── 服务层架构 ─────────────────────────────────────────────
+  architecture:
+    description: "Canvas Workbench 服务层负责维护画布状态、与 runStore/artifactStore/threadStore 双向同步、节点/边渲染抽象，并对外暴露 Canvas 操作 API"
+    pattern: "Svelte 5 Reactive Store + Canvas Orchestration"
+    layers:
+      - name: "API Layer"
+        description: "公开 Canvas 操作 API（addNode / removeNode / fitView / exportCanvas / undo / redo）"
+      - name: "State Layer"
+        description: "canvasStore 状态管理，维护 nodes / edges / viewport / commandHistory"
+      - name: "Sync Layer"
+        description: "canvas-sync 桥接，监听 SSE 事件并同步到 canvasStore"
+      - name: "Renderer Layer"
+        description: "node-renderer / edge-renderer，适配 ReactFlow 节点/边组件"
+
+  # ── 核心服务模块 ─────────────────────────────────────────────
+  modules:
+    canvasState:
+      description: "Canvas 状态管理（Svelte 5 $state）"
+      responsibilities:
+        - "维护 canvasStore.nodes[] / edges[] / viewport / selectedNodeIds"
+        - "提供 addNode / removeNode / updateNode / addEdge / removeEdge API"
+        - "处理节点位置序列化（position 持久化到 canvasStore）"
+        - "支持 Undo/Redo（command history stack，最大 50 条）"
+      state_shape:
+        nodes: "WorkbenchNode[]"
+        edges: "WorkbenchEdge[]"
+        viewport: "Viewport"
+        selectedNodeIds: "string[]"
+        selectedEdgeIds: "string[]"
+        commandHistory: "Command[]"
+        commandHistoryIndex: "number"
+        isSelecting: "boolean"
+        selectionBox: "SelectionBox | null"
+        visibleNodeTypes: "CanvasNodeType[]"
+      constraints:
+        max_nodes: 1000
+        max_edges: 2000
+        max_command_history: 50
+
+    canvasSync:
+      description: "Canvas ↔ upstream Stores 双向同步桥"
+      responsibilities:
+        - "消费 SSE 事件（run.started / tool.called / artifact.created / message.delta 等）"
+        - "将事件映射为 Canvas 节点并 push 到 canvasStore"
+        - "响应 canvasStore 节点位置变更 → 持久化 position"
+        - "监听 threadStore / runStore / artifactStore 变更并同步"
+      sync_sources:
+        - source: "runStore"
+          events:
+            - event: "run.started"
+              canvas_action: "create RunNode"
+              node_type: "run"
+            - event: "run.stage_changed"
+              canvas_action: "update RunNode.stage"
+            - event: "run.completed"
+              canvas_action: "update RunNode status=completed"
+            - event: "run.failed"
+              canvas_action: "update RunNode status=failed"
+            - event: "tool.called"
+              canvas_action: "create ToolNode"
+              node_type: "tool"
+            - event: "tool.completed"
+              canvas_action: "update ToolNode status=completed"
+            - event: "tool.failed"
+              canvas_action: "update ToolNode status=failed"
+        - source: "artifactStore"
+          events:
+            - event: "artifact.created"
+              canvas_action: "create ArtifactNode"
+              node_type: "artifact"
+        - source: "threadStore"
+          events:
+            - event: "thread.created"
+              canvas_action: "create ThreadNode"
+              node_type: "thread"
+        - source: "runStore.messageStream"
+          events:
+            - event: "message.delta"
+              canvas_action: "create/update MessageNode"
+              node_type: "message"
+      debounce_ms: 50
+      batch_size: 50
+
+    nodeRenderer:
+      description: "节点类型注册 + ReactFlow 节点工厂"
+      responsibilities:
+        - "注册 nodeTypes: thread / run / artifact / tool / message"
+        - "将 canvasStore nodes[] 转为 ReactFlow node[]"
+        - "处理节点展开/折叠状态"
+        - "管理节点宽度/高度自动测量"
+      node_type_configs:
+        thread:
+          default_width: 240
+          default_height: 120
+          resizable: false
+          deletable: false
+        run:
+          default_width: 200
+          default_height: 80
+          resizable: true
+          deletable: false
+        tool:
+          default_width: 160
+          default_height: 60
+          resizable: true
+          deletable: false
+        artifact:
+          default_width: 160
+          default_height: 140
+          resizable: true
+          deletable: true
+        message:
+          default_width: 280
+          default_height: 100
+          resizable: false
+          deletable: false
+
+    edgeRenderer:
+      description: "边类型注册 + 自动布局"
+      responsibilities:
+        - "注册 edgeTypes: causal / reference / streaming"
+        - "管理边的源/目标节点连接"
+        - "自动布局算法调用（dagre / elkjs）"
+      edge_type_configs:
+        causal:
+          color: "#94a3b8"
+          style: "solid"
+          width: 2
+          animated: false
+          arrow: true
+          connects: ["thread→run", "run→tool", "run→artifact"]
+        reference:
+          color: "#3b82f6"
+          style: "dashed"
+          width: 2
+          animated: false
+          arrow: false
+          connects: ["artifact→thread", "artifact→artifact"]
+        streaming:
+          color: "#22c55e"
+          style: "dashed"
+          width: 2
+          animated: true
+          arrow: false
+          connects: ["run→message", "tool→artifact"]
+
+    viewportController:
+      description: "视口状态管理"
+      responsibilities:
+        - "维护 viewport: { x, y, zoom }"
+        - "响应 pan/zoom 事件"
+        - "支持 fit-view / zoom-to-nodes / reset-view"
+        - "MiniMap 同步"
+      constraints:
+        zoom_min: 0.1
+        zoom_max: 3.0
+        zoom_step: 0.1
+
+    layoutEngine:
+      description: "自动布局引擎"
+      responsibilities:
+        - "执行 dagre / elkjs 自动布局"
+        - "管理布局方向（TB / LR / BT / RL）"
+        - "计算节点 rank 和间距"
+      algorithms:
+        - name: "dagre"
+          description: "默认布局算法，轻量快速"
+          complexity: "O(n)"
+        - name: "elkjs"
+          description: "复杂分层布局，适合大规模图"
+          complexity: "O(n log n)"
+      default_spacing:
+        node_spacing: 60
+        rank_spacing: 80
+      presets:
+        - name: "compact"
+          node_spacing: 40
+          rank_spacing: 60
+        - name: "spacious"
+          node_spacing: 100
+          rank_spacing: 120
+
+    selectionManager:
+      description: "节点/边选择管理"
+      responsibilities:
+        - "单选 / 多选（框选）节点"
+        - "选中状态同步到 canvasStore.selectedNodeIds"
+        - "支持 Ctrl+Click 多选"
+        - "全选 / 取消选中"
+
+    undoRedoManager:
+      description: "Undo/Redo 命令管理"
+      responsibilities:
+        - "记录 addNode / removeNode / updateNode / addEdge / removeEdge 命令"
+        - "维护 commandHistory[] 和 commandHistoryIndex"
+        - "执行 undo / redo 操作"
+      constraints:
+        max_history: 50
+        recorded_operations:
+          - "add_node"
+          - "remove_node"
+          - "update_node"
+          - "add_edge"
+          - "remove_edge"
+          - "batch"
+        ignored_operations:
+          - "viewport_change"
+          - "selection_change"
+
+    exportService:
+      description: "Canvas 导出服务"
+      responsibilities:
+        - "导出画布为 PNG / SVG"
+        - "支持全画布 / 当前视口导出"
+        - "处理高 DPI 渲染（2x）"
+
+  # ── Public API 详细规格 ─────────────────────────────────────
+  public_api:
+    addNode:
+      signature: "addNode(node: WorkbenchNode): void"
+      description: "向 canvas 添加节点"
+      parameters:
+        - name: "node"
+          type: "WorkbenchNode"
+          required: true
+          description: "完整的节点对象（含 type / position / data）"
+      behavior:
+        - "验证 node.id 唯一性"
+        - "push 到 canvasStore.nodes[]"
+        - "记录 command 到 history（undo 支持）"
+        - "触发 layout recalc（可选）"
+      errors:
+        - code: "DUPLICATE_NODE_ID"
+          message: "节点 ID 已存在"
+
+    removeNode:
+      signature: "removeNode(nodeId: string): void"
+      description: "从 canvas 移除节点"
+      parameters:
+        - name: "nodeId"
+          type: "string"
+          required: true
+      behavior:
+        - "查找节点（检查 deletable 权限）"
+        - "移除关联 edges"
+        - "从 canvasStore.nodes[] 删除"
+        - "记录 command 到 history"
+      errors:
+        - code: "NODE_NOT_FOUND"
+          message: "节点不存在"
+        - code: "NODE_NOT_DELETABLE"
+          message: "该节点类型不可删除"
+
+    updateNode:
+      signature: "updateNode(nodeId: string, patch: Partial<WorkbenchNode>): void"
+      description: "更新节点数据/位置"
+      parameters:
+        - name: "nodeId"
+          type: "string"
+          required: true
+        - name: "patch"
+          type: "Partial<WorkbenchNode>"
+          required: true
+          description: "部分更新字段（position / data / expanded / selected）"
+      behavior:
+        - "查找节点"
+        - "合并 patch"
+        - "若 position 变更 → 记录 command 到 history"
+        - "触发视图重渲染"
+
+    addEdge:
+      signature: "addEdge(edge: WorkbenchEdge): void"
+      description: "添加边"
+      parameters:
+        - name: "edge"
+          type: "WorkbenchEdge"
+          required: true
+      behavior:
+        - "验证 source/target 节点存在"
+        - "验证 edge type 与 node type 兼容"
+        - "push 到 canvasStore.edges[]"
+        - "记录 command 到 history"
+      errors:
+        - code: "EDGE_EXISTS"
+          message: "边已存在"
+        - code: "SOURCE_NOT_FOUND"
+          message: "源节点不存在"
+        - code: "TARGET_NOT_FOUND"
+          message: "目标节点不存在"
+        - code: "INVALID_EDGE_TYPE"
+          message: "该边类型不适用于指定节点"
+
+    removeEdge:
+      signature: "removeEdge(edgeId: string): void"
+      description: "移除边"
+      parameters:
+        - name: "edgeId"
+          type: "string"
+          required: true
+      behavior:
+        - "查找并删除 edge"
+        - "记录 command 到 history"
+
+    selectNodes:
+      signature: "selectNodes(nodeIds: string[]): void"
+      description: "批量选中节点"
+      parameters:
+        - name: "nodeIds"
+          type: "string[]"
+          required: true
+          description: "要选中的节点 ID 数组（空数组 = 取消全部选中）"
+      behavior:
+        - "不记录到 undo history（selection 变更不计入）"
+        - "更新 canvasStore.selectedNodeIds"
+
+    clearCanvas:
+      signature: "clearCanvas(): void"
+      description: "清空画布（仅删除 deletable=true 的节点）"
+      behavior:
+        - "过滤出 deletable=true 的节点"
+        - "批量删除节点及关联边"
+        - "记录 batch command 到 history"
+
+    fitView:
+      signature: "fitView(options?: FitViewOptions): void"
+      description: "适应视图"
+      parameters:
+        - name: "options"
+          type: "FitViewOptions"
+          required: false
+          description: "{ padding?: number, duration?: number }"
+      behavior:
+        - "计算所有节点的 bounding box"
+        - "调整 viewport 使所有节点可见"
+        - "不记录到 undo history"
+
+    zoomTo:
+      signature: "zoomTo(level: number, options?: ZoomOptions): void"
+      description: "缩放到指定级别"
+      parameters:
+        - name: "level"
+          type: "number"
+          required: true
+          description: "缩放级别（0.1–3.0）"
+          constraints:
+            min: 0.1
+            max: 3.0
+
+    undo:
+      signature: "undo(): void"
+      description: "撤销上一步操作"
+      behavior:
+        - "从 history 取出上一条 command"
+        - "执行反向操作"
+        - "递减 commandHistoryIndex"
+
+    redo:
+      signature: "redo(): void"
+      description: "重做"
+      behavior:
+        - "从 history 取出下一条 command"
+        - "重新执行操作"
+        - "递增 commandHistoryIndex"
+
+    exportCanvas:
+      signature: "exportCanvas(format: 'png' | 'svg', options?: ExportOptions): Promise<Blob>"
+      description: "导出画布为图片"
+      parameters:
+        - name: "format"
+          type: "'png' | 'svg'"
+          required: true
+        - name: "options"
+          type: "ExportOptions"
+          required: false
+          description: "{ fullCanvas?: boolean, scale?: number, backgroundColor?: string }"
+      returns:
+        type: "Promise<Blob>"
+      behavior:
+        - "获取 ReactFlow 实例的 toObject()"
+        - "渲染到 offscreen canvas"
+        - "返回 Blob"
+
+    applyLayout:
+      signature: "applyLayout(algorithm?: 'dagre' | 'elkjs'): void"
+      description: "执行自动布局"
+      parameters:
+        - name: "algorithm"
+          type: "'dagre' | 'elkjs'"
+          required: false
+          default: "dagre"
+      behavior:
+        - "调用 layoutEngine 计算节点位置"
+        - "批量更新 canvasStore.nodes[].position"
+        - "记录 batch command 到 history"
+
+    setVisibleNodeTypes:
+      signature: "setVisibleNodeTypes(types: CanvasNodeType[]): void"
+      description: "设置可见节点类型过滤器"
+      parameters:
+        - name: "types"
+          type: "CanvasNodeType[]"
+          required: true
+          description: "要显示的节点类型（空数组 = 显示全部）"
+
+  # ── 节点自动创建映射 ─────────────────────────────────────────────
+  node_creation_mapping:
+    thread:
+      trigger: "thread.created SSE event"
+      factory: "canvasSync.createThreadNode(threadData)"
+      data_fields: ["threadId", "title", "goal", "runCount", "status", "createdAt"]
+
+    run:
+      trigger: "run.started SSE event"
+      factory: "canvasSync.createRunNode(runData)"
+      data_fields: ["runId", "threadId", "goal", "status", "stage", "toolCount", "artifactCount", "createdAt"]
+
+    tool:
+      trigger: "tool.called SSE event"
+      factory: "canvasSync.createToolNode(toolData)"
+      data_fields: ["toolInvocationId", "runId", "toolName", "toolDisplayName", "status", "summary", "order"]
+
+    artifact:
+      trigger: "artifact.created SSE event"
+      factory: "canvasSync.createArtifactNode(artifactData)"
+      data_fields: ["artifactId", "name", "mimeType", "previewUrl", "runId", "toolInvocationId", "sizeBytes"]
+
+    message:
+      trigger: "message.delta SSE event"
+      factory: "canvasSync.createOrUpdateMessageNode(messageDelta)"
+      data_fields: ["messageId", "runId", "role", "content", "isStreaming", "isFinal"]
+
+  # ── 边自动创建规则 ─────────────────────────────────────────────
+  edge_creation_rules:
+    - rule: "thread→run causal"
+      when: "run.started event"
+      source: "threadNode (by threadId)"
+      target: "runNode (new)"
+      edge_type: "causal"
+
+    - rule: "run→tool causal"
+      when: "tool.called event"
+      source: "runNode (by runId)"
+      target: "toolNode (new)"
+      edge_type: "causal"
+
+    - rule: "tool→artifact streaming"
+      when: "artifact.created event with toolInvocationId"
+      source: "toolNode (by toolInvocationId)"
+      target: "artifactNode (new)"
+      edge_type: "streaming"
+
+    - rule: "run→message streaming"
+      when: "message.delta event"
+      source: "runNode (by runId)"
+      target: "messageNode (new)"
+      edge_type: "streaming"
+
+    - rule: "artifact→artifact reference"
+      when: "artifact references another artifact"
+      source: "referencing artifactNode"
+      target: "referenced artifactNode"
+      edge_type: "reference"
+
+  # ── 错误处理策略 ─────────────────────────────────────────────
+  error_handling:
+    node_limit_exceeded:
+      strategy: "Warn user, reject addNode"
+      behavior: "当 nodes.length >= 1000 时拒绝添加节点"
+
+    duplicate_node_id:
+      strategy: "Reject silently"
+      behavior: "console.warn，addNode 不执行"
+
+    invalid_state_transition:
+      strategy: "Log warning, no-op"
+      behavior: "忽略非法的状态转换"
+
+    layout_timeout:
+      strategy: "Cancel layout, keep current positions"
+      timeout_ms: 5000
+      behavior: "布局算法 5s 内未完成则取消"
+
+    export_failure:
+      strategy: "Notify user with error"
+      behavior: "toast.error('Canvas export failed: {message}')"
+
+  # ── 性能考虑 ─────────────────────────────────────────────
+  performance:
+    max_visible_nodes: 1000
+    node_position_update_debounce_ms: 16  # ~60fps
+    viewport_update_debounce_ms: 50
+    layout_batch_size: 100
+    export_timeout_ms: 10000
+    initial_render_max_nodes: 200
+    virtualized_rendering_threshold: 500  # 超过此数量启用虚拟化（future）
+
+  # ── 依赖关系 ─────────────────────────────────────────────
+  dependencies:
+    internal:
+      - module: "canvas-state"
+        imports: ["canvasStore"]
+      - module: "canvas-sync"
+        imports: ["canvasStore", "runStore", "artifactStore", "threadStore"]
+      - module: "node-renderer"
+        imports: ["canvasStore"]
+      - module: "edge-renderer"
+        imports: ["canvasStore"]
+      - module: "viewport-controller"
+        imports: ["canvasStore"]
+      - module: "layout-engine"
+        imports: ["canvasStore"]
+      - module: "selection-manager"
+        imports: ["canvasStore"]
+      - module: "undo-redo-manager"
+        imports: ["canvasStore"]
+      - module: "export-service"
+        imports: ["canvasStore"]
+
+    external:
+      - module: "run-engine"
+        description: "消费 run.started / tool.called 等 SSE 事件"
+      - module: "thread-manager"
+        description: "依赖 threadStore 获取 Thread 数据"
+      - module: "artifact-registry"
+        description: "依赖 artifactStore 获取 Artifact 数据"
+      - module: "workbench-shell"
+        description: "canvasStore 暴露给 shell 用于面板渲染"
+
+  # ── 非目标（Non-Goals）────────────────────────────────────────────
+  non_goals:
+    - "不实现无限画布虚拟化渲染（M3 里程碑考虑）"
+    - "不实现多画布/多 Tab（M3 里程碑）"
+    - "不实现节点分组/文件夹（M3 里程碑）"
+    - "不实现画布协作编辑（future work）"
+    - "不实现自定义节点类型注册机制（以 Spec 内置 5 类为限）"
+    - "不实现服务端持久化 canvasStore（仅内存，刷新丢失）"

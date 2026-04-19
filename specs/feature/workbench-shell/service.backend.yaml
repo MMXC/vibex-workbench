@@ -1,0 +1,43 @@
+---
+spec:
+  version: "0.1.0"
+  level: "5a_service_backend"
+  name: "workbench-shell-backend"
+  parent: "workbench-shell-feature"
+  status: "draft"
+meta:
+  owner: "backend"
+  tech_stack: ["Go", "sse"]
+  description: "后端 SSE 连接管理层 — 统一多路复用所有事件流"
+content:
+  notes:
+    - "workbench-shell 是纯 UI 层，不需要独立后端 service"
+    - "后端需要统一的 SSE 接入层，多路复用所有事件流到单一连接"
+  sse_connection_manager:
+    name: "SessionManager"
+    package: "internal/sse/manager"
+    responsibilities:
+      - "维护 client 连接映射（threadId → SSE client）"
+      - "接收各 service 事件，分发给对应 client"
+      - "处理连接建立/断开/心跳"
+    methods:
+      - name: "Register"
+        signature: "func (m *SessionManager) Register(threadId string, client SSEClient) error"
+      - name: "Unregister"
+        signature: "func (m *SessionManager) Unregister(threadId string) error"
+      - name: "Emit"
+        signature: "func (m *SessionManager) Emit(threadId string, event string, data []byte) error"
+  sse_multiplex_endpoint:
+    path: "GET /api/sse/threads/:threadId"
+    description: "统一 SSE 端点 — 合并 thread/run/tool/artifact/canvas 所有事件流，单连接推送"
+    events: ["thread.*", "run.*", "tool.*", "message.delta", "artifact.*", "canvas.*"]
+  sse_client_interface:
+    name: "SSEClient"
+    package: "internal/sse/client"
+    methods:
+      - name: "Send"
+        signature: "func (c *SSEClient) Send(event string, data []byte)"
+      - name: "Close"
+        signature: "func (c *SSEClient) Close()"
+      - name: "IsClosed"
+        signature: "func (c *SSEClient) IsClosed() bool"

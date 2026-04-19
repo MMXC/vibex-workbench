@@ -1,0 +1,392 @@
+# ============================================================
+# Level 5 — Thread Manager Service Specification
+# Service Implementation Details
+#
+# Parent: thread-manager-feature (L4)
+# Sibling: thread-manager_data.yaml (L5)
+# ============================================================
+
+spec:
+  version: "0.1.0"
+  level: "5a_service_frontend"
+  name: "thread-manager-frontend"
+  parent: "thread-manager-feature"
+  status: "draft"
+
+meta:
+  feature: "thread-manager"
+  owner: "frontend"
+  target_users: ["workbench-shell", "run-engine", "canvas-workbench"]
+  tech_stack: ["Svelte 5", "TypeScript", "Dexie.js", "SSE Consumer"]
+  description: "前端实现规格，从 service.yaml 接口契约派生"
+
+content:
+  derived_from: "service.yaml 接口契约"
+  # ============================================================
+  # 1. Service Architecture
+  # ============================================================
+  architecture:
+    overview: "ThreadManagerService 是一个单例 Svelte Store 服务，提供 Thread 生命周期管理、上下文组装、SSE 事件分发"
+    pattern: "Svelte 5 Reactive Store + Dexie.js + SSE Consumer"
+    modules:
+      - name: "ThreadManager"
+        type: "service_class"
+        description: "主服务类，封装所有 Thread 操作"
+        responsibilities:
+          - "Thread CRUD 操作"
+          - "上下文组装逻辑"
+          - "SSE 事件发布"
+          - "Store 订阅管理"
+
+      - name: "ThreadPersistence"
+        type: "data_access_layer"
+        description: "Dexie.js 持久化抽象层"
+        responsibilities:
+          - "IndexedDB 操作封装"
+          - "数据迁移管理"
+          - "错误重试逻辑"
+
+      - name: "ContextAssembler"
+        type: "utility_module"
+        description: "三层上下文组装器"
+        responsibilities:
+          - "immediate 层：当前消息/输入"
+          - "thread 层：Thread Context Memory"
+          - "workspace 层：全局工作区上下文"
+
+      - name: "ThreadEventBus"
+        type: "event_emitter"
+        description: "SSE 事件总线"
+        responsibilities:
+          - "事件发布/订阅"
+          - "事件去重"
+          - "订阅者管理"
+
+  # ============================================================
+  # 2. Module Specifications
+  # ============================================================
+  modules:
+    ThreadManager:
+      public_methods:
+        - method: "createThread"
+          signature: "async createThread(goal: string, options?: CreateThreadOptions): Promise<Thread>"
+          implementation: |
+            1. 验证 goal 非空（trim 后 length > 0）
+            2. 生成 threadId = nanoid(10)
+            3. 构建 Thread 对象（合并默认字段 + options）
+            4. 持久化到 IndexedDB（threads 表）
+            5. 初始化 contextMemory[threadId] = []
+            6. 更新 threadStore.threads
+            7. 切换 currentThreadId 到新 threadId
+            8. 触发 SSE 事件：thread.created
+            9. 返回 Thread 对象
+          error_cases:
+            - "goal 为空：抛 THREAD_004"
+            - "IndexedDB 写入失败：重试 3 次后抛 THREAD_003"
+            - "nanoid 碰撞（极低概率）：重新生成"
+
+        - method: "switchThread"
+          signature: "switchThread(threadId: string): void"
+          implementation: |
+            1. 验证 threadId 存在于 threads[]
+            2. 记录 previousThreadId
+            3. 更新 currentThreadId = threadId
+            4. 调用 contextAssembler.assemble() 组装三层上下文
+            5. 持久化 currentThreadId 到 localStorage
+            6. 触发 SSE 事件：thread.switched
+          error_cases:
+            - "threadId 不存在：抛 THREAD_001"
+
+        - method: "deleteThread"
+          signature: "async deleteThread(threadId: string, hard?: boolean): Promise<void>"
+          implementation: |
+            1. 验证 threadId 存在
+            2. 验证不是最后一个 active thread（除非 hard=true）
+            3. 若删除 currentThread，先切换到其他 thread
+            4. 执行软/硬删除：
+               - soft: status='deleted', deletedAt=now
+               - hard: 物理删除记录
+            5. 清理 contextMemory[threadId]
+            6. 更新 threadStore
+            7. 触发 SSE 事件：thread.deleted
+          error_cases:
+            - "threadId 不存在：抛 THREAD_001"
+            - "删除最后一个 thread：抛 THREAD_002"
+
+        - method: "updateThreadMeta"
+          signature: "updateThreadMeta(threadId: string, meta: Partial<ThreadMeta>): void"
+          implementation: |
+            1. 验证 threadId 存在
+            2. 合并 threadMeta[threadId]（浅合并）
+            3. 持久化更新到 IndexedDB
+            4. 触发 SSE 事件：thread.updated
+
+        - method: "pushContextSlice"
+          signature: "async pushContextSlice(threadId: string, slice: Omit<ContextSlice, 'id' | 'createdAt'>): Promise<ContextSlice>"
+          implementation: |
+            1. 验证 threadId 存在
+            2. 构建完整 ContextSlice（补充 id、createdAt）
+            3. 持久化到 IndexedDB（context_memory 表）
+            4. 追加到 contextMemory[threadId]
+            5. 触发 SSE 事件：context.ingested
+            6. 返回新创建的 ContextSlice
+
+        - method: "assembleContext"
+          signature: "assembleContext(threadId: string, layer: 'immediate' | 'thread' | 'workspace'): string"
+          implementation: |
+            1. 根据 layer 执行不同组装逻辑：
+               - immediate: 返回当前输入/消息
+               - thread: 拼接 contextMemory[threadId] 按 importance 排序
+               - workspace: 聚合所有 active threads 的关键 context
+            2. 返回组装后的文本
+
+    ThreadPersistence:
+      methods:
+        - method: "db"
+          description: "Dexie 数据库实例"
+          initialization: |
+            1. 创建 Dexie 实例 'vibex-threads'
+            2. 定义 schema（见 indexeddb_schema）
+            3. 执行 migrate 钩子（如需要）
+
+        - method: "saveThread"
+          signature: "async saveThread(thread: Thread): Promise<void>"
+          retry_policy:
+            max_retries: 3
+            backoff: "exponential"
+            base_delay: 100
+
+        - method: "deleteThread"
+          signature: "async deleteThread(threadId: string): Promise<void>"
+          type: "soft | hard"
+
+        - method: "loadAllThreads"
+          signature: "async loadAllThreads(): Promise<Thread[]>"
+          filter: "WHERE status != 'deleted'"
+
+        - method: "saveContextSlice"
+          signature: "async saveContextSlice(slice: ContextSlice): Promise<void>"
+          retry_policy:
+            max_retries: 3
+            backoff: "exponential"
+
+        - method: "loadContextMemory"
+          signature: "async loadContextMemory(threadId: string): Promise<ContextSlice[]>"
+
+    ContextAssembler:
+      methods:
+        - method: "assembleImmediate"
+          signature: "assembleImmediate(): string"
+          description: "返回即时上下文（当前 composer 内容）"
+
+        - method: "assembleThread"
+          signature: "assembleThread(threadId: string): string"
+          implementation: |
+            1. 获取 contextMemory[threadId]
+            2. 按 type 分组
+            3. 按 importance 权重拼接
+            4. 格式：[type] content\n\n
+          max_tokens: 8000
+
+        - method: "assembleWorkspace"
+          signature: "assembleWorkspace(): string"
+          implementation: |
+            1. 获取所有 active threads
+            2. 提取每个 thread 的 goal + 最高 importance slices
+            3. 聚合为 workspace 上下文
+          max_tokens: 4000
+
+        - method: "assembleFull"
+          signature: "assembleFull(threadId: string): string"
+          implementation: "return [assembleWorkspace(), assembleThread(threadId), assembleImmediate()].join('\n---\n')"
+
+    ThreadEventBus:
+      methods:
+        - method: "emit"
+          signature: "emit(event: string, payload: unknown): void"
+          description: "发布事件到 SSE 连接"
+
+        - method: "subscribe"
+          signature: "subscribe(event: string, handler: Function): () => void"
+          description: "订阅事件，返回取消订阅函数"
+
+        - method: "createSSEStream"
+          signature: "createSSEStream(request: Request): Response"
+          description: "创建 SSE 响应流"
+
+  # ============================================================
+  # 3. API Contracts
+  # ============================================================
+  api_contracts:
+    internal_stores:
+      - store: "threadStore"
+        location: "src/stores/threadStore.ts"
+        type: "Svelte writable store"
+        shape:
+          threads: "Thread[]"
+          currentThreadId: "string | null"
+          contextMemory: "Record<string, ContextSlice[]>"
+          threadMeta: "Record<string, ThreadMeta>"
+        subscriptions:
+          - subscriber: "canvas-workbench"
+            watches: ["threads", "currentThreadId"]
+          - subscriber: "run-engine"
+            watches: ["currentThreadId", "contextMemory"]
+          - subscriber: "workbench-shell"
+            watches: ["threads", "currentThreadId"]
+
+    sse_endpoints:
+      - endpoint: "/api/sse/threads"
+        description: "Thread 事件 SSE 流"
+        events:
+          - "thread.created"
+          - "thread.switched"
+          - "thread.deleted"
+          - "thread.updated"
+          - "context.ingested"
+        authentication: "session cookie"
+        retry: "automatic with backoff"
+
+  # ============================================================
+  # 4. Error Handling Specification
+  # ============================================================
+  error_handling:
+    error_codes:
+      THREAD_001:
+        message: "Thread not found"
+        http_status: 404
+        severity: "warning"
+        user_message: "未找到该 Thread"
+        recovery: "refresh thread list"
+
+      THREAD_002:
+        message: "Cannot delete current thread without alternatives"
+        http_status: 409
+        severity: "error"
+        user_message: "无法删除唯一 Thread"
+        recovery: "create new thread first"
+
+      THREAD_003:
+        message: "IndexedDB write failure"
+        http_status: 500
+        severity: "critical"
+        user_message: "数据保存失败"
+        recovery: "retry with exponential backoff"
+
+      THREAD_004:
+        message: "Invalid thread goal"
+        http_status: 400
+        severity: "warning"
+        user_message: "目标不能为空"
+        recovery: "enter valid goal"
+
+    recovery_strategies:
+      - scenario: "IndexedDB unavailable"
+        strategy: "fallback to in-memory storage"
+        notification: "show offline indicator"
+
+      - scenario: "SSE connection lost"
+        strategy: "auto-reconnect with exponential backoff"
+        max_retries: 10
+        notification: "show reconnecting indicator"
+
+  # ============================================================
+  # 5. Performance Requirements
+  # ============================================================
+  performance:
+    targets:
+      - metric: "createThread latency"
+        target: "< 100ms (P95)"
+        measurement: "from user action to UI update"
+
+      - metric: "switchThread latency"
+        target: "< 50ms (P95)"
+        measurement: "from click to canvas highlight"
+
+      - metric: "assembleContext throughput"
+        target: "处理 1000 slices < 50ms"
+        measurement: "full context assembly"
+
+      - metric: "IndexedDB query"
+        target: "< 20ms (P95)"
+        measurement: "loadAllThreads()"
+
+      - metric: "SSE event delivery"
+        target: "< 10ms (P95)"
+        measurement: "from emit to client receive"
+
+    limits:
+      - limit: "max threads per workspace"
+        value: 500
+        soft_limit: 100
+
+      - limit: "max context slices per thread"
+        value: 5000
+        eviction_policy: "LRU by importance + age"
+
+      - limit: "assembled context size"
+        value: "32,000 tokens"
+        truncation_policy: "prioritize by importance"
+
+  # ============================================================
+  # 6. Testing Specification
+  # ============================================================
+  testing:
+    unit_tests:
+      - file: "ThreadManager.test.ts"
+        coverage:
+          - "createThread all branches"
+          - "switchThread validation"
+          - "deleteThread soft/hard"
+          - "pushContextSlice"
+          - "assembleContext all layers"
+        mocks:
+          - "Dexie database"
+          - "EventBus"
+
+      - file: "ContextAssembler.test.ts"
+        coverage:
+          - "assembleThread ordering"
+          - "assembleWorkspace aggregation"
+          - "token limit truncation"
+
+    integration_tests:
+      - name: "Thread lifecycle E2E"
+        steps:
+          1. "createThread(goal='test')"
+          2. "switchThread(threadId)"
+          3. "pushContextSlice(threadId, slice)"
+          4. "deleteThread(threadId)"
+        assertions:
+          - "threads[] length correct"
+          - "currentThreadId correct"
+          - "SSE events emitted"
+
+      - name: "Context assembly E2E"
+        steps:
+          1. "createThread"
+          2. "pushContextSlice (10 slices, varying importance)"
+          3. "assembleContext('thread')"
+        assertions:
+          - "output length < token limit"
+          - "higher importance slices included"
+
+    e2e_tests:
+      - name: "Thread UI interaction"
+        framework: "Playwright"
+        scenarios:
+          - "Create thread via composer"
+          - "Switch thread via sidebar"
+          - "Delete thread via context menu"
+          - "Keyboard shortcuts (Ctrl+T, Ctrl+Tab)"
+
+derived_from:
+  - parent: "thread-manager-feature"
+    rationale: "实现细节规格化"
+
+linked_specs:
+  - "thread-manager_data (L5 - data schema)"
+  - "thread-manager_uiux (L5 - UI specification)"
+
+updated_by: "hermes"
+updated_at: "2026-04-19T20:13:00Z"

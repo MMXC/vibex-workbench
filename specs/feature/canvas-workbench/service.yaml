@@ -1,0 +1,51 @@
+---
+spec:
+  version: "0.1.0"
+  level: "5a_service"
+  name: "canvas-workbench-service"
+  parent: "canvas-workbench-feature"
+  status: "contract"
+meta:
+  owner: "shared"
+  tech_stack: ["contract"]
+  description: "Canvas Orchestration 接口契约 — frontend 和 backend 共用"
+content:
+  public_api:
+    - method: "createCanvas"
+      signature: "createCanvas(): Canvas"
+    - method: "deleteCanvas"
+      signature: "deleteCanvas(id: string): void"
+    - method: "addNode"
+      signature: "addNode(canvasId: string, node: CanvasNode): void"
+    - method: "removeNode"
+      signature: "removeNode(nodeId: string): void"
+    - method: "updateNode"
+      signature: "updateNode(nodeId: string, patch: Partial<CanvasNode>): void"
+    - method: "addEdge"
+      signature: "addEdge(canvasId: string, edge: CanvasEdge): void"
+    - method: "removeEdge"
+      signature: "removeEdge(edgeId: string): void"
+    - method: "selectNodes"
+      signature: "selectNodes(nodeIds: string[]): void"
+    - method: "setViewport"
+      signature: "setViewport(x: number, y: number, zoom: number): void"
+    - method: "setTool"
+      signature: "setTool(tool: 'select'|'pan'|'add-node'): void"
+  sse_events:
+    - event: "canvas.created"
+      payload: "{ canvas: Canvas }"
+    - event: "canvas.node.added"
+      payload: "{ canvasId: string, node: CanvasNode }"
+    - event: "canvas.node.removed"
+      payload: "{ nodeId: string }"
+    - event: "canvas.node.updated"
+      payload: "{ nodeId: string, patch: Partial<CanvasNode> }"
+    - event: "canvas.edge.added"
+      payload: "{ edge: CanvasEdge }"
+    - event: "canvas.edge.removed"
+      payload: "{ edgeId: string }"
+    - event: "canvas.sync"
+      payload: "{ canvasId: string, nodes: CanvasNode[], edges: CanvasEdge[] }"
+  data_contract:
+    imports_from: "canvas-workbench_data.yaml"
+    types: ["Canvas", "CanvasNode", "CanvasEdge", "Viewport"]
