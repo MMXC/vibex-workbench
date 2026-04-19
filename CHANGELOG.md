@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **E3 (Run Engine)**
+  - E3-U1: Run state tracking — run-store.ts toolInvocations[], addToolInvocation() / updateToolInvocation()
+  - E3-U2: RunStatusBar in Composer.svelte — running spinner + tool count / completed green check / failed red X
+  - sse.ts: tool.called/completed/failed handlers integrate runStore tool tracking
+
 - **E2 (Thread Management)**
   - E2-U1: Thread IndexedDB persistence via Dexie (WorkbenchDB, threads/artifacts tables)
   - E2-U2: ThreadList four-state UI — skeleton / empty / normal / error-retry
