@@ -14,7 +14,7 @@ LEVEL_ORDER = {"1_project_goal": 1, "2_architecture": 2, "3_module": 3, "4_featu
 LEVEL_PARENT = {
     "2_architecture": "1_project_goal",
     "3_module": "2_architecture",
-    "4_feature": "2_architecture",
+    "4_feature": "3_module",     # 支持 MOD-* parent（L3 module）
     "5a_uiux": "4_feature",
     "5b_service": "4_feature",
     "5c_data": "4_feature",
@@ -37,7 +37,15 @@ def get_spec_path(level: str, name: str) -> Path:
         if arch_path.exists():
             return arch_path
         return SPEC_DIR / "architecture" / "architecture.yaml"
+    elif level == "3_module":
+        # MOD-* module specs live in specs/module/
+        if name.startswith("MOD-"):
+            return SPEC_DIR / "module" / f"{name}_module.yaml"
+        return SPEC_DIR / "module" / f"{name}_module.yaml"
     elif level.startswith("4_") or level == "4_feature":
+        # MOD-* parent 映射到 L3 module 目录
+        if name.startswith("MOD-"):
+            return SPEC_DIR / "module" / f"{name}_module.yaml"
         return SPEC_DIR / "feature" / name / f"{name}_feature.yaml"
     elif level.startswith("5_"):
         feat = name.split("_")[0]
