@@ -1,0 +1,17 @@
+spec:
+  version: "1.0"
+  level: "5b_service"
+  name: "workbench-shell_service"
+  parent: "workbench-shell"
+  status: "active"
+content:
+  services:
+    - name: "LayoutService"
+      methods:
+        - "toggleLeftSidebar()"
+        - "toggleRightSidebar()"
+        - "setActivePanel(panel: string)"
+    - name: "StatusService"
+      methods:
+        - "showMessage(msg: string, type: string)"
+        - "showGenerationStatus(status: string)"

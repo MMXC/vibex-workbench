@@ -1,0 +1,49 @@
+# ============================================================
+# Level 4 — Routing Panel 功能规格
+# parent: MOD-router (L3)
+# ============================================================
+spec:
+  version: "1.0"
+  level: "4_feature"
+  name: "routing-panel"
+  parent: "MOD-router"
+  status: "draft"
+
+meta:
+  module: "MOD-router"
+  owner: "hermes"
+  created: "2026-04-20"
+
+content:
+  description: "变更路由面板——输入 bug/feature，自动路由到对应 spec 层"
+
+  user_stories:
+    - id: "US-001"
+      as_a: "开发者"
+      i_want: "输入一个 bug 描述，系统自动推荐要修改的 spec"
+      so_that: "我不必手动追踪问题来源"
+    - id: "US-002"
+      as_a: "开发者"
+      i_want: "看到变更影响的所有相关 specs"
+      so_that: "我知道改一个地方会影响多少规格"
+
+  capabilities:
+    - id: "C-001"
+      name: "变更输入"
+      priority: "high"
+    - id: "C-002"
+      name: "Spec 推荐"
+      priority: "high"
+    - id: "C-003"
+      name: "影响分析"
+      priority: "medium"
+
+  sub_specs:
+    uiux: "routing-panel_uiux.yaml"
+    service: "routing-panel_service.yaml"
+    data: "routing-panel_data.yaml"
+    test: "routing-panel_test.yaml"
+
+derived_from:
+  - parent: "MOD-router"
+    rationale: "routing-panel 是 router 模块的核心功能实现"

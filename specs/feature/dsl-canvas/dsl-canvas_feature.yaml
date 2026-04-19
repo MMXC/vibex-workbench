@@ -1,0 +1,53 @@
+# ============================================================
+# Level 4 — DSL Canvas 功能规格
+# parent: MOD-dsl-visualizer (L3)
+# ============================================================
+spec:
+  version: "1.0"
+  level: "4_feature"
+  name: "dsl-canvas"
+  parent: "MOD-dsl-visualizer"
+  status: "active"
+
+meta:
+  module: "MOD-dsl-visualizer"
+  owner: "hermes"
+  created: "2026-04-20"
+
+content:
+  description: "DSL 从属关系图形化——Mermaid 节点图 + 可视化层级"
+
+  user_stories:
+    - id: "US-001"
+      as_a: "spec 作者"
+      i_want: "看到当前项目所有 spec 的从属关系图"
+      so_that: "我理解规格的组织结构"
+    - id: "US-002"
+      as_a: "spec 作者"
+      i_want: "点击图中的节点跳转到对应 spec 编辑器"
+      so_that: "我可以从图形化视图快速导航到代码"
+    - id: "US-003"
+      as_a: "spec 作者"
+      i_want: "看到 spec 的层级用颜色区分"
+      so_that: "我能一眼分辨规格的深度"
+
+  capabilities:
+    - id: "C-001"
+      name: "Mermaid 从属图"
+      priority: "critical"
+    - id: "C-002"
+      name: "层级颜色编码"
+      priority: "high"
+    - id: "C-003"
+      name: "双向同步"
+      priority: "high"
+
+  sub_specs:
+    uiux: "dsl-canvas_uiux.yaml"
+    service: "dsl-canvas_service.yaml"
+    data: "dsl-canvas_data.yaml"
+    test: "dsl-canvas_test.yaml"
+
+derived_from:
+  - parent: "MOD-dsl-visualizer"
+    rationale: "dsl-canvas 是 dsl-visualizer 模块的核心功能实现"

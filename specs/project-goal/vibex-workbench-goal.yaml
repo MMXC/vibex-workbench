@@ -1,75 +1,215 @@
----
+# ============================================================
+# Level 1 — VibeX Workbench 项目目标规格
+# Project Goal Specification
+#
+# 使命：构建自举的 Spec 工程工作台
+#       核心能力：DSL 可视化编辑 + 代码生成 + 变更路由
+#       自举闭环：工作台由自身 specs 驱动，生成自身代码
+# ============================================================
+
 spec:
-  name: vibex-workbench
-  level: 1_project_goal
-  version: "0.1.0"
-  status: draft
-  parent: null
+  version: "1.0"
+  level: "1_project-goal"
+  name: "vibex-workbench-goal"
+  status: "active"
+
+meta:
+  project: "vibex-workbench"
+  owner: "hermes"
+  created: "2026-04-20"
+  updated: "2026-04-20"
 
 content:
-  project_name: "VibeX Workbench"
-  tagline: "Agent 工作台 + 画布可视化：把一次问题咨询，升级为可持续推进的任务链路"
-
+  # ── 产品定位 ─────────────────────────────────────────
   mission: |
-    构建一个「多模态 Agent 窗口」，核心创新是：
-    - **画布即 Orchestration 层**：Canvas 不只是画图工具，而是任务编排的可视化画布
-    - Thread / Run / Artifact / ToolInvocation 是画布上的一等公民（节点类型）
-    - 用户可以把一个目标扔给系统，然后在画布上看到整个执行链路
+    VibeX Workbench 是一套自举的 Spec 工程工作台。
+    用 YAML DSL 规格驱动自身开发：编辑 specs → 可视化从属关系图 →
+    生成前端代码 → 本地部署使用。
+    后续任何新功能、bug、需求变更，都路由到对应 spec 层修改，
+    通过生成器快速落地。
+    类比：VSCode 的基础能力（编辑/调试/终端），
+    但扩展为 Spec 工程的专用能力（图谱/生成/路由）。
 
   target_users:
-    - primary: "AI 开发者 / 高级用户：希望看到 Agent 执行过程的可见性"
-    - secondary: "团队负责人：需要追踪多轮任务的上下文链路"
+    - name: "Spec 工程实践者"
+      description: "需要用 spec 驱动方式管理复杂项目的开发者"
+    - name: "AI 原生应用团队"
+      description: "需要 Agent 工作台 + 画布可视化的团队"
+    - name: "自举工具爱好者"
+      description: "喜欢用工具构建工具、用规格定义规格的工程师"
 
-  success_metrics:
-    - SM1: "用户能在 composer 输入目标，画布上自动生成 Run 节点链路"
-    - SM2: "Thread 可切换，历史上下文可见、可引用"
-    - SM3: "Artifact 可预览、可拖入下次 composer"
-    - SM4: "三层工具可见性可切换（自然语言→结构化→开发者日志）"
-    - SM5: "make generate 0.9s 内完成，make drift = 0"
-
+  # ── 核心约束 ─────────────────────────────────────────
   constraints:
-    - "前端框架: SvelteKit（与现有 VibeX 前端一致）"
-    - "local-first 模式（Dexie.js / IndexedDB）"
-    - "不造轮子：复用在 vibex-spec 中已验证的生成器"
-    - "画布引擎: 复用 VibeX 现有的 canvas_feature.yaml 节点渲染逻辑"
+    - id: "C1"
+      name: "自举闭环"
+      rule: "vibex-workbench 的 specs 必须是自描述的——可以用自身生成自身"
+    - id: "C2"
+      name: "从属链完整"
+      rule: "每个 spec 必须声明 parent，找不到来源 = 违规，阻断生成"
+    - id: "C3"
+      name: "DSL 图形化"
+      rule: "spec 的从属关系必须可视化为节点图（Mermaid / 画布节点图）"
+    - id: "C4"
+      name: "Local-first"
+      rule: "无 backend 也能完整使用，数据存 IndexedDB"
+    - id: "C5"
+      name: "VSCode 扩展先行"
+      rule: "优先做成 VSCode extension，后续考虑独立桌面/PWA"
 
-  scope:
-    in_scope:
-      - "workbench-shell: 三栏布局 + composer"
-      - "thread-manager: Thread CRUD + 上下文切换"
-      - "run-engine: Run 执行状态机 + SSE 事件流"
-      - "artifact-registry: Artifact 上传/预览/复用"
-      - "canvas-workbench: 画布作为 Run 可视化的 Orchestration 层"
-    out_of_scope:
-      - "多 Agent 协作调度（future work）"
-      - "server-first 模式 + REST API"
-      - "移动端适配"
+  # ── 9 层规格路径（核心创新）───────────────────────────
+  # 这是用户原始设计的核心：从目标到部署的完整链路
+  # 每个 spec 都必须落在这 9 层之一，且必须有明确的 parent
+  spec_levels:
+    - level: 1
+      name: "目标 (Goal)"
+      description: "项目愿景、使命、成功指标、约束边界"
+      parent_required: false
+      example: "vibex-workbench-goal: 让 spec 工程自举落地"
 
-  milestone:
+    - level: 2
+      name: "骨架 (Skeleton)"
+      description: "技术选型 + 项目框架 + 目录结构"
+      parent_required: true
+      parent_level: 1
+      example: "SvelteKit + TailwindCSS + Dexie.js 技术栈选型"
+
+    - level: 3
+      name: "组织 (Organization)"
+      description: "模块划分（按业务领域，不按技术层）"
+      parent_required: true
+      parent_level: 2
+      example: "MOD-spec-engine / MOD-dsl-visualizer / MOD-code-generator"
+
+    - level: 4
+      name: "功能 (Function)"
+      description: "具体业务功能 + 用户故事"
+      parent_required: true
+      parent_level: 3
+      example: "spec-editor: YAML 编辑 + 语法高亮 + 从属链检查"
+
+    - level: 5a
+      name: "行为表现 (Behavior)"
+      description: "UX 交互流程、状态流转、事件协议"
+      parent_required: true
+      parent_level: 4
+      example: "SSE 事件流驱动、runStore 状态机"
+
+    - level: 5b
+      name: "皮肤 (Skin)"
+      description: "UI 视觉设计、组件状态、设计 token"
+      parent_required: true
+      parent_level: 4
+      example: "暗色主题、设计令牌、组件四态"
+
+    - level: 5c
+      name: "应用 (Application)"
+      description: "完整可运行的前端/后端代码（80% 生成）"
+      parent_required: true
+      parent_level: 4
+      example: "make generate 产出的 SvelteKit 组件"
+
+    - level: 5d
+      name: "细节迭代 (Glue Code)"
+      description: "胶水代码、手写业务逻辑（20% 手写）"
+      parent_required: true
+      parent_level: 4
+      example: "spec-parser 解析逻辑、生成器模板"
+
+    - level: 6
+      name: "本地部署 (Deployment)"
+      description: "工程化产出：VSCode extension / PWA / Tauri"
+      parent_required: true
+      parent_level: 1
+      example: "make build 生成 .vsix 安装包"
+
+  # ── 交付里程碑 ───────────────────────────────────────
+  milestones:
     - id: "M0"
-      name: "骨架"
-      description: "项目结构 + Makefile + 空 spec 文件"
+      name: "自举骨架"
+      description: "目录结构 + Makefile + L1/L2 specs + 生成器框架"
+      status: "pending"
+      priority: "critical"
+
     - id: "M1"
-      name: "workbench-shell"
-      description: "三栏布局 shell + composer 组件"
+      name: "spec-editor 核心"
+      description: "YAML 编辑 + 语法高亮 + 从属链解析"
+      status: "pending"
+      priority: "critical"
+
     - id: "M2"
-      name: "thread-manager"
-      description: "Thread CRUD + 上下文管理"
+      name: "DSL 图形化层"
+      description: "从属关系节点图（Mermaid 视图）"
+      status: "pending"
+      priority: "high"
+
     - id: "M3"
-      name: "run-engine"
-      description: "Run 状态机 + SSE 事件流"
+      name: "代码生成面板"
+      description: "make generate 可视化 + 生成预览"
+      status: "pending"
+      priority: "high"
+
     - id: "M4"
-      name: "artifact-registry"
-      description: "Artifact 上传 + 预览 + 复用"
+      name: "变更路由系统"
+      description: "bug/feature → 定位到 spec 层 → 修改规格 → 落地"
+      status: "pending"
+      priority: "medium"
+
     - id: "M5"
-      name: "canvas-workbench 集成"
-      description: "Canvas 作为 Orchestration 可视化层"
+      name: "VSCode Extension 打包"
+      description: "生成 .vsix，通过 make build 发布"
+      status: "pending"
+      priority: "medium"
+
+    - id: "M6"
+      name: "自举闭环验证"
+      description: "用 vibex-workbench 编辑自己的 specs，make generate 生成自身"
+      status: "pending"
+      priority: "critical"
+
+  # ── 成功指标 ─────────────────────────────────────────
+  success_metrics:
+    - "SM1: make lint-specs 通过，从属链 100% 完整"
+    - "SM2: make generate 在 5 秒内完成"
+    - "SM3: DSL 图形化层可渲染 5+ 层深的从属关系图"
+    - "SM4: 变更路由可在 3 步内定位到对应 spec 层"
+    - "SM5: VSCode Extension 可安装并运行"
+    - "SM6: M6 自举闭环验证通过（用自身生成自身）"
+
+  # ── 技术栈（Skeleton 层决策）─────────────────────────
+  tech_stack:
+    frontend: "SvelteKit + TailwindCSS + Svelte 5 Runes"
+    canvas: "复用 VibeX canvas 节点渲染"
+    state: "Zustand + Svelte 5 runes"
+    storage: "Dexie.js (IndexedDB)"
+    editor: "CodeMirror 6 (YAML 编辑)"
+    diagram: "Mermaid.js (从属图) + 画布节点图"
+    vscode: "@vscode/sqlite3 / VSCode WebView API"
+    generate: "Python 生成器（spec-to-sveltekit 复用）"
+    test: "Vitest + Playwright"
+
+  # ── 自举策略 ─────────────────────────────────────────
+  bootstrap_strategy: |
+    Phase 1（手动引导）:
+      - 人工写 L1/L2/L3 specs（当前阶段）
+      - 人工生成基础 SvelteKit 框架
+      - 验证生成流水线可工作
+
+    Phase 2（自举启动）:
+      - 用生成的 spec-editor 编辑更多 specs
+      - 用 dsl-visualizer 可视化自身从属图
+      - 生成器开始覆盖更多模块
+
+    Phase 3（自举闭环）:
+      - vibex-workbench 的所有 specs 由自身编辑
+      - make generate 生成完整前端
+      - 任何变更都走 spec → generate → 落地的闭环
 
 derived_from:
+  - source: "小羊 DSL-SPEC 设计理念"
+    key_insight: "9层路径：目标→骨架→组织→功能→行为→皮肤→应用→细节→部署"
   - source: "禹笑笑《从聊天框到工作台》2026-03-25"
-    key_insight: "4类核心实体（Thread/Artifact/Run/ToolInvocation）+ 三层可见性 + 事件流驱动"
-  - source: "vibex-spec existing canvas"
-    key_insight: "canvas_feature.yaml 节点渲染已验证，复用节点类型扩展"
-
-updated_by: "hermes"
-updated_at: "2026-04-19T20:00:00Z"
+    key_insight: "Agent 工作台范式：Thread/Run/Artifact + SSE 驱动"
+  - source: "vibex-spec 现有实践"
+    key_insight: "spec-driven project 方法论 + 5-Store 架构"
+  - source: "04-19 关键洞察"
+    key_insight: "从属 vs 横向分层——错误骨架是五层横向技术分层，正确是纵向需求从属"

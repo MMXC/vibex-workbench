@@ -1,0 +1,51 @@
+# ============================================================
+# Level 5c — DSL Canvas 数据规格
+# parent: dsl-canvas (L4)
+# ============================================================
+spec:
+  version: "1.0"
+  level: "5c_data"
+  name: "dsl-canvas_data"
+  parent: "dsl-canvas"
+  status: "active"
+
+content:
+  entities:
+    - entity: "SpecNode"
+      fields:
+        - name: "id"
+          type: "string"
+          primary_key: true
+        - name: "specId"
+          type: "string"
+        - name: "level"
+          type: "number"
+        - name: "name"
+          type: "string"
+        - name: "x"
+          type: "number"
+        - name: "y"
+          type: "number"
+        - name: "color"
+          type: "string"
+
+    - entity: "SpecEdge"
+      fields:
+        - name: "id"
+          type: "string"
+          primary_key: true
+        - name: "fromSpecId"
+          type: "string"
+        - name: "toSpecId"
+          type: "string"
+        - name: "label"
+          type: "string | null"
+
+    - entity: "MermaidGraph"
+      fields:
+        - name: "code"
+          type: "string"
+        - name: "generatedAt"
+          type: "Date"
+        - name: "specIds"
+          type: "string[]"

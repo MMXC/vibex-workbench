@@ -1,0 +1,59 @@
+# ============================================================
+# Level 5c — Spec Editor 数据规格
+# parent: spec-editor (L4)
+# ============================================================
+spec:
+  version: "1.0"
+  level: "5c_data"
+  name: "spec-editor_data"
+  parent: "spec-editor"
+  status: "active"
+
+content:
+  entities:
+    - entity: "SpecFile"
+      fields:
+        - name: "id"
+          type: "string"
+          primary_key: true
+        - name: "path"
+          type: "string"
+          unique: true
+        - name: "content"
+          type: "string"
+        - name: "level"
+          type: "number"
+        - name: "name"
+          type: "string"
+        - name: "parent"
+          type: "string | null"
+        - name: "status"
+          type: "'active' | 'draft' | 'deprecated'"
+        - name: "updatedAt"
+          type: "Date"
+
+    - entity: "Tab"
+      fields:
+        - name: "id"
+          type: "string"
+          primary_key: true
+        - name: "specFileId"
+          type: "string"
+        - name: "label"
+          type: "string"
+        - name: "isActive"
+          type: "boolean"
+
+    - entity: "Violation"
+      fields:
+        - name: "id"
+          type: "string"
+          primary_key: true
+        - name: "specId"
+          type: "string"
+        - name: "type"
+          type: "'missing-parent' | 'circular-ref' | 'invalid-level'"
+        - name: "message"
+          type: "string"
+        - name: "line"
+          type: "number | null"

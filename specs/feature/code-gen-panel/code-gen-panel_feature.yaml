@@ -1,0 +1,49 @@
+# ============================================================
+# Level 4 — Code Generator Panel 功能规格
+# parent: MOD-code-generator (L3)
+# ============================================================
+spec:
+  version: "1.0"
+  level: "4_feature"
+  name: "code-gen-panel"
+  parent: "MOD-code-generator"
+  status: "draft"
+
+meta:
+  module: "MOD-code-generator"
+  owner: "hermes"
+  created: "2026-04-20"
+
+content:
+  description: "代码生成可视化——make generate 的交互界面、进度条、产物预览"
+
+  user_stories:
+    - id: "US-001"
+      as_a: "spec 作者"
+      i_want: "点击按钮触发 make generate，实时看到执行步骤"
+      so_that: "我知道生成过程在做什么"
+    - id: "US-002"
+      as_a: "spec 作者"
+      i_want: "看到生成前后的文件 diff"
+      so_that: "我确认生成结果符合预期"
+
+  capabilities:
+    - id: "C-001"
+      name: "生成进度可视化"
+      priority: "critical"
+    - id: "C-002"
+      name: "文件 diff 预览"
+      priority: "high"
+    - id: "C-003"
+      name: "lint 输出"
+      priority: "high"
+
+  sub_specs:
+    uiux: "code-gen-panel_uiux.yaml"
+    service: "code-gen-panel_service.yaml"
+    data: "code-gen-panel_data.yaml"
+    test: "code-gen-panel_test.yaml"
+
+derived_from:
+  - parent: "MOD-code-generator"
+    rationale: "code-gen-panel 是 code-generator 模块的核心功能实现"

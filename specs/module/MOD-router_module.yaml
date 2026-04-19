@@ -1,0 +1,26 @@
+# ============================================================
+# Level 3 — Change Router 模块规格
+# parent: vibex-workbench-skeleton (L2)
+# ============================================================
+spec:
+  version: "1.0"
+  level: "3_module"
+  name: "MOD-router"
+  parent: "vibex-workbench-skeleton"
+  status: "draft"
+
+content:
+  module_id: "MOD-router"
+  responsibility: "变更路由——bug/feature → 定位到 spec 层 → 修改 → 落地"
+
+  public_api:
+    - name: "ChangeRouter"
+      description: "变更路由引擎"
+    - name: "SpecLevelMapper"
+      description: "将变更映射到 spec 层"
+    - name: "ImpactAnalyzer"
+      description: "分析变更影响范围"
+
+derived_from:
+  - parent: "vibex-workbench-skeleton"
+    rationale: "MOD-router 是 L2 skeleton 定义的扩展模块"

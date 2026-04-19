@@ -1,0 +1,71 @@
+flowchart TB
+    subgraph spec_hierarchy["VibeX Workbench Spec Hierarchy"]
+        MOD_code_generator["MOD code generator"]:::lv3
+        MOD_router["MOD router"]:::lv3
+        MOD_dsl_visualizer["MOD dsl visualizer"]:::lv3
+        MOD_workbench_shell["MOD workbench shell"]:::lv3
+        MOD_spec_engine["MOD spec engine"]:::lv3
+        vibex_workbench_skeleton["vibex workbench skeleton"]:::lv2
+        dsl_canvas["dsl canvas"]:::lv4
+        dsl_canvas_uiux["dsl canvas uiux"]:::lv5
+        dsl_canvas_test["dsl canvas test"]:::lv5
+        dsl_canvas_service["dsl canvas service"]:::lv5
+        dsl_canvas_data["dsl canvas data"]:::lv5
+        code_gen_panel_test["code gen panel test"]:::lv5
+        code_gen_panel_data["code gen panel data"]:::lv5
+        code_gen_panel_uiux["code gen panel uiux"]:::lv5
+        code_gen_panel_service["code gen panel service"]:::lv5
+        code_gen_panel["code gen panel"]:::lv4
+        routing_panel_uiux["routing panel uiux"]:::lv5
+        routing_panel["routing panel"]:::lv4
+        routing_panel_service["routing panel service"]:::lv5
+        routing_panel_test["routing panel test"]:::lv5
+        routing_panel_data["routing panel data"]:::lv5
+        workbench_shell["workbench shell"]:::lv4
+        workbench_shell_uiux["workbench shell uiux"]:::lv5
+        workbench_shell_test["workbench shell test"]:::lv5
+        workbench_shell_data["workbench shell data"]:::lv5
+        workbench_shell_service["workbench shell service"]:::lv5
+        spec_editor["spec editor"]:::lv4
+        spec_editor_data["spec editor data"]:::lv5
+        spec_editor_test["spec editor test"]:::lv5
+        spec_editor_service["spec editor service"]:::lv5
+        spec_editor_uiux["spec editor uiux"]:::lv5
+        vibex_workbench_goal["vibex workbench goal"]:::lv1
+    end
+    vibex_workbench_skeleton --> MOD_code_generator
+    vibex_workbench_skeleton --> MOD_router
+    vibex_workbench_skeleton --> MOD_dsl_visualizer
+    vibex_workbench_skeleton --> MOD_workbench_shell
+    vibex_workbench_skeleton --> MOD_spec_engine
+    vibex_workbench_goal --> vibex_workbench_skeleton
+    MOD_dsl_visualizer --> dsl_canvas
+    dsl_canvas --> dsl_canvas_uiux
+    dsl_canvas --> dsl_canvas_test
+    dsl_canvas --> dsl_canvas_service
+    dsl_canvas --> dsl_canvas_data
+    code_gen_panel --> code_gen_panel_test
+    code_gen_panel --> code_gen_panel_data
+    code_gen_panel --> code_gen_panel_uiux
+    code_gen_panel --> code_gen_panel_service
+    MOD_code_generator --> code_gen_panel
+    routing_panel --> routing_panel_uiux
+    MOD_router --> routing_panel
+    routing_panel --> routing_panel_service
+    routing_panel --> routing_panel_test
+    routing_panel --> routing_panel_data
+    MOD_workbench_shell --> workbench_shell
+    workbench_shell --> workbench_shell_uiux
+    workbench_shell --> workbench_shell_test
+    workbench_shell --> workbench_shell_data
+    workbench_shell --> workbench_shell_service
+    MOD_spec_engine --> spec_editor
+    spec_editor --> spec_editor_data
+    spec_editor --> spec_editor_test
+    spec_editor --> spec_editor_service
+    spec_editor --> spec_editor_uiux
+    classDef lv1 fill:#f87171,stroke:#red,stroke-width:3px,color:#000
+    classDef lv2 fill:#f87171,stroke:#orange,stroke-width:3px,color:#000
+    classDef lv3 fill:#f87171,stroke:#yellow,stroke-width:3px,color:#000
+    classDef lv4 fill:#f87171,stroke:#green,stroke-width:3px,color:#000
+    classDef lv5 fill:#f87171,stroke:#blue,stroke-width:3px,color:#000

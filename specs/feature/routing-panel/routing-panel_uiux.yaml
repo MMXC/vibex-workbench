@@ -1,0 +1,38 @@
+spec:
+  version: "1.0"
+  level: "5a_uiux"
+  name: "routing-panel_uiux"
+  parent: "routing-panel"
+  status: "draft"
+
+content:
+  pages:
+    - id: "routing-panel-page"
+      layout:
+        type: "panel"
+      regions:
+        - id: "routing-main"
+          position: "center"
+          components: ["ChangeInput", "SpecRecommendationList", "ImpactGraph"]
+
+  components:
+    - id: "ChangeInput"
+      type: "composite"
+      states:
+        - state: "default"
+        - state: "focused"
+        - state: "loading"
+
+    - id: "SpecRecommendationList"
+      type: "composite"
+
+  state_management:
+    stores:
+      - store: "routingStore"
+        state:
+          - name: "changeInput"
+            type: "string"
+          - name: "recommendations"
+            type: "SpecLocation[]"
+          - name: "isLoading"
+            type: "boolean"

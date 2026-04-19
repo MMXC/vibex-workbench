@@ -1,0 +1,99 @@
+# ============================================================
+# Level 5a — Spec Editor UI/UX 规格
+# parent: spec-editor (L4)
+# ============================================================
+spec:
+  version: "1.0"
+  level: "5a_uiux"
+  name: "spec-editor_uiux"
+  parent: "spec-editor"
+  status: "active"
+
+content:
+  pages:
+    - id: "spec-editor-page"
+      layout:
+        type: "workspace"
+        grid_template: "1fr"
+      regions:
+        - id: "editor-main"
+          position: "center"
+          components: ["CodeMirrorEditor"]
+
+  components:
+    - id: "CodeMirrorEditor"
+      type: "composite"
+      states:
+        - state: "default"
+          style: "border: 1px solid var(--color-border)"
+        - state: "focused"
+          style: "border: 2px solid var(--color-primary)"
+        - state: "error"
+          style: "border: 2px solid var(--color-error); background: var(--color-error-bg)"
+        - state: "readonly"
+          style: "opacity: 0.6; cursor: not-allowed"
+
+    - id: "ValidationBadge"
+      type: "atomic"
+      states:
+        - state: "valid"
+          style: "color: var(--color-success)"
+        - state: "invalid"
+          style: "color: var(--color-error)"
+
+    - id: "SpecFileTree"
+      type: "composite"
+      states:
+        - state: "default"
+          style: "background: var(--color-bg-secondary)"
+        - state: "selected"
+          style: "background: var(--color-bg-hover)"
+
+  state_management:
+    stores:
+      - store: "specEditorStore"
+        state:
+          - name: "currentFile"
+            type: "string | null"
+          - name: "content"
+            type: "string"
+          - name: "isDirty"
+            type: "boolean"
+          - name: "openTabs"
+            type: "Tab[]"
+          - name: "activeTabId"
+            type: "string | null"
+          - name: "validationErrors"
+            type: "Violation[]"
+        mutations:
+          - name: "openFile"
+            params: ["path: string"]
+          - name: "setContent"
+            params: ["content: string"]
+          - name: "setValidationErrors"
+            params: ["errors: Violation[]"]
+          - name: "closeTab"
+            params: ["tabId: string"]
+
+  sse_events:
+    - event: "spec.saved"
+      handler: "specEditorStore.markSaved"
+    - event: "spec.modified"
+      handler: "specEditorStore.setDirty"
+
+  design_tokens:
+    colors:
+      primary: "#6366f1"
+      success: "#22c55e"
+      error: "#ef4444"
+      warning: "#f59e0b"
+      bg_base: "#0f0f0f"
+      bg_secondary: "#1a1a1a"
+      bg_hover: "#2a2a2a"
+      border: "#333"
+      text_primary: "#e5e5e5"
+      text_secondary: "#888"
+    animation:
+      duration_fast: "120ms"
+      duration_normal: "200ms"
+      easing: "cubic-bezier(0.4, 0, 0.2, 1)"

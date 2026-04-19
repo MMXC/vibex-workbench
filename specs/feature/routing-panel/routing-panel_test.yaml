@@ -1,0 +1,15 @@
+spec:
+  version: "1.0"
+  level: "5d_test"
+  name: "routing-panel_test"
+  parent: "routing-panel"
+  status: "draft"
+
+content:
+  test_cases:
+    - id: "TC-001"
+      name: "bug 描述路由到 L4 feature spec"
+      expected: "SpecLocation(level=4) returned"
+    - id: "TC-002"
+      name: "影响分析返回相关 specs"
+      expected: "dependent specIds[] non-empty"

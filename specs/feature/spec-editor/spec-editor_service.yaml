@@ -1,0 +1,42 @@
+# ============================================================
+# Level 5b — Spec Editor 服务规格
+# parent: spec-editor (L4)
+# ============================================================
+spec:
+  version: "1.0"
+  level: "5b_service"
+  name: "spec-editor_service"
+  parent: "spec-editor"
+  status: "active"
+
+content:
+  services:
+    - name: "SpecParserService"
+      methods:
+        - name: "parseYAML"
+          params: ["content: string"]
+          returns: "SpecAST"
+        - name: "serializeYAML"
+          params: ["ast: SpecAST"]
+          returns: "string"
+
+    - name: "ValidationService"
+      methods:
+        - name: "validateParentChain"
+          params: ["spec: SpecAST, allSpecs: SpecAST[]"]
+          returns: "Violation[]"
+        - name: "validateLevelConsistency"
+          params: ["spec: SpecAST"]
+          returns: "Violation[]"
+
+    - name: "FileService"
+      methods:
+        - name: "readSpec"
+          params: ["path: string"]
+          returns: "SpecFile"
+        - name: "writeSpec"
+          params: ["path: string, content: string"]
+          returns: "void"
+        - name: "listSpecs"
+          params: []
+          returns: "SpecFile[]"

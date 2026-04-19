@@ -208,7 +208,8 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
 
 if __name__ == "__main__":
-    server = ThreadedHTTPServer(("", PORT), SSEHandler)
+    HOST = ""
+    server = ThreadedHTTPServer((HOST, PORT), SSEHandler)
     print(f"[VibeX SSE Backend] Listening on http://0.0.0.0:{PORT}")
     print(f"  SSE:  GET  http://localhost:{PORT}/api/sse/threads/<threadId>")
     print(f"  Runs: POST http://localhost:{PORT}/api/runs")

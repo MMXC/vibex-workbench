@@ -1,0 +1,60 @@
+# ============================================================
+# Level 4 — Spec Editor 功能规格
+# parent: MOD-spec-engine (L3)
+# ============================================================
+spec:
+  version: "1.0"
+  level: "4_feature"
+  name: "spec-editor"
+  parent: "MOD-spec-engine"
+  status: "active"
+
+meta:
+  module: "MOD-spec-engine"
+  owner: "hermes"
+  created: "2026-04-20"
+
+content:
+  description: "YAML Spec 编辑器——语法高亮、从属链解析、实时验证"
+
+  user_stories:
+    - id: "US-001"
+      as_a: "spec 作者"
+      i_want: "在 CodeMirror 编辑器中打开和编辑 YAML spec 文件"
+      so_that: "我可以维护项目的规格定义"
+    - id: "US-002"
+      as_a: "spec 作者"
+      i_want: "实时看到从属链违规警告"
+      so_that: "我不会创建孤立的或循环引用的 spec"
+    - id: "US-003"
+      as_a: "spec 作者"
+      i_want: "点击 parent 字段跳转到对应 spec 文件"
+      so_that: "我可以快速追踪规格的来源"
+    - id: "US-004"
+      as_a: "spec 作者"
+      i_want: "用搜索框全文搜索所有 specs"
+      so_that: "我可以快速找到特定的规格内容"
+
+  capabilities:
+    - id: "C-001"
+      name: "YAML 语法高亮"
+      priority: "critical"
+    - id: "C-002"
+      name: "从属链实时验证"
+      priority: "critical"
+    - id: "C-003"
+      name: "文件树导航"
+      priority: "high"
+    - id: "C-004"
+      name: "全文搜索"
+      priority: "high"
+
+  sub_specs:
+    uiux: "spec-editor_uiux.yaml"
+    service: "spec-editor_service.yaml"
+    data: "spec-editor_data.yaml"
+    test: "spec-editor_test.yaml"
+
+derived_from:
+  - parent: "MOD-spec-engine"
+    rationale: "spec-editor 是 spec-engine 模块的核心功能实现"

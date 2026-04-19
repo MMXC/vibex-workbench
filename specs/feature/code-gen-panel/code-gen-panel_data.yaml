@@ -1,0 +1,21 @@
+spec:
+  version: "1.0"
+  level: "5c_data"
+  name: "code-gen-panel_data"
+  parent: "code-gen-panel"
+  status: "draft"
+
+content:
+  entities:
+    - entity: "GenerationJob"
+      fields:
+        - name: "id"
+          type: "string"
+        - name: "startedAt"
+          type: "Date"
+        - name: "completedAt"
+          type: "Date | null"
+        - name: "status"
+          type: "'running' | 'done' | 'error'"
+        - name: "steps"
+          type: "Step[]"

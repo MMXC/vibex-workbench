@@ -1,0 +1,57 @@
+# ============================================================
+# Level 3 — Spec Engine 模块规格
+# Module Specification
+#
+# parent: vibex-workbench-skeleton (L2)
+# 派生自: MOD-spec-engine
+# ============================================================
+
+spec:
+  version: "1.0"
+  level: "3_module"
+  name: "MOD-spec-engine"
+  parent: "vibex-workbench-skeleton"
+  status: "active"
+
+content:
+  module_id: "MOD-spec-engine"
+  responsibility: "Spec 解析、验证、从属链构建——工作台的核心引擎"
+
+  public_api:
+    - name: "SpecParser"
+      description: "解析 YAML spec 文件，构建 AST"
+      methods:
+        - "parseFile(path: string): SpecAST"
+        - "parseDir(dir: string): SpecAST[]"
+    - name: "ParentChainValidator"
+      description: "验证每个 spec 的 parent 字段是否指向存在的规格"
+      methods:
+        - "validate(spec: SpecAST): ValidationResult"
+        - "getViolations(): Violation[]"
+    - name: "DependencyGraphBuilder"
+      description: "构建从属关系图（Mermaid 输入）"
+      methods:
+        - "buildGraph(specs: SpecAST[]): DependencyGraph"
+        - "toMermaid(graph: DependencyGraph): string"
+    - name: "SpecSearchEngine"
+      description: "全文搜索 specs 内容"
+      methods:
+        - "search(query: string): SearchResult[]"
+        - "searchByLevel(level: number): SearchResult[]"
+
+  data_ownership:
+    - entity: "SpecFile"
+      owned_by: "spec-engine"
+      storage: "Dexie.js (IndexedDB)"
+    - entity: "SpecAST"
+      owned_by: "spec-engine"
+      storage: "memory (runtime)"
+    - entity: "DependencyGraph"
+      owned_by: "spec-engine"
+      storage: "memory (runtime)"
+
+derived_from:
+  - parent: "vibex-workbench-skeleton"
+    rationale: "MOD-spec-engine 是 L2 skeleton 定义的第一个核心模块"
+  - parent: "vibex-workbench-goal"
+    rationale: "自举闭环要求 spec-engine 必须能解析自身"

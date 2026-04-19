@@ -1,0 +1,37 @@
+# ============================================================
+# Level 3 — DSL Visualizer 模块规格
+# Module Specification
+#
+# parent: vibex-workbench-skeleton (L2)
+# ============================================================
+
+spec:
+  version: "1.0"
+  level: "3_module"
+  name: "MOD-dsl-visualizer"
+  parent: "vibex-workbench-skeleton"
+  status: "active"
+
+content:
+  module_id: "MOD-dsl-visualizer"
+  responsibility: "DSL 图形化——从属关系节点图 + Mermaid 可视化"
+
+  public_api:
+    - name: "MermaidRenderer"
+      description: "渲染 Mermaid 从属关系图"
+    - name: "CanvasNodeRenderer"
+      description: "画布节点图渲染（Phase 2）"
+    - name: "SpecGraphView"
+      description: "从属图主视图组件"
+
+  data_ownership:
+    - entity: "SpecNode"
+      owned_by: "dsl-visualizer"
+      storage: "memory (runtime)"
+    - entity: "SpecEdge"
+      owned_by: "dsl-visualizer"
+      storage: "memory (runtime)"
+
+derived_from:
+  - parent: "vibex-workbench-skeleton"
+    rationale: "MOD-dsl-visualizer 是 L2 skeleton 定义的第二个核心模块"

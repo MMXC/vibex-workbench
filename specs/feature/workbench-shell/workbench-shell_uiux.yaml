@@ -1,476 +1,87 @@
----
+# ============================================================
+# Level 5a — Workbench Shell UI/UX 规格
+# parent: workbench-shell (L4)
+# ============================================================
 spec:
-  name: workbench-shell-uiux
-  level: 5_uiux
-  version: "0.1.0"
-  status: draft
-  parent: "workbench-shell-feature"
+  version: "1.0"
+  level: "5a_uiux"
+  name: "workbench-shell_uiux"
+  parent: "workbench-shell"
+  status: "active"
 
 content:
-  overview: |
-    workbench-shell UI/UX 规范，定义视觉设计系统、组件样式规范、
-    交互动效规范、响应式行为规范。
+  pages:
+    - id: "workbench-root"
+      layout:
+        type: "workspace"
+        grid_template: "40px [tabbar] 1fr [main] 24px [statusbar]"
+      regions:
+        - id: "tabbar"
+          position: "top"
+          components: ["TabBar"]
+        - id: "main"
+          position: "center"
+          components: ["WorkbenchLayout"]
+        - id: "statusbar"
+          position: "bottom"
+          components: ["StatusBar"]
+
+  components:
+    - id: "WorkbenchLayout"
+      type: "composite"
+      layout:
+        type: "workspace"
+        grid_template: "240px [left] 1fr [main] 300px [right]"
+      regions:
+        - id: "left-sidebar"
+          position: "left"
+          components: ["FileTree"]
+        - id: "main-area"
+          position: "center"
+          components: ["SpecEditor", "DslCanvas"]
+        - id: "right-sidebar"
+          position: "right"
+          components: ["PropertiesPanel"]
+
+    - id: "TabBar"
+      type: "composite"
+      states:
+        - state: "default"
+          style: "background: var(--color-bg-secondary)"
+
+    - id: "StatusBar"
+      type: "composite"
+      states:
+        - state: "default"
+          style: "height: 24px; background: var(--color-bg-secondary)"
+
+  state_management:
+    stores:
+      - store: "uiStore"
+        state:
+          - name: "leftSidebarOpen"
+            type: "boolean"
+          - name: "rightSidebarOpen"
+            type: "boolean"
+          - name: "activePanel"
+            type: "'files' | 'editor' | 'canvas' | 'properties' | null"
+          - name: "statusMessage"
+            type: "string"
+          - name: "generationStatus"
+            type: "'idle' | 'running' | 'done' | 'error'"
 
   design_tokens:
-    description: "设计令牌（Design Tokens）"
-    color:
-      primary: "#6366F1"
-      primary_hover: "#4F46E5"
-      primary_active: "#4338CA"
-      secondary: "#64748B"
-      secondary_hover: "#475569"
-      accent: "#22D3EE"
-      accent_hover: "#06B6D4"
-      
-      background:
-        default: "#FFFFFF"
-        surface: "#F8FAFC"
-        elevated: "#FFFFFF"
-        overlay: "rgba(15, 23, 42, 0.5)"
-        
-      border:
-        default: "#E2E8F0"
-        hover: "#CBD5E1"
-        focus: "#6366F1"
-        
-      text:
-        primary: "#0F172A"
-        secondary: "#64748B"
-        muted: "#94A3B8"
-        inverse: "#FFFFFF"
-        
-      semantic:
-        success: "#10B981"
-        warning: "#F59E0B"
-        error: "#EF4444"
-        info: "#3B82F6"
-        
-      sidebar:
-        background: "#F1F5F9"
-        divider: "#E2E8F0"
-        item_hover: "#E2E8F0"
-        item_active: "#DBEAFE"
-        item_active_text: "#1D4ED8"
-
-    typography:
-      font_family:
-        primary: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-        mono: "'JetBrains Mono', 'Fira Code', monospace"
-        
-      font_size:
-        xs: "0.75rem"    # 12px
-        sm: "0.875rem"   # 14px
-        base: "1rem"     # 16px
-        lg: "1.125rem"   # 18px
-        xl: "1.25rem"    # 20px
-        2xl: "1.5rem"    # 24px
-        
-      font_weight:
-        normal: 400
-        medium: 500
-        semibold: 600
-        bold: 700
-        
-      line_height:
-        tight: 1.25
-        normal: 1.5
-        relaxed: 1.75
-
-    spacing:
-      unit: "4px"
-      scale:
-        0: "0px"
-        1: "4px"
-        2: "8px"
-        3: "12px"
-        4: "16px"
-        5: "20px"
-        6: "24px"
-        8: "32px"
-        10: "40px"
-        12: "48px"
-        16: "64px"
-
-    border_radius:
-      none: "0px"
-      sm: "4px"
-      md: "6px"
-      lg: "8px"
-      xl: "12px"
-      full: "9999px"
-
-    shadow:
-      sm: "0 1px 2px 0 rgba(0, 0, 0, 0.05)"
-      md: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)"
-      lg: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
-      xl: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
-      modal: "0 25px 50px -12px rgba(0, 0, 0, 0.25)"
-
+    colors:
+      primary: "#6366f1"
+      bg_base: "#0f0f0f"
+      bg_secondary: "#1a1a1a"
+      bg_tertiary: "#141414"
+      border: "#333"
+      text_primary: "#e5e5e5"
+      text_secondary: "#888"
+      accent: "#818cf8"
     layout:
-      sidebar_left_width:
-        default: "260px"
-        min: "180px"
-        max: "400px"
-      sidebar_right_width:
-        default: "320px"
-        min: "200px"
-        max: "480px"
-      sidebar_collapsed_width: "48px"
-      composer_height:
-        collapsed: "48px"
-        expanded_default: "200px"
-        expanded_max: "400px"
-
-  component_styles:
-    WorkbenchShell:
-      description: "根布局容器"
-      styles:
-        container: |
-          display: grid;
-          grid-template-columns: var(--sidebar-left-width) 1fr var(--sidebar-right-width);
-          grid-template-rows: 1fr auto;
-          height: 100vh;
-          overflow: hidden;
-        grid_areas: |
-          grid-template-areas:
-            "sidebar-left main-canvas sidebar-right"
-            ". composer composer"
-        transition: "grid-template-columns 200ms ease-in-out"
-
-    SidebarLeft:
-      description: "左侧边栏"
-      styles:
-        container: |
-          grid-area: sidebar-left;
-          background: var(--color-sidebar-background);
-          border-right: 1px solid var(--color-border-default);
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-          transition: width 200ms ease-in-out;
-        collapsed: "width: var(--sidebar-collapsed-width); overflow: hidden;"
-        header: "padding: 16px; border-bottom: 1px solid var(--color-border-default);"
-        footer: "padding: 12px 16px; border-top: 1px solid var(--color-border-default); margin-top: auto;"
-
-    SidebarRight:
-      description: "右侧边栏"
-      styles:
-        container: |
-          grid-area: sidebar-right;
-          background: var(--color-background-surface);
-          border-left: 1px solid var(--color-border-default);
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-          transition: width 200ms ease-in-out;
-        tabs: "display: flex; border-bottom: 1px solid var(--color-border-default);"
-        tab_button: |
-          flex: 1;
-          padding: 12px 16px;
-          font-size: var(--font-size-sm);
-          font-weight: var(--font-weight-medium);
-          color: var(--color-text-secondary);
-          border-bottom: 2px solid transparent;
-          transition: all 150ms ease;
-        tab_button_active: |
-          color: var(--color-primary);
-          border-bottom-color: var(--color-primary);
-
-    MainCanvas:
-      description: "主画布区"
-      styles:
-        container: |
-          grid-area: main-canvas;
-          background: var(--color-background-default);
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-        toolbar: "padding: 12px 16px; border-bottom: 1px solid var(--color-border-default);"
-        viewport: "flex: 1; overflow: hidden; position: relative;"
-        banner: "padding: 8px 16px; background: var(--color-background-surface); border-bottom: 1px solid var(--color-border-default);"
-
-    Composer:
-      description: "多模态输入组件"
-      styles:
-        container: |
-          grid-area: composer;
-          background: var(--color-background-default);
-          border-top: 1px solid var(--color-border-default);
-          display: flex;
-          flex-direction: column;
-          transition: max-height 200ms ease-in-out;
-        expanded: "max-height: var(--composer-height-expanded-default);"
-        collapsed: "max-height: var(--composer-height-collapsed);"
-        textarea: |
-          width: 100%;
-          min-height: 48px;
-          max-height: var(--composer-height-expanded-max);
-          padding: 12px 16px;
-          border: none;
-          outline: none;
-          resize: none;
-          font-family: var(--font-family-primary);
-          font-size: var(--font-size-base);
-          line-height: var(--line-height-normal);
-          background: transparent;
-        toolbar: "display: flex; gap: 8px; padding: 8px 16px; border-top: 1px solid var(--color-border-default);"
-        attachments: "display: flex; gap: 8px; padding: 8px 16px; overflow-x: auto; flex-wrap: wrap;"
-        submit: "padding: 8px 16px; display: flex; justify-content: flex-end;"
-
-    ThreadItem:
-      description: "Thread 列表项"
-      styles:
-        container: |
-          display: flex;
-          align-items: center;
-          padding: 10px 16px;
-          gap: 12px;
-          cursor: pointer;
-          transition: background 150ms ease;
-        hover: "background: var(--color-sidebar-item-hover);"
-        active: "background: var(--color-sidebar-item-active); border-left: 3px solid var(--color-primary);"
-        icon: "width: 20px; height: 20px; flex-shrink: 0;"
-        title: |
-          font-size: var(--font-size-sm);
-          font-weight: var(--font-weight-medium);
-          color: var(--color-text-primary);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        meta: "font-size: var(--font-size-xs); color: var(--color-text-muted);"
-
-    Modal:
-      description: "模态框基础样式"
-      styles:
-        overlay: |
-          position: fixed;
-          inset: 0;
-          background: var(--color-background-overlay);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 9999;
-          animation: fadeIn 150ms ease;
-        container: |
-          background: var(--color-background-elevated);
-          border-radius: var(--border-radius-lg);
-          box-shadow: var(--shadow-modal);
-          max-width: 90vw;
-          max-height: 90vh;
-          overflow: hidden;
-          display: flex;
-          flex-direction: column;
-          animation: slideUp 200ms ease;
-        header: "padding: 16px 20px; border-bottom: 1px solid var(--color-border-default);"
-        body: "padding: 20px; overflow-y: auto; flex: 1;"
-        footer: "padding: 12px 20px; border-top: 1px solid var(--color-border-default); display: flex; justify-content: flex-end; gap: 8px;"
-
-    Button:
-      description: "按钮基础样式"
-      variants:
-        primary:
-          base: |
-            background: var(--color-primary);
-            color: var(--color-text-inverse);
-            padding: 8px 16px;
-            border-radius: var(--border-radius-md);
-            font-size: var(--font-size-sm);
-            font-weight: var(--font-weight-medium);
-            transition: all 150ms ease;
-          hover: "background: var(--color-primary-hover);"
-          active: "background: var(--color-primary-active);"
-          disabled: "opacity: 0.5; cursor: not-allowed;"
-        secondary:
-          base: |
-            background: transparent;
-            color: var(--color-text-secondary);
-            padding: 8px 16px;
-            border: 1px solid var(--color-border-default);
-            border-radius: var(--border-radius-md);
-            font-size: var(--font-size-sm);
-            font-weight: var(--font-weight-medium);
-          hover: "background: var(--color-background-surface); border-color: var(--color-border-hover);"
-        ghost:
-          base: |
-            background: transparent;
-            color: var(--color-text-secondary);
-            padding: 8px;
-            border-radius: var(--border-radius-md);
-            transition: all 150ms ease;
-          hover: "background: var(--color-background-surface);"
-        danger:
-          base: |
-            background: var(--color-semantic-error);
-            color: var(--color-text-inverse);
-            padding: 8px 16px;
-            border-radius: var(--border-radius-md);
-            font-size: var(--font-size-sm);
-            font-weight: var(--font-weight-medium);
-          hover: "background: #DC2626;"
-
-    IconButton:
-      description: "图标按钮"
-      styles:
-        base: |
-          width: 32px;
-          height: 32px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: var(--border-radius-md);
-          color: var(--color-text-secondary);
-          transition: all 150ms ease;
-        hover: "background: var(--color-background-surface); color: var(--color-text-primary);"
-        active: "background: var(--color-border-default);"
-
-  animation_spec:
-    description: "交互动效规范"
-    transitions:
-      sidebar_toggle:
-        duration: "200ms"
-        easing: "ease-in-out"
-        properties: "width, opacity"
-        description: "侧边栏展开/收起"
-
-      composer_expand:
-        duration: "200ms"
-        easing: "ease-out"
-        properties: "max-height, opacity"
-        description: "Composer 展开/收起"
-
-      modal_enter:
-        duration: "200ms"
-        easing: "ease-out"
-        properties: "opacity, transform"
-        keyframes:
-          - "0%: opacity: 0; transform: scale(0.95) translateY(10px);"
-          - "100%: opacity: 1; transform: scale(1) translateY(0);"
-        description: "Modal 进入动画"
-
-      modal_exit:
-        duration: "150ms"
-        easing: "ease-in"
-        properties: "opacity, transform"
-        keyframes:
-          - "0%: opacity: 1; transform: scale(1);"
-          - "100%: opacity: 0; transform: scale(0.95);"
-        description: "Modal 退出动画"
-
-      hover_scale:
-        duration: "150ms"
-        easing: "ease-out"
-        properties: "transform"
-        keyframes:
-          - "0%: transform: scale(1);"
-          - "100%: transform: scale(1.02);"
-        description: "hover 轻微放大"
-
-      tab_indicator:
-        duration: "150ms"
-        easing: "ease-out"
-        properties: "left, width"
-        description: "Tab 指示器滑动"
-
-      skeleton_loading:
-        duration: "1500ms"
-        easing: "linear"
-        properties: "background-position"
-        keyframes:
-          - "0%: background-position: -200px 0;"
-          - "100%: background-position: calc(200px + 100%) 0;"
-        description: "骨架屏加载动画"
-
-    keyboard_shortcuts:
-      - key: "Ctrl+Enter"
-        action: "composer.submit"
-        context: "composer focused"
-        feedback: "按钮高亮 + 轻微缩放"
-      - key: "Escape"
-        action: "modal.close / composer.collapse"
-        context: "global"
-        feedback: "Modal 淡出"
-      - key: "Ctrl+\\"
-        action: "sidebar.right.toggle"
-        context: "global"
-        feedback: "右侧边栏切换"
-      - key: "Ctrl+1"
-        action: "sidebar.left.toggle"
-        context: "global"
-        feedback: "左侧边栏切换"
-      - key: "Ctrl+Shift+E"
-        action: "composer.expand"
-        context: "composer focused"
-        feedback: "Composer 展开"
-
-  responsive_behavior:
-    description: "响应式断点行为"
-    breakpoints:
-      desktop:
-        min_width: "1024px"
-        layout: |
-          三栏布局全开
-          sidebar-left: 260px
-          sidebar-right: 320px
-          composer: 展开状态
-
-      tablet:
-        min_width: "768px"
-        max_width: "1023px"
-        layout: |
-          三栏布局压缩
-          sidebar-left: 220px
-          sidebar-right: 280px
-          sidebar 可拖拽调整宽度
-        interactions:
-          sidebar_collapse: "双击边栏边缘折叠为 icon-only (48px)"
-
-      mobile:
-        max_width: "767px"
-        layout: |
-          单栏布局
-          sidebar-left: 隐藏（可通过手势滑出）
-          sidebar-right: 隐藏
-          composer: 收起状态（单行输入框）
-        interactions:
-          sidebar_open: "从左/右边缘滑入"
-          composer_expand: "点击展开"
-        gestures:
-          edge_swipe_left: "滑出右侧边栏"
-          edge_swipe_right: "滑出左侧边栏"
-
-  accessibility:
-    description: "无障碍规范"
-    requirements:
-      - id: "A1"
-        description: "所有交互元素必须有可访问的 label 或 aria-label"
-        wcag_level: "AA"
-      - id: "A2"
-        description: "键盘导航支持：Tab / Shift+Tab / Enter / Escape"
-        wcag_level: "AA"
-      - id: "A3"
-        description: "焦点可见性：focus ring 2px solid var(--color-primary)"
-        wcag_level: "AA"
-      - id: "A4"
-        description: "模态框焦点陷阱：Tab 循环在 Modal 内"
-        wcag_level: "AA"
-      - id: "A5"
-        description: "ARIA live region 用于动态内容更新"
-        wcag_level: "AA"
-      - id: "A6"
-        description: "颜色对比度：正文 >= 4.5:1， 大文本 >= 3:1"
-        wcag_level: "AA"
-      - id: "A7"
-        description: "动画可暂停：prefers-reduced-motion 媒体查询支持"
-        wcag_level: "AAA"
-      - id: "A8"
-        description: "拖拽操作必须有键盘替代方案"
-        wcag_level: "AA"
-
-  derived_from:
-    - parent: "workbench-shell-feature"
-      rationale: "UI/UX 规范支撑 feature 中定义的组件交互"
-    - parent: "workbench-shell-data"
-      rationale: "数据实体映射到 UI 展示形式"
-
-updated_by: "hermes"
-updated_at: "2026-04-19T20:13:00Z"
+      left_sidebar_width: "240px"
+      right_sidebar_width: "300px"
+      tabbar_height: "40px"
+      statusbar_height: "24px"

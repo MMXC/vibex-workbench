@@ -1,0 +1,26 @@
+# ============================================================
+# Level 3 — Code Generator 模块规格
+# parent: vibex-workbench-skeleton (L2)
+# ============================================================
+spec:
+  version: "1.0"
+  level: "3_module"
+  name: "MOD-code-generator"
+  parent: "vibex-workbench-skeleton"
+  status: "draft"
+
+content:
+  module_id: "MOD-code-generator"
+  responsibility: "代码生成可视化——make generate 的交互界面 + 生成预览"
+
+  public_api:
+    - name: "GeneratorRunner"
+      description: "运行代码生成器（Python CLI）"
+    - name: "GenerationPreview"
+      description: "生成产物预览（diff view）"
+    - name: "GenerationTimeline"
+      description: "生成过程时间线"
+
+derived_from:
+  - parent: "vibex-workbench-skeleton"
+    rationale: "MOD-code-generator 是 L2 skeleton 定义的第三个核心模块"

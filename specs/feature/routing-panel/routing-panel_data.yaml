@@ -1,0 +1,27 @@
+spec:
+  version: "1.0"
+  level: "5c_data"
+  name: "routing-panel_data"
+  parent: "routing-panel"
+  status: "draft"
+
+content:
+  entities:
+    - entity: "Change"
+      fields:
+        - name: "id"
+          type: "string"
+        - name: "description"
+          type: "string"
+        - name: "type"
+          type: "'bug' | 'feature' | 'refactor'"
+    - entity: "SpecLocation"
+      fields:
+        - name: "specId"
+          type: "string"
+        - name: "level"
+          type: "number"
+        - name: "confidence"
+          type: "number"
+        - name: "reason"
+          type: "string"

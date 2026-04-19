@@ -1,0 +1,30 @@
+# ============================================================
+# Level 5b — DSL Canvas 服务规格
+# parent: dsl-canvas (L4)
+# ============================================================
+spec:
+  version: "1.0"
+  level: "5b_service"
+  name: "dsl-canvas_service"
+  parent: "dsl-canvas"
+  status: "active"
+
+content:
+  services:
+    - name: "MermaidGeneratorService"
+      methods:
+        - name: "generateFromGraph"
+          params: ["graph: DependencyGraph"]
+          returns: "string"
+        - name: "generateFromSpecs"
+          params: ["specs: SpecAST[]"]
+          returns: "string"
+
+    - name: "CanvasLayoutService"
+      methods:
+        - name: "autoLayout"
+          params: ["nodes: SpecNode[]"]
+          returns: "SpecNode[]"
+        - name: "fitToScreen"
+          params: ["nodes: SpecNode[], viewport: Viewport"]
+          returns: "Viewport"

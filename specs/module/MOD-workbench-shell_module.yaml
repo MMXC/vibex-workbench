@@ -1,0 +1,26 @@
+# ============================================================
+# Level 3 — Workbench Shell 模块规格
+# parent: vibex-workbench-skeleton (L2)
+# ============================================================
+spec:
+  version: "1.0"
+  level: "3_module"
+  name: "MOD-workbench-shell"
+  parent: "vibex-workbench-skeleton"
+  status: "active"
+
+content:
+  module_id: "MOD-workbench-shell"
+  responsibility: "工作台外壳——三栏布局、Composer、Thread/Artifact侧边栏"
+
+  public_api:
+    - name: "WorkbenchLayout"
+      description: "根布局组件（三栏）"
+    - name: "Composer"
+      description: "多模态输入组合器"
+    - name: "StatusBar"
+      description: "底部状态栏"
+
+derived_from:
+  - parent: "vibex-workbench-skeleton"
+    rationale: "MOD-workbench-shell 是 L2 skeleton 定义的工作台外壳模块"

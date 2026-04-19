@@ -1,0 +1,16 @@
+spec:
+  version: "1.0"
+  level: "5b_service"
+  name: "code-gen-panel_service"
+  parent: "code-gen-panel"
+  status: "draft"
+
+content:
+  services:
+    - name: "GeneratorService"
+      methods:
+        - name: "runGenerate"
+          returns: "GenerationJob"
+        - name: "getDiff"
+          params: ["specId: string"]
+          returns: "FileDiff[]"

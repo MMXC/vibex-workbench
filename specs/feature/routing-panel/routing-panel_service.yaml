@@ -1,0 +1,19 @@
+spec:
+  version: "1.0"
+  level: "5b_service"
+  name: "routing-panel_service"
+  parent: "routing-panel"
+  status: "draft"
+
+content:
+  services:
+    - name: "RouterService"
+      methods:
+        - name: "routeChange"
+          params: ["change: Change"]
+          returns: "SpecLocation[]"
+    - name: "ImpactService"
+      methods:
+        - name: "analyzeImpact"
+          params: ["specId: string"]
+          returns: "ImpactReport"
