@@ -1,5 +1,6 @@
 // Artifact Store — 管理 Artifact 注册表
 import { writable, derived } from 'svelte/store';
+import { db, type DBArtifact } from '$lib/db';
 
 export interface Artifact {
   id: string;
@@ -27,6 +28,7 @@ export interface ArtifactState {
   search_query: string;
   filter_type: string | null;
   loading: boolean;
+  error: string | null;
 }
 
 function createArtifactStore() {
@@ -36,10 +38,39 @@ function createArtifactStore() {
     search_query: '',
     filter_type: null,
     loading: false,
+    error: null,
   });
 
   return {
     subscribe,
+
+    // E4-U1: 从 IndexedDB 加载所有 Artifact
+    async loadFromDB() {
+      update(s => ({ ...s, loading: true, error: null }));
+      try {
+        const rows = await db.artifacts.toArray();
+        const artifacts: Artifact[] = rows.map(r => ({
+          id: r.id,
+          name: r.name,
+          type: r.type,
+          content: r.content,
+          mime_type: r.mime_type,
+          tags: r.tags,
+          thread_id: r.thread_id,
+          run_id: r.run_id,
+          created_at: r.created_at,
+          updated_at: r.updated_at,
+        }));
+        update(s => ({ ...s, artifacts, loading: false }));
+      } catch (e) {
+        update(s => ({
+          ...s,
+          loading: false,
+          error: `无法加载 Artifact: ${e instanceof Error ? e.message : String(e)}`,
+        }));
+      }
+    },
+
     create(artifact: Omit<Artifact, 'id' | 'created_at'>): Artifact {
       const a: Artifact = {
         ...artifact,
@@ -48,23 +79,46 @@ function createArtifactStore() {
         tags: artifact.tags ?? [],
       };
       update(s => ({ ...s, artifacts: [...s.artifacts, a] }));
+      // E4-U1: 持久化到 IndexedDB
+      db.artifacts.put({
+        id: a.id,
+        name: a.name,
+        type: a.type,
+        content: a.content,
+        mime_type: a.mime_type ?? 'text/plain',
+        tags: a.tags,
+        thread_id: a.thread_id,
+        run_id: a.run_id,
+        created_at: a.created_at,
+        updated_at: a.updated_at,
+      }).catch(e => console.error('[artifactStore] Failed to persist:', e));
       return a;
     },
+
     update(id: string, patch: Partial<Artifact>) {
       update(s => ({
         ...s,
         artifacts: s.artifacts.map(a => a.id === id ? { ...a, ...patch } : a),
       }));
+      db.artifacts.update(id, {
+        ...patch,
+        updated_at: new Date().toISOString(),
+      } as Partial<DBArtifact>).catch(e => console.error('[artifactStore] Failed to update:', e));
     },
+
     remove(id: string) {
       update(s => ({ ...s, artifacts: s.artifacts.filter(a => a.id !== id) }));
+      db.artifacts.delete(id).catch(e => console.error('[artifactStore] Failed to delete:', e));
     },
+
     select(id: string | null) {
       update(s => ({ ...s, selected_artifact_id: id }));
     },
+
     setSearch(q: string) {
       update(s => ({ ...s, search_query: q }));
     },
+
     setFilter(type: string | null) {
       update(s => ({ ...s, filter_type: type }));
     },
@@ -82,3 +136,7 @@ export const filteredArtifacts = derived(artifactStore, $s => {
   );
   return items;
 });
+
+export const selectedArtifact = derived(artifactStore, $s =>
+  $s.artifacts.find(a => a.id === $s.selected_artifact_id) ?? null
+);

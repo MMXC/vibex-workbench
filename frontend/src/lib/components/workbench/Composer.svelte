@@ -1,6 +1,7 @@
 // ============================================================
 // Composer — 多模态输入框
 // E3-U2: 底部 RunStatusBar 显示运行状态
+// E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
 // 开发者维护，gen.py 永不覆盖
 // ============================================================
 
@@ -25,9 +26,33 @@
   let statusMessage = $state('');
   let statusType = $state<'running'|'completed'|'failed'>('running');
 
+  // E4-U3: Composer drag-over + drop 支持
+  let dragOver = $state(false);
+
+  function handleDragOver(e: DragEvent) {
+    if (e.dataTransfer?.types.includes('text/vibex-artifact')) {
+      e.preventDefault();
+      e.dataTransfer!.dropEffect = 'copy';
+      dragOver = true;
+    }
+  }
+
+  function handleDragLeave() {
+    dragOver = false;
+  }
+
+  function handleDrop(e: DragEvent) {
+    e.preventDefault();
+    dragOver = false;
+    const artifactId = e.dataTransfer?.getData('text/vibex-artifact');
+    if (artifactId) {
+      // E4-U3: 注入 @artifactId 引用
+      content = content ? `${content.trimEnd()} @{${artifactId}}` : `@{${artifactId}}`;
+    }
+  }
+
   $effect(() => {
     const unsub = runStore.subscribe(s => {
-      // 找到当前活跃 run
       const ar = s.runs.find(r => r.id === s.active_run_id);
       activeRunData = ar ?? null;
       toolCount = s.toolInvocations.length;
@@ -71,7 +96,13 @@
   }
 </script>
 
-<div class="composer">
+<div
+  class="composer"
+  ondragover={handleDragOver}
+  ondragleave={handleDragLeave}
+  ondrop={handleDrop}
+  class:drag-over={dragOver}
+>
   <!-- E3-U2: RunStatusBar -->
   {#if showStatus}
     <div class="run-status-bar" class:running={statusType==='running'} class:completed={statusType==='completed'} class:failed={statusType==='failed'}>
@@ -97,7 +128,7 @@
     onkeydown={(e) => { if (e.key === 'Enter' && e.ctrlKey) submit(); }}
   ></textarea>
   <div class="actions">
-    <span class="hint">Ctrl+Enter 发送 · {toolCount} tools</span>
+    <span class="hint">Ctrl+Enter 发送 · {toolCount} tools · 拖拽 Artifact 到此</span>
     <button class="submit-btn" onclick={submit} disabled={submitting}>
       {submitting ? '发送中…' : '发送 ⌘↵'}
     </button>
@@ -105,7 +136,14 @@
 </div>
 
 <style>
-  .composer { padding: 8px 16px; background: #1a1a1a; border-top: 1px solid #333; display: flex; flex-direction: column; gap: 6px; }
+  .composer {
+    padding: 8px 16px;
+    background: #1a1a1a;
+    border-top: 1px solid #333;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
   textarea { background: #222; border: 1px solid #444; border-radius: 8px; color: #eee; padding: 8px; resize: none; box-sizing: border-box; }
   .mode-tabs { display: flex; gap: 4px; }
   .mode-tabs button { background: transparent; border: none; color: #888; cursor: pointer; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
@@ -114,6 +152,9 @@
   .hint { color: #555; font-size: 11px; }
   .submit-btn { background: #4f46e5; color: white; border: none; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; }
   .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  /* E4-U3: drag-over highlight */
+  .composer.drag-over { border-color: #4f46e5; background: #1e1a2e; }
 
   /* E3-U2: RunStatusBar styles */
   .run-status-bar {
