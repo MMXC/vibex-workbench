@@ -59,6 +59,17 @@ const HANDLERS: Record<string, SSEEventHandler> = {
 
   // ── Tool events (map to canvas nodes) ──────────────────
   'tool.called': (data: any) => {
+    // E3-U1: 追踪 tool invocation
+    runStore.addToolInvocation({
+      id: data.invocationId,
+      run_id: data.runId,
+      tool_name: data.toolName,
+      tool_display_name: data.toolName,
+      args: data.args,
+      status: 'running',
+      order: data.order ?? 0,
+    });
+    // Canvas node creation
     canvasStore.addNode({
       id: data.invocationId,
       type: 'tool',
@@ -72,9 +83,21 @@ const HANDLERS: Record<string, SSEEventHandler> = {
     });
   },
   'tool.completed': (data: any) => {
+    // E3-U1: 更新 tool invocation 状态
+    runStore.updateToolInvocation(data.invocationId, {
+      status: 'completed',
+      result: data.result,
+      finished_at: new Date().toISOString(),
+    });
     canvasStore.updateNode(data.invocationId, { data: { status: 'completed', result: data.result } });
   },
   'tool.failed': (data: any) => {
+    // E3-U1: 更新 tool invocation 错误状态
+    runStore.updateToolInvocation(data.invocationId, {
+      status: 'failed',
+      error: data.error,
+      finished_at: new Date().toISOString(),
+    });
     canvasStore.updateNode(data.invocationId, { data: { status: 'failed', error: data.error } });
   },
 
