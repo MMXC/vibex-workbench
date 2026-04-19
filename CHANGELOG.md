@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **E2 (Thread Management)**
+  - E2-U1: Thread IndexedDB persistence via Dexie (WorkbenchDB, threads/artifacts tables)
+  - E2-U2: ThreadList four-state UI — skeleton / empty / normal / error-retry
+  - E2-U3: Thread switching triggers SSE reconnect (disconnect → connect)
+  - `frontend/src/lib/db.ts` — Dexie database with IndexedDB schema
+  - `frontend/src/lib/stores/thread-store.ts` — loadFromDB / addThread / updateThread / removeThread persistence
+
 - **E1 (SSE Backend Integration)**
   - CF-1: Install vitest / @testing-library/svelte / @playwright/test for testing
   - CF-2: Fix right panel width 0px → 320px in WorkbenchShell.svelte
