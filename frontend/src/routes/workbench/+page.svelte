@@ -7,6 +7,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { sseConsumer } from '$lib/sse';
   import { threadStore, currentThread } from '$lib/stores/thread-store';
+  import { canvasStore } from '$lib/stores/canvas-store';
   import WorkbenchShell from '$lib/components/workbench/WorkbenchShell.svelte';
   import ThreadList from '$lib/components/workbench/ThreadList.svelte';
   import ArtifactPanel from '$lib/components/workbench/ArtifactPanel.svelte';
@@ -21,6 +22,12 @@
 
   // ── SSE 连接：当 currentThread 变化时订阅 ──────────────────
   let prevThreadId: string | null = null;
+  let canvasNodes = $state(0);
+
+  $effect(() => {
+    const unsub = canvasStore.subscribe(s => { canvasNodes = s.nodes.length; });
+    return unsub;
+  });
 
   $effect(() => {
     const tid = $currentThread?.id ?? null;
@@ -71,7 +78,7 @@
 
     {#snippet main()}
       <div class="canvas-area">
-        <p class="placeholder">Canvas Orchestration</p>
+        <p class="placeholder">Canvas Orchestration ({canvasNodes} nodes)</p>
       </div>
     {/snippet}
 
