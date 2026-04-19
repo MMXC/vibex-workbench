@@ -1,5 +1,13 @@
 // Auto-generated from vibex-workbench specs
 
+export interface Step {
+  id: string;
+  name: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  result?: string;
+  error?: string;
+}
+
 export interface GenerationJob {
   id: string;
   startedAt: Date;

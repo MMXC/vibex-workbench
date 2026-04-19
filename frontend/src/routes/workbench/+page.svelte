@@ -4,7 +4,7 @@
 // ============================================================
 
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount } from 'svelte';
   import { sseConsumer } from '$lib/sse';
   import { threadStore, currentThread } from '$lib/stores/thread-store';
   import { canvasStore } from '$lib/stores/canvas-store';
@@ -15,12 +15,6 @@
 
   const SSE_URL = import.meta.env.VITE_SSE_URL || 'http://localhost:33335';
 
-  // ── SSE 连接清理 ──────────────────────────────────────────
-  onDestroy(() => {
-    sseConsumer.disconnect();
-  });
-
-  // ── SSE 连接：当 currentThread 变化时订阅 ──────────────────
   let prevThreadId: string | null = null;
   let canvasNodes = $state(0);
 
@@ -34,9 +28,16 @@
 
     // Thread 切换时重连 SSE
     if (tid && tid !== prevThreadId) {
+      sseConsumer.disconnect(); // 切换前先断开旧连接，防止内存泄漏
       sseConsumer.connect(`${SSE_URL}/api/sse/threads/${tid}`);
       prevThreadId = tid;
     }
+
+    // cleanup: 组件销毁或 effect 重新运行时断开
+    return () => {
+      sseConsumer.disconnect();
+      prevThreadId = null;
+    };
   });
 
   // ── Composer 提交触发 Run ─────────────────────────────────
