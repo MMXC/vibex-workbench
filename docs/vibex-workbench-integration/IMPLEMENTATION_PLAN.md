@@ -294,9 +294,9 @@
 
 | ID | Name | Status | Depends On | Acceptance Criteria |
 |----|------|--------|-----------|---------------------|
-| E6-U1 | 右栏宽度激活 | ⬜ | — | `grid-template-columns: 280px 1fr 320px` |
-| E6-U2 | 三栏响应式断点 | ⬜ | E6-U1 | 1440px/1024px/768px 三档正常显示 |
-| E6-U3 | 布局降级 | ⬜ | E6-U2 | 768px 以下侧栏折叠，Composer 始终可见 |
+| E6-U1 | 右栏宽度激活 | ✅ | — | `grid-template-columns: 280px 1fr 320px` |
+| E6-U2 | 三栏响应式断点 | ✅ | E6-U1 | 1440px/1024px/768px 三档正常显示 |
+| E6-U3 | 布局降级 | ✅ | E6-U2 | 768px 以下侧栏折叠，Composer 始终可见 |
 
 ### E6-U1 详细说明
 
