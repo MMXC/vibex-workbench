@@ -1,6 +1,32 @@
-test-results/
-~/~/
+# Playwright
+frontend/~/.cache/ms-playwright/
+*/.cache/ms-playwright/
+
+# Test results
 test-results/
 frontend/test-results/
-frontend/test-results/
-frontend/~/~
+*/test-results/
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+*/node_modules/
+
+# Build output
+dist/
+build/
+frontend/dist/
+frontend/.svelte-kit/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
