@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **E4 (Artifact Registry)**
+  - E4-U1: Artifact IndexedDB persistence — loadFromDB() / create / update / remove via db.ts artifacts table
+  - E4-U2: Artifact preview modal — image blob URL / code <pre><code>, revokeObjectURL on close
+  - E4-U3: Artifact drag-to-Composer — draggable items, drop injects `@{artifactId}` reference
+  - ArtifactPanel.svelte — click to open preview, drag-to-composer
+
 - **E3 (Run Engine)**
   - E3-U1: Run state tracking — run-store.ts toolInvocations[], addToolInvocation() / updateToolInvocation()
   - E3-U2: RunStatusBar in Composer.svelte — running spinner + tool count / completed green check / failed red X
