@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **E6 (Workbench Shell)**
+  - E6-U1: 右栏宽度激活 + 响应式断点（≤1439px 布局降级）
+  - E6-U2: canvas-area 正确滚动（overflow: hidden 移除）
+  - E6-U3: canvasStore integration — SSE 事件驱动 canvas 节点
 - **E5 (Canvas Orchestration)**
   - E5-U1: Canvas 渲染 — @xyflow/svelte SvelteFlow, CanvasNode/CanvasEdge types
   - E5-U2: Dagre 自动布局 — canvas-layout.ts 自动布局封装
