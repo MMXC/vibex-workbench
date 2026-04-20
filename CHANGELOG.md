@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **E5 (Canvas Orchestration)**
+  - E5-U1: Canvas 渲染 — @xyflow/svelte SvelteFlow, CanvasNode/CanvasEdge types
+  - E5-U2: Dagre 自动布局 — canvas-layout.ts 自动布局封装
+  - E5-U3: Tool 节点颜色编码 — running(green)/completed(blue)/failed(red)
+  - E5-U4: Run → Tool 自动连线 — sse.ts tool.called 时 addEdge(source=runId, target=invId)
+
 - **E4 (Artifact Registry)**
   - E4-U1: Artifact IndexedDB persistence — loadFromDB() / create / update / remove via db.ts artifacts table
   - E4-U2: Artifact preview modal — image blob URL / code <pre><code>, revokeObjectURL on close
