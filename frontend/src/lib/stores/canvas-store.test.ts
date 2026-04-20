@@ -6,7 +6,7 @@
  * Covers: addNode, removeNode, updateNode, addEdge, removeEdge,
  *         selectNodes, setViewport, setTool, clear, nodeCount.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { canvasStore, nodeCount, type CanvasNode, type CanvasEdge } from './canvas-store';
 
 let _store: typeof canvasStore;
@@ -395,7 +395,7 @@ describe('canvasStore — full workflow', () => {
       parent_id: runId,
       data: { label: 'bash', status: 'running', args: { cmd: 'ls' } },
     });
-    _store.addEdge({ source: runId, target: toolId });
+    _store.addEdge({ id: "e1", source: runId, target: toolId });
     expect(snapDerived(_nodeCount)).toBe(2);
     expect(snap(_store).edges).toHaveLength(1);
     expect(snap(_store).edges[0].source).toBe(runId);

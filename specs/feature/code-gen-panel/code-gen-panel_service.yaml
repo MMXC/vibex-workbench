@@ -1,16 +1,35 @@
 spec:
-  version: "1.0"
+  version: "2.0"
   level: "5b_service"
   name: "code-gen-panel_service"
   parent: "code-gen-panel"
-  status: "draft"
+  status: "active"
 
 content:
+  io_contract:
+    input: "specs/*.yaml"
+    output: "GenerationStep[] + FileDiff[] + SSE 进度事件"
+    boundary: "只做生成执行和进度推送，不做 spec 逻辑和 UI 渲染"
+    behavior: "触发生成 → SSE 流推送进度 → 完成计算 diff"
+    changelog:
+      - version: "2.0"
+        date: "2026-04-20"
+        author: "hermes"
+        changes:
+          - "新增 io_contract 字段"
+          - "GeneratorService.runGenerate() 改为 Observable 模式"
+
   services:
     - name: "GeneratorService"
+      description: "代码生成服务——SSE 流驱动"
       methods:
         - name: "runGenerate"
-          returns: "GenerationJob"
+          params: ["specs?: string[]"]
+          returns: "Observable<GenerationEvent>"
+          description: |
+            返回 Observable，每次 push 发射一个 GenerationEvent：
+            { type: 'started' | 'step' | 'completed' | 'failed', ... }
+            通过 SSE 推送，Canvas 实时展示节点
         - name: "getDiff"
           params: ["specId: string"]
           returns: "FileDiff[]"

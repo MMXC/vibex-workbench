@@ -7,7 +7,7 @@
 # ============================================================
 
 spec:
-  version: "1.0"
+  version: "2.0"
   level: "2_skeleton"
   name: "vibex-workbench-skeleton"
   parent: "vibex-workbench-goal"
@@ -20,9 +20,21 @@ meta:
   updated: "2026-04-20"
 
 content:
+  # ── IO 契约 ────────────────────────────────────────
+  io_contract:
+    input: "goal-spec 确认的产品方向 + 三条路由路径规范"
+    output: "技术选型决策 + 5个模块职责定义 + 模块间集成契约（Event Bus 协议）"
+    boundary: "骨架层做技术选型和模块划分，不做具体业务功能实现"
+    behavior: |
+      从 goal 推导出骨架结构：
+      1. 分析 goal 使命 → 确定技术栈
+      2. goal 三条路由路径 → 映射到 5 个模块职责
+      3. 定义模块间集成契约（Event Bus 事件名 + payload）
+      4. 设计 make generate 流水线
+      5. 确定自举顺序（Phase1/2/3）
+    changelog: []
+
   # ── 9层路径 → Spec 层映射 ──────────────────────────
-  # 用户原始设计：目标→骨架→组织→功能→行为→皮肤→应用→细节→部署
-  # 映射到 L1-L6 规格体系：
   level_mapping:
     - spec_level: 1
       path_name: "目标 (Goal)"
@@ -58,7 +70,6 @@ content:
       is_root: false
 
   # ── 5个模块划分（按业务领域，不是技术层）────────────
-  # 这是骨架层的核心：从 L1 mission 推导出 5 个有边界的业务模块
   modules:
     - id: "MOD-spec-engine"
       name: "Spec Engine"
@@ -69,11 +80,15 @@ content:
         - "spec-editor"
       tech: "SvelteKit + CodeMirror 6"
       deployment: "vscode-extension | pwa | tauri"
-      self_bootstrap: true  # 核心模块，必须自举
+      self_bootstrap: true
+      io_contract:
+        input: "YAML spec 文件路径或内容"
+        output: "SpecAST + Violation[] + DependencyGraph"
+        boundary: "只做解析和验证，不做 UI 展示"
 
     - id: "MOD-dsl-visualizer"
       name: "DSL Visualizer"
-      description: "DSL 图形化层——从属关系节点图 + Mermaid 可视化"
+      description: "DSL 图形化层——从属关系节点图 + Mermaid 可视化 + Canvas 行为展示"
       path_name: "组织层 / Organization"
       type: "core"
       features:
@@ -81,6 +96,10 @@ content:
       tech: "SvelteKit + Mermaid.js + 画布节点图"
       deployment: "vscode-extension | pwa | tauri"
       self_bootstrap: true
+      io_contract:
+        input: "DependencyGraph + SSE 事件流"
+        output: "Mermaid 代码 + Canvas 节点序列"
+        boundary: "只做可视化，不做 spec 编辑"
 
     - id: "MOD-code-generator"
       name: "Code Generator"
@@ -91,11 +110,15 @@ content:
         - "code-gen-panel"
       tech: "SvelteKit + Python CLI"
       deployment: "vscode-extension | pwa | tauri"
-      self_bootstrap: false  # 依赖 spec-engine 成熟后生成
+      self_bootstrap: false
+      io_contract:
+        input: "specs/*.yaml"
+        output: "生成的组件代码 + Diff 对比"
+        boundary: "只做代码生成，不做业务逻辑编写"
 
     - id: "MOD-workbench-shell"
       name: "Workbench Shell"
-      description: "工作台外壳——三栏布局、Composer、Thread/Artifact侧边栏"
+      description: "工作台外壳——对话面板 + Canvas 行为展示 + 三栏布局"
       path_name: "组织层 / Organization"
       type: "core"
       features:
@@ -103,20 +126,27 @@ content:
       tech: "SvelteKit + TailwindCSS"
       deployment: "vscode-extension | pwa | tauri"
       self_bootstrap: true
+      io_contract:
+        input: "用户对话输入 + SSE 事件流"
+        output: "对话 Store 状态 + Canvas 节点渲染"
+        boundary: "只做 UI 布局和状态管理，不做 spec 逻辑"
 
     - id: "MOD-router"
       name: "Change Router"
-      description: "变更路由系统——bug/feature → 定位到 spec 层 → 修改 → 落地"
+      description: "变更路由系统——三条路由路径（goal/feature/bug）+ 歧义消除循环"
       path_name: "组织层 / Organization"
       type: "extension"
       features:
         - "routing-panel"
       tech: "SvelteKit + Svelte 5 runes"
       deployment: "vscode-extension | pwa | tauri"
-      self_bootstrap: false  # Phase 2 再实现
+      self_bootstrap: false
+      io_contract:
+        input: "用户的自然语言需求描述"
+        output: "路由决策（goal|feature|bug）+ 对应的 spec 目标"
+        boundary: "只做路由判断和澄清循环，不做 spec 编写"
 
-  # ── 模块集成契约 ─────────────────────────────────────
-  # 模块间只能通过这些事件/接口通信，不直接调用
+  # ── 模块集成契约（Event Bus 协议）──────────────────
   integration_contracts:
     # spec-editor → dsl-canvas: 打开 spec 时同步更新节点图
     - from_module: "MOD-spec-engine"
@@ -129,6 +159,7 @@ content:
             payload: "{ specId: string, changes: Record<string, any> }"
         apis: []
       protocol: "sse_event"
+      boundary: "spec-engine 发事件，dsl-visualizer 只接收，不反向控制"
 
     # spec-editor → code-generator: 修改 spec 后触发重新生成
     - from_module: "MOD-spec-engine"
@@ -141,6 +172,7 @@ content:
             payload: "{ specs: string[] }"
         apis: []
       protocol: "sse_event"
+      boundary: "spec-engine 发事件，code-generator 发 SSE 流给 shell"
 
     # code-generator → workbench-shell: 显示生成进度
     - from_module: "MOD-code-generator"
@@ -157,16 +189,7 @@ content:
             payload: "{ error: string }"
         apis: []
       protocol: "sse_event"
-
-    # dsl-canvas → spec-editor: 点击节点打开对应 spec
-    - from_module: "MOD-dsl-visualizer"
-      to_module: "MOD-spec-engine"
-      contract:
-        events:
-          - name: "node.clicked"
-            payload: "{ specId: string }"
-        apis: []
-      protocol: "sse_event"
+      boundary: "code-generator 发 SSE 流，shell 消费并广播给 conversation_store + canvas_store"
 
     # routing-panel → spec-engine: 路由到 spec 并打开
     - from_module: "MOD-router"
@@ -174,11 +197,41 @@ content:
       contract:
         events:
           - name: "route.to_spec"
-            payload: "{ specId: string, changeType: 'bug' | 'feature' | 'refactor' }"
+            payload: "{ specId: string, changeType: 'goal' | 'feature' | 'bug' }"
+          - name: "route.to_goal"
+            payload: "{ goalDescription: string, specId: string }"
         apis: []
       protocol: "sse_event"
+      boundary: "router 发事件，spec-engine 打开或创建 spec"
 
-  # ── 技术选型决策 ─────────────────────────────────────
+    # conversation → canvas: 对话事件广播给 Canvas（松耦合）
+    - from_module: "MOD-workbench-shell"
+      to_module: "MOD-dsl-visualizer"
+      contract:
+        events:
+          - name: "dialog.started"
+            payload: "{ threadId: string, input: string }"
+          - name: "dialog.clarification"
+            payload: "{ threadId: string, question: string, type: 'ask' | 'suggest' }"
+          - name: "route.determined"
+            payload: "{ threadId: string, route: 'goal' | 'feature' | 'bug' }"
+          - name: "spec.changed"
+            payload: "{ threadId: string, specId: string, type: 'created' | 'updated' }"
+          - name: "test.written"
+            payload: "{ threadId: string, testCaseId: string }"
+          - name: "test.passed"
+            payload: "{ threadId: string, testCaseId: string }"
+          - name: "test.failed"
+            payload: "{ threadId: string, testCaseId: string, error: string }"
+          - name: "spec.confirmed"
+            payload: "{ threadId: string, specId: string }"
+          - name: "dialog.completed"
+            payload: "{ threadId: string, output: string }"
+        apis: []
+      protocol: "event_bus"
+      boundary: "conversation_store 广播，canvas_store 订阅，两者不知道对方存在"
+
+  # ── 技术选型决策 ───────────────────────────────────
   tech_decisions:
     - id: "TD-001"
       title: "前端框架选型"
@@ -224,7 +277,16 @@ content:
         复用 VSCode 的 WebView API 和文件系统访问能力。
       impact: "workbench-shell 的布局适配"
 
-  # ── 代码生成流水线 ──────────────────────────────────
+    - id: "TD-006"
+      title: "Canvas 行为可视化方案"
+      decision: "松耦合 Event Bus + 只读画布"
+      rationale: |
+        对话 Store 通过 Event Bus 广播 SSE 事件，Canvas Store 订阅并渲染节点序列图。
+        两者独立开发，点击旧对话切换时在对话面板侧实现，Canvas 只读跟随。
+        未来可扩展为可编排画布（需双向绑定）。
+      impact: "dsl-canvas 的 SSE 流可视化模式"
+
+  # ── 代码生成流水线 ────────────────────────────────
   generation_pipeline:
     trigger: "make generate（手动）或 spec saved event（自动）"
     steps:
@@ -271,36 +333,47 @@ content:
         inputs: ["src/lib/generated/parent-graph.json"]
         outputs: ["frontend/src/lib/generated/dependency-graph.mermaid"]
 
-  # ── 自举优先级 ──────────────────────────────────────
-  # 哪些模块先生成、哪些后生成，决定了自举的顺序
+  # ── 自举优先级 ────────────────────────────────────
   bootstrap_order:
     phase_1:
       - module: "MOD-workbench-shell"
         reason: "提供 UI 框架，其他模块需要挂载到这个框架上"
-        self_bootstrap: false  # 人工写框架
+        self_bootstrap: false
       - module: "MOD-spec-engine"
         reason: "其他所有模块依赖 spec 数据，必须先生成"
-        self_bootstrap: true  # spec-engine 解析自己的 specs
+        self_bootstrap: true
       - module: "MOD-dsl-visualizer"
         reason: "DSL 可视化依赖 spec-engine 的 parent-graph"
-        self_bootstrap: true  # dsl-canvas 用自己的 spec 生成自己
+        self_bootstrap: true
     phase_2:
       - module: "MOD-code-generator"
         reason: "其他模块稳定后，生成器接管代码生成"
-        self_bootstrap: false  # 生成器生成自己
+        self_bootstrap: false
       - module: "MOD-router"
         reason: "最后实现路由系统，依赖所有其他模块成熟"
-        self_bootstrap: false  # 人工设计路由逻辑
+        self_bootstrap: false
+
+  # ── changelog ────────────────────────────────────
+  changelog:
+    - version: "2.0"
+      date: "2026-04-20"
+      author: "hermes"
+      changes:
+        - "新增 io_contract 字段（input/output/boundary/behavior/changelog）"
+        - "TD-006: 新增 Canvas 行为可视化技术决策（松耦合 Event Bus + 只读画布）"
+        - "integration_contracts: 新增 conversation→canvas 的 SSE 事件广播协议"
+        - "每个 MOD 新增 io_contract 子字段"
+        - "自举优先级调整为：workbench-shell + spec-engine + dsl-visualizer（Phase1），router（Phase2）"
 
 derived_from:
   - parent: "vibex-workbench-goal"
     rationale: |
       从 L1 mission 推导出 5 个业务模块：
       - spec-engine: 使命的核心（解析/验证/从属链）
-      - dsl-visualizer: 使命的核心（图形化表达）
+      - dsl-visualizer: 使命的核心（图形化表达 + Canvas 行为展示）
       - code-generator: 使命的核心（生成 + 落地）
-      - workbench-shell: 使命的载体（工作台外壳）
-      - router: 使命的延伸（变更路由）
+      - workbench-shell: 使命的载体（对话 + Canvas 布局）
+      - router: 使命的延伸（三条路由路径 + 歧义消除循环）
 
 linked_modules:
   - MOD-spec-engine

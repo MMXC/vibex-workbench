@@ -1,0 +1,51 @@
+# VibeX Agent — Step Model Routing Config
+# 每个 spec 步骤可以指定不同的模型
+
+default:
+  model: MiniMax-M2.7
+
+step_models:
+  routing:
+    description: "意图识别 + 路由到对应 spec 技能"
+    model: MiniMax-M2.7
+
+  clarify:
+    description: "消歧澄清循环，生成问题、接收确认"
+    model: MiniMax-M2.7
+
+  spec-goal:
+    description: "新项目目标规格，生成 HTML 原型"
+    model: MiniMax-M2.7
+
+  spec-feature:
+    description: "新功能 spec，包含 io_contract / 行为 / 边界"
+    model: MiniMax-M2.7
+
+  spec-bug:
+    description: "Bug spec，包含复现路径 / 根因 / 修复验证"
+    model: MiniMax-M2.7
+
+  tdd-design:
+    description: "根据 io_contract / 边界条件生成测试用例"
+    model: MiniMax-M2.7
+
+  tdd-run:
+    description: "运行测试套件，解释失败原因"
+    model: MiniMax-M2.7
+
+  tdd-iterate:
+    description: "根据失败结果修复代码，重复测试直到通过"
+    model: MiniMax-M2.7
+
+  spec-apply:
+    description: "将 spec 变更写入文件系统"
+    model: MiniMax-M2.7
+
+  canvas-exhibit:
+    description: "将行为流渲染到 Canvas 展示区域"
+    model: MiniMax-M2.7
+
+providers:
+  minimax:
+    base_url: https://api.minimaxi.com/anthropic/v1
+    auth_header: true

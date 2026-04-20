@@ -1,6 +1,6 @@
 // Artifact Store — 管理 Artifact 注册表
 import { writable, derived } from 'svelte/store';
-import { db, type DBArtifact } from '$lib/db';
+import { db } from '$lib/db';
 
 export interface Artifact {
   id: string;
@@ -91,6 +91,7 @@ function createArtifactStore() {
         run_id: a.run_id,
         created_at: a.created_at,
         updated_at: a.updated_at,
+        is_deleted: 0,
       }).catch(e => console.error('[artifactStore] Failed to persist:', e));
       return a;
     },
@@ -103,7 +104,7 @@ function createArtifactStore() {
       db.artifacts.update(id, {
         ...patch,
         updated_at: new Date().toISOString(),
-      } as Partial<DBArtifact>).catch(e => console.error('[artifactStore] Failed to update:', e));
+      }).catch(e => console.error('[artifactStore] Failed to update:', e));
     },
 
     remove(id: string) {

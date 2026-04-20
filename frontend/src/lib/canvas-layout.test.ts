@@ -5,7 +5,7 @@
  * Uses vi.resetModules() between tests to ensure a clean dagre state.
  * Tests cover: basic layout, direction modes, edge connectivity, options, edge cases.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import dagre from 'dagre';
 import { layoutNodes, layoutCanvasStoreNodes, type LayoutNode, type LayoutOptions } from './canvas-layout';
 

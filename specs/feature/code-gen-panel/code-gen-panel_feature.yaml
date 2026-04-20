@@ -2,41 +2,83 @@
 # Level 4 — Code Generator Panel 功能规格
 # parent: MOD-code-generator (L3)
 # ============================================================
+
 spec:
-  version: "1.0"
+  version: "2.0"
   level: "4_feature"
   name: "code-gen-panel"
   parent: "MOD-code-generator"
-  status: "draft"
+  status: "active"
 
 meta:
   module: "MOD-code-generator"
   owner: "hermes"
   created: "2026-04-20"
+  updated: "2026-04-20"
 
 content:
   description: "代码生成可视化——make generate 的交互界面、进度条、产物预览"
 
+  # ── IO 契约 ────────────────────────────────────────
+  io_contract:
+    input: |
+      - generation.triggered 事件（来自 spec-editor / router）
+      - make generate 命令
+    output: |
+      - GenerationStep[]（生成步骤序列 → SSE 流 → Canvas 节点）
+      - FileDiff[]（生成前后的 diff 预览）
+      - generation.completed / generation.failed 事件
+    boundary: |
+      范围：生成执行 + 进度展示 + diff 预览
+      不做：路由决策 / spec 逻辑 / 最终代码审查
+      所有进度事件通过 SSE 推送，Canvas 实时展示
+    behavior: |
+      1. 接收 generation.triggered
+      2. 发送 generation.started（SSE）
+      3. 逐步执行 make generate：
+         - 每步完成 → generation.step（SSE）
+         - 失败 → generation.failed（SSE）
+      4. 完成 → 计算 diff → generation.completed（SSE）
+      5. Canvas 展示：generation.started → step×N → generation.completed
+    changelog:
+      - version: "2.0"
+        date: "2026-04-20"
+        author: "hermes"
+        changes:
+          - "新增 io_contract 字段"
+          - "status 从 draft → active"
+          - "新增 behavior 描述（SSE 流驱动 + Canvas 节点展示）"
+          - "generation.* 事件明确映射到 Canvas 节点类型"
+
   user_stories:
     - id: "US-001"
       as_a: "spec 作者"
-      i_want: "点击按钮触发 make generate，实时看到执行步骤"
+      i_want: "点击按钮触发 make generate，实时看到 Canvas 上的执行步骤"
       so_that: "我知道生成过程在做什么"
     - id: "US-002"
       as_a: "spec 作者"
       i_want: "看到生成前后的文件 diff"
       so_that: "我确认生成结果符合预期"
+    - id: "US-003"
+      as_a: "spec 作者"
+      i_want: "在 Canvas 上看到完整的生成链路（started → steps → completed）"
+      so_that: "我直观看到生成是行为的一部分，不是黑盒"
 
   capabilities:
     - id: "C-001"
       name: "生成进度可视化"
       priority: "critical"
+      description: "SSE 流驱动，Canvas 实时展示节点"
     - id: "C-002"
       name: "文件 diff 预览"
       priority: "high"
     - id: "C-003"
       name: "lint 输出"
       priority: "high"
+    - id: "C-004"
+      name: "SSE 事件广播"
+      priority: "critical"
+      description: "generation.* 事件通过 Event Bus 广播到 Canvas"
 
   sub_specs:
     uiux: "code-gen-panel_uiux.yaml"

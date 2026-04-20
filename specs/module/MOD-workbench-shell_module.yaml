@@ -2,8 +2,9 @@
 # Level 3 — Workbench Shell 模块规格
 # parent: vibex-workbench-skeleton (L2)
 # ============================================================
+
 spec:
-  version: "1.0"
+  version: "2.0"
   level: "3_module"
   name: "MOD-workbench-shell"
   parent: "vibex-workbench-skeleton"
@@ -11,16 +12,56 @@ spec:
 
 content:
   module_id: "MOD-workbench-shell"
-  responsibility: "工作台外壳——三栏布局、Composer、Thread/Artifact侧边栏"
+  responsibility: "工作台外壳——对话面板 + Canvas 行为展示 + 三栏布局"
+
+  io_contract:
+    input: "用户对话输入（自然语言）+ SSE 事件流"
+    output: "conversation_store 状态 + canvas_store 节点渲染"
+    boundary: |
+      只做 UI 布局和状态管理，不做：
+      - spec 逻辑（spec-engine 负责）
+      - 路由决策（router 负责）
+      - 代码生成（code-generator 负责）
+    behavior: |
+      1. 接收用户输入 → conversation_store
+      2. conversation_store 通过 Event Bus 广播 SSE 事件
+      3. canvas_store 订阅事件 → 渲染节点序列图（只读）
+      4. 点击旧对话 → 重放该 thread 的 SSE 事件流
+
+    changelog:
+      changelog:
+      - version: "2.0"
+      date: "2026-04-20"
+      author: "hermes"
+      changes:
+      - "新增 io_contract 字段"
+      - "拆分 canvasStore（从 uiStore 独立）+ ConversationPanel"
+      - "新增 Event Bus 广播模式（松耦合方案）"
+      - "新增 stores 定义（conversationStore + canvasStore）"
+
 
   public_api:
     - name: "WorkbenchLayout"
       description: "根布局组件（三栏）"
-    - name: "Composer"
-      description: "多模态输入组合器"
+    - name: "ConversationPanel"
+      description: "对话面板——多线程对话 + 路由状态"
+    - name: "CanvasBehavior"
+      description: "Canvas 行为展示——SSE 节点序列图（只读）"
     - name: "StatusBar"
       description: "底部状态栏"
 
-derived_from:
-  - parent: "vibex-workbench-skeleton"
-    rationale: "MOD-workbench-shell 是 L2 skeleton 定义的工作台外壳模块"
+  stores:
+    - name: "conversationStore"
+      description: "对话状态管理"
+      state:
+        - threads: "ConversationThread[]"
+        - activeThreadId: "string | null"
+        - currentRoute: "'goal' | 'feature' | 'bug' | null"
+        - pendingClarifications: "Clarification[]"
+    - name: "canvasStore"
+      description: "Canvas 节点状态管理（只读订阅者）"
+      state:
+        - nodes: "CanvasNode[]"
+        - activeThreadId: "string | null"
+        - nodeTypeColors: "Record<CanvasNodeType, string>"
+

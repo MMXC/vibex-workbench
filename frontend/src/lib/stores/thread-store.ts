@@ -1,6 +1,7 @@
 // Thread Store — 管理 Thread 和 Message
 import { writable, derived } from 'svelte/store';
-import { db, type DBThread } from '$lib/db';
+import { db } from '$lib/db';
+import type { DBThread } from '$lib/db';
 import type { Thread } from '$lib/types/generated';
 
 export type { Thread };
@@ -37,16 +38,16 @@ function createThreadStore() {
       update(s => ({ ...s, loading: true, error: null }));
       try {
         const rows = await db.threads.toArray();
-        const threads: Thread[] = rows
-          .filter(r => !r.deletedAt)
+        const threads = rows
+          .filter(r => !r.deleted_at)
           .map(r => ({
           id: r.id,
           title: r.title,
           goal: r.goal,
           status: r.status as Thread['status'],
-          createdAt: r.createdAt,
-          updatedAt: r.updatedAt,
-        }));
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+        })) as Thread[];
         update(s => ({ ...s, threads, loading: false }));
       } catch (e) {
         update(s => ({
@@ -63,9 +64,10 @@ function createThreadStore() {
         id: thread.id,
         title: thread.title ?? '',
         goal: thread.goal ?? '',
-        status: (thread.status ?? 'draft') as string,
-        createdAt: thread.createdAt,
-        updatedAt: thread.updatedAt ?? thread.createdAt,
+        status: (thread.status ?? 'idle') as string,
+        created_at: thread.createdAt,
+        updated_at: thread.updatedAt ?? thread.createdAt,
+        is_deleted: 0,
       }).catch(e => console.error('[threadStore] Failed to persist:', e));
     },
 
@@ -83,7 +85,7 @@ function createThreadStore() {
         threads: s.threads.map(t => t.id === id ? { ...t, ...patch } : t),
       }));
       const now = new Date().toISOString();
-      const updateData: Partial<DBThread> = { updatedAt: now };
+      const updateData: Partial<DBThread> = { updated_at: now };
       if (patch.title !== undefined) updateData.title = patch.title;
       if (patch.goal !== undefined) updateData.goal = patch.goal;
       if (patch.status !== undefined) updateData.status = patch.status as string;
@@ -98,7 +100,7 @@ function createThreadStore() {
         currentThreadId: s.currentThreadId === id ? null : s.currentThreadId,
       }));
       db.threads.update(id, {
-        deletedAt: new Date().toISOString(),
+        deleted_at: new Date().toISOString(),
       } as Partial<DBThread>).catch(e => console.error('[threadStore] Failed to soft-delete:', e));
     },
 

@@ -2,8 +2,9 @@
 # Level 4 — Workbench Shell 功能规格
 # parent: MOD-workbench-shell (L3)
 # ============================================================
+
 spec:
-  version: "1.0"
+  version: "2.0"
   level: "4_feature"
   name: "workbench-shell"
   parent: "MOD-workbench-shell"
@@ -13,37 +14,75 @@ meta:
   module: "MOD-workbench-shell"
   owner: "hermes"
   created: "2026-04-20"
+  updated: "2026-04-20"
 
 content:
-  description: "工作台外壳——VSCode 风格三栏布局，左侧文件树/右侧面板/中央编辑器"
+  description: "工作台外壳——对话面板 + Canvas 行为展示 + 三栏布局"
+
+  # ── IO 契约 ────────────────────────────────────────
+  io_contract:
+    input: |
+      - 用户对话输入（自然语言）
+      - SSE 事件流（来自 router / code-generator / spec-engine）
+      - 点击旧对话（切换 activeThreadId）
+    output: |
+      - conversationStore 状态更新
+      - canvasStore 节点序列更新
+      - 三栏布局渲染
+    boundary: |
+      范围：UI 布局 + Store 状态管理
+      不做：spec 逻辑 / 路由决策 / 代码生成
+      切换对话在 conversation_panel 侧实现，canvas 被动跟随（只读）
+    behavior: |
+      1. 用户输入 → conversationStore.addMessage()
+      2. router 处理 → conversationStore.setRoute()
+      3. conversationStore 通过 Event Bus 广播 dialog.* 事件
+      4. canvasStore 订阅 → 更新 canvasNodes
+      5. 点击旧对话 → conversationStore.setActiveThread() → 触发重放
+    changelog:
+      - version: "2.0"
+        date: "2026-04-20"
+        author: "hermes"
+        changes:
+          - "新增 io_contract 字段（input/output/boundary/behavior/changelog）"
+          - "description 从「VSCode风格三栏」改为「对话面板 + Canvas 行为展示 + 三栏」"
+          - "新增 behavior 描述（Event Bus 广播 + Canvas 只读跟随）"
 
   user_stories:
     - id: "US-001"
-      as_a: "spec 作者"
-      i_want: "看到三栏布局：左侧文件树，中间编辑器，右侧属性面板"
-      so_that: "我可以在统一界面中完成所有 spec 工作"
+      as_a: "开发者"
+      i_want: "在对话面板输入自然语言需求，看到 Canvas 实时展示行为节点"
+      so_that: "我直观看到从需求到交付的全链路过程"
     - id: "US-002"
-      as_a: "spec 作者"
-      i_want: "底部看到状态栏，显示当前文件路径和生成状态"
-      so_that: "我随时知道系统状态"
+      as_a: "开发者"
+      i_want: "点击左侧的旧对话，Canvas 切换到该对话的行为序列"
+      so_that: "我可以在不同对话之间切换查看"
     - id: "US-003"
-      as_a: "spec 作者"
-      i_want: "顶部看到 tab 栏，多个文件切换"
-      so_that: "我可以同时编辑多个文件"
+      as_a: "开发者"
+      i_want: "看到三栏布局：左侧对话列表，中间 Canvas 行为展示，右侧属性面板"
+      so_that: "我清楚当前对话状态和 Canvas 节点详情"
 
   capabilities:
     - id: "C-001"
-      name: "三栏布局"
+      name: "对话面板"
       priority: "critical"
+      description: "多线程对话 + 路由状态标签（goal/feature/bug）"
     - id: "C-002"
-      name: "Tab 栏"
-      priority: "high"
+      name: "Canvas 行为展示"
+      priority: "critical"
+      description: "SSE 事件流 → 节点序列图（只读）"
     - id: "C-003"
-      name: "状态栏"
+      name: "三栏布局"
       priority: "high"
+      description: "对话面板 | Canvas | 属性面板"
     - id: "C-004"
-      name: "暗色主题"
-      priority: "medium"
+      name: "Event Bus 广播"
+      priority: "high"
+      description: "conversationStore → Event Bus → canvasStore"
+    - id: "C-005"
+      name: "对话切换"
+      priority: "high"
+      description: "点击旧对话 → 重放 SSE 事件流到 Canvas"
 
   sub_specs:
     uiux: "workbench-shell_uiux.yaml"

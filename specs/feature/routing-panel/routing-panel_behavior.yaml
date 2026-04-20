@@ -1,0 +1,236 @@
+# ============================================================
+# Level 5a — Routing Panel 行为规格
+# parent: routing-panel (L4)
+#
+# 核心：澄清循环状态机 + SSE 事件协议 + Canvas 节点映射
+# 规范：迭代/测试/修复 是手段，spec 最终确认是结果
+# ============================================================
+
+spec:
+  version: "2.0"
+  level: "5a_behavior"
+  name: "routing-panel_behavior"
+  parent: "routing-panel"
+  status: "active"
+
+content:
+  # ── IO 契约 ────────────────────────────────────────
+  io_contract:
+    input: "ClarificationSession（进行中的澄清循环）+ SSE 事件流"
+    output: "ConfirmedIO（用户确认的 input/output/boundary）+ SSE 事件"
+    boundary: "只管理澄清循环状态，不管理 Canvas 渲染（Canvas 是只读订阅者）"
+    behavior: "澄清循环状态机 + SSE 事件广播"
+    changelog:
+      - version: "2.0"
+        date: "2026-04-20"
+        author: "hermes"
+        changes:
+          - "新建此文件"
+          - "新增 result[] 数组记录最终产出"
+          - "新增 spec_link 双向追踪机制"
+
+  result:
+    - path: "/root/vibex-workbench/prototypes/routing-panel-prototype.html"
+      type: "html-prototype"
+      spec_link: "routing-panel_behavior.yaml"
+      confirmed_by: "user_screenshot"
+      confirmed_at: "pending"
+      note: "等待用户截图确认"
+    - path: "/root/vibex-workbench/backend/sse/emitter.go"
+      type: "source-code"
+      spec_link: "routing-panel_behavior.yaml"
+      confirmed_by: "manual"
+      confirmed_at: "pending"
+      note: "SSE 事件发射器，待实现"
+    - path: "/root/vibex-workbench/backend/router/clarification.go"
+      type: "source-code"
+      spec_link: "routing-panel_service.yaml"
+      confirmed_by: "manual"
+      confirmed_at: "pending"
+      note: "ClarificationSession 状态机，待实现"
+
+  # ── 澄清循环状态机 ──────────────────────────────────
+  clarification_state_machine:
+    states:
+      - state: "idle"
+        description: "等待用户输入"
+        transitions:
+          - to: "receiving"
+            trigger: "user.utterance"
+
+      - state: "receiving"
+        description: "接收用户输入，分析路由类型"
+        transitions:
+          - to: "clarification_loop"
+            trigger: "route.needs_clarification"
+          - to: "terminating"
+            trigger: "route.is_clear"
+
+      - state: "clarification_loop"
+        description: "澄清循环——agent 提问 + agent 建议 + user 回答"
+        sub_states:
+          - sub: "agent_asking"
+            description: "agent 提出问题"
+            next: "user_responding"
+          - sub: "agent_suggesting"
+            description: "agent 提供选项建议"
+            next: "user_deciding"
+          - sub: "user_responding"
+            description: "user 回答并给方向"
+            next: "agent_evaluating"
+          - sub: "user_deciding"
+            description: "user 选择方向"
+            next: "agent_evaluating"
+          - sub: "agent_evaluating"
+            description: "agent 评估是否需要继续澄清"
+            transitions:
+              - to: "agent_asking"
+                trigger: "still_ambiguous"
+              - to: "terminating"
+                trigger: "is_clear"
+        termination_condition: |
+          user 说出确认语句：
+          - "好" / "确认" / "就这样" / "ok" / "OK"
+          - 主动上传截图确认
+          - 连续两次拒绝 agent 的新建议 → 主动终止
+
+      - state: "terminating"
+        description: "终止循环，输出 ConfirmedIO"
+        transitions:
+          - to: "idle"
+            trigger: "confirmed"
+
+    io_at_each_state:
+      idle:
+        input: "用户开口说话"
+        output: "dialog.started 事件"
+        canvas_node_type: "input"
+      receiving:
+        input: "用户完整输入"
+        output: "route.determined 事件"
+        canvas_node_type: "branch"
+      clarification_loop:
+        input: "用户的每次回答"
+        output: "dialog.clarification 事件（type: ask|suggest）"
+        canvas_node_type: "iteration"
+      terminating:
+        input: "ConfirmedIO（user 确认的 IO）"
+        output: "route.to_goal / route.to_spec 事件"
+        canvas_node_type: "gate"
+
+  # ── SSE 事件协议 ───────────────────────────────────
+  sse_events:
+    - event: "dialog.started"
+      direction: "outgoing"
+      payload: "{ threadId: string, input: string, route: null }"
+      canvas_node: "input"
+      canvas_color: "#3b82f6"
+
+    - event: "route.determined"
+      direction: "outgoing"
+      payload: "{ threadId: string, route: 'goal' | 'feature' | 'bug', confidence: number }"
+      canvas_node: "branch"
+      canvas_color: "#8b5cf6"
+      description: "路由类型确定，Canvas 显示分支节点"
+
+    - event: "dialog.clarification"
+      direction: "outgoing"
+      payload: "{ threadId: string, question: string, type: 'ask' | 'suggest', options?: string[] }"
+      canvas_node: "iteration"
+      canvas_color: "#f59e0b"
+      description: |
+        type='ask'：agent 提问
+        type='suggest'：agent 提供选项建议，options 包含建议列表
+        Canvas 显示 iteration 节点（循环）
+
+    - event: "dialog.user_answer"
+      direction: "outgoing"
+      payload: "{ threadId: string, answer: string }"
+      canvas_node: "iteration"
+      canvas_color: "#f59e0b"
+      description: "用户回答，Canvas 连接到最近的 iteration 节点"
+
+    - event: "test.written"
+      direction: "outgoing"
+      payload: "{ threadId: string, testCaseId: string, given: string, when: string, then: string }"
+      canvas_node: "sequence"
+      canvas_color: "#6b7280"
+      description: "TDD 测试案例写出，Canvas 显示序列节点"
+
+    - event: "test.passed"
+      direction: "outgoing"
+      payload: "{ threadId: string, testCaseId: string }"
+      canvas_node: "gate"
+      canvas_color: "#22c55e"
+      description: "测试通过，Canvas 显示绿色验证门"
+
+    - event: "test.failed"
+      direction: "outgoing"
+      payload: "{ threadId: string, testCaseId: string, error: string }"
+      canvas_node: "iteration"
+      canvas_color: "#f59e0b"
+      description: "测试失败，Canvas 显示 iteration 节点（修复循环）"
+
+    - event: "spec.changed"
+      direction: "outgoing"
+      payload: "{ threadId: string, specId: string, type: 'created' | 'updated', delta: object }"
+      canvas_node: "sequence"
+      canvas_color: "#6b7280"
+      description: "spec 变更，Canvas 显示序列节点"
+
+    - event: "spec.confirmed"
+      direction: "outgoing"
+      payload: "{ threadId: string, specId: string, confirmedIO: ConfirmedIO }"
+      canvas_node: "gate"
+      canvas_color: "#22c55e"
+      description: "spec IO 确认，Canvas 显示绿色验证门（核心结果）"
+
+    - event: "bug.fixed"
+      direction: "outgoing"
+      payload: "{ threadId: string, bugId: string, specId: string }"
+      canvas_node: "gate"
+      canvas_color: "#22c55e"
+      description: "Bug 修复确认，Canvas 显示绿色验证门"
+
+    - event: "dialog.completed"
+      direction: "outgoing"
+      payload: "{ threadId: string, output: string, outputType: 'html-prototype' | 'spec-update' | 'bug-fixed' }"
+      canvas_node: "output"
+      canvas_color: "#10b981"
+      description: "对话完成，Canvas 显示输出节点（流程结束）"
+
+  # ── TDD 流程嵌入 ───────────────────────────────────
+  tdd_flow:
+    description: "在 feature_route 和 bug_route 中，TDD 是内置流程"
+    loop: |
+      spec IO → 写测试案例(test.written) →
+      运行测试 →
+        失败(test.failed) → 修复 → 重新运行（循环）
+        通过(test.passed) → 下一条测试或 spec.confirmed
+    canvas_visualization: |
+      test.written → test.failed（失败红色 iteration）→ test.passed（绿色 gate）
+      → 下一条 test.written 或 spec.confirmed（总验证门）
+    mandatory: "feature_route 和 bug_route 必须先写测试再实现，Canvas 展示整个 TDD 循环"
+
+  # ── Canvas 节点连线规则 ───────────────────────────
+  canvas_wiring:
+    rule: "事件按时间顺序连线，分支（route.determined）后走不同分支"
+    branch_rules:
+      goal:
+        sequence: |
+          dialog.started → route.determined(goal) →
+          dialog.clarification(循环) → spec.designer 运行 →
+          dialog.completed(output=HTML原型)
+      feature:
+        sequence: |
+          dialog.started → route.determined(feature) →
+          dialog.clarification(循环) →
+          spec.changed → test.written → test.passed/failed(循环) →
+          spec.confirmed → dialog.completed
+      bug:
+        sequence: |
+          dialog.started → route.determined(bug) →
+          dialog.clarification(循环) →
+          spec.changed → test.written → test.passed/failed(循环) →
+          bug.fixed → dialog.completed(output=fixed)
+    node_spacing: "相邻节点水平间距 120px，iteration 循环内垂直间距 80px"

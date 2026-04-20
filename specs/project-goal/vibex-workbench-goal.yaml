@@ -2,13 +2,13 @@
 # Level 1 — VibeX Workbench 项目目标规格
 # Project Goal Specification
 #
-# 使命：构建自举的 Spec 工程工作台
-#       核心能力：DSL 可视化编辑 + 代码生成 + 变更路由
-#       自举闭环：工作台由自身 specs 驱动，生成自身代码
+# 使命：全产品自动化。spec治理工作台。
+#       所有对话遵循：输入 → 输出 → 行为展示。
+#       自举闭环是验证手段，不是目标。
 # ============================================================
 
 spec:
-  version: "1.0"
+  version: "2.0"
   level: "1_project-goal"
   name: "vibex-workbench-goal"
   status: "active"
@@ -22,172 +22,358 @@ meta:
 content:
   # ── 产品定位 ─────────────────────────────────────────
   mission: |
-    VibeX Workbench 是一套自举的 Spec 工程工作台。
-    用 YAML DSL 规格驱动自身开发：编辑 specs → 可视化从属关系图 →
-    生成前端代码 → 本地部署使用。
-    后续任何新功能、bug、需求变更，都路由到对应 spec 层修改，
-    通过生成器快速落地。
-    类比：VSCode 的基础能力（编辑/调试/终端），
-    但扩展为 Spec 工程的专用能力（图谱/生成/路由）。
+    VibeX Workbench 是一套全产品自动化的 Spec 治理工作台。
+    所有对话遵循统一范式：输入 → 行为过程（迭代/测试/修复）→ 输出 → 行为展示。
+    工作台通过 Canvas 可视化每轮对话的状态变化（SSE 流事件序列），
+    让用户直观看到从需求到交付的全链路。
+    自举闭环是验证手段——工作台由自身 specs 驱动，生成自身代码——
+    确保规格体系的完整性和可验证性。
 
   target_users:
     - name: "Spec 工程实践者"
       description: "需要用 spec 驱动方式管理复杂项目的开发者"
     - name: "AI 原生应用团队"
       description: "需要 Agent 工作台 + 画布可视化的团队"
-    - name: "自举工具爱好者"
-      description: "喜欢用工具构建工具、用规格定义规格的工程师"
+    - name: "全栈产品开发者"
+      description: "希望从需求到交付全链路自动化的工程师"
 
   # ── 核心约束 ─────────────────────────────────────────
   constraints:
     - id: "C1"
-      name: "自举闭环"
-      rule: "vibex-workbench 的 specs 必须是自描述的——可以用自身生成自身"
+      name: "全产品自动化"
+      rule: "所有产品变更都通过 spec 输入→spec 输出→Canvas 行为展示的闭环落地"
     - id: "C2"
+      name: "输入输出确认制"
+      rule: "每个 spec 的 input/output/boundary 必须经用户最终确认，未经确认不得进入下一阶段"
+    - id: "C3"
       name: "从属链完整"
       rule: "每个 spec 必须声明 parent，找不到来源 = 违规，阻断生成"
-    - id: "C3"
-      name: "DSL 图形化"
-      rule: "spec 的从属关系必须可视化为节点图（Mermaid / 画布节点图）"
     - id: "C4"
+      name: "自举验证"
+      rule: "vibex-workbench 的 specs 可用自身生成自身，验证规格体系完整性"
+    - id: "C5"
       name: "Local-first"
       rule: "无 backend 也能完整使用，数据存 IndexedDB"
-    - id: "C5"
-      name: "VSCode 扩展先行"
-      rule: "优先做成 VSCode extension，后续考虑独立桌面/PWA"
+    - id: "C6"
+      name: "行为展示驱动"
+      rule: "每轮对话的中间过程（迭代/测试/修复）通过 Canvas SSE 流可视化"
 
-  # ── 9 层规格路径（核心创新）───────────────────────────
-  # 这是用户原始设计的核心：从目标到部署的完整链路
-  # 每个 spec 都必须落在这 9 层之一，且必须有明确的 parent
+  # ── IO 契约（所有 spec 必须遵循）────────────────────
+  io_contract:
+    summary: "所有 spec（L1-L4）的 content 层必须包含以下 5 个结构化字段"
+    fields:
+      - name: "input"
+        description: "该 spec 的输入条件——什么触发了这个功能/变更？用户说了什么？API 传入什么？"
+        required: true
+      - name: "output"
+        description: "该 spec 的输出结果——用户得到什么？生成了什么文件？API 返回什么？"
+        required: true
+      - name: "boundary"
+        description: "边界条件——什么情况走这个路径？什么情况不归这个 spec 管？前置/后置条件"
+        required: true
+      - name: "behavior"
+        description: "行为——这个 spec 内部是怎么工作的？有哪些子流程？状态机怎么流转？"
+        required: true
+      - name: "changelog"
+        description: "变更日志——该 spec 的所有历史版本、每次变更的内容摘要"
+        required: true
+
+  routing_paths:
+    new_goal:
+      trigger: "用户描述一个全新的产品或功能方向，不是对现有功能的修改"
+      route_to: "spec-goal 技能"
+      clarification_loop: "澄清循环（循环）：agent提问(方向/风格/范围/优先级) -> user回答并给方向 -> agent提供选项建议 -> user确认方向。终止：user说出确认语句"
+      output: "HTML原型 + goal-spec YAML"
+      output_confirmed: "user对原型截图确认后，goal-spec进入confirmed状态"
+      behavior_preview: "Canvas展示：输入 -> spec-designer生成原型 -> 用户确认 -> 节点变绿(验证门通过) -> 输出"
+      example: "用户说「我想做一个AI写作助手」-> spec-goal生成产品原型 -> user确认方向 -> 进入spec-feature"
+
+    new_feature:
+      trigger: "用户对现有产品提出新功能需求，不是全新的产品方向"
+      route_to: "spec-feature 技能"
+      clarification_loop: "澄清循环（循环）：agent提问(功能细节/交互/数据/边界) -> user回答 -> agent给出spec变更建议 -> user确认spec内容。终止：user说出确认语句"
+      output: "更新的feature-spec + 对应的test-spec"
+      output_confirmed: "user确认spec内容后，feature-spec进入active状态"
+      behavior_preview: "Canvas展示：输入 -> spec变更 -> 涉及spec连线 -> 迭代循环 -> 验证门 -> 输出"
+      example: "用户说「加一个导出PDF功能」-> spec-feature更新 -> 触发make generate -> Canvas展示生成过程"
+
+    bug_fix:
+      trigger: "用户报告一个bug或问题"
+      route_to: "spec-bug 技能"
+      clarification_loop: "澄清循环（循环）：agent复现问题(输入/步骤) -> user补充细节 -> agent定位到对应的feature-spec -> user确认bug描述和根因。终止：user确认bug描述"
+      output: "bug-changelog记录 + 修复后的feature-spec + 修复验证测试"
+      output_confirmed: "user确认bug已修复 + 测试通过"
+      behavior_preview: "Canvas展示：输入(bug描述) -> 根因分析 -> spec变更 -> 修复 -> 测试验证 -> 输出(fixed)"
+      example: "用户说「点击保存按钮没反应」-> 定位到spec-editor -> 修复spec-editor -> 验证通过 -> bug-changelog记录"
+
+  # ── spec-designer 进化定位 ──────────────────────────
+  spec_designer_evolution:
+    role_in_workbench: |
+      spec-designer 是 spec-goal 路由的核心执行者。
+      在新需求路由中，spec-designer 接收用户方向，生成产品 HTML 原型，
+      用户通过截图确认方向后，原型成为 goal-spec 的 output。
+    clarification_protocol: |
+      spec-designer 在澄清循环中：
+      - agent 提供风格选项建议（基于 DESIGN.md 知识库）
+      - user 最终拍板方向
+      - 禁止 agent 替用户做方向决策
+    output_format: "HTML 原型（单文件，CSS+HTML+JS 内联，可截图确认）"
+    consistency: "所有原型使用进化后的 spec-designer 统一设计风格"
+
+  # ── Canvas 行为展示协议 ─────────────────────────────
+  canvas_behavior_protocol:
+    architecture: "松耦合（方案1）+ 只读画布（方案4）"
+    event_bus: |
+      对话 Store 通过 Event Bus 广播 SSE 事件
+      Canvas Store 订阅事件，渲染成节点序列图
+      两者独立开发，不知道对方存在
+    click_to_switch: "点击旧对话切换行为展示：对话面板侧选择 thread → 重放该 thread 的 SSE 事件流到 Canvas"
+    canvas_readonly: "Canvas 单向只读，不需要反向控制对话"
+    node_types:
+      - type: "input"
+        icon: "→"
+        color: "#3b82f6"
+        description: "输入节点——用户原始需求/bug描述"
+      - type: "sequence"
+        icon: "→"
+        color: "#6b7280"
+        description: "顺序连线——流程顺序"
+      - type: "iteration"
+        icon: "↻"
+        color: "#f59e0b"
+        description: "迭代循环——澄清/修复循环"
+      - type: "branch"
+        icon: "◇"
+        color: "#8b5cf6"
+        description: "分支路由——条件分支"
+      - type: "subagent"
+        icon: "⚙"
+        color: "#06b6d4"
+        description: "子代理/子流程——agent 委托"
+      - type: "gate"
+        icon: "✓"
+        color: "#22c55e"
+        description: "验证门——用户确认/测试通过"
+      - type: "output"
+        icon: "★"
+        color: "#10b981"
+        description: "输出节点——最终交付物"
+    sse_event_mapping:
+      "dialog.started": "input"
+      "dialog.clarification": "iteration"
+      "route.determined": "branch"
+      "spec.changed": "sequence"
+      "test.written": "sequence"
+      "test.passed": "gate"
+      "test.failed": "iteration"
+      "spec.confirmed": "gate"
+      "dialog.completed": "output"
+      "generation.started": "subagent"
+      "generation.step": "sequence"
+      "generation.completed": "output"
+      "bug.reproduced": "gate"
+      "bug.fixed": "gate"
+
+  # ── TDD 内嵌要求 ────────────────────────────────────
+  tdd_requirement:
+    summary: "迭代/测试验证/修复是手段，spec 最终确认是结果"
+    loop: |
+      spec input/output/boundary/behavior → 设计测试案例 →
+      Canvas 展示迭代过程 → 验证门（测试通过） →
+      spec 进入 confirmed 状态 → 输出
+    test_case_format: |
+      每个 test-spec 必须包含：
+        - given: 输入条件
+        - when: 触发动作
+        - then: 期望输出
+        - boundary: 边界条件
+    test_driven: |
+      必须先写测试案例，再实现代码
+      测试失败 → 迭代修复 → 再次测试
+      Canvas 实时展示测试通过/失败的节点状态
+
+  # ── 9 层规格路径（核心创新）──────────────────────────
   spec_levels:
     - level: 1
       name: "目标 (Goal)"
-      description: "项目愿景、使命、成功指标、约束边界"
+      description: "产品愿景、使命、成功指标、约束边界、全局路由规范"
       parent_required: false
-      example: "vibex-workbench-goal: 让 spec 工程自举落地"
+      example: "vibex-workbench-goal: 全产品自动化 + 三条路由路径 + Canvas 协议"
+      io_contract:
+        input: "用户的原始需求描述（自然语言）"
+        output: "HTML 原型（用户截图确认）+ goal-spec YAML"
+        boundary: "全新产品方向 vs 现有产品变更"
+        behavior: "spec-goal 技能：澄清循环 → spec-designer 生成原型 → 用户确认 → goal-spec confirmed"
+        changelog: "goal 级别的重大方向变更"
 
     - level: 2
       name: "骨架 (Skeleton)"
-      description: "技术选型 + 项目框架 + 目录结构"
+      description: "技术选型 + 项目框架 + 5个模块划分 + 生成流水线"
       parent_required: true
       parent_level: 1
-      example: "SvelteKit + TailwindCSS + Dexie.js 技术栈选型"
+      io_contract:
+        input: "goal-spec 确认的产品方向"
+        output: "技术选型决策 + 5个模块职责定义 + 集成契约"
+        boundary: "框架选型 vs 业务功能"
+        behavior: "从 goal 推导出骨架结构，定义模块边界和集成协议"
+        changelog: "技术栈重大变更、模块增减"
 
     - level: 3
       name: "组织 (Organization)"
       description: "模块划分（按业务领域，不按技术层）"
       parent_required: true
       parent_level: 2
-      example: "MOD-spec-engine / MOD-dsl-visualizer / MOD-code-generator"
+      io_contract:
+        input: "skeleton 定义的模块"
+        output: "每个模块的 public_api + data_ownership"
+        boundary: "模块 A 职责 vs 模块 B 职责"
+        behavior: "定义每个模块对外暴露的 API 和数据所有权"
+        changelog: "模块职责调整、公共 API 变更"
 
     - level: 4
       name: "功能 (Function)"
-      description: "具体业务功能 + 用户故事"
+      description: "具体业务功能 + 用户故事 + IO确认"
       parent_required: true
       parent_level: 3
-      example: "spec-editor: YAML 编辑 + 语法高亮 + 从属链检查"
+      io_contract:
+        input: "用户故事 + 路由类型（goal/feature/bug）"
+        output: "feature-spec + 4个子规格（uiux/service/data/test）"
+        boundary: "这个功能做什么 vs 不做什么"
+        behavior: "spec-feature/spec-bug 技能：澄清 → 确认 IO → 更新 spec → 验证"
+        changelog: "功能新增、功能变更、Bug 修复记录"
 
-    - level: 5a
-      name: "行为表现 (Behavior)"
-      description: "UX 交互流程、状态流转、事件协议"
+    - level: "5a"
+      name: "行为 (Behavior)"
+      description: "UX 交互流程、状态流转、SSE 事件协议"
       parent_required: true
       parent_level: 4
-      example: "SSE 事件流驱动、runStore 状态机"
+      io_contract:
+        input: "feature-spec 的 behavior 定义"
+        output: "state_machine + sse_events[] + interactions[]"
+        boundary: "前端行为 vs 后端逻辑"
+        behavior: "SSE 事件流驱动 Canvas 行为展示"
+        changelog: "交互流程变更"
 
-    - level: 5b
+    - level: "5b"
       name: "皮肤 (Skin)"
       description: "UI 视觉设计、组件状态、设计 token"
       parent_required: true
       parent_level: 4
-      example: "暗色主题、设计令牌、组件四态"
+      io_contract:
+        input: "设计方向（spec-designer 生成的原型风格）"
+        output: "design_tokens + components 的 states[]"
+        boundary: "遵循设计系统 vs 局部变体"
+        behavior: "design_tokens 应用到所有组件"
+        changelog: "设计系统 token 变更"
 
-    - level: 5c
+    - level: "5c"
       name: "应用 (Application)"
       description: "完整可运行的前端/后端代码（80% 生成）"
       parent_required: true
       parent_level: 4
-      example: "make generate 产出的 SvelteKit 组件"
+      io_contract:
+        input: "feature-spec + 子规格（uiux/service/data）"
+        output: "生成的组件代码 + Store 代码"
+        boundary: "生成代码 vs 手写胶水代码"
+        behavior: "make generate 触发，Canvas 展示生成过程"
+        changelog: "生成器配置变更"
 
-    - level: 5d
+    - level: "5d"
       name: "细节迭代 (Glue Code)"
       description: "胶水代码、手写业务逻辑（20% 手写）"
       parent_required: true
       parent_level: 4
-      example: "spec-parser 解析逻辑、生成器模板"
+      io_contract:
+        input: "生成代码 + 业务特殊逻辑"
+        output: "手写的 spec-parser + 生成器模板"
+        boundary: "生成覆盖 vs 手动维护"
+        behavior: "手动编写生成器无法处理的特殊逻辑"
+        changelog: "胶水代码变更"
 
     - level: 6
       name: "本地部署 (Deployment)"
       description: "工程化产出：VSCode extension / PWA / Tauri"
       parent_required: true
       parent_level: 1
-      example: "make build 生成 .vsix 安装包"
+      io_contract:
+        input: "所有 L4/L5 specs 确认完毕"
+        output: "可安装的 .vsix / Tauri 可执行文件"
+        boundary: "开发环境 vs 生产环境"
+        behavior: "make build 发布"
+        changelog: "部署配置变更"
 
-  # ── 交付里程碑 ───────────────────────────────────────
+  # ── 交付里程碑 ──────────────────────────────────────
   milestones:
     - id: "M0"
       name: "自举骨架"
       description: "目录结构 + Makefile + L1/L2 specs + 生成器框架"
-      status: "pending"
+      status: "done"
       priority: "critical"
 
     - id: "M1"
       name: "spec-editor 核心"
       description: "YAML 编辑 + 语法高亮 + 从属链解析"
-      status: "pending"
+      status: "done"
       priority: "critical"
 
     - id: "M2"
       name: "DSL 图形化层"
       description: "从属关系节点图（Mermaid 视图）"
-      status: "pending"
+      status: "done"
       priority: "high"
 
     - id: "M3"
       name: "代码生成面板"
       description: "make generate 可视化 + 生成预览"
-      status: "pending"
+      status: "done"
       priority: "high"
 
     - id: "M4"
       name: "变更路由系统"
-      description: "bug/feature → 定位到 spec 层 → 修改规格 → 落地"
-      status: "pending"
-      priority: "medium"
+      description: "bug/feature/goal 三条路由规范 + Canvas 行为展示协议"
+      status: "in_progress"
+      priority: "critical"
 
     - id: "M5"
-      name: "VSCode Extension 打包"
-      description: "生成 .vsix，通过 make build 发布"
+      name: "Canvas 行为可视化"
+      description: "SSE 流事件 → Canvas 节点序列图（输入→迭代→验证→输出）"
       status: "pending"
-      priority: "medium"
+      priority: "critical"
 
     - id: "M6"
+      name: "spec-designer 进化"
+      description: "spec-goal 路由内置 spec-designer，统一设计风格，生成产品原型"
+      status: "pending"
+      priority: "high"
+
+    - id: "M7"
       name: "自举闭环验证"
       description: "用 vibex-workbench 编辑自己的 specs，make generate 生成自身"
       status: "pending"
       priority: "critical"
 
-  # ── 成功指标 ─────────────────────────────────────────
+  # ── 成功指标 ────────────────────────────────────────
   success_metrics:
     - "SM1: make lint-specs 通过，从属链 100% 完整"
     - "SM2: make generate 在 5 秒内完成"
-    - "SM3: DSL 图形化层可渲染 5+ 层深的从属关系图"
-    - "SM4: 变更路由可在 3 步内定位到对应 spec 层"
-    - "SM5: VSCode Extension 可安装并运行"
-    - "SM6: M6 自举闭环验证通过（用自身生成自身）"
+    - "SM3: 所有 spec（L1-L4）包含 input/output/boundary/behavior/changelog 五个字段"
+    - "SM4: spec-goal 输出 HTML 原型，用户通过截图确认方向"
+    - "SM5: Canvas 展示 SSE 流事件序列（输入→行为→输出），节点类型全覆盖"
+    - "SM6: 三条路由路径（goal/feature/bug）清晰区分，各有独立的澄清循环"
+    - "SM7: M6 自举闭环验证通过（用自身生成自身）"
 
-  # ── 技术栈（Skeleton 层决策）─────────────────────────
+  # ── 技术栈 ──────────────────────────────────────────
   tech_stack:
     frontend: "SvelteKit + TailwindCSS + Svelte 5 Runes"
-    canvas: "复用 VibeX canvas 节点渲染"
-    state: "Zustand + Svelte 5 runes"
+    canvas: "画布节点图（Svelte 原生实现）"
+    state: "Zustand + Svelte 5 runes + Event Bus"
     storage: "Dexie.js (IndexedDB)"
     editor: "CodeMirror 6 (YAML 编辑)"
-    diagram: "Mermaid.js (从属图) + 画布节点图"
-    vscode: "@vscode/sqlite3 / VSCode WebView API"
+    diagram: "Mermaid.js（从属图）"
     generate: "Python 生成器（spec-to-sveltekit 复用）"
     test: "Vitest + Playwright"
 
-  # ── 自举策略 ─────────────────────────────────────────
+  # ── 自举策略 ────────────────────────────────────────
   bootstrap_strategy: |
     Phase 1（手动引导）:
       - 人工写 L1/L2/L3 specs（当前阶段）
@@ -196,8 +382,8 @@ content:
 
     Phase 2（自举启动）:
       - 用生成的 spec-editor 编辑更多 specs
-      - 用 dsl-visualizer 可视化自身从属图
-      - 生成器开始覆盖更多模块
+      - 用 dsl-canvas 可视化自身从属图
+      - Canvas 行为可视化上线
 
     Phase 3（自举闭环）:
       - vibex-workbench 的所有 specs 由自身编辑
@@ -206,10 +392,14 @@ content:
 
 derived_from:
   - source: "小羊 DSL-SPEC 设计理念"
-    key_insight: "9层路径：目标→骨架→组织→功能→行为→皮肤→应用→细节→部署"
+    key_insight: "全产品自动化是主目标，自举是验证手段"
+  - source: "小羊 spec-goal 澄清"
+    key_insight: "spec-goal 输出 = HTML 原型，方向由用户给，agent 在澄清循环中给建议"
+  - source: "小羊 Canvas 行为展示协议"
+    key_insight: "松耦合+只读画布，SSE 流事件 → 节点序列图"
   - source: "禹笑笑《从聊天框到工作台》2026-03-25"
     key_insight: "Agent 工作台范式：Thread/Run/Artifact + SSE 驱动"
-  - source: "vibex-spec 现有实践"
-    key_insight: "spec-driven project 方法论 + 5-Store 架构"
   - source: "04-19 关键洞察"
     key_insight: "从属 vs 横向分层——错误骨架是五层横向技术分层，正确是纵向需求从属"
+  - source: "04-20 关键洞察"
+    key_insight: "三路由规范（goal/feature/bug）+ 迭代/测试/修复 是手段，spec 最终确认是结果"

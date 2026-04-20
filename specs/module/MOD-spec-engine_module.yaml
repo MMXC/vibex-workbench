@@ -3,11 +3,10 @@
 # Module Specification
 #
 # parent: vibex-workbench-skeleton (L2)
-# 派生自: MOD-spec-engine
 # ============================================================
 
 spec:
-  version: "1.0"
+  version: "2.0"
   level: "3_module"
   name: "MOD-spec-engine"
   parent: "vibex-workbench-skeleton"
@@ -17,22 +16,49 @@ content:
   module_id: "MOD-spec-engine"
   responsibility: "Spec 解析、验证、从属链构建——工作台的核心引擎"
 
+  io_contract:
+    input: "YAML spec 文件路径或内容字符串"
+    output: "SpecAST + Violation[] + DependencyGraph + parent-chain 验证结果"
+    boundary: |
+      只做 spec 的解析/验证/图构建，不做：
+      - UI 展示（dsl-visualizer 负责）
+      - 代码生成（code-generator 负责）
+      - 路由决策（router 负责）
+    behavior: |
+      1. 读取 YAML 文件 → parseYAML() → SpecAST
+      2. 遍历所有 SpecAST → 构建 parent-chain
+      3. 验证每个 spec.parent 是否指向存在的 spec → Violation[]
+      4. 构建 DependencyGraph（用于 Mermaid + Canvas）
+      5. 提供全文搜索和按层过滤
+
+    changelog:
+      changelog:
+      - version: "2.0"
+      date: "2026-04-20"
+      author: "hermes"
+      changes:
+      - "新增 io_contract 字段（input/output/boundary/behavior/changelog）"
+      - "DependencyGraphBuilder 新增 toCanvasNodes() 方法（支持 Canvas 可视化）"
+
+
   public_api:
     - name: "SpecParser"
       description: "解析 YAML spec 文件，构建 AST"
       methods:
         - "parseFile(path: string): SpecAST"
         - "parseDir(dir: string): SpecAST[]"
+        - "parseContent(content: string): SpecAST"
     - name: "ParentChainValidator"
       description: "验证每个 spec 的 parent 字段是否指向存在的规格"
       methods:
         - "validate(spec: SpecAST): ValidationResult"
         - "getViolations(): Violation[]"
     - name: "DependencyGraphBuilder"
-      description: "构建从属关系图（Mermaid 输入）"
+      description: "构建从属关系图（Mermaid 输入 + Canvas 可视化）"
       methods:
         - "buildGraph(specs: SpecAST[]): DependencyGraph"
         - "toMermaid(graph: DependencyGraph): string"
+        - "toCanvasNodes(events: SSEEvent[]): CanvasNode[]"
     - name: "SpecSearchEngine"
       description: "全文搜索 specs 内容"
       methods:
@@ -50,8 +76,3 @@ content:
       owned_by: "spec-engine"
       storage: "memory (runtime)"
 
-derived_from:
-  - parent: "vibex-workbench-skeleton"
-    rationale: "MOD-spec-engine 是 L2 skeleton 定义的第一个核心模块"
-  - parent: "vibex-workbench-goal"
-    rationale: "自举闭环要求 spec-engine 必须能解析自身"

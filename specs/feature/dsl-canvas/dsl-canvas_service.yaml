@@ -2,14 +2,29 @@
 # Level 5b — DSL Canvas 服务规格
 # parent: dsl-canvas (L4)
 # ============================================================
+
 spec:
-  version: "1.0"
+  version: "2.0"
   level: "5b_service"
   name: "dsl-canvas_service"
   parent: "dsl-canvas"
   status: "active"
 
 content:
+  io_contract:
+    input: "DependencyGraph（spec视图）+ SSE事件流（canvas视图）"
+    output: "Mermaid代码 + CanvasNode[]"
+    boundary: "只做数据转换，不做UI渲染和事件处理"
+    behavior: "两种视图模式的数据源转换服务"
+    changelog:
+      - version: "2.0"
+        date: "2026-04-20"
+        author: "hermes"
+        changes:
+          - "新增 io_contract 字段"
+          - "新增 SSEEventToCanvasNodeConverter服务"
+          - "MermaidGeneratorService新增toCanvasNodes()方法"
+
   services:
     - name: "MermaidGeneratorService"
       methods:
@@ -19,6 +34,9 @@ content:
         - name: "generateFromSpecs"
           params: ["specs: SpecAST[]"]
           returns: "string"
+        - name: "toCanvasNodes"
+          params: ["events: SSEEvent[]"]
+          returns: "CanvasNode[]"
 
     - name: "CanvasLayoutService"
       methods:
@@ -28,3 +46,25 @@ content:
         - name: "fitToScreen"
           params: ["nodes: SpecNode[], viewport: Viewport"]
           returns: "Viewport"
+        - name: "buildSequences"
+          params: ["nodes: CanvasNode[]"]
+          returns: "CanvasConnection[]"
+
+    - name: "SSEEventToCanvasNodeConverter"
+      description: "将SSE事件映射为Canvas节点"
+      methods:
+        - name: "convert"
+          params: ["event: SSEEvent"]
+          returns: "CanvasNode"
+        - name: "convertBatch"
+          params: ["events: SSEEvent[]"]
+          returns: "CanvasNode[]"
+
+    - name: "CanvasEventSubscriber"
+      description: "订阅Event Bus的SSE事件"
+      methods:
+        - name: "subscribe"
+        - name: "onEvent"
+          params: ["event: SSEEvent"]
+        - name: "replayThread"
+          params: ["threadId: string"]

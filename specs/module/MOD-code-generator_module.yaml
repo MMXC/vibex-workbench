@@ -2,25 +2,72 @@
 # Level 3 — Code Generator 模块规格
 # parent: vibex-workbench-skeleton (L2)
 # ============================================================
+
 spec:
-  version: "1.0"
+  version: "2.0"
   level: "3_module"
   name: "MOD-code-generator"
   parent: "vibex-workbench-skeleton"
-  status: "draft"
+  status: "active"
 
 content:
   module_id: "MOD-code-generator"
-  responsibility: "代码生成可视化——make generate 的交互界面 + 生成预览"
+  responsibility: "代码生成可视化——make generate 的交互界面 + SSE 流驱动"
+
+  io_contract:
+    input: "specs/*.yaml（已通过 lint-specs 验证）"
+    output: "生成的组件代码 + FileDiff[] + SSE 进度事件流"
+    boundary: |
+      只做代码生成和预览展示，不做：
+      - spec 逻辑（spec-engine 负责）
+      - 业务代码编写（开发者负责）
+      - 路由决策（router 负责）
+    behavior: |
+      1. 接收 generation.triggered 事件
+      2. 触发 make generate → 捕获 stdout/stderr
+      3. 每步完成 → 发送 generation.step SSE 事件
+      4. 完成后 → 计算 Diff → 发送 generation.completed
+      5. 失败 → 发送 generation.failed + 具体错误
+
+    changelog:
+      changelog:
+      - version: "2.0"
+      date: "2026-04-20"
+      author: "hermes"
+      changes:
+      - "新增 io_contract 字段"
+      - "新增 sse_events_produced（明确对外输出的 SSE 事件）"
+      - "stores 新增 diffs 字段（diff 对比结果）"
+      - "GeneratorService.runGenerate() 改为 Observable 模式（SSE 流驱动）"
+
 
   public_api:
-    - name: "GeneratorRunner"
-      description: "运行代码生成器（Python CLI）"
-    - name: "GenerationPreview"
-      description: "生成产物预览（diff view）"
+    - name: "GeneratorService"
+      description: "主生成服务"
+      methods:
+        - "runGenerate(): Observable<GenerationEvent>"
+        - "getDiff(specId: string): FileDiff[]"
     - name: "GenerationTimeline"
-      description: "生成过程时间线"
+      description: "生成时间线组件——SSE 驱动"
+    - name: "DiffViewer"
+      description: "文件 diff 预览组件"
 
-derived_from:
-  - parent: "vibex-workbench-skeleton"
-    rationale: "MOD-code-generator 是 L2 skeleton 定义的第三个核心模块"
+  stores:
+    - name: "codeGenStore"
+      description: "代码生成状态管理"
+      state:
+        - currentJob: "GenerationJob | null"
+        - stepLogs: "StepLog[]"
+        - isRunning: "boolean"
+        - diffs: "FileDiff[]"
+
+  sse_events_produced:
+    - event: "generation.started"
+      payload: "{ total: number }"
+    - event: "generation.step"
+      payload: "{ step: number, name: string, status: 'running' | 'done' | 'error' }"
+    - event: "generation.completed"
+      payload: "{ duration_ms: number, files_changed: number }"
+    - event: "generation.failed"
+      payload: "{ error: string }"
+

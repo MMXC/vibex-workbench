@@ -8,7 +8,8 @@
  * 4. Clicking "+ 新建线程" creates a thread
  * 5. Error state: when db throws, error message + retry button visible
  */
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 // Navigate to the workbench page (ThreadList component is rendered as part of it)
 async function gotoThreadList(page: Page) {

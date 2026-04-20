@@ -51,7 +51,7 @@ describe('threadStore', () => {
       toArray.mockResolvedValueOnce([
         { id: 't1', title: 'A', goal: '', status: 'draft', createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
         { id: 't2', title: 'B', goal: '', status: 'active', createdAt: '2024-01-02T00:00:00Z', updatedAt: '2024-01-02T00:00:00Z' },
-        { id: 't-deleted', title: 'Deleted', goal: '', status: 'draft', createdAt: '2024-01-03T00:00:00Z', updatedAt: '2024-01-03T00:00:00Z', deletedAt: '2024-01-03T00:00:00Z' },
+        { id: 't-deleted', title: 'Deleted', goal: '', status: 'draft', createdAt: '2024-01-03T00:00:00Z', updatedAt: '2024-01-03T00:00:00Z', deleted_at: '2024-01-03T00:00:00Z' },
       ]);
       await threadStore.loadFromDB();
       const s = snap();
@@ -126,7 +126,7 @@ describe('threadStore', () => {
     it('persists deletedAt via db.threads.update', async () => {
       update.mockClear();
       threadStore.removeThread('t1');
-      expect(update).toHaveBeenCalledWith('t1', expect.objectContaining({ deletedAt: expect.any(String) }));
+      expect(update).toHaveBeenCalledWith('t1', expect.objectContaining({ deleted_at: expect.any(String) }));
     });
   });
 

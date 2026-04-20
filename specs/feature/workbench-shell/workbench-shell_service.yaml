@@ -1,17 +1,49 @@
 spec:
-  version: "1.0"
+  version: "2.0"
   level: "5b_service"
   name: "workbench-shell_service"
   parent: "workbench-shell"
   status: "active"
+
 content:
+  io_contract:
+    input: "用户对话输入 + SSE 事件流"
+    output: "conversationStore 状态更新 + canvasStore 节点更新"
+    boundary: "只做 UI 状态管理，不做路由/生成/spec 逻辑"
+    behavior: "接收输入 → 更新 store → Event Bus 广播"
+    changelog:
+      - version: "2.0"
+        date: "2026-04-20"
+        author: "hermes"
+        changes:
+          - "新增 io_contract 字段"
+          - "新增 EventBus + conversationStore/canvasStore 方法"
+
   services:
     - name: "LayoutService"
       methods:
         - "toggleLeftSidebar()"
         - "toggleRightSidebar()"
         - "setActivePanel(panel: string)"
+        - "setViewMode(mode: string)"
+
     - name: "StatusService"
       methods:
         - "showMessage(msg: string, type: string)"
         - "showGenerationStatus(status: string)"
+
+    - name: "ConversationService"
+      description: "对话面板状态管理"
+      methods:
+        - "addThread(): ConversationThread"
+        - "setActiveThread(threadId: string)"
+        - "addMessage(threadId: string, message: Message)"
+        - "setRoute(threadId: string, route: RouteDecision)"
+        - "broadcastEvent(event: string, payload: object)"
+
+    - name: "EventBus"
+      description: "松耦合事件总线"
+      methods:
+        - "subscribe(event: string, handler: Function)"
+        - "unsubscribe(event: string, handler: Function)"
+        - "emit(event: string, payload: object)"

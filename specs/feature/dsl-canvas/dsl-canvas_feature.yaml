@@ -2,8 +2,9 @@
 # Level 4 — DSL Canvas 功能规格
 # parent: MOD-dsl-visualizer (L3)
 # ============================================================
+
 spec:
-  version: "1.0"
+  version: "2.0"
   level: "4_feature"
   name: "dsl-canvas"
   parent: "MOD-dsl-visualizer"
@@ -13,34 +14,89 @@ meta:
   module: "MOD-dsl-visualizer"
   owner: "hermes"
   created: "2026-04-20"
+  updated: "2026-04-20"
 
 content:
-  description: "DSL 从属关系图形化——Mermaid 节点图 + 可视化层级"
+  description: "DSL 从属关系图形化 + Canvas 行为可视化（只读）"
+
+  # ── IO 契约 ────────────────────────────────────────
+  io_contract:
+    input: |
+      - DependencyGraph（spec 从属图）
+      - SSE 事件流（dialog.* 事件，来自 Event Bus）
+      - activeThreadId（当前查看的对话线程）
+    output: |
+      - Mermaid 代码（Mermaid 视图）
+      - CanvasNode[]（Canvas 视图：节点序列）
+      - highlightedSpecId（高亮节点）
+    boundary: |
+      范围：可视化展示（只读订阅）
+      不做：事件生产 / 状态管理 / 对话控制
+      viewMode='mermaid' 时：数据源 = DependencyGraph
+      viewMode='canvas' 时：数据源 = SSE 事件流
+    behavior: |
+      两种视图：
+      Mermaid 视图：
+        1. 接收 spec.opened / spec.modified 事件
+        2. 更新 DependencyGraph
+        3. MermaidGeneratorService 生成 Mermaid 代码
+        4. 渲染从属关系节点图（层级颜色编码）
+      Canvas 视图（只读）：
+        1. 订阅 Event Bus 的 dialog.* 事件
+        2. 将每个事件映射为 CanvasNode
+        3. 按时间顺序排列节点
+        4. 连接线展示顺序关系
+        5. 节点颜色按 node_type 区分
+    changelog:
+      - version: "2.0"
+        date: "2026-04-20"
+        author: "hermes"
+        changes:
+          - "新增 io_contract 字段"
+          - "description 从「Mermaid节点图」扩展为「从属图 + Canvas行为可视化（只读）」"
+          - "新增 behavior 描述（两种视图 + Event Bus 订阅）"
 
   user_stories:
     - id: "US-001"
       as_a: "spec 作者"
-      i_want: "看到当前项目所有 spec 的从属关系图"
+      i_want: "看到当前项目所有 spec 的从属关系图（Mermaid 视图）"
       so_that: "我理解规格的组织结构"
     - id: "US-002"
+      as_a: "开发者"
+      i_want: "看到当前对话的 SSE 事件流序列图（Canvas 视图）"
+      so_that: "我直观看到从输入到输出的完整行为链路"
+    - id: "US-003"
+      as_a: "开发者"
+      i_want: "切换 viewMode，看到同一对话的两种视角"
+      so_that: "既能看到 spec 从属结构，也能看到行为序列"
+    - id: "US-004"
       as_a: "spec 作者"
       i_want: "点击图中的节点跳转到对应 spec 编辑器"
       so_that: "我可以从图形化视图快速导航到代码"
-    - id: "US-003"
-      as_a: "spec 作者"
-      i_want: "看到 spec 的层级用颜色区分"
-      so_that: "我能一眼分辨规格的深度"
 
   capabilities:
     - id: "C-001"
-      name: "Mermaid 从属图"
-      priority: "critical"
+      name: "Mermaid 从属图（spec 视图）"
+      priority: "high"
     - id: "C-002"
+      name: "Canvas 行为序列图（对话视图，只读）"
+      priority: "critical"
+      description: "SSE 事件 → CanvasNode[] → 节点序列连线"
+    - id: "C-003"
+      name: "viewMode 切换"
+      priority: "critical"
+      description: "mermaid ↔ canvas，一键切换两种视图"
+    - id: "C-004"
+      name: "Event Bus 订阅"
+      priority: "critical"
+      description: "订阅 dialog.* 事件，更新 Canvas 节点"
+    - id: "C-005"
       name: "层级颜色编码"
       priority: "high"
-    - id: "C-003"
+    - id: "C-006"
       name: "双向同步"
-      priority: "high"
+      priority: "medium"
+      description: "Mermaid 视图点击节点 → 打开 spec-editor"
 
   sub_specs:
     uiux: "dsl-canvas_uiux.yaml"

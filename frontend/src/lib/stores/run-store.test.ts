@@ -4,7 +4,7 @@
  * Strategy: direct import with vi.resetModules() in beforeEach to clear
  * the module cache between tests, giving each test a fresh singleton.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { runStore, activeRun, type Run, type ToolInvocation } from './run-store';
 
 let _runStore: any;
@@ -18,9 +18,9 @@ async function getFreshStores() {
 }
 
 // Helper: read current store state synchronously
-function snap(store: any) {
+function snap(store: { subscribe: (fn: (v: any) => void) => () => void }) {
   let s: any;
-  const u = store.subscribe(x => { s = x; });
+  const u = store.subscribe((x: any) => { s = x; });
   u();
   return s;
 }
@@ -153,13 +153,13 @@ describe('runStore — activeRun derived store', () => {
   it('returns the current active run', () => {
     const run = _runStore.createRun('thread-h');
     _runStore.setActiveRun(run.id);
-    const val = waitForDerived(_activeRun);
+    const val = waitForDerived<any>(_activeRun);
     expect(val?.id).toBe(run.id);
   });
 
   it('returns null when no run is active', () => {
     _runStore.setActiveRun(null);
-    const val = waitForDerived(_activeRun);
+    const val = waitForDerived<any>(_activeRun);
     expect(val).toBeNull();
   });
 });

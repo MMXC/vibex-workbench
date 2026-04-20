@@ -2,8 +2,9 @@
 # Level 4 — Spec Editor 功能规格
 # parent: MOD-spec-engine (L3)
 # ============================================================
+
 spec:
-  version: "1.0"
+  version: "2.0"
   level: "4_feature"
   name: "spec-editor"
   parent: "MOD-spec-engine"
@@ -13,9 +14,38 @@ meta:
   module: "MOD-spec-engine"
   owner: "hermes"
   created: "2026-04-20"
+  updated: "2026-04-20"
 
 content:
   description: "YAML Spec 编辑器——语法高亮、从属链解析、实时验证"
+
+  # ── IO 契约 ────────────────────────────────────────
+  io_contract:
+    input: |
+      - 用户打开/编辑 spec 文件
+      - 用户输入 YAML 内容
+      - router 的 route.to_spec 事件（打开指定 spec）
+    output: |
+      - Violation[]（从属链验证结果）
+      - spec.saved 事件（触发 generation）
+      - SpecFile（保存到 IndexedDB）
+    boundary: |
+      范围：YAML 编辑 + 实时验证
+      不做：代码生成 / Canvas 可视化 / 路由决策
+      parent 字段跳转 → 打开对应 spec（同模块内跳转）
+    behavior: |
+      1. 打开文件 → SpecParser.parseFile() → SpecAST
+      2. 实时验证 → ParentChainValidator.validate()
+      3. 显示 Violation 警告（红线下划线）
+      4. 点击 parent 字段 → 打开对应 spec
+      5. 保存 → spec.saved 事件 → 触发 generation
+    changelog:
+      - version: "2.0"
+        date: "2026-04-20"
+        author: "hermes"
+        changes:
+          - "新增 io_contract 字段（input/output/boundary/behavior/changelog）"
+          - "新增 behavior 描述（实时验证 + parent 跳转 + spec.saved 事件）"
 
   user_stories:
     - id: "US-001"
@@ -32,8 +62,8 @@ content:
       so_that: "我可以快速追踪规格的来源"
     - id: "US-004"
       as_a: "spec 作者"
-      i_want: "用搜索框全文搜索所有 specs"
-      so_that: "我可以快速找到特定的规格内容"
+      i_want: "保存时自动验证 IO 契约字段（input/output/boundary/behavior/changelog）"
+      so_that: "我确保每个 spec 都有完整的 IO 定义"
 
   capabilities:
     - id: "C-001"
@@ -43,11 +73,15 @@ content:
       name: "从属链实时验证"
       priority: "critical"
     - id: "C-003"
-      name: "文件树导航"
+      name: "IO 契约验证"
       priority: "high"
+      description: "保存时检查 content 层是否包含 input/output/boundary/behavior/changelog"
     - id: "C-004"
-      name: "全文搜索"
+      name: "parent 字段跳转"
       priority: "high"
+    - id: "C-005"
+      name: "全文搜索"
+      priority: "medium"
 
   sub_specs:
     uiux: "spec-editor_uiux.yaml"

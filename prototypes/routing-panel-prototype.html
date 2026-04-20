@@ -1,0 +1,1943 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VibeX Workbench — Spec 治理工作台</title>
+<!--
+  spec: routing-panel_behavior.yaml
+  version: "2.0"
+  generated: 2026-04-20
+  confirmed_by: user_screenshot
+  confirmed_at: pending
+  description: 三栏布局工作台 — 左侧对话线程 / 中间对话区 / 右侧 Canvas 行为展示
+  three_routes: goal(紫色) / feature(绿色) / bug(橙色)
+-->
+<style>
+/* ── Design Tokens ── */
+:root {
+  --bg-base: #0d0d1a;
+  --bg-surface: #13132a;
+  --bg-elevated: #1a1a38;
+  --bg-hover: #22224a;
+  --border: rgba(255,255,255,0.07);
+  --border-strong: rgba(255,255,255,0.12);
+
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+
+  --brand-indigo: #6366f1;
+  --route-goal: #a78bfa;      /* goal路由 紫色 */
+  --route-goal-bg: #1e1532;
+  --route-goal-border: #4c1d95;
+  --route-feature: #34d399;   /* feature路由 绿色 */
+  --route-feature-bg: #0d2619;
+  --route-feature-border: #065f46;
+  --route-bug: #fb923c;       /* bug路由 橙色 */
+  --route-bug-bg: #271a0d;
+  --route-bug-border: #7c2d12;
+
+  --canvas-bg: #080810;
+  --canvas-grid: #111120;
+  --node-sequence: #6366f1;
+  --node-iteration: #f59e0b;
+  --node-gate: #ef4444;
+  --node-output: #10b981;
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.5);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.6);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 220ms;
+}
+
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, 'Noto Sans SC', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ── 三栏布局 ── */
+.workbench {
+  display: grid;
+  grid-template-columns: 220px 1fr 420px;
+  height: 100vh;
+}
+
+/* ════════════════════════════════════════
+   LEFT: 对话线程列表
+   ════════════════════════════════════════ */
+.thread-panel {
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 16px 14px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.btn-new-thread {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+.btn-new-thread:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--brand-indigo);
+}
+
+.thread-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.thread-list::-webkit-scrollbar { width: 4px; }
+.thread-list::-webkit-scrollbar-track { background: transparent; }
+.thread-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+
+.thread-item {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  margin-bottom: 2px;
+  border: 1px solid transparent;
+  transition: all var(--duration-fast) var(--ease-out);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.thread-item:hover {
+  background: var(--bg-hover);
+}
+.thread-item.active {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+}
+.thread-item.active.goal { border-left: 3px solid var(--route-goal); }
+.thread-item.active.feature { border-left: 3px solid var(--route-feature); }
+.thread-item.active.bug { border-left: 3px solid var(--route-bug); }
+
+.thread-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.thread-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.route-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+.route-badge.goal { background: var(--route-goal-bg); color: var(--route-goal); border: 1px solid var(--route-goal-border); }
+.route-badge.feature { background: var(--route-feature-bg); color: var(--route-feature); border: 1px solid var(--route-feature-border); }
+.route-badge.bug { background: var(--route-bug-bg); color: var(--route-bug); border: 1px solid var(--route-bug-border); }
+
+/* ════════════════════════════════════════
+   CENTER: 对话区
+   ════════════════════════════════════════ */
+.dialog-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.dialog-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-surface);
+}
+
+.dialog-thread-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.io-contract-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.io-tag {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+}
+.io-tag.input { background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); }
+.io-tag.output { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+.io-tag.boundary { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+.io-tag.pending { background: rgba(100,116,139,0.1); color: var(--text-muted); border: 1px solid var(--border); }
+
+.messages-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.messages-area::-webkit-scrollbar { width: 5px; }
+.messages-area::-webkit-scrollbar-track { background: transparent; }
+.messages-area::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+.msg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: msgIn 0.3s var(--ease-out);
+}
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.msg.user { align-items: flex-end; }
+.msg.agent { align-items: flex-start; }
+
+.msg-bubble {
+  max-width: 75%;
+  padding: 10px 14px;
+  border-radius: var(--radius-lg);
+  font-size: 13px;
+  line-height: 1.6;
+  box-shadow: var(--shadow-sm);
+}
+.msg.user .msg-bubble {
+  background: var(--brand-indigo);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.msg.agent .msg-bubble {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+}
+
+.msg-agent-name {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding-left: 4px;
+}
+
+/* 路由决策消息 */
+.route-decision {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 500;
+  width: fit-content;
+  border: 1px solid;
+}
+.route-decision.goal { background: var(--route-goal-bg); color: var(--route-goal); border-color: var(--route-goal-border); }
+.route-decision.feature { background: var(--route-feature-bg); color: var(--route-feature); border-color: var(--route-feature-border); }
+.route-decision.bug { background: var(--route-bug-bg); color: var(--route-bug); border-color: var(--route-bug-border); }
+.route-decision .route-icon { font-size: 14px; }
+
+/* 澄清循环卡片 */
+.clarify-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  max-width: 85%;
+  width: 100%;
+  box-shadow: var(--shadow-md);
+}
+.clarify-card-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.clarify-card-header .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--node-iteration);
+  animation: blink 1.2s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.clarify-question {
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+.clarify-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.suggestion-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.suggestion-chip:hover {
+  background: var(--bg-hover);
+  border-color: var(--brand-indigo);
+  color: var(--text-primary);
+}
+.suggestion-chip.selected {
+  background: rgba(99,102,241,0.15);
+  border-color: var(--brand-indigo);
+  color: #818cf8;
+}
+.suggestion-chip .chip-icon { font-size: 13px; opacity: 0.7; }
+.suggestion-chip .chip-label { flex: 1; }
+
+/* 输入区 */
+.input-area {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+.input-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.input-field {
+  flex: 1;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  resize: none;
+  min-height: 42px;
+  max-height: 120px;
+  outline: none;
+  transition: border-color var(--duration-fast) var(--ease-out);
+  line-height: 1.5;
+}
+.input-field:focus { border-color: var(--brand-indigo); }
+.input-field::placeholder { color: var(--text-muted); }
+
+.btn-send {
+  height: 42px;
+  padding: 0 18px;
+  background: var(--brand-indigo);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  white-space: nowrap;
+}
+.btn-send:hover { background: #5558e8; transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.btn-send:active { transform: translateY(0); }
+
+/* IO确认条 */
+.io-confirm-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-top: 8px;
+}
+.io-confirm-bar input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+.io-confirm-bar input:first-child { border-bottom: 1px solid var(--border); }
+.io-confirm-bar input::placeholder { color: var(--text-muted); font-size: 11px; }
+.io-confirm-bar .io-divider {
+  width: 1px;
+  background: var(--border);
+}
+.io-confirm-bar .btn-confirm {
+  padding: 0 14px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--route-feature);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+.io-confirm-bar .btn-confirm:hover { background: var(--route-feature-bg); }
+
+/* ════════════════════════════════════════
+   RIGHT: Canvas 行为展示
+   ════════════════════════════════════════ */
+.canvas-panel {
+  background: var(--canvas-bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.canvas-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(13,13,26,0.8);
+  backdrop-filter: blur(8px);
+}
+
+.canvas-tabs {
+  display: flex;
+  gap: 4px;
+}
+.canvas-tab {
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all var(--duration-fast) var(--ease-out);
+  background: transparent;
+}
+.canvas-tab:hover { color: var(--text-secondary); background: var(--bg-hover); }
+.canvas-tab.active { color: var(--text-primary); background: var(--bg-elevated); border-color: var(--border); }
+
+.canvas-view-mode {
+  display: flex;
+  gap: 4px;
+}
+.view-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+.view-btn:hover { background: var(--bg-hover); color: var(--text-secondary); }
+.view-btn.active { background: var(--bg-elevated); border-color: var(--border-strong); color: var(--text-primary); }
+
+/* Canvas 主区域 */
+.canvas-main {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(99,102,241,0.03) 0%, transparent 60%),
+    var(--canvas-bg);
+}
+
+/* 网格背景 */
+.canvas-main::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--canvas-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--canvas-grid) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 0.6;
+}
+
+/* 节点容器 */
+.nodes-container {
+  position: absolute;
+  inset: 0;
+  padding: 24px;
+}
+
+.node {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid;
+  background: rgba(19,19,42,0.92);
+  backdrop-filter: blur(8px);
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: var(--shadow-md);
+  transition: all var(--duration-normal) var(--ease-out);
+  min-width: 120px;
+  cursor: pointer;
+}
+.node:hover { transform: scale(1.03); box-shadow: var(--shadow-lg); }
+.node .node-icon { font-size: 13px; }
+.node .node-label { color: var(--text-primary); }
+.node .node-sublabel { font-size: 10px; color: var(--text-muted); margin-left: auto; }
+
+/* 节点类型颜色 */
+.node.input { border-color: var(--node-sequence); color: #818cf8; background: rgba(99,102,241,0.08); }
+.node.sequence { border-color: var(--node-sequence); color: #818cf8; background: rgba(99,102,241,0.08); }
+.node.iteration { border-color: var(--node-iteration); color: #fbbf24; background: rgba(245,158,11,0.08); }
+.node.gate { border-color: var(--node-gate); color: #f87171; background: rgba(239,68,68,0.08); }
+.node.output { border-color: var(--node-output); color: #34d399; background: rgba(16,185,129,0.08); }
+.node.branch { border-color: #c084fc; color: #c084fc; background: rgba(192,132,252,0.08); }
+.node.subagent { border-color: #22d3ee; color: #22d3ee; background: rgba(34,211,238,0.08); }
+
+/* 节点状态 */
+.node.running { animation: nodePulse 1.5s ease-in-out infinite; }
+@keyframes nodePulse {
+  0%,100% { box-shadow: var(--shadow-md), 0 0 0 0 rgba(99,102,241,0.4); }
+  50% { box-shadow: var(--shadow-md), 0 0 0 6px rgba(99,102,241,0); }
+}
+.node.done { opacity: 0.7; }
+.node.error { border-color: var(--node-gate) !important; }
+
+/* SVG 连线 */
+.connections-svg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.conn-line {
+  stroke: rgba(99,102,241,0.3);
+  stroke-width: 1.5;
+  fill: none;
+  stroke-dasharray: 4 3;
+  animation: dashMove 1s linear infinite;
+}
+@keyframes dashMove { to { stroke-dashoffset: -7; } }
+.conn-line.done { stroke: rgba(99,102,241,0.5); stroke-dasharray: none; animation: none; }
+.conn-arrow { fill: rgba(99,102,241,0.4); }
+
+/* 节点入口/出口标记 */
+.node-connector {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--node-sequence);
+  border: 1px solid var(--canvas-bg);
+}
+
+/* Canvas 底部信息栏 */
+.canvas-footer {
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(13,13,26,0.8);
+  backdrop-filter: blur(8px);
+}
+.canvas-footer-info {
+  display: flex;
+  gap: 12px;
+}
+.footer-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.footer-stat .stat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.footer-stat .stat-dot.ok { background: var(--node-output); }
+.footer-stat .stat-dot.running { background: var(--node-iteration); animation: blink 1s ease-in-out infinite; }
+.footer-stat .stat-dot.error { background: var(--node-gate); }
+
+.canvas-footer-actions {
+  display: flex;
+  gap: 6px;
+}
+.canvas-action-btn {
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+.canvas-action-btn:hover { background: var(--bg-hover); color: var(--text-secondary); border-color: var(--border-strong); }
+
+/* ── Result Tracker 按钮 ── */
+.canvas-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.canvas-action-btn.primary {
+  background: rgba(99,102,241,0.15);
+  color: #818cf8;
+  border-color: rgba(99,102,241,0.4);
+}
+.canvas-action-btn.primary:hover {
+  background: rgba(99,102,241,0.25);
+  border-color: var(--brand-indigo);
+  color: var(--text-primary);
+}
+.canvas-action-btn.primary .badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: 6px;
+}
+.canvas-action-btn.primary .badge.pending { background: rgba(245,158,11,0.3); color: #fbbf24; }
+.canvas-action-btn.primary .badge.done { background: rgba(16,185,129,0.3); color: #34d399; }
+
+/* ── Result Tracker 模态框 ── */
+.result-tracker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+.result-tracker-overlay.open {
+  opacity: 1;
+  pointer-events: all;
+}
+.result-tracker-modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  width: 720px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg);
+  transform: translateY(16px) scale(0.97);
+  transition: transform var(--duration-normal) var(--ease-out);
+}
+.result-tracker-overlay.open .result-tracker-modal {
+  transform: translateY(0) scale(1);
+}
+.rt-header {
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.rt-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rt-title .rt-icon { font-size: 16px; }
+.rt-stats {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.rt-stat {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+}
+.rt-stat .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+}
+.rt-stat .dot.done { background: var(--node-output); }
+.rt-stat .dot.pending { background: var(--node-iteration); }
+.rt-stat .count { font-weight: 700; color: var(--text-primary); }
+.rt-stat .label { color: var(--text-muted); }
+.rt-close {
+  width: 30px; height: 30px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+.rt-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.rt-filter-bar {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rt-filter-btn {
+  padding: 4px 12px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+.rt-filter-btn:hover { background: var(--bg-hover); color: var(--text-secondary); }
+.rt-filter-btn.active { background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.4); color: #818cf8; }
+.rt-filter-btn .filter-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 16px; height: 16px;
+  padding: 0 4px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--bg-elevated);
+  margin-left: 4px;
+}
+
+.rt-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 20px;
+}
+.rt-list::-webkit-scrollbar { width: 4px; }
+.rt-list::-webkit-scrollbar-track { background: transparent; }
+.rt-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+
+.rt-item {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+  overflow: hidden;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+.rt-item:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+.rt-item.confirmed { border-color: rgba(16,185,129,0.3); background: rgba(16,185,129,0.04); }
+.rt-item.unconfirmed { border-color: rgba(245,158,11,0.2); }
+
+.rt-status-bar {
+  width: 4px;
+  flex-shrink: 0;
+}
+.rt-status-bar.done { background: var(--node-output); }
+.rt-status-bar.pending { background: var(--node-iteration); }
+.rt-status-bar.error { background: var(--node-gate); }
+
+.rt-body {
+  flex: 1;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rt-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rt-item-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.rt-type-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-family: 'Fira Code', monospace;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.rt-type-badge.html-prototype { background: rgba(192,132,252,0.15); color: #c084fc; border: 1px solid rgba(192,132,252,0.3); }
+.rt-type-badge.source-code { background: rgba(34,211,238,0.15); color: #22d3ee; border: 1px solid rgba(34,211,238,0.3); }
+.rt-type-badge.generated-file { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+.rt-type-badge.yaml-spec { background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); }
+
+.rt-item-spec {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rt-item-spec span { color: var(--brand-indigo); }
+
+.rt-item-path {
+  font-size: 11px;
+  font-family: 'Fira Code', monospace;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--bg-surface);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.rt-item-note {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.rt-item-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
+}
+.rt-confirm-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.rt-confirm-meta .confirmed-tag {
+  color: var(--node-output);
+  font-weight: 600;
+}
+.rt-confirm-meta .pending-tag {
+  color: var(--node-iteration);
+}
+
+.rt-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.rt-btn {
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  display: flex; align-items: center; gap: 4px;
+}
+.rt-btn-jump {
+  border-color: rgba(99,102,241,0.4);
+  color: #818cf8;
+}
+.rt-btn-jump:hover { background: rgba(99,102,241,0.15); border-color: var(--brand-indigo); }
+.rt-btn-confirm {
+  border-color: rgba(16,185,129,0.4);
+  color: #34d399;
+}
+.rt-btn-confirm:hover { background: rgba(16,185,129,0.15); border-color: var(--node-output); }
+.rt-btn-confirm.already { border-color: rgba(100,116,139,0.3); color: var(--text-muted); cursor: default; }
+.rt-btn-confirm.already:hover { background: transparent; }
+
+/* ── 空状态 ── */
+.rt-empty {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--text-muted);
+}
+.rt-empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.4; }
+.rt-empty-text { font-size: 13px; }
+
+/* ── Toast 提示 ── */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 10px 18px;
+  font-size: 13px;
+  color: var(--text-primary);
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  transition: all var(--duration-normal) var(--ease-out);
+  pointer-events: none;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast .toast-icon { font-size: 15px; }
+.toast.success .toast-icon { color: var(--node-output); }
+.toast.info .toast-icon { color: var(--node-sequence); }
+.toast.warning .toast-icon { color: var(--node-iteration); }
+
+/* ── 状态栏 ── */
+.status-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 26px;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  font-size: 11px;
+  color: var(--text-muted);
+  z-index: 50;
+}
+.status-left { display: flex; gap: 16px; }
+.status-right { display: flex; gap: 16px; }
+.status-item { display: flex; align-items: center; gap: 4px; }
+.status-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+}
+.status-dot.ok { background: var(--node-output); }
+.status-dot.running { background: var(--node-iteration); animation: blink 1.2s ease-in-out infinite; }
+</style>
+</head>
+<body>
+
+<div class="workbench">
+  <!-- LEFT: 对话线程列表 -->
+  <aside class="thread-panel">
+    <div class="panel-header">
+      <span class="panel-title">对话</span>
+      <button class="btn-new-thread" onclick="createThread()" title="新建对话">+</button>
+    </div>
+    <div class="thread-list" id="threadList">
+      <!-- 由 JS 动态填充 -->
+    </div>
+  </aside>
+
+  <!-- CENTER: 对话区 -->
+  <section class="dialog-panel">
+    <div class="dialog-header">
+      <div class="dialog-thread-title" id="currentThreadTitle">新对话</div>
+      <div class="io-contract-bar" id="ioContractBar">
+        <span class="io-tag input pending" id="tagInput">INPUT: —</span>
+        <span class="io-tag output pending" id="tagOutput">OUTPUT: —</span>
+        <span class="io-tag boundary pending" id="tagBoundary">BOUNDARY: —</span>
+      </div>
+    </div>
+
+    <div class="messages-area" id="messagesArea">
+      <!-- 由 JS 动态填充 -->
+    </div>
+
+    <div class="input-area">
+      <div class="input-row">
+        <textarea class="input-field" id="inputField" placeholder="输入需求、bug 或新功能描述..." rows="1" onkeydown="handleInputKeydown(event)"></textarea>
+        <button class="btn-send" onclick="sendMessage()">发送</button>
+      </div>
+      <div class="io-confirm-bar" id="ioConfirmBar" style="display:none;">
+        <input type="text" id="ioInput" placeholder="input">
+        <input type="text" id="ioOutput" placeholder="output">
+        <input type="text" id="ioBoundary" placeholder="boundary">
+        <div class="io-divider"></div>
+        <button class="btn-confirm" onclick="confirmIO()">确认</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT: Canvas -->
+  <section class="canvas-panel">
+    <div class="canvas-header">
+      <div class="canvas-tabs">
+        <button class="canvas-tab active" id="tabBehavior" onclick="switchCanvasTab('behavior')">行为流</button>
+        <button class="canvas-tab" id="tabGraph" onclick="switchCanvasTab('graph')">从属图</button>
+        <button class="canvas-tab" id="tabIO" onclick="switchCanvasTab('io')">IO</button>
+      </div>
+      <div class="canvas-actions">
+        <button class="canvas-action-btn primary" id="btnResultTracker" onclick="openResultTracker()" title="结果追踪器">
+          ◎ 结果追踪
+        </button>
+      </div>
+      <div class="canvas-view-mode">
+        <button class="view-btn active" id="viewTree" title="树状视图" onclick="setViewMode('tree')">⊞</button>
+        <button class="view-btn" id="viewFlow" title="流程视图" onclick="setViewMode('flow')">→</button>
+      </div>
+    </div>
+
+    <div class="canvas-main" id="canvasMain">
+      <svg class="connections-svg" id="connectionsSvg"></svg>
+      <div class="nodes-container" id="nodesContainer">
+        <!-- 由 JS 动态填充 -->
+      </div>
+    </div>
+
+    <div class="canvas-footer">
+      <div class="canvas-footer-info">
+        <span class="footer-stat"><span class="stat-dot ok"></span> <span id="doneCount">0</span> 完成</span>
+        <span class="footer-stat"><span class="stat-dot running"></span> <span id="runningCount">0</span> 进行中</span>
+        <span class="footer-stat"><span class="stat-dot error"></span> <span id="errorCount">0</span> 错误</span>
+      </div>
+      <div class="canvas-footer-actions">
+        <button class="canvas-action-btn" onclick="clearCanvas()">清空</button>
+        <button class="canvas-action-btn" onclick="exportCanvas()">导出</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- 状态栏 -->
+<div class="status-bar">
+  <div class="status-left">
+    <span class="status-item"><span class="status-dot ok"></span> VibeX Workbench</span>
+    <span class="status-item" id="activeThreadStatus">活跃: —</span>
+    <span class="status-item" id="routeStatus">路由: —</span>
+  </div>
+  <div class="status-right">
+    <span class="status-item" id="nodeCountStatus">节点: 0</span>
+    <span class="status-item">v2.0</span>
+  </div>
+</div>
+
+<!-- Result Tracker 模态框 -->
+<div class="result-tracker-overlay" id="resultTrackerOverlay" onclick="closeTrackerOnOverlay(event)">
+  <div class="result-tracker-modal">
+    <div class="rt-header">
+      <div class="rt-title">
+        <span class="rt-icon">◎</span>
+        结果追踪器
+        <span style="font-size:12px;font-weight:400;color:var(--text-muted);margin-left:4px;">— Spec → 产出双向确认</span>
+      </div>
+      <div class="rt-stats">
+        <span class="rt-stat"><span class="dot done"></span><span class="count" id="rtDoneCount">0</span> <span class="label">已确认</span></span>
+        <span class="rt-stat"><span class="dot pending"></span><span class="count" id="rtPendingCount">0</span> <span class="label">待确认</span></span>
+        <span class="rt-stat"><span class="count" id="rtTotalCount">0</span> <span class="label">总计</span></span>
+      </div>
+      <button class="rt-close" onclick="closeResultTracker()">×</button>
+    </div>
+    <div class="rt-filter-bar">
+      <button class="rt-filter-btn active" id="filterAll" onclick="setResultFilter('all')">全部 <span class="filter-count" id="countAll">0</span></button>
+      <button class="rt-filter-btn" id="filterPending" onclick="setResultFilter('pending')">待确认 <span class="filter-count" id="countPending">0</span></button>
+      <button class="rt-filter-btn" id="filterConfirmed" onclick="setResultFilter('confirmed')">已确认 <span class="filter-count" id="countConfirmed">0</span></button>
+      <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+        <button class="rt-btn rt-btn-jump" onclick="refreshResultTracker()">⟳ 刷新</button>
+        <button class="rt-btn rt-btn-jump" onclick="confirmAllPending()">✓ 全部确认</button>
+      </div>
+    </div>
+    <div class="rt-list" id="rtList">
+      <!-- 由 JS 动态填充 -->
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <span class="toast-icon">✓</span>
+  <span class="toast-text" id="toastText"></span>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════
+   核心数据
+   ═══════════════════════════════════════════ */
+const ROUTE_COLORS = {
+  goal: { main: '#a78bfa', bg: '#1e1532', border: '#4c1d95' },
+  feature: { main: '#34d399', bg: '#0d2619', border: '#065f46' },
+  bug: { main: '#fb923c', bg: '#271a0d', border: '#7c2d12' }
+};
+
+let state = {
+  threads: [
+    {
+      id: 'thread-1',
+      title: '新功能: 导出PDF',
+      route: 'feature',
+      messages: [
+        { role: 'user', content: '加一个导出PDF功能' },
+        { role: 'agent', content: '好的，这是feature路由。请问：这个功能在哪里用？输入是什么，输出是什么？' },
+        { role: 'user', content: '在导出面板，输入是选中的文件列表，输出是PDF文件' },
+        { role: 'agent', content: '明白了。我来确认一下：\n• 输入：选中文件列表（Array&lt;File&gt;）\n• 输出：PDF文件（Blob）\n• 边界：不选文件时按钮禁用，文件>100MB时提示大小超限\n\n请确认以上IO契约，确认后我将更新spec并生成测试。' },
+        { type: 'io_confirm', io: { input: '选中文件列表(Array&lt;File&gt;)', output: 'PDF文件(Blob)', boundary: '0&lt;文件数&lt;50, 单文件&lt;100MB' } }
+      ],
+      confirmedIO: null,
+      canvasNodes: [
+        { id: 'n1', type: 'input', label: '用户输入', sublabel: '加导出PDF功能', x: 24, y: 80, status: 'done' },
+        { id: 'n2', type: 'sequence', label: '澄清循环', sublabel: 'goal-route×1', x: 24, y: 160, status: 'done' },
+        { id: 'n3', type: 'gate', label: 'IO确认', sublabel: 'user_confirmed', x: 24, y: 240, status: 'done' },
+        { id: 'n4', type: 'sequence', label: 'spec更新', sublabel: 'feature-spec→active', x: 24, y: 320, status: 'running' },
+        { id: 'n5', type: 'iteration', label: '测试生成', sublabel: 'given/when/then', x: 24, y: 400, status: 'pending' },
+        { id: 'n6', type: 'output', label: 'make generate', sublabel: '→ Canvas展示', x: 24, y: 480, status: 'pending' }
+      ],
+      connections: [
+        { from: 'n1', to: 'n2' },
+        { from: 'n2', to: 'n3' },
+        { from: 'n3', to: 'n4' },
+        { from: 'n4', to: 'n5' },
+        { from: 'n5', to: 'n6' }
+      ]
+    },
+    {
+      id: 'thread-2',
+      title: 'Bug: 保存按钮无反应',
+      route: 'bug',
+      messages: [
+        { role: 'user', content: '点击保存按钮没反应' }
+      ],
+      confirmedIO: null,
+      canvasNodes: [
+        { id: 'n1', type: 'input', label: 'Bug描述', sublabel: '点击保存没反应', x: 24, y: 80, status: 'done' },
+        { id: 'n2', type: 'sequence', label: '复现问题', sublabel: 'spec-editor', x: 24, y: 160, status: 'running' }
+      ],
+      connections: [
+        { from: 'n1', to: 'n2' }
+      ]
+    },
+    {
+      id: 'thread-3',
+      title: '新方向: AI写作助手',
+      route: 'goal',
+      messages: [
+        { role: 'user', content: '我想做一个AI写作助手' },
+        { role: 'agent', content: '好的，这是goal路由。我先了解一下：您想要的是什么类型的写作助手？（通用写作/技术文档/营销文案）目标用户是谁？风格偏好？' },
+        { role: 'user', content: '通用写作，风格参考Notion的简洁感' },
+        { type: 'suggestion', suggestions: [
+          { icon: '📝', label: 'Notion简洁风', desc: '暖白底+卡片布局' },
+          { icon: '🎯', label: 'Claude温暖风', desc: '羊皮纸底+有机圆角' },
+          { icon: '⚡', label: 'Linear专业风', desc: '暗底+密集信息' }
+        ]}
+      ],
+      confirmedIO: null,
+      canvasNodes: [
+        { id: 'n1', type: 'input', label: '用户输入', sublabel: 'AI写作助手', x: 24, y: 80, status: 'done' },
+        { id: 'n2', type: 'branch', label: '澄清循环', sublabel: '风格选择', x: 24, y: 160, status: 'done' },
+        { id: 'n3', type: 'sequence', label: '生成原型', sublabel: 'HTML原型', x: 24, y: 240, status: 'pending' },
+        { id: 'n4', type: 'output', label: '截图确认', sublabel: 'goal-spec→confirmed', x: 24, y: 320, status: 'pending' }
+      ],
+      connections: [
+        { from: 'n1', to: 'n2' },
+        { from: 'n2', to: 'n3' },
+        { from: 'n3', to: 'n4' }
+      ]
+    }
+  ],
+  activeThreadId: 'thread-1',
+  nextNodeId: 7
+};
+
+/* ═══════════════════════════════════════════
+   渲染函数
+   ═══════════════════════════════════════════ */
+function renderThreadList() {
+  const list = document.getElementById('threadList');
+  list.innerHTML = '';
+  state.threads.forEach(t => {
+    const div = document.createElement('div');
+    div.className = `thread-item${t.id === state.activeThreadId ? ' active' : ''} ${t.route || ''}`;
+    div.onclick = () => switchThread(t.id);
+
+    const badge = t.route ? `<span class="route-badge ${t.route}">${t.route === 'goal' ? 'GOAL' : t.route === 'feature' ? 'FEAT' : 'BUG'}</span>` : '<span class="route-badge" style="background:rgba(100,116,139,0.1);color:var(--text-muted);border:1px solid var(--border);">—</span>';
+    const msgCount = t.messages.filter(m => m.role === 'user' || m.role === 'agent').length;
+
+    div.innerHTML = `
+      <span class="thread-title">${escapeHtml(t.title)}</span>
+      <span class="thread-meta">${badge} <span>${msgCount}条消息</span></span>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function renderMessages() {
+  const area = document.getElementById('messagesArea');
+  area.innerHTML = '';
+  const thread = getActiveThread();
+  if (!thread) return;
+
+  document.getElementById('currentThreadTitle').textContent = thread.title;
+
+  thread.messages.forEach((msg, i) => {
+    const div = document.createElement('div');
+
+    if (msg.role === 'user') {
+      div.className = 'msg user';
+      div.innerHTML = `<div class="msg-bubble">${escapeHtml(msg.content)}</div>`;
+    } else if (msg.role === 'agent') {
+      div.className = 'msg agent';
+      div.innerHTML = `
+        <span class="msg-agent-name">Agent</span>
+        <div class="msg-bubble">${escapeHtml(msg.content)}</div>
+      `;
+    } else if (msg.type === 'io_confirm') {
+      div.className = 'msg agent';
+      div.innerHTML = `
+        <span class="msg-agent-name">IO 确认</span>
+        <div class="clarify-card">
+          <div class="clarify-card-header"><span class="dot"></span>请确认 IO 契约</div>
+          <div class="clarify-question">以下是本次变更的 IO 契约，请确认：</div>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="io-tag input">INPUT</span>
+              <span style="font-size:12px;color:var(--text-secondary);">${msg.io.input}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="io-tag output">OUTPUT</span>
+              <span style="font-size:12px;color:var(--text-secondary);">${msg.io.output}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="io-tag boundary">BOUNDARY</span>
+              <span style="font-size:12px;color:var(--text-secondary);">${msg.io.boundary}</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="showToast('IO契约已确认', 'success')" style="padding:6px 16px;background:var(--brand-indigo);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">确认</button>
+            <button onclick="showToast('请修改IO契约', 'warning')" style="padding:6px 16px;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;">修改</button>
+          </div>
+        </div>
+      `;
+    } else if (msg.type === 'suggestion') {
+      div.className = 'msg agent';
+      div.innerHTML = `
+        <span class="msg-agent-name">Agent 建议</span>
+        <div class="clarify-card">
+          <div class="clarify-card-header"><span class="dot"></span>选择风格方向</div>
+          <div class="clarify-suggestions">
+            ${msg.suggestions.map((s, si) => `
+              <div class="suggestion-chip${si === 0 ? ' selected' : ''}" onclick="selectSuggestion(this)">
+                <span class="chip-icon">${s.icon}</span>
+                <span class="chip-label"><strong>${s.label}</strong><br><span style="font-size:11px;color:var(--text-muted)">${s.desc}</span></span>
+                <span style="font-size:10px;color:var(--text-muted);">${si === 0 ? '✓ 推荐' : ''}</span>
+              </div>
+            `).join('')}
+          </div>
+          <button onclick="generatePrototype()" style="width:100%;padding:8px;background:var(--brand-indigo);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">生成原型</button>
+        </div>
+      `;
+    } else if (msg.type === 'route_decision') {
+      const colors = ROUTE_COLORS[msg.route] || ROUTE_COLORS.goal;
+      div.className = 'msg agent';
+      div.innerHTML = `
+        <span class="msg-agent-name">路由决策</span>
+        <div class="route-decision ${msg.route}">
+          <span class="route-icon">${msg.route === 'goal' ? '🎯' : msg.route === 'feature' ? '⚙️' : '🐛'}</span>
+          <span>${msg.route === 'goal' ? 'Goal 路由' : msg.route === 'feature' ? 'Feature 路由' : 'Bug 路由'}</span>
+          <span style="opacity:0.6;font-size:11px;margin-left:4px;">置信度 ${msg.confidence}</span>
+        </div>
+      `;
+    }
+
+    area.appendChild(div);
+  });
+
+  // 滚动到底
+  area.scrollTop = area.scrollHeight;
+
+  // 更新IO标签
+  updateIOTags(thread);
+  updateStatusBar(thread);
+}
+
+function renderCanvas() {
+  const container = document.getElementById('nodesContainer');
+  const svg = document.getElementById('connectionsSvg');
+  const thread = getActiveThread();
+  if (!thread) return;
+
+  container.innerHTML = '';
+  svg.innerHTML = '';
+
+  // 渲染节点
+  thread.canvasNodes.forEach(node => {
+    const div = document.createElement('div');
+    div.className = `node ${node.type} ${node.status}`;
+    div.style.left = node.x + 'px';
+    div.style.top = node.y + 'px';
+    div.onclick = () => highlightNode(node.id);
+
+    const icons = {
+      input: '→', sequence: '▶', iteration: '↻', gate: '◈',
+      output: '✓', branch: '⤿', subagent: '🤖'
+    };
+    div.innerHTML = `
+      <span class="node-icon">${icons[node.type] || '●'}</span>
+      <span class="node-label">${escapeHtml(node.label)}</span>
+      ${node.sublabel ? `<span class="node-sublabel">${escapeHtml(node.sublabel)}</span>` : ''}
+    `;
+    container.appendChild(div);
+  });
+
+  // 渲染连线
+  thread.connections.forEach(conn => {
+    const fromNode = thread.canvasNodes.find(n => n.id === conn.from);
+    const toNode = thread.canvasNodes.find(n => n.id === conn.to);
+    if (!fromNode || !toNode) return;
+
+    const x1 = fromNode.x + 120; // 节点右边缘
+    const y1 = fromNode.y + 20;  // 节点垂直中心
+    const x2 = toNode.x;
+    const y2 = toNode.y + 20;
+
+    // 贝塞尔曲线
+    const cx = (x1 + x2) / 2;
+    const path = `M ${x1} ${y1} C ${cx} ${y1}, ${cx} ${y2}, ${x2} ${y2}`;
+
+    const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    pathEl.setAttribute('d', path);
+    pathEl.setAttribute('class', `conn-line ${toNode.status === 'done' ? 'done' : ''}`);
+    svg.appendChild(pathEl);
+
+    // 箭头
+    const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    arrow.setAttribute('points', `${x2-4},${y2-4} ${x2+4},${y2} ${x2-4},${y2+4}`);
+    arrow.setAttribute('class', 'conn-arrow');
+    svg.appendChild(arrow);
+  });
+
+  // 更新计数
+  const done = thread.canvasNodes.filter(n => n.status === 'done').length;
+  const running = thread.canvasNodes.filter(n => n.status === 'running').length;
+  const error = thread.canvasNodes.filter(n => n.status === 'error').length;
+  document.getElementById('doneCount').textContent = done;
+  document.getElementById('runningCount').textContent = running;
+  document.getElementById('errorCount').textContent = error;
+  document.getElementById('nodeCountStatus').textContent = `节点: ${thread.canvasNodes.length}`;
+}
+
+function updateIOTags(thread) {
+  const ioMap = {
+    goal: { input: '新方向需求', output: 'HTML原型', boundary: '全新产品' },
+    feature: { input: 'spec ID + 变更', output: '更新的spec', boundary: '现有功能范围' },
+    bug: { input: 'Bug描述', output: '修复 + changelog', boundary: '单点问题修复' }
+  };
+  const io = ioMap[thread.route] || ioMap.feature;
+  const el = document.getElementById('tag' + (thread.route === 'goal' ? 'Input' : thread.route === 'feature' ? 'Output' : 'Input'));
+}
+
+function updateStatusBar(thread) {
+  document.getElementById('activeThreadStatus').textContent = `活跃: ${thread.title}`;
+  document.getElementById('routeStatus').textContent = `路由: ${thread.route || '—'}`;
+}
+
+/* ═══════════════════════════════════════════
+   交互函数
+   ═══════════════════════════════════════════ */
+function switchThread(id) {
+  state.activeThreadId = id;
+  renderThreadList();
+  renderMessages();
+  renderCanvas();
+}
+
+function createThread() {
+  const id = `thread-${Date.now()}`;
+  state.threads.push({
+    id,
+    title: '新对话',
+    route: null,
+    messages: [],
+    confirmedIO: null,
+    canvasNodes: [
+      { id: 'n1', type: 'input', label: '等待输入', sublabel: '...', x: 24, y: 80, status: 'running' }
+    ],
+    connections: []
+  });
+  state.activeThreadId = id;
+  renderThreadList();
+  renderMessages();
+  renderCanvas();
+  showToast('新对话已创建', 'info');
+}
+
+function sendMessage() {
+  const input = document.getElementById('inputField');
+  const text = input.value.trim();
+  if (!text) return;
+
+  const thread = getActiveThread();
+  thread.messages.push({ role: 'user', content: text });
+
+  // 模拟路由决策
+  const route = detectRoute(text);
+  thread.route = route;
+
+  // 更新标题
+  if (!thread.title || thread.title === '新对话') {
+    thread.title = text.length > 15 ? text.substring(0, 15) + '...' : text;
+  }
+
+  // 添加路由消息
+  thread.messages.push({
+    type: 'route_decision',
+    route,
+    confidence: '95%'
+  });
+
+  // 添加澄清循环
+  if (route === 'feature') {
+    thread.messages.push({
+      role: 'agent',
+      content: '好的，这是feature路由。请问：这个功能在哪里用？输入是什么，输出是什么？'
+    });
+  } else if (route === 'goal') {
+    thread.messages.push({
+      role: 'agent',
+      content: '好的，这是goal路由。请告诉我：想要什么类型的产品？目标用户是谁？风格偏好？'
+    });
+  } else if (route === 'bug') {
+    thread.messages.push({
+      role: 'agent',
+      content: '好的，这是bug路由。请问：在哪个页面/操作中遇到？预期是什么，实际发生了什么？'
+    });
+  }
+
+  input.value = '';
+  renderMessages();
+  renderThreadList();
+}
+
+function handleInputKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function detectRoute(text) {
+  const lower = text.toLowerCase();
+  if (/不对|没反应|bug|错误|坏了|问题|修复/.test(lower)) return 'bug';
+  if (/加|新增|想要|功能|支持|能不能/.test(lower)) return 'feature';
+  if (/做一个|新的|想做|开发|产品|方向/.test(lower)) return 'goal';
+  return 'feature';
+}
+
+function selectSuggestion(el) {
+  document.querySelectorAll('.suggestion-chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function generatePrototype() {
+  const thread = getActiveThread();
+  // 添加模拟节点
+  thread.canvasNodes.push(
+    { id: `n${state.nextNodeId++}`, type: 'sequence', label: '生成原型', sublabel: 'HTML原型', x: 24, y: 320, status: 'running' }
+  );
+  renderCanvas();
+  showToast('正在生成 HTML 原型...', 'info');
+
+  setTimeout(() => {
+    const lastNode = thread.canvasNodes[thread.canvasNodes.length - 1];
+    lastNode.status = 'done';
+    thread.canvasNodes.push(
+      { id: `n${state.nextNodeId++}`, type: 'output', label: '原型就绪', sublabel: '待截图确认', x: 24, y: 400, status: 'done' }
+    );
+    thread.messages.push({
+      role: 'agent',
+      content: '✅ HTML 原型已生成，请查看右侧 Canvas 展示。点击"确认"按钮进行截图确认。'
+    });
+    thread.confirmedIO = { input: 'AI写作助手(Notion风)', output: '/prototypes/ai-writer-prototype.html', boundary: '全新产品' };
+    renderCanvas();
+    renderMessages();
+    showToast('原型生成完成，请截图确认', 'success');
+  }, 1800);
+}
+
+function confirmIO() {
+  const thread = getActiveThread();
+  thread.confirmedIO = {
+    input: document.getElementById('ioInput').value || thread.route === 'goal' ? '新方向需求' : 'feature变更',
+    output: document.getElementById('ioOutput').value || '更新的spec',
+    boundary: document.getElementById('ioBoundary').value || '边界条件'
+  };
+  thread.canvasNodes.push(
+    { id: `n${state.nextNodeId++}`, type: 'output', label: 'IO确认完成', sublabel: thread.confirmedIO.output, x: 24, y: 560, status: 'done' }
+  );
+  document.getElementById('ioConfirmBar').style.display = 'none';
+  renderCanvas();
+  showToast('IO 契约已确认', 'success');
+}
+
+function highlightNode(id) {
+  showToast(`节点 ${id} 已高亮`, 'info');
+}
+
+function clearCanvas() {
+  const thread = getActiveThread();
+  thread.canvasNodes = [];
+  thread.connections = [];
+  renderCanvas();
+}
+
+function exportCanvas() {
+  const thread = getActiveThread();
+  const data = JSON.stringify(thread.canvasNodes, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `canvas-${thread.id}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Canvas 数据已导出', 'success');
+}
+
+function switchCanvasTab(tab) {
+  document.querySelectorAll('.canvas-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+  showToast(`切换到 ${tab} 视图`, 'info');
+}
+
+function setViewMode(mode) {
+  document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('view' + mode.charAt(0).toUpperCase() + mode.slice(1)).classList.add('active');
+  showToast(`视图模式: ${mode}`, 'info');
+}
+
+function showToast(text, type = 'info') {
+  const toast = document.getElementById('toast');
+  const toastText = document.getElementById('toastText');
+  const toastIcon = toast.querySelector('.toast-icon');
+  toast.className = `toast ${type}`;
+  toastText.textContent = text;
+  toastIcon.textContent = type === 'success' ? '✓' : type === 'warning' ? '⚠' : 'ℹ';
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+function getActiveThread() {
+  return state.threads.find(t => t.id === state.activeThreadId);
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/* ═══════════════════════════════════════════
+   Result Tracker — Spec → 产出追踪
+   ═══════════════════════════════════════════ */
+const STORAGE_KEY = 'vibex_result_tracker';
+
+/**
+ * 所有 Spec 的 result[] 数据源
+ * 实际项目中应从 /root/vibex-workbench/specs/ 动态读取
+ * 此处用内嵌数据模拟
+ */
+const ALL_RESULTS = [
+  {
+    specFile: 'routing-panel_behavior.yaml',
+    specName: 'routing-panel_behavior',
+    specLevel: 'L5a_behavior',
+    results: [
+      {
+        id: 'rt-001',
+        path: '/root/vibex-workbench/prototypes/routing-panel-prototype.html',
+        type: 'html-prototype',
+        confirmed_by: 'user_screenshot',
+        confirmed_at: 'pending',
+        note: '三栏布局原型，含三条路由颜色编码'
+      },
+      {
+        id: 'rt-002',
+        path: '/root/vibex-workbench/backend/sse/emitter.go',
+        type: 'source-code',
+        confirmed_by: 'manual',
+        confirmed_at: 'pending',
+        note: 'SSE 事件发射器，待实现'
+      },
+      {
+        id: 'rt-003',
+        path: '/root/vibex-workbench/backend/router/clarification.go',
+        type: 'source-code',
+        confirmed_by: 'manual',
+        confirmed_at: 'pending',
+        note: 'ClarificationSession 状态机，待实现'
+      }
+    ]
+  },
+  {
+    specFile: 'routing-panel_feature.yaml',
+    specName: 'routing-panel',
+    specLevel: 'L4_feature',
+    results: [
+      {
+        id: 'rt-004',
+        path: '/root/vibex-workbench/prototypes/routing-panel-prototype.html',
+        type: 'html-prototype',
+        confirmed_by: 'user_screenshot',
+        confirmed_at: 'pending',
+        note: '三栏布局原型，含三条路由颜色编码：goal(紫)/feature(绿)/bug(橙)'
+      },
+      {
+        id: 'rt-005',
+        path: '/root/vibex-workbench/backend/router/change_router.go',
+        type: 'source-code',
+        confirmed_by: 'manual',
+        confirmed_at: 'pending',
+        note: 'ChangeRouter 路由判断逻辑，待实现'
+      }
+    ]
+  },
+  {
+    specFile: 'vibex-workbench-goal.yaml',
+    specName: 'vibex-workbench-goal',
+    specLevel: 'L1_project-goal',
+    results: [
+      {
+        id: 'rt-006',
+        path: '/root/vibex-workbench/specs/project-goal/vibex-workbench-goal.yaml',
+        type: 'yaml-spec',
+        confirmed_by: 'manual',
+        confirmed_at: 'pending',
+        note: 'L1 总目标规格，主 spec'
+      }
+    ]
+  }
+];
+
+let rtState = {
+  filter: 'all',     // 'all' | 'pending' | 'confirmed'
+  confirmedMap: {}   // id -> {confirmed_by, confirmed_at}
+};
+
+/** 从 localStorage 加载已确认状态 */
+function loadConfirmedMap() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) rtState.confirmedMap = JSON.parse(saved);
+  } catch(e) {}
+}
+
+/** 保存确认状态到 localStorage */
+function saveConfirmedMap() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(rtState.confirmedMap));
+  } catch(e) {}
+}
+
+/** 合并数据源 + localStorage 确认状态 */
+function getMergedResults() {
+  const results = [];
+  ALL_RESULTS.forEach(spec => {
+    spec.results.forEach(r => {
+      const saved = rtState.confirmedMap[r.id];
+      results.push({
+        ...r,
+        specFile: spec.specFile,
+        specName: spec.specName,
+        specLevel: spec.specLevel,
+        confirmed_by: saved ? saved.confirmed_by : r.confirmed_by,
+        confirmed_at: saved ? saved.confirmed_at : r.confirmed_at,
+        isConfirmed: !!saved
+      });
+    });
+  });
+  return results;
+}
+
+/** 打开 Result Tracker */
+function openResultTracker() {
+  document.getElementById('resultTrackerOverlay').classList.add('open');
+  refreshResultTracker();
+}
+
+/** 关闭 Result Tracker */
+function closeResultTracker() {
+  document.getElementById('resultTrackerOverlay').classList.remove('open');
+}
+
+/** 点击遮罩关闭 */
+function closeTrackerOnOverlay(e) {
+  if (e.target === e.currentTarget) closeResultTracker();
+}
+
+/** ESC 关闭 */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeResultTracker();
+});
+
+/** 切换过滤 */
+function setResultFilter(filter) {
+  rtState.filter = filter;
+  document.querySelectorAll('.rt-filter-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('filter' + filter.charAt(0).toUpperCase() + filter.slice(1)).classList.add('active');
+  renderResultList();
+}
+
+/** 刷新列表（从 YAML 重新读取） */
+function refreshResultTracker() {
+  loadConfirmedMap();
+  updateFilterCounts();
+  renderResultList();
+  updateToolbarBadge();
+}
+
+/** 更新过滤器计数 */
+function updateFilterCounts() {
+  const all = getMergedResults();
+  const pending = all.filter(r => !r.isConfirmed);
+  const confirmed = all.filter(r => r.isConfirmed);
+  document.getElementById('countAll').textContent = all.length;
+  document.getElementById('countPending').textContent = pending.length;
+  document.getElementById('countConfirmed').textContent = confirmed.length;
+  document.getElementById('rtDoneCount').textContent = confirmed.length;
+  document.getElementById('rtPendingCount').textContent = pending.length;
+  document.getElementById('rtTotalCount').textContent = all.length;
+}
+
+/** 更新工具栏徽章 */
+function updateToolbarBadge() {
+  const all = getMergedResults();
+  const pending = all.filter(r => !r.isConfirmed);
+  const badge = document.createElement('span');
+  badge.className = 'badge ' + (pending.length > 0 ? 'pending' : 'done');
+  badge.textContent = pending.length > 0 ? pending.length : '✓';
+  const btn = document.getElementById('btnResultTracker');
+  // Remove old badge
+  const old = btn.querySelector('.badge');
+  if (old) old.remove();
+  btn.appendChild(badge);
+}
+
+/** 渲染结果列表 */
+function renderResultList() {
+  const list = document.getElementById('rtList');
+  let results = getMergedResults();
+
+  if (rtState.filter === 'pending') results = results.filter(r => !r.isConfirmed);
+  if (rtState.filter === 'confirmed') results = results.filter(r => r.isConfirmed);
+
+  if (results.length === 0) {
+    list.innerHTML = `
+      <div class="rt-empty">
+        <div class="rt-empty-icon">📭</div>
+        <div class="rt-empty-text">${rtState.filter === 'pending' ? '所有产出均已确认 ✓' : rtState.filter === 'confirmed' ? '还没有已确认的产出' : '暂无产出数据'}</div>
+      </div>
+    `;
+    return;
+  }
+
+  list.innerHTML = results.map(r => {
+    const isHtml = r.path.endsWith('.html');
+    const isYaml = r.path.endsWith('.yaml');
+    const isGo = r.path.endsWith('.go');
+    const isConfirmed = r.isConfirmed;
+    const date = r.confirmed_at && r.confirmed_at !== 'pending' ? r.confirmed_at : null;
+
+    return `
+      <div class="rt-item ${isConfirmed ? 'confirmed' : 'unconfirmed'}">
+        <div class="rt-status-bar ${isConfirmed ? 'done' : 'pending'}"></div>
+        <div class="rt-body">
+          <div class="rt-item-header">
+            <div class="rt-item-title">
+              <span class="rt-type-badge ${r.type}">${r.type.replace('-', ' ')}</span>
+              <span class="rt-item-spec">spec: <span>${escapeHtml(r.specName)}</span> (${r.specLevel})</span>
+            </div>
+            <div class="rt-actions">
+              <button class="rt-btn rt-btn-jump" onclick="jumpToFile('${escapeHtml(r.path)}', '${r.type}')" title="跳转查看">
+                ${isHtml ? '🔍 预览' : isYaml ? '📄 查看' : isGo ? '⚙️ 查看' : '📂 查看'}
+              </button>
+              <button
+                class="rt-btn rt-btn-confirm ${isConfirmed ? 'already' : ''}"
+                onclick="${isConfirmed ? '' : `confirmResult('${r.id}')`}"
+                title="${isConfirmed ? '已确认' : '确认此产出'}"
+              >
+                ${isConfirmed ? '✓ 已确认' : '✓ 确认'}
+              </button>
+            </div>
+          </div>
+          <div class="rt-item-path" title="${escapeHtml(r.path)}">${escapeHtml(r.path)}</div>
+          ${r.note ? `<div class="rt-item-note">${escapeHtml(r.note)}</div>` : ''}
+          <div class="rt-item-footer">
+            <div class="rt-confirm-meta">
+              ${isConfirmed
+                ? `<span class="confirmed-tag">✓ 已确认</span><span>by ${r.confirmed_by}</span>${date ? `<span>@ ${date}</span>` : ''}`
+                : `<span class="pending-tag">◌ 待确认</span><span>确认方式: ${r.confirmed_by}</span>`
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+/** 跳转查看文件 */
+function jumpToFile(path, type) {
+  if (type === 'html-prototype') {
+    // HTML 原型：在本窗口打开
+    window.open('file://' + path, '_blank');
+    showToast('已在新标签页打开原型预览', 'success');
+  } else if (type === 'yaml-spec') {
+    // YAML spec：触发下载（浏览器无法直接预览 YAML）
+    const link = document.createElement('a');
+    link.href = 'file://' + path;
+    link.download = path.split('/').pop();
+    link.click();
+    showToast('已触发 YAML 文件下载', 'info');
+  } else if (type === 'source-code') {
+    // 源代码：显示路径信息（浏览器无法直接预览本地 .go 文件）
+    showToast('源码文件: ' + path.split('/').slice(-2).join('/'), 'info');
+  } else {
+    // 其他类型：尝试下载
+    const link = document.createElement('a');
+    link.href = 'file://' + path;
+    link.download = path.split('/').pop();
+    link.click();
+    showToast('已触发文件下载', 'info');
+  }
+}
+
+/** 逐一确认单个产出 */
+function confirmResult(id) {
+  const now = new Date();
+  const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+
+  rtState.confirmedMap[id] = {
+    confirmed_by: 'user_manual',
+    confirmed_at: dateStr,
+    confirmed_by_display: '人工确认'
+  };
+  saveConfirmedMap();
+  updateFilterCounts();
+  renderResultList();
+  updateToolbarBadge();
+  showToast('产出已确认 ✓', 'success');
+}
+
+/** 批量确认所有待确认项 */
+function confirmAllPending() {
+  const results = getMergedResults();
+  const pending = results.filter(r => !r.isConfirmed);
+  if (pending.length === 0) {
+    showToast('没有待确认的产出', 'warning');
+    return;
+  }
+  const now = new Date();
+  const dateStr = now.toISOString().split('T')[0];
+  pending.forEach(r => {
+    rtState.confirmedMap[r.id] = {
+      confirmed_by: 'user_batch',
+      confirmed_at: dateStr,
+      confirmed_by_display: '批量确认'
+    };
+  });
+  saveConfirmedMap();
+  updateFilterCounts();
+  renderResultList();
+  updateToolbarBadge();
+  showToast(`已确认 ${pending.length} 项产出 ✓`, 'success');
+}
+
+/* ═══════════════════════════════════════════
+   初始化
+   ═══════════════════════════════════════════ */
+loadConfirmedMap();
+updateToolbarBadge();
+updateFilterCounts();
+renderThreadList();
+renderMessages();
+renderCanvas();
+</script>
+</body>
+</html>
