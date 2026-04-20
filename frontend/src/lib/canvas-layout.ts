@@ -13,6 +13,7 @@ export interface LayoutNode {
 }
 
 export interface LayoutOptions {
+  /** Layout direction: 'TB' (top-to-bottom, default), 'LR' (left-to-right), 'BT' (bottom-to-top), 'RL' (right-to-left) */
   direction?: 'TB' | 'LR' | 'BT' | 'RL';
   nodeWidth?: number;
   nodeHeight?: number;
@@ -35,7 +36,8 @@ export function layoutNodes(
   } = options;
 
   const g = new dagre.graphlib.Graph();
-  g.setGraph({ direction, ranksep: rankSeparation, nodesep: nodeSeparation });
+  // dagre uses 'rankdir' internally — map our 'direction' option to it
+  g.setGraph({ rankdir: direction, ranksep: rankSeparation, nodesep: nodeSeparation });
   g.setDefaultEdgeLabel(() => ({}));
 
   for (const node of nodes) {
@@ -53,7 +55,11 @@ export function layoutNodes(
 
   const pos: Record<string, { x: number; y: number }> = {};
   g.nodes().forEach(nodeId => {
-    const { x, y } = g.node(nodeId);
+    // g.node() returns undefined for ghost nodes created by setEdge() when
+    // the target/source doesn't exist as a real node — guard against that.
+    const node = g.node(nodeId);
+    if (!node) return;
+    const { x, y } = node;
     pos[nodeId] = { x, y };
   });
 

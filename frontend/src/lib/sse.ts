@@ -84,6 +84,7 @@ const HANDLERS: Record<string, SSEEventHandler> = {
     // E5-U4: 自动创建 edge (run → tool)
     if (data.runId) {
       canvasStore.addEdge({
+        id: `${data.runId}-${data.invocationId}`,
         source: data.runId,
         target: data.invocationId,
         label: '',
