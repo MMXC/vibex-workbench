@@ -98,6 +98,8 @@
 
 <div
   class="composer"
+  role="region"
+  aria-label="Composer"
   ondragover={handleDragOver}
   ondragleave={handleDragLeave}
   ondrop={handleDrop}

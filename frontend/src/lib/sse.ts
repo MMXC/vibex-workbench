@@ -81,6 +81,14 @@ const HANDLERS: Record<string, SSEEventHandler> = {
         args: data.args,
       },
     });
+    // E5-U4: 自动创建 edge (run → tool)
+    if (data.runId) {
+      canvasStore.addEdge({
+        source: data.runId,
+        target: data.invocationId,
+        label: '',
+      });
+    }
   },
   'tool.completed': (data: any) => {
     // E3-U1: 更新 tool invocation 状态
