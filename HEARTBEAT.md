@@ -1,71 +1,99 @@
-# VibeX Workbench 心跳 — 执行准则
+# VibeX Workbench 心跳 — 可验证清单
 
-> **核心原则：「先契约与验收门禁，再放量 AI 改动」**
-
-VibeX Workbench 的迭代速度必须以 **可重复的机器门禁** 为边界：在 SSE 事件契约、仓库级 validate 与少量 E2E 未统一前，不将「大量 AI 提交/大改」视为健康进展，否则容易形成更快堆技术债。心跳应优先报告**契约与门禁是否变严、变绿**，而不是仅报告功能点数量或 diff 规模。
+> **核心原则：先契约与验收门禁，再放量AI改动。禁止用主观形容词，只填 PASS/FAIL/YES/NO。**
 
 ---
 
-## 钉死什么（定义「完成」）
+## A. 仓库门禁（必须通过，exit code 0）
 
-### SSE / 契约
+在 `vibex-workbench` 根目录执行，任一成功即可：
 
-1. **单一真源**：存在一份 `EVENTS.md` 或 `specs/*_service/service.backend.yaml` 中的事件表，且与 `agent/cmd/web` 中所有 `broadcastSSE` 调用的事件名、JSON 字段**逐条一致**。
-2. **Mock 与 Agent 若并存**：
-   - 须说明是否已收敛为同一张契约表
-   - 或分表并标注哪条路径为「主路径」
-   - **禁止长期双写且字段不一致不标红**
-3. 任何事件/字段的变更须在本期心跳中列出 diff
+| ID | 检查项 | 命令 |
+|----|--------|------|
+| A1 | Spec 语法 | `make lint-specs` 或 `PYTHONUTF8=1 python3 generators/validate_specs.py specs` |
+| A2 | 从属链 | `make validate` |
+| A3 | 前端可构建 | `cd frontend && npm run build` |
 
-### 验收
-
-4. **validate**：`make validate`（或等价 `python3` 命令）在代表该心跳的 commit/PR 上为**必过项**
-5. **E2E（1～2 条）**：在 `package.json` 或 Playwright 中**具名**（例如：「接 SSE 能出 run 节点」「发一条 chat 能完成一轮 tool 并落 store」），并写清跑法（`npm run test:e2e` 等）。**无具名用例 = 该条心跳不认定为已钉死**
+**结论**：A1–A3 若任一失败 → 本节标 FAIL，粘贴第一条报错行（不要求全文）。
 
 ---
 
-## 每期心跳报告结构
+## B. SSE 契约 — Agent 路径（必须可核对字段）
 
-```markdown
-## 本期心跳 — YYYY-MM-DD
+约定：心跳默认检查 Agent（`agent/cmd/web`，端口见 `agent` 的 README，常见 `33338`），与前端 `frontend/src/lib/sse.ts` 中 `HANDLERS` 的 JSON 字段是否一致。
 
-### 契约与上次相比
-[  ] 契约冻结，无 diff
-[  ] 有 diff（列出变更）
-  - 事件/字段变更：...
+### B1 — 枚举：Agent 实际发出的 event 名
 
-### 门禁 validate
-- [ ] PASS
-- [ ] FAIL（附首行错误）
-
-### E2E
-- [ ] 用例名 + PASS / FAIL / SKIP
-- [ ] 用例名 + PASS / FAIL / SKIP
-
-### AI 放量条件
-- [ ] 允许加速迭代（validate 绿 + E2E 绿）
-- [ ] 仅允许契约/门禁类 PR，暂缓铺功能
+```bash
+cd /root/vibex-workbench
+rg 'broadcastSSE\([^,]+,\s*"[^"]+"' agent/cmd/web/server.go agent -g'*.go'
 ```
 
+### B2 — 枚举：前端已订阅的 event 名
+
+```bash
+rg "^\s*'[a-z.]+':" frontend/src/lib/sse.ts
+```
+
+### B3 — 硬约束（每期必须填写）
+
+| 事件 | Agent 当前 payload 键（server.go 约 128–141 行） | sse.ts handler 读取的键 | 一致？ |
+|------|---|---|---|
+| `tool.called` | `tool`, `call_id`, `args` | `toolName`, `invocationId`, `runId`, `args` | **YES / NO** |
+| `tool.completed` | `tool`, `call_id`, `result` | `invocationId`, `result` | **YES / NO** |
+
+核对方式：读取 `agent/cmd/web/server.go` 约 128–141 行，对照 `frontend/src/lib/sse.ts` 中 `tool.called` / `tool.completed` 两处 handler，逐键填写 YES/NO。
+
+**结论**：B3 任一为 NO → B 节 FAIL，**禁止**在报告写「SSE 已与前端对齐」。
+
+### B4 — 契约真源（钉死后启用）
+
+在仓库增加单一真源（任选其一即可算「已钉死」）：
+
+- 新增 `docs/sse-contract-agent.md`，内含表格：事件名 | JSON 字段 | 类型 | 生产者文件:行；或
+- 在 `specs/feature/workbench-shell/` 的 `behavior` 里写同一表格
+
 ---
 
-## 红线（每期心跳必须明确写出）
+## C. E2E（1～2 条具名用例，必须通过）
 
-若出现以下任一情况，本期结论**必须包含**：
+```bash
+cd frontend && npm run test:e2e:run
+```
+
+心跳必须写明以下两条（名称须与 `frontend/tests/e2e/*.spec.ts` 里 `test('...')` 字符串完全一致）：
+
+| ID | 固定用例（示例，以仓库为准可复制） | 判定 |
+|----|------|------|
+| C1 | `CanvasRenderer mounts — .canvas-renderer is visible`（文件：`tests/e2e/canvas-orchestration.spec.ts`） | PASS / FAIL / SKIP |
+| C2 | 任选同目录下另一条稳定用例（不依赖真实 SSE 的） | PASS / FAIL / SKIP |
+
+**判定**：exit code 0 + 日志可见对应测试 passed → PASS；任一失败或未运行 → FAIL。
+
+**说明**：当前 Playwright 多为 preview + 静态结构，不等于「SSE 端到端」；若要心跳验证「真 SSE」，须另增一条 E2E（mock 后端或测试桩）。在未增加前，须在报告写一句：「C2 仅覆盖 UI 挂载，未覆盖 SSE 字节级契约。」
+
+---
+
+## D. AI 放量条件（每期二选一）
+
+| 同时满足条件 | 结果 |
+|------|------|
+| A1–A3 PASS **且** B3 均为 YES（或声明「本期仅 mock 路径」）**且** C1–C2 PASS | **允许加速迭代（契约已收敛）** |
+| 任一不满足 | **只允许契约 / 门禁 / E2E 类 PR；暂缓铺新功能** |
+
+---
+
+## 红线（触发时报告必须包含）
 
 > ⚠️ **当前处于技术债高风险区；下一周期优先还债（契约 + validate + E2E），不推荐合并大范围 AI 生成改动。**
 
 触发条件：
-- `make validate` 红
-- E2E 具名用例未定义
-- Agent（33338）/Mock（33335）SSE 字段与前端 `sse.ts` 不一致且无迁移计划
+- A1/A2/A3 任一 FAIL
+- B3 任一 NO 且无迁移计划
+- E1/E2 任一 FAIL 且无修复计划
 
 ---
 
-## 给 Hermes 的执行指令模板
+## 给 Hermes 的一行指令（每期复制）
 
-```
-本期心跳请以 SSE 契约一致性、validate、1～2 条具名 E2E 为首要输出；
-次要输出才是功能清单。
-若契约未收敛，禁止将『代码行数 / 工具调用次数』列为进展指标。
-```
+> 运行 A1–A3；对照 B3 表格填 YES/NO；运行 `cd frontend && npm run test:e2e:run` 确认两条例名通过；输出 PASS/FAIL 表，勿用主观形容词。
