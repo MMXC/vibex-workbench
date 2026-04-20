@@ -12,9 +12,15 @@
 |----|--------|------|
 | A1 | Spec 语法 | `make lint-specs` 或 `PYTHONUTF8=1 python3 generators/validate_specs.py specs` |
 | A2 | 从属链 | `make validate` |
-| A3 | 前端可构建 | `cd frontend && npm run build` |
+| A3 | 前端可构建 | `cd /root/vibex-workbench/frontend && npm run build` |
 
-**结论**：A1–A3 若任一失败 → 本节标 FAIL，粘贴第一条报错行（不要求全文）。
+**A4 — Agent 自循环可触达**（强化：模拟 Agent `make_validate` 工具的调用路径）
+```bash
+cd /root/vibex-workbench && make validate
+```
+判定：exit code 0 = PASS（与 A2 同一命令，但此行明确标注「模拟 Agent make_validate 工具的 workspaceDir 路径」，用于确认 Agent 自迭代可触达门禁）。
+
+**结论**：A1–A4 若任一失败 → 本节标 FAIL，粘贴第一条报错行（不要求全文）。
 
 ---
 
@@ -78,7 +84,7 @@ cd frontend && npm run test:e2e:run
 
 | 同时满足条件 | 结果 |
 |------|------|
-| A1–A3 PASS **且** B3 均为 YES（或声明「本期仅 mock 路径」）**且** C1–C2 PASS | **允许加速迭代（契约已收敛）** |
+| A1–A4 PASS 且 B3 均为 YES 且 C1–C2 PASS | **允许加速迭代（契约已收敛）** |
 | 任一不满足 | **只允许契约 / 门禁 / E2E 类 PR；暂缓铺新功能** |
 
 ---
