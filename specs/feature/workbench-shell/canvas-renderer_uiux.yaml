@@ -1,0 +1,139 @@
+# ============================================================
+# Level 5a — Canvas Renderer UI/UX 规格
+# parent: canvas-renderer (L4)
+# ============================================================
+spec:
+  version: "1.0"
+  level: "5a_uiux"
+  name: "canvas-renderer_uiux"
+  parent: "canvas-renderer"
+  status: "active"
+
+content:
+  # ── Canvas 布局 ──────────────────────────────────────
+  canvas_layout:
+    type: flow-canvas        # 区别于 shell_layout 的新类型
+    width: "100%"
+    height: "100%"
+    position: relative
+
+  # ── 区域布局（对应 DOM 结构）─────────────────────────
+  regions:
+    - id: flow-canvas        # SvelteFlow 主画布
+      grid_area: canvas
+      components: []
+    - id: canvas-toolbar     # 工具栏浮层
+      position: absolute
+      bottom: 16px
+      left: 16px
+      components: ["ZoomIn", "ZoomOut", "FitView", "ToggleInteractivity"]
+    - id: node-detail        # 节点详情浮层
+      position: absolute
+      center: true
+      components: []
+
+  # ── 组件规格 ─────────────────────────────────────────
+  components:
+    - id: ZoomIn
+      type: leaf
+      icon: "+"
+      tooltip: "Zoom In"
+      props: []
+
+    - id: ZoomOut
+      type: leaf
+      icon: "−"
+      tooltip: "Zoom Out"
+      props: []
+
+    - id: FitView
+      type: leaf
+      icon: "⊡"
+      tooltip: "Fit View"
+      props: []
+
+    - id: ToggleInteractivity
+      type: leaf
+      icon: "⊙"
+      tooltip: "Toggle Interactivity"
+      props: []
+
+    - id: NodeDetailOverlay
+      type: composite
+      visible: false
+      states:
+        - state: hidden
+          style: "display: none"
+        - state: visible
+          style: "display: flex; position: absolute; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 100"
+
+  # ── Store 连接 ──────────────────────────────────────
+  state_management:
+    stores:
+      - store: canvasStore
+        state:
+          - name: nodes
+            type: "Node[]"
+          - name: edges
+            type: "Edge[]"
+          - name: selectedNodeId
+            type: "string | null"
+          - name: detailNode
+            type: "Node | null"
+        mutations:
+          - name: updateNode
+            params: ["id: string", "data: Partial<Node>"]
+
+  # ── SSE 事件 ────────────────────────────────────────
+  sse_events:
+    - event: "run.started"
+      handler: "canvasStore.addNode"
+      node_type: "run"
+    - event: "run.stage_changed"
+      handler: "canvasStore.updateNode"
+      node_type: "stage"
+    - event: "run.completed"
+      handler: "canvasStore.updateNode"
+      node_type: "run"
+    - event: "tool.called"
+      handler: "canvasStore.addNode"
+      node_type: "tool"
+    - event: "tool.completed"
+      handler: "canvasStore.updateNode"
+      node_type: "tool"
+    - event: "canvas.tdd_cycle"
+      handler: "canvasStore.addTddNodes"
+      node_type: "tdd"
+    - event: "canvas.tdd_nodes"
+      handler: "canvasStore.setNodes"
+      node_type: "tdd"
+
+  # ── 交互行为 ────────────────────────────────────────
+  behaviors:
+    - id: B-001
+      trigger: "onnodeclick"
+      action: "selectedNodeId = node.id"
+      store: canvasStore
+    - id: B-002
+      trigger: "onnodedoubleclick"
+      action: "detailNode = node; selectedNodeId = node.id"
+      store: canvasStore
+    - id: B-003
+      trigger: "onnodedragstop"
+      action: "canvasStore.updateNode(node.id, { position: node.position })"
+    - id: B-004
+      trigger: "detail-close"
+      action: "detailNode = null; selectedNodeId = null"
+
+  design_tokens:
+    colors:
+      primary: "#6366f1"
+      bg_canvas: "#0a0a0a"
+      border: "#333"
+      node_running: "#60a5fa"
+      node_completed: "#4ade80"
+      node_failed: "#f87171"
+      node_default: "#6366f1"
+    animation:
+      duration_fast: "120ms"
+      duration_normal: "200ms"
