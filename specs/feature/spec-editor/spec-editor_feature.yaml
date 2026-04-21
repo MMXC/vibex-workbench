@@ -4,7 +4,7 @@
 # ============================================================
 
 spec:
-  version: "2.0"
+  version: "2.1"
   level: "4_feature"
   name: "spec-editor"
   parent: "MOD-spec-engine"
@@ -14,7 +14,8 @@ meta:
   module: "MOD-spec-engine"
   owner: "hermes"
   created: "2026-04-20"
-  updated: "2026-04-21"
+  updated: "2026-04-22"
+  pilot_m0_layer_contract: true
 
 lifecycle:
   current: "done"
@@ -49,6 +50,28 @@ lifecycle:
 content:
   description: "YAML Spec 编辑器——语法高亮、从属链解析、实时验证"
 
+  # ── M0：愿景承接（L1/L2→L4），与 specs/meta/spec-layer-contract.yaml 对齐 ──
+  vision_traceability:
+    summary: "Spec Editor 把「可编辑、可校验 parent、IO 契约可感知」落到编辑器交互与 Violation 反馈"
+    l1:
+      goal_path: "specs/project-goal/vibex-workbench-goal.yaml"
+      constraint_ids: ["C1", "C2", "C3", "C7"]
+      goal_sections_hint:
+        - "content.constraints（C1 变更经 spec；C2 IO 确认；C3 从属链）"
+        - "content.spec_workflow_units（validate 聚合门禁与变更→todo）"
+        - "content.product_value_layers.kernel_governance_and_agent"
+    l2:
+      skeleton_path: "specs/architecture/vibex-workbench-skeleton.yaml"
+      module_id: "MOD-spec-engine"
+      anchors_hint:
+        - "content.modules 中 MOD-spec-engine"
+        - "content.upstream_l1"
+    l3:
+      module_spec_path: "specs/module/MOD-spec-engine_module.yaml"
+    acceptance_summary:
+      - "用户可打开/编辑 YAML spec，实时或保存时获得与从属链/IO 契约一致的 Violation 与反馈（红线、列表等实现可选）"
+      - "parent 跳转与聚合门禁（make lint-specs / make validate）职责可分：编辑器负责交互与即时校验，整仓门禁仍以 CLI 为准"
+
   # ── IO 契约 ────────────────────────────────────────
   io_contract:
     input: |
@@ -70,6 +93,11 @@ content:
       4. 点击 parent 字段 → 打开对应 spec
       5. 保存 → spec.saved 事件 → 触发 generation
     changelog:
+      - version: "2.1"
+        date: "2026-04-22"
+        author: "hermes"
+        changes:
+          - "新增 content.vision_traceability（M0 层级契约推广：L1/L2/L3 锚点 + 验收摘要）"
       - version: "2.0"
         date: "2026-04-20"
         author: "hermes"

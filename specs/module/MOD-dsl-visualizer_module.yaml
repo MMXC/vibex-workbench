@@ -4,15 +4,41 @@
 # ============================================================
 
 spec:
-  version: "2.0"
+  version: "2.1"
   level: "3_module"
   name: "MOD-dsl-visualizer"
   parent: "vibex-workbench-skeleton"
   status: "active"
 
+meta:
+  updated: "2026-04-22"
+  pilot_m0_layer_contract: true
+
 content:
   module_id: "MOD-dsl-visualizer"
   responsibility: "DSL 图形化——从属关系节点图 + Canvas 行为展示（只读）"
+
+  # ── M0：愿景承接（L1→L3），与 specs/meta/spec-layer-contract.yaml 对齐 ──
+  vision_traceability:
+    summary: "本 MOD 如何把 L1 的「从属链可感知 + 行为过程可视化（C6）」落成只读渲染与订阅边界"
+    l1:
+      goal_path: "specs/project-goal/vibex-workbench-goal.yaml"
+      constraint_ids: ["C3", "C6", "C7"]
+      goal_sections_hint:
+        - "content.constraints（C3 从属链；C6 行为展示驱动）"
+        - "content.product_value_layers.experience_visualization（体验面与 Canvas/SSE）"
+        - "content.l1_l2_lineage.traceability（行为展示 ↔ MOD-dsl-visualizer / workbench-shell）"
+    l2:
+      skeleton_path: "specs/architecture/vibex-workbench-skeleton.yaml"
+      anchors_hint:
+        - "content.modules 中 MOD-dsl-visualizer（职责与 tech）"
+        - "content.integration_contracts 中与 DependencyGraph、dialog.*、Canvas 展示相关条目"
+    boundaries:
+      not_here:
+        - "spec 解析与 Violation 生产（MOD-spec-engine）"
+        - "对话状态与线程主状态机（MOD-workbench-shell / conversation_store）"
+        - "路由与澄清循环（MOD-router）"
+        - "代码生成执行（MOD-code-generator）"
 
   io_contract:
     input: "DependencyGraph（spec 从属图）+ SSE 事件流（对话行为）"
@@ -29,16 +55,21 @@ content:
       两者通过 viewMode 切换，数据源不同但渲染协议一致
 
     changelog:
-      changelog:
+      - version: "2.1"
+        date: "2026-04-22"
+        author: "hermes"
+        changes:
+          - "新增 content.vision_traceability（M0 层级契约推广：MOD-dsl-visualizer）"
+          - "修正 io_contract.changelog YAML 嵌套错误"
       - version: "2.0"
-      date: "2026-04-20"
-      author: "hermes"
-      changes:
-      - "新增 io_contract 字段"
-      - "新增 CanvasBehaviorView（行为序列图只读视图）"
-      - "新增 sse_events_consumed（订阅 Event Bus 中的 dialog.* 事件）"
-      - "viewMode 扩展为 'mermaid' | 'canvas'"
-      - "stores 新增 canvasNodes 字段"
+        date: "2026-04-20"
+        author: "hermes"
+        changes:
+          - "新增 io_contract 字段"
+          - "新增 CanvasBehaviorView（行为序列图只读视图）"
+          - "新增 sse_events_consumed（订阅 Event Bus 中的 dialog.* 事件）"
+          - "viewMode 扩展为 'mermaid' | 'canvas'"
+          - "stores 新增 canvasNodes 字段"
 
 
   public_api:

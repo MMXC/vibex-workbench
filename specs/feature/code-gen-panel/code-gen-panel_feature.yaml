@@ -4,7 +4,7 @@
 # ============================================================
 
 spec:
-  version: "2.0"
+  version: "2.1"
   level: "4_feature"
   name: "code-gen-panel"
   parent: "MOD-code-generator"
@@ -14,10 +14,33 @@ meta:
   module: "MOD-code-generator"
   owner: "hermes"
   created: "2026-04-20"
-  updated: "2026-04-20"
+  updated: "2026-04-22"
+  pilot_m0_layer_contract: true
 
 content:
   description: "代码生成可视化——make generate 的交互界面、进度条、产物预览"
+
+  # ── M0：愿景承接（L1/L2→L4），与 specs/meta/spec-layer-contract.yaml 对齐 ──
+  vision_traceability:
+    summary: "Code Gen Panel 把「触发 generate、SSE 进度、diff 预览」落到与 C4 自举证明对齐的可观测管线"
+    l1:
+      goal_path: "specs/project-goal/vibex-workbench-goal.yaml"
+      constraint_ids: ["C1", "C3", "C4", "C7"]
+      goal_sections_hint:
+        - "content.constraints（C1 变更经闭环；C3 从属链作为生成输入前提；C4 自举；C7 门禁）"
+        - "content.vision_execution.self_bootstrap_proof"
+        - "content.spec_workflow_units（lint/validate → generate）"
+    l2:
+      skeleton_path: "specs/architecture/vibex-workbench-skeleton.yaml"
+      module_id: "MOD-code-generator"
+      anchors_hint:
+        - "content.modules 中 MOD-code-generator"
+        - "content.upstream_l1"
+    l3:
+      module_spec_path: "specs/module/MOD-code-generator_module.yaml"
+    acceptance_summary:
+      - "generation.* 事件序列可与 Canvas/时间线对齐；输入侧假定 specs 已通过 lint-specs（与模块 io_contract 一致）"
+      - "diff 预览仅反映生成产物差异，不承担代码评审职责；完整自举仍以仓库 make generate 绿为准"
 
   # ── IO 契约 ────────────────────────────────────────
   io_contract:
@@ -41,6 +64,11 @@ content:
       4. 完成 → 计算 diff → generation.completed（SSE）
       5. Canvas 展示：generation.started → step×N → generation.completed
     changelog:
+      - version: "2.1"
+        date: "2026-04-22"
+        author: "hermes"
+        changes:
+          - "新增 content.vision_traceability（M0 层级契约推广：L1/L2/L3 锚点 + 验收摘要）"
       - version: "2.0"
         date: "2026-04-20"
         author: "hermes"

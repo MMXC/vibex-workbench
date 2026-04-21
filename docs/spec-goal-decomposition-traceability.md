@@ -169,7 +169,15 @@ flowchart TB
 - **M0 范本（先填再推广）**：
   - `specs/module/MOD-workbench-shell_module.yaml` — 已加 `content.vision_traceability`；并修正原 `io_contract.changelog` 的 YAML 嵌套错误。  
   - `specs/feature/workbench-shell/workbench-ide-chrome_feature.yaml` — 已加 `content.vision_traceability` + 验收摘要。  
-- **推广顺序**：按 workbench-shell 子树 → 其它 `specs/module/*` → 各 `*_feature.yaml` 补同构段落；每批改后跑 `make lint-specs` / `make validate`（以本机 Makefile 路径为准）。
+  - `specs/module/MOD-spec-engine_module.yaml` — 同上结构；约束锚点 **C3/C7**（从属链 + 分层门禁）。  
+  - `specs/feature/spec-editor/spec-editor_feature.yaml` — 同上结构；约束锚点 **C1/C2/C3/C7**。  
+  - `specs/module/MOD-router_module.yaml` — 同上结构；约束锚点 **C2/C3/C7**（IO 确认 + 从属链 + 门禁）。  
+  - `specs/feature/routing-panel/routing-panel_feature.yaml` — 同上结构；约束锚点 **C1/C2/C3/C7**。  
+  - `specs/module/MOD-dsl-visualizer_module.yaml` — **C3/C6/C7**（从属链 + 行为展示 + 门禁）。  
+  - `specs/feature/dsl-canvas/dsl-canvas_feature.yaml` — **C1/C3/C6/C7**。  
+  - `specs/module/MOD-code-generator_module.yaml` — **C3/C4/C7**（生成输入链 + 自举证明 + 门禁）。  
+  - `specs/feature/code-gen-panel/code-gen-panel_feature.yaml` — **C1/C3/C4/C7**。  
+- **推广顺序**：五 MOD 范本已齐；剩余为壳层/workbench-shell 下其它 feature、聚合 L4、L5 切片等按需补 `vision_traceability`；每批改后跑 `make lint-specs` / `make validate`（以本机 Makefile 路径为准）。
 
 ---
 
@@ -180,3 +188,6 @@ flowchart TB
 | 2026-04-22 | 初版：多视角拆解 + 与 goal / skeleton / shell feature / bindings / 原型的关联说明 |
 | 2026-04-22 | 增补：`spec-directory-convention.yaml` + `/api/workspace/specs/convention` |
 | 2026-04-22 | 增补：M0 `spec-layer-contract`、MOD/ide-chrome 范本与执行节 |
+| 2026-04-22 | 推广：MOD-spec-engine + spec-editor 增加同构 `vision_traceability` |
+| 2026-04-22 | 推广：MOD-router + routing-panel 增加同构 `vision_traceability` |
+| 2026-04-22 | 推广：MOD-dsl-visualizer + dsl-canvas；MOD-code-generator + code-gen-panel |

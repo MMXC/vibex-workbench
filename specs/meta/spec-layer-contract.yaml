@@ -71,7 +71,15 @@ layers:
 
 rollout:
   pilot_m0:
-    description: "先填满 1×L3（MOD-workbench-shell）+ 1×L4（workbench-ide-chrome）作为模板，再批量推广"
+    description: "五 MOD 均已配有 L3+L4 范本（vision_traceability）；其余 feature 按需补段落"
     exemplar_paths:
       - "specs/module/MOD-workbench-shell_module.yaml"
       - "specs/feature/workbench-shell/workbench-ide-chrome_feature.yaml"
+      - "specs/module/MOD-spec-engine_module.yaml"
+      - "specs/feature/spec-editor/spec-editor_feature.yaml"
+      - "specs/module/MOD-router_module.yaml"
+      - "specs/feature/routing-panel/routing-panel_feature.yaml"
+      - "specs/module/MOD-dsl-visualizer_module.yaml"
+      - "specs/feature/dsl-canvas/dsl-canvas_feature.yaml"
+      - "specs/module/MOD-code-generator_module.yaml"
+      - "specs/feature/code-gen-panel/code-gen-panel_feature.yaml"

@@ -7,7 +7,7 @@
 # ============================================================
 
 spec:
-  version: "2.0"
+  version: "2.1"
   level: "4_feature"
   name: "routing-panel"
   parent: "MOD-router"
@@ -17,10 +17,33 @@ meta:
   module: "MOD-router"
   owner: "hermes"
   created: "2026-04-20"
-  updated: "2026-04-20"
+  updated: "2026-04-22"
+  pilot_m0_layer_contract: true
 
 content:
   description: "变更路由面板——输入自然语言需求 → 判断路由类型 → 执行澄清循环 → 确认 IO → 触发对应处理"
+
+  # ── M0：愿景承接（L1/L2→L4），与 specs/meta/spec-layer-contract.yaml 对齐 ──
+  vision_traceability:
+    summary: "Routing Panel 把「goal|feature|bug 分支 + 澄清循环 + ConfirmedIO」落到可交互面板与 SSE 事件序列"
+    l1:
+      goal_path: "specs/project-goal/vibex-workbench-goal.yaml"
+      constraint_ids: ["C1", "C2", "C3", "C7"]
+      goal_sections_hint:
+        - "content.constraints（C1 变更经闭环；C2 IO 确认；C3 从属链）"
+        - "content.l1_l2_lineage.traceability（路由与澄清 ↔ MOD-router）"
+        - "content.spec_workflow_units（澄清终止后对接 validate / todo）"
+    l2:
+      skeleton_path: "specs/architecture/vibex-workbench-skeleton.yaml"
+      module_id: "MOD-router"
+      anchors_hint:
+        - "content.modules 中 MOD-router"
+        - "content.upstream_l1"
+    l3:
+      module_spec_path: "specs/module/MOD-router_module.yaml"
+    acceptance_summary:
+      - "用户输入可被分类为 goal|feature|bug 之一并进入对应澄清叙事；终止条件与 ConfirmedIO 语义与本 feature io_contract 一致"
+      - "route.determined / dialog.clarification / route.to_spec 等事件可被订阅用于 Canvas 或后续模块；聚合门禁仍以 make validate 为准"
 
   io_contract:
     input: "用户的自然语言需求描述（可能是新方向/新功能/bug 报告）"
@@ -48,6 +71,11 @@ content:
       5. 发送 SSE 事件 → 触发后续处理
       6. Canvas 展示整条链路
     changelog:
+      - version: "2.1"
+        date: "2026-04-22"
+        author: "hermes"
+        changes:
+          - "新增 content.vision_traceability（M0 层级契约推广：L1/L2/L3 锚点 + 验收摘要）"
       - version: "2.0"
         date: "2026-04-20"
         author: "hermes"

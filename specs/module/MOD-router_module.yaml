@@ -4,15 +4,41 @@
 # ============================================================
 
 spec:
-  version: "2.0"
+  version: "2.1"
   level: "3_module"
   name: "MOD-router"
   parent: "vibex-workbench-skeleton"
   status: "active"
 
+meta:
+  updated: "2026-04-22"
+  pilot_m0_layer_contract: true
+
 content:
   module_id: "MOD-router"
   responsibility: "变更路由——三条路由路径（goal/feature/bug）+ 歧义消除循环 + 规范对话行为"
+
+  # ── M0：愿景承接（L1→L3），与 specs/meta/spec-layer-contract.yaml 对齐 ──
+  vision_traceability:
+    summary: "本 MOD 如何把 L1 的「变更路由 goal|feature|bug + IO 确认」落成可执行的路由与澄清状态机边界"
+    l1:
+      goal_path: "specs/project-goal/vibex-workbench-goal.yaml"
+      constraint_ids: ["C2", "C3", "C7"]
+      goal_sections_hint:
+        - "content.constraints（C2 输入输出确认；C3 从属链；C7 分层门禁与 todo）"
+        - "content.l1_l2_lineage.traceability（变更路由与澄清闭环 ↔ L2 MOD-router）"
+        - "content.mission（输入→输出→行为展示；路由为前置分支）"
+    l2:
+      skeleton_path: "specs/architecture/vibex-workbench-skeleton.yaml"
+      anchors_hint:
+        - "content.modules 中 MOD-router（职责与 tech）"
+        - "content.integration_contracts 中与 route.* / dialog.clarification / route.to_spec 相关条目"
+    boundaries:
+      not_here:
+        - "YAML 解析与全量从属校验（MOD-spec-engine）"
+        - "DSL/Canvas 主渲染（MOD-dsl-visualizer）"
+        - "工作台壳层布局（MOD-workbench-shell）"
+        - "代码生成管线（MOD-code-generator）"
 
   io_contract:
     input: "用户的自然语言需求描述"
@@ -37,16 +63,21 @@ content:
       5. Canvas 展示整条澄清链路（iteration 节点）
 
     changelog:
-      changelog:
+      - version: "2.1"
+        date: "2026-04-22"
+        author: "hermes"
+        changes:
+          - "新增 content.vision_traceability（M0 层级契约推广：MOD-router）"
+          - "修正 io_contract.changelog YAML 嵌套错误"
       - version: "2.0"
-      date: "2026-04-20"
-      author: "hermes"
-      changes:
-      - "新增 io_contract 字段"
-      - "从「变更路由」升级为「三条路由路径 + 澄清循环」"
-      - "新增 public_api：GoalClarificationLoop / FeatureClarificationLoop / BugClarificationLoop"
-      - "新增 sse_events_produced（明确对外输出的 SSE 事件）"
-      - "新增 behavior 描述（路由判断→澄清循环→事件发射）"
+        date: "2026-04-20"
+        author: "hermes"
+        changes:
+          - "新增 io_contract 字段"
+          - "从「变更路由」升级为「三条路由路径 + 澄清循环」"
+          - "新增 public_api：GoalClarificationLoop / FeatureClarificationLoop / BugClarificationLoop"
+          - "新增 sse_events_produced（明确对外输出的 SSE 事件）"
+          - "新增 behavior 描述（路由判断→澄清循环→事件发射）"
 
 
   public_api:

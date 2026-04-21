@@ -4,7 +4,7 @@
 # ============================================================
 
 spec:
-  version: "2.0"
+  version: "2.1"
   level: "4_feature"
   name: "dsl-canvas"
   parent: "MOD-dsl-visualizer"
@@ -14,10 +14,33 @@ meta:
   module: "MOD-dsl-visualizer"
   owner: "hermes"
   created: "2026-04-20"
-  updated: "2026-04-20"
+  updated: "2026-04-22"
+  pilot_m0_layer_contract: true
 
 content:
   description: "DSL 从属关系图形化 + Canvas 行为可视化（只读）"
+
+  # ── M0：愿景承接（L1/L2→L4），与 specs/meta/spec-layer-contract.yaml 对齐 ──
+  vision_traceability:
+    summary: "DSL Canvas 把「从属图（Mermaid）与对话行为序列（Canvas）」落到双视图切换与 Event Bus 订阅"
+    l1:
+      goal_path: "specs/project-goal/vibex-workbench-goal.yaml"
+      constraint_ids: ["C1", "C3", "C6", "C7"]
+      goal_sections_hint:
+        - "content.constraints（C1 变更经闭环；C3 从属链；C6 行为展示）"
+        - "content.product_value_layers.experience_visualization"
+        - "content.spec_workflow_units（validate 后再作为生成/集成输入）"
+    l2:
+      skeleton_path: "specs/architecture/vibex-workbench-skeleton.yaml"
+      module_id: "MOD-dsl-visualizer"
+      anchors_hint:
+        - "content.modules 中 MOD-dsl-visualizer"
+        - "content.upstream_l1"
+    l3:
+      module_spec_path: "specs/module/MOD-dsl-visualizer_module.yaml"
+    acceptance_summary:
+      - "viewMode=mermaid 时能从 DependencyGraph 渲染从属关系；viewMode=canvas 时能按 dialog.* 序列生成只读节点链，且不与「事件生产」职责混淆"
+      - "与 MOD-workbench-shell Canvas 区域的集成边界以实现为准；聚合门禁仍以 make lint-specs / validate 为准"
 
   # ── IO 契约 ────────────────────────────────────────
   io_contract:
@@ -48,6 +71,11 @@ content:
         4. 连接线展示顺序关系
         5. 节点颜色按 node_type 区分
     changelog:
+      - version: "2.1"
+        date: "2026-04-22"
+        author: "hermes"
+        changes:
+          - "新增 content.vision_traceability（M0 层级契约推广：L1/L2/L3 锚点 + 验收摘要）"
       - version: "2.0"
         date: "2026-04-20"
         author: "hermes"
