@@ -110,7 +110,7 @@ cd frontend && npm run test:e2e:run
 
 > 此节记录 spec → 代码 流水线已关闭的路径。新发现断点加在此处。
 
-### E1 — lib/types.ts 生成 ✅ 已关闭（2026-04-21）
+### E1 — lib/types.ts 生成 ✅ 已关闭（2026-04-21 第一圈）
 
 ```
 spec YAML (*_data.yaml)
@@ -127,9 +127,23 @@ spec YAML (*_data.yaml)
 - 所有 stores import resolve ✅
 - `Thread` = `ConversationThread` 别名（thread-store.ts）✅
 
+### E1.5 — uiux spec → Skeleton 动态生成 ✅ 已关闭（2026-04-21 第二圈）
+
+```
+*_uiux.yaml (shell_layout)
+  → make generate
+  → WorkbenchShell.Skeleton.svelte
+```
+
+**已验证：**
+- `shell_layout` 字段 → `grid-template-columns/rows/areas` 直接对应 ✅
+- `grid-template-columns` 从 spec 改值 → Skeleton 响应变化 ✅
+- 重复 grid-area 自动去重（B B B → 只渲染一次 footer）✅
+- 硬编码 fallback 保留（spec 缺失时走旧模板）✅
+
 **已知缺口：**
-- 组件生成（`gen_components()`）仍是硬编码模板，未从 `*_uiux.yaml` 读取
-  - 下一步：扩展 gen.py，从 `specs/feature/*_uiux.yaml` 动态生成 `*.Skeleton.svelte`
+- 其他组件（Composer/ThreadList/ArtifactPanel）仍是 hardcoded 模板
+  - 下一步：对有 `layout.grid_template` 的组件（如 WorkbenchLayout）也做动态生成
 
 ### E2 — spec-designer → spec YAML → make validate ✅ 门禁已闭环
 
