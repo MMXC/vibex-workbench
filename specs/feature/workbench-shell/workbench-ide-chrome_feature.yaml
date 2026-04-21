@@ -1,0 +1,118 @@
+# ============================================================
+# Level 4 — Workbench IDE 壳层（对标 Cursor / VS Code 信息架构）
+# parent: workbench-shell (L4) / MOD-workbench-shell (L3)
+# 本 spec 为「布局与区域职责」的唯一定义；实现须可逐条验收
+# ============================================================
+
+spec:
+  version: "1.0"
+  level: "4_feature"
+  name: "workbench-ide-chrome"
+  parent: "workbench-shell"
+  status: "active"
+
+meta:
+  module: "MOD-workbench-shell"
+  owner: "hermes"
+  created: "2026-04-21"
+  updated: "2026-04-21"
+
+content:
+  description: |
+    Workbench 采用类 Cursor / VS Code 的 IDE 分区：顶部菜单与窗口控制；
+    左侧窄「活动栏」+ 宽幅「一级侧栏」（工作区/线程/Git/搜索/扩展等视图切换）；
+    中央主体为文档/画布区（支持多 Tab：文件与 Diff、Spec 文本、Spec 图形画布等）；
+    右侧为辅栏承载「AI 对话记录 + 历史线程上下文 + 底部 AI 输入（Composer）」；
+    底部为 Dock（问题、输出、调试控制台、终端等）。
+    各区域宽高由用户拖拽可调，并与 workbench-layout_resize_feature（v2）对齐持久化策略。
+
+  io_contract:
+    input: |
+      - 用户在顶栏菜单、侧栏视图 Tab、中央文档 Tab、底部 Dock Tab、AI 输入框中的交互（点击、拖拽分隔条、键盘快捷键后续可扩展）。
+      - 与工作区相关的 SSE / Store 更新（不改变本 spec 对各区域语义分工）。
+    output: |
+      - 各功能区可见性与当前激活 Tab / 视图状态可被用户感知；
+      - 拖拽调整后的像素尺寸写入 localStorage（详见 layout_resize v2 契约）；
+      - 中央主体展示当前选中 Tab 对应内容（画布 / 构件列表 / Spec 预览等由各子功能 spec 定义）。
+    boundary: |
+      - 本 spec 约定 **区域划分与命名、默认职责**；单项能力（如 Terminal 真实 PTY）可由后续 feature spec 扩展。
+      - 不强制实现原生窗口最小化/最大化（浏览器环境可做占位或降级）；「关闭」行为须不破坏单机侧数据。
+      - spec-to-code 生成的 WorkbenchShell.svelte 仍为历史产物；当前推荐壳层实现路径为开发者维护的布局组件树（见 layout_resize implementation 表）。
+    behavior: |
+      1. **顶栏（Titlebar / Menu）**：自上而下首行；左侧为菜单组（文件、编辑、视图、转到、运行、终端、帮助等），右侧为设置、窗口控制（最小化、最大化、关闭）。
+      2. **左侧复合栏**：紧贴顶栏下方；最左为竖向 **活动栏（Activity Bar）**，图标切换一级侧栏 **视图**：工作区与线程树、Git、全局搜索、扩展与自定义入口等。
+      3. **中央主体**：占据中部最大区域；顶为 **文档/画布 Tab 条**，内容为文件与 Diff、Spec 文字编辑器、Spec 图形画布（DAG）等视图之一。
+      4. **右侧 AI 栏**：与中列同高（顶栏之下、底部 Dock 之上）；上为 **对话与线程历史**，下为 **Composer**；二者之间可有横向分隔拖拽，高度受 `aiComposerBarPx` 约束（见 layout_resize）。
+      5. **底部 Dock**：横跨窗口底部（置于左/中/右三块主工作区之下）；Tab 含 **问题、输出、调试控制台、终端** 及「更多」溢出或次要入口。
+      6. 窄屏（如宽度 <768px）允许降级：隐藏活动栏/侧栏或改为抽屉，但须保留中央主体与 AI 输入可达性（具体断点由 uiux 补充）。
+    changelog:
+      - version: "1.0"
+        date: "2026-04-21"
+        author: "hermes"
+        changes:
+          - "初版：IDE 壳层信息架构与区域职责；作为 Cursor 式布局的权威描述"
+
+  region_map:
+    top_titlebar:
+      menu_groups: [文件, 编辑, 视图, 转到, 运行, 终端, 帮助]
+      trailing_controls: [设置, 最小化, 最大化, 关闭]
+    left_stack:
+      activity_bar: "竖条图标；切换 primary_sidebar 当前视图"
+      primary_sidebar_views:
+        - id: workspace
+          label: "工作区"
+          contains: "仓库文件树（占位可渐进）、线程列表等与工作区强相关树"
+        - id: git
+          label: "源代码管理"
+          contains: "Git 状态（占位）"
+        - id: search
+          label: "搜索"
+          contains: "全局搜索（占位）"
+        - id: extensions
+          label: "扩展与自定义"
+          contains: "扩展/自定义入口（占位）"
+    center_editor:
+      tab_kinds:
+        - id: canvas
+          label: "画布"
+          purpose: "Spec 图形 / 行为 DAG（现有 CanvasRenderer）"
+        - id: artifacts
+          label: "构件"
+          purpose: "Artifact 列表与预览（现有 Artifact 能力）"
+        - id: spec_text
+          label: "Spec 文本"
+          purpose: "当前 Spec 源文件只读/编辑（渐进）"
+        - id: diff
+          label: "Diff"
+          purpose: "变更对比视图（渐进）"
+    right_ai_column:
+      upper: "AI 对话记录（SSE message.delta 等）+ 历史线程切换上下文"
+      lower: "Composer 输入区"
+      split_dimension: "aiComposerBarPx（见 workbench-layout_resize_feature v2）"
+    bottom_dock:
+      tab_kinds:
+        - problems
+        - output
+        - debug_console
+        - terminal
+        - more
+
+  dependencies:
+    - spec: "specs/feature/workbench-shell/workbench-layout_resize_feature.yaml"
+      note: "像素布局与持久化键名；须与本 region_map 同步演进"
+    - spec: "specs/feature/workbench-shell/workbench-conversation_feature.yaml"
+      note: "AI 文本流契约；展示容器迁移至 right_ai_column.upper"
+
+  acceptance_criteria:
+    - id: "IDE-001"
+      given: "桌面宽度 ≥1024px"
+      when: "用户打开 Workbench"
+      then: "可见顶栏、左侧活动栏+侧栏、中央 Tab 主体、右侧 AI 栏、底部 Dock 五类区域界线清晰"
+    - id: "IDE-002"
+      given: "用户拖拽各分隔条"
+      when: "pointerup"
+      then: "尺寸符合 layout_resize v2 的 limits 并持久化"
+    - id: "IDE-003"
+      given: "右侧 AI 栏"
+      when: "Agent 推送 message.delta"
+      then: "对话内容出现在右侧上部区域，Composer 固定在右侧下部（高度可调）"

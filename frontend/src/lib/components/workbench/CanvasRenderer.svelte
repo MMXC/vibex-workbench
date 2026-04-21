@@ -1,10 +1,10 @@
-// ============================================================
-// CanvasRenderer — @xyflow/svelte 包装层
-// E5-U1: Canvas 渲染层集成
-// E5-U2: dagre 自动布局
-// E5-U3: 节点交互（拖拽、展开）
-// E5-U4: SSE → canvasStore → 渲染层同步
-// ============================================================
+<!-- ============================================================
+CanvasRenderer — @xyflow/svelte 包装层
+E5-U1: Canvas 渲染层集成
+E5-U2: dagre 自动布局
+E5-U3: 节点交互（拖拽、展开）
+E5-U4: SSE → canvasStore → 渲染层同步
+============================================================ -->
 
 <script lang="ts">
   import {
@@ -52,20 +52,21 @@
     }
   });
 
-  // E5-U3: 双击节点 → 展开详情
-  function handleNodeDoubleClick(_: MouseEvent, node: Node) {
-    selectedNodeId = node.id!;
-    detailNode = node;
-  }
-
   function closeDetail() {
     detailNode = null;
     selectedNodeId = null;
   }
 
-  // E5-U3: 节点拖拽后保存位置（不再自动重排）
-  function handleNodeDragStop(_: MouseEvent, node: Node) {
-    canvasStore.updateNode(node.id!, { position: node.position } as any);
+  // E5-U3: 节点拖拽结束后保存位置（onnodedragstop → { targetNode, nodes, event }）
+  function handleNodeDragStop({
+    targetNode,
+  }: {
+    targetNode: Node | null;
+    nodes?: Node[];
+    event?: MouseEvent | TouchEvent;
+  }) {
+    if (!targetNode?.id || !targetNode.position) return;
+    canvasStore.updateNode(targetNode.id, { position: targetNode.position } as any);
   }
 </script>
 
@@ -74,8 +75,11 @@
     nodes={storeNodes}
     edges={storeEdges}
     fitView
-    onnodeclick={(_, node) => { selectedNodeId = node.id!; }}
-    onnodedoubleclick={handleNodeDoubleClick}
+    onnodeclick={({ node }) => {
+      if (!node?.id) return;
+      selectedNodeId = node.id;
+      detailNode = node;
+    }}
     onnodedragstop={handleNodeDragStop}
   >
     <Controls />
@@ -89,7 +93,9 @@
     <div class="detail-overlay" onclick={closeDetail}>
       <div class="detail-panel" onclick={(e) => e.stopPropagation()}>
         <div class="detail-header">
-          <span class="detail-type">[{detailNode.type ?? 'node'}]</span>
+          <span class="detail-type"
+            >[{detailNode.data?.kind ?? detailNode.type ?? 'node'}]</span
+          >
           <span class="detail-label">{detailNode.data?.label ?? detailNode.id}</span>
           <button onclick={closeDetail}>×</button>
         </div>

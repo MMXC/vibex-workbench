@@ -21,18 +21,26 @@ OUT_DIR  = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("frontend")
 SRC_DIR  = OUT_DIR / "src"
 GEN_TEMPLATES_DIR = Path("generators/templates")
 
-GEN_HEADER = f"""// ============================================================
+GEN_HEADER_TS = f"""// ============================================================
 // ⚠️  此文件由 spec-to-code 自动生成
 //     来自: {SPEC_DIR}
 //     生成时间: {date.today()}
-//     ⚠️  不要直接编辑此文件 — 改 *.svelte
 // ============================================================
 
 """
 
-DEV_NOTICE = """// ============================================================
-// 此文件由开发者维护，gen.py 永不覆盖
-// ============================================================
+GEN_HEADER_SVELTE = f"""<!-- ============================================================
+⚠️  此文件由 spec-to-code 自动生成
+来自: {SPEC_DIR}
+生成时间: {date.today()}
+⚠️  不要直接编辑此文件 — 改 *.svelte
+============================================================ -->
+
+"""
+
+DEV_NOTICE_SVELTE = """<!-- ============================================================
+此文件由开发者维护，gen.py 永不覆盖
+============================================================ -->
 
 """
 
@@ -82,7 +90,7 @@ def ts_type(yaml_type: str) -> str:
 
 # ── 1. TypeScript 类型 ──────────────────────────────────────────
 def gen_types() -> str:
-    out = [GEN_HEADER]
+    out = [GEN_HEADER_TS]
     out.append("// ── Generated Types ──────────────────────────────────────────\n")
 
     # type_map: spec.name (from YAML spec.spec.name) → comma-sep entity names to emit
@@ -160,7 +168,7 @@ def gen_types() -> str:
 
 def gen_base_types() -> str:
     lines = [
-        GEN_HEADER,
+        GEN_HEADER_TS,
         "// ── Base Types (enum/union) ───────────────────────────────\n",
         "export type RunStatus    = 'pending'|'planning'|'executing'|'completed'|'failed'|'cancelled';\n",
         "export type TaskStatus   = 'pending'|'running'|'completed'|'failed';\n",
@@ -257,7 +265,7 @@ def gen_skeleton_from_grid(cid: str, grid_cols: str, grid_rows: str,
     if prop_fields:
         prop_fields += ";"
 
-    skeleton = GEN_HEADER + f"""<script lang="ts">
+    skeleton = GEN_HEADER_SVELTE + f"""<script lang="ts">
   import type {{ Snippet }} from 'svelte';
   // {spec_source}
   interface Props {{
@@ -372,7 +380,7 @@ def gen_canvas_skeleton(spec_data: dict) -> str:
             f'onclick={{() => {{ console.log("[Canvas] {comp}") }}}}>{icon}</button>\n'
         )
 
-    skeleton = GEN_HEADER + f"""<script lang="ts">
+    skeleton = GEN_HEADER_SVELTE + f"""<script lang="ts">
   import {{
     SvelteFlow,
     Controls,
@@ -576,7 +584,7 @@ def gen_canvas_stub() -> str:
     CanvasRenderer stub：开发者可在此扩展自动布局、节点渲染器等。
     默认渲染 CanvasRendererSkeleton，行为与 Skeleton 完全相同。
     """
-    return DEV_NOTICE + """<script lang="ts">
+    return DEV_NOTICE_SVELTE + """<script lang="ts">
   import CanvasRendererSkeleton from './CanvasRenderer.Skeleton.svelte';
   // CanvasRenderer — 开发者维护
   // gen.py 永不覆盖此文件
@@ -624,7 +632,7 @@ def gen_stub_with_children(cid: str, regions: list,
                 f"{child_tags}  {{/snippet}}"
             )
 
-    return DEV_NOTICE + f"""<script lang="ts">
+    return DEV_NOTICE_SVELTE + f"""<script lang="ts">
   import type {{ Snippet }} from 'svelte';
   import {cid}Skeleton from './{cid}.Skeleton.svelte';
 {chr(10).join(child_imports)}
@@ -652,7 +660,7 @@ def gen_components() -> dict[str, tuple[str, str]]:
     registry = load_uiux_registry()
 
     # 硬编码 fallback（完全匹配旧模板，保持向后兼容）
-    HARDCODED_WORKBENCHSHELL_SKELETON = GEN_HEADER + """<script lang="ts">
+    HARDCODED_WORKBENCHSHELL_SKELETON = GEN_HEADER_SVELTE + """<script lang="ts">
   import type { Snippet } from 'svelte';
   // 三栏布局骨架 — Generated from workbench-shell_feature.yaml
   interface Props {
@@ -687,7 +695,7 @@ def gen_components() -> dict[str, tuple[str, str]]:
   </footer>
 </div>
 """
-    HARDCODED_WORKBENCHSHELL_STUB = DEV_NOTICE + """<script lang="ts">
+    HARDCODED_WORKBENCHSHELL_STUB = DEV_NOTICE_SVELTE + """<script lang="ts">
   import type { Snippet } from 'svelte';
   import WorkbenchShellSkeleton from './WorkbenchShell.Skeleton.svelte';
   // ── 填充 snippet 内容 ──────────────────────────────────────────
@@ -759,7 +767,7 @@ def gen_components() -> dict[str, tuple[str, str]]:
     # (旧的 ThreadList stub 引用了 $lib/types/generated → 已在上轮修复)
 
     # ── Composer ───────────────────────────────────────────────
-    skeleton = GEN_HEADER + """<script lang="ts">
+    skeleton = GEN_HEADER_SVELTE + """<script lang="ts">
   // Composer 骨架 — Generated from workbench-shell_uiux.yaml
   // mode: text | image | file | url
   interface Props {
@@ -804,7 +812,7 @@ def gen_components() -> dict[str, tuple[str, str]]:
   .submit-btn { background: #4f46e5; color: white; border: none; padding: 6px 16px; border-radius: 6px; cursor: pointer; }
 </style>
 """
-    stub = DEV_NOTICE + """<script lang="ts">
+    stub = DEV_NOTICE_SVELTE + """<script lang="ts">
   import ComposerSkeleton from './Composer.Skeleton.svelte';
   // ── 开发者自定义 Composer 行为 ────────────────────────────────
   interface Props {}
@@ -820,7 +828,7 @@ def gen_components() -> dict[str, tuple[str, str]]:
     files["lib/components/workbench/Composer.svelte"] = (skeleton, stub)
 
     # ── ThreadList ─────────────────────────────────────────────
-    skeleton = GEN_HEADER + """<script lang="ts">
+    skeleton = GEN_HEADER_SVELTE + """<script lang="ts">
   import { threadStore, currentThread, threadCount } from '$lib/stores/thread-store';
   // ThreadList 骨架 — Generated from thread-manager_uiux.yaml
   interface Props {
@@ -875,7 +883,7 @@ def gen_components() -> dict[str, tuple[str, str]]:
   .empty        { color: #555; font-size: 12px; padding: 16px; text-align: center; }
 </style>
 """
-    stub = DEV_NOTICE + """<script lang="ts">
+    stub = DEV_NOTICE_SVELTE + """<script lang="ts">
   import ThreadListSkeleton from './ThreadList.Skeleton.svelte';
   import type { Thread } from '$lib/types/generated';
   // ── 开发者自定义 ThreadList ────────────────────────────────
@@ -900,7 +908,7 @@ def gen_components() -> dict[str, tuple[str, str]]:
     files["lib/components/workbench/ThreadList.svelte"] = (skeleton, stub)
 
     # ── ArtifactPanel ──────────────────────────────────────────
-    skeleton = GEN_HEADER + """<script lang="ts">
+    skeleton = GEN_HEADER_SVELTE + """<script lang="ts">
   import { artifactStore, filteredArtifacts } from '$lib/stores/artifact-store';
   // ArtifactPanel 骨架 — Generated from artifact-registry_uiux.yaml
   let artifacts = $state($filteredArtifacts);
@@ -951,7 +959,7 @@ def gen_components() -> dict[str, tuple[str, str]]:
   .empty           { color: #555; font-size: 12px; padding: 16px; text-align: center; }
 </style>
 """
-    stub = DEV_NOTICE + """<script lang="ts">
+    stub = DEV_NOTICE_SVELTE + """<script lang="ts">
   import ArtifactPanelSkeleton from './ArtifactPanel.Skeleton.svelte';
   // ── 开发者自定义 ArtifactPanel ────────────────────────────
   interface Props {}
@@ -982,7 +990,7 @@ def gen_routes() -> dict[str, tuple[str, str]]:
     files = {}
 
     # +layout.svelte — 纯结构，写覆盖
-    skeleton = GEN_HEADER + """<script lang="ts">
+    skeleton = GEN_HEADER_SVELTE + """<script lang="ts">
   import '../app.css';
   import type { Snippet } from 'svelte';
   interface Props { children?: Snippet; }
@@ -994,7 +1002,7 @@ def gen_routes() -> dict[str, tuple[str, str]]:
     files["routes/+layout.svelte"] = (skeleton, None)  # 无 stub
 
     # +page.svelte — redirect stub，不覆盖
-    stub = DEV_NOTICE + """<script lang="ts">
+    stub = DEV_NOTICE_SVELTE + """<script lang="ts">
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   onMount(() => goto('/workbench'));
@@ -1011,7 +1019,7 @@ def gen_routes() -> dict[str, tuple[str, str]]:
     files["routes/+page.svelte"] = (None, stub)
 
     # workbench/+page.svelte — 开发者写，不覆盖
-    stub = DEV_NOTICE + """<script lang="ts">
+    stub = DEV_NOTICE_SVELTE + """<script lang="ts">
   // VibeX Workbench — 主工作台页面
   import WorkbenchShell from '$lib/components/workbench/WorkbenchShell.svelte';
 </script>

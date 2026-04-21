@@ -47,5 +47,5 @@ step_models:
 
 providers:
   minimax:
-    base_url: https://api.minimaxi.com/anthropic/v1
+    base_url: https://api.minimaxi.com/v1
     auth_header: true

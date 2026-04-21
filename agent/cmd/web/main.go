@@ -34,12 +34,30 @@ func main() {
 
 	os.MkdirAll(".sessions", 0755)
 
-	http.HandleFunc("/health", healthHandler)
-	http.HandleFunc("/api/chat", chatHandler)
-	http.HandleFunc("/api/sse/", sseHandler)
-	http.HandleFunc("/api/threads/", historyHandler)
-	http.HandleFunc("/api/skills", skillsHandler)
-	http.HandleFunc("/api/step", stepHandler)
+	// CORS：前端 dev（5173）调用 33338 时需预检 OPTIONS
+	withCORS := func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			h := w.Header()
+			h.Set("Access-Control-Allow-Origin", "*")
+			h.Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			// EventSource / fetch 跨域预检常见会带 Cache-Control / Accept 等；过窄会导致预检失败，
+			// 浏览器报错后实际拿到的是阻断页或非 SSE MIME，表现为 text/html。
+			h.Set("Access-Control-Allow-Headers",
+				"Accept, Authorization, Cache-Control, Content-Type, Pragma, X-Requested-With")
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			next(w, r)
+		}
+	}
+
+	http.HandleFunc("/health", withCORS(healthHandler))
+	http.HandleFunc("/api/chat", withCORS(chatHandler))
+	http.HandleFunc("/api/sse/", withCORS(sseHandler))
+	http.HandleFunc("/api/threads/", withCORS(historyHandler))
+	http.HandleFunc("/api/skills", withCORS(skillsHandler))
+	http.HandleFunc("/api/step", withCORS(stepHandler))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

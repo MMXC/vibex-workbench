@@ -27,7 +27,7 @@ type Config struct {
 }
 
 func LoadConfig() Config {
-	_ = godotenv.Overload(".env", "../.env", "../../.env", "~/.vibex/agent.env")
+	loadDotEnv()
 
 	model := getenv("OPENAI_MODEL", "gpt-4o")
 	skillsDir := getenv("SKILLS_DIR", "")
@@ -39,7 +39,10 @@ func LoadConfig() Config {
 			skillsDir = "/root/.hermes/skills"
 		}
 	}
-	workspaceDir := getenv("WORKSPACE_DIR", "/root/vibex-workbench")
+	workspaceDir := getenv("WORKSPACE_DIR", "")
+	if workspaceDir == "" {
+		workspaceDir = inferWorkspaceDir()
+	}
 
 	return Config{
 		BaseURL:       normalizeBaseURL(getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")),
@@ -93,11 +96,70 @@ func normalizeAPIKey(v string) string {
 	return strings.TrimSpace(v)
 }
 
+// loadDotEnv 从多处加载；同一键以后面的为准。
+// 最后在「真正的 agent/.env」上再 Overload 一次，避免 ~/.vibex/agent.env 里裸域名覆盖掉 agent/.env 里的 .../v1。
+func loadDotEnv() {
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = "."
+	}
+	files := []string{
+		filepath.Join(cwd, "..", "..", ".env"),
+		filepath.Join(cwd, "..", ".env"),
+		filepath.Join(cwd, ".env"),
+		filepath.Join(cwd, "agent", ".env"),
+	}
+	for _, f := range files {
+		_ = godotenv.Overload(f)
+	}
+	if home := homeDir(); home != "" {
+		_ = godotenv.Overload(filepath.Join(home, ".vibex", "agent.env"))
+	}
+	// 强制以 agent 目录下的 .env 为最终覆盖（无论从仓库根还是从 agent/ 启动）
+	var agentDotEnv string
+	if strings.EqualFold(filepath.Base(cwd), "agent") {
+		agentDotEnv = filepath.Join(cwd, ".env")
+	} else {
+		agentDotEnv = filepath.Join(cwd, "agent", ".env")
+	}
+	_ = godotenv.Overload(agentDotEnv)
+}
+
+func homeDir() string {
+	if h := os.Getenv("HOME"); h != "" {
+		return h
+	}
+	if u, err := user.Current(); err == nil {
+		return u.HomeDir
+	}
+	return ""
+}
+
+// inferWorkspaceDir 在未设置 WORKSPACE_DIR 时：在 agent/ 下运行 → 上级为仓库根；否则 cwd 视为仓库根。
+func inferWorkspaceDir() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "/root/vibex-workbench"
+	}
+	if strings.EqualFold(filepath.Base(cwd), "agent") {
+		return filepath.Clean(filepath.Join(cwd, ".."))
+	}
+	return cwd
+}
+
 func normalizeBaseURL(v string) string {
 	v = strings.TrimSpace(v)
 	v = strings.TrimRight(v, "/")
 	v = strings.TrimSuffix(v, "/chat/completions")
 	v = strings.TrimSuffix(v, "/responses")
+
+	lower := strings.ToLower(v)
+	// SDK 实际请求为 {BaseURL}/chat/completions；MiniMax 必须为 .../v1/chat/completions，否则会 404
+	if strings.Contains(lower, "minimaxi.com") || strings.Contains(lower, "minimax.com") {
+		if !strings.Contains(v, "/v1") && !strings.Contains(lower, "/anthropic/") {
+			v = v + "/v1"
+		}
+	}
 	return v
 }
 

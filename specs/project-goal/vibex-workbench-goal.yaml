@@ -17,7 +17,7 @@ meta:
   project: "vibex-workbench"
   owner: "hermes"
   created: "2026-04-20"
-  updated: "2026-04-20"
+  updated: "2026-04-21"
 
 content:
   # ── 产品定位 ─────────────────────────────────────────
@@ -28,6 +28,23 @@ content:
     让用户直观看到从需求到交付的全链路。
     自举闭环是验证手段——工作台由自身 specs 驱动，生成自身代码——
     确保规格体系的完整性和可验证性。
+    愿景延伸：任意新旧项目均可建立全景 spec；对话始终优先对齐 spec 变更（spec 先行），
+    TDD 基于 spec 的 IO 契约施加约束，以保证生成与交付的稳定与可回归。
+    落地顺序：先在当前仓库 vibex-workbench 完整证明（含自举），再抽象为可迁移到其他仓库的范式与工具链。
+
+  # ── 愿景落地与自举证明（本仓库优先）──────────────────────
+  vision_execution:
+    summary: "全景 spec + spec 先行 + TDD 约束 + 稳定生成；以本仓库为第一战场，自举通过作为体系有效的主证明"
+    repository_first: |
+      vibex-workbench 是本愿景的第一落地载体：从属链、生成器、工作台 UI、Agent 集成均优先在此仓库闭环。
+      未在本仓库通过「编辑 specs → 校验 → 生成 → 可运行」之前，不对外宣称「任意仓库即插即用」。
+    self_bootstrap_proof: |
+      自举不仅是「能生成」，更是证明：规格语言足以描述工作台自身、生成管线可信、约束（lint/validate/drift）可执行。
+      最小验收（持续强化）：在本仓库内维护 specs → make lint-specs / validate / generate 绿 → 前端与约定流程可演示。
+      milestone M7（自举闭环验证）视为该证明的正式收官门槛；未完成则愿景仍属「进行中」。
+    outward_scale: |
+      其他新旧项目：在共享同一套 spec 层级与工具链的前提下，通过 WORKSPACE_DIR / 模板与 Agent 技能渐进接入；
+      不作为首阶段阻塞项。
 
   target_users:
     - name: "Spec 工程实践者"
@@ -49,14 +66,55 @@ content:
       name: "从属链完整"
       rule: "每个 spec 必须声明 parent，找不到来源 = 违规，阻断生成"
     - id: "C4"
-      name: "自举验证"
-      rule: "vibex-workbench 的 specs 可用自身生成自身，验证规格体系完整性"
+      name: "自举验证（证明）"
+      rule: |
+        vibex-workbench 的 specs 须能驱动自身代码生成；自举通过即规格体系有效性的主证明。
+        优先在本仓库完成可验收的自举闭环（与 milestone M7 对齐），再扩展到其他项目。
     - id: "C5"
       name: "Local-first"
       rule: "无 backend 也能完整使用，数据存 IndexedDB"
     - id: "C6"
       name: "行为展示驱动"
       rule: "每轮对话的中间过程（迭代/测试/修复）通过 Canvas SSE 流可视化"
+    - id: "C7"
+      name: "分层门禁与变更派生 todo"
+      rule: |
+        最小 spec 工作单元：L5d_test（test-spec）——迭代、TDD、RED/GREEN 均以该粒度为下限。
+        总聚合单元：validate——全仓 lint-specs + validate_chain 通过，表示 spec 树整体一致可生成。
+        任意层级 spec 一旦发生实质性变更，必须派生一条新的「todo-spec」待办（登记于 todo/backlog，
+        含受影响 spec 路径、变更摘要、须关闭的门禁：自下而上至少覆盖相关 test，直至汇总 validate）。
+    - id: "C8"
+      name: "项目隔离的 todo_set 与全量 spec 校验"
+      rule: |
+        每个项目（WORKSPACE_DIR 仓库根）独立维护一组 todo_set 语义上的 backlog，禁止跨项目混用待办条目。
+        每个项目均可且应在合并前或里程碑处对该项目的 specs 做全量 validate，并按需 generate 更新产物。
+
+  # ── 规格单元与门禁分层（与 C7 对照）──────────────────────
+  spec_workflow_units:
+    summary: "最小单元 = test（L5d）；总单元 = validate；任意 spec 改动 → 新 todo-spec"
+    minimal_unit:
+      level: "L5d_test"
+      meaning: "最小可验证增量：对应该 feature/模块下的 test-spec；Agent TDD 与局部 RED/GREEN 对齐此层"
+    aggregate_gate:
+      name: "validate"
+      meaning: "整仓聚合门禁：语法校验 + 从属链深度校验；通过表示当前 spec 全集可作为生成与集成的输入"
+    change_triggers_todo:
+      rule: |
+        任意 spec（L1–L5）内容或结构变更后，必须追加一条 todo-spec 待办（可用 todo_set 或等价 backlog），
+        直至关联门禁关闭；禁止「改了 spec 却无明示后续任务」的静默变更。
+      note: |
+        todo-spec 优先作为队列条目（路径 + 验收条件）；若流程需要可追溯 YAML，可独立为 draft 级待办 spec，
+        仍须挂 parent 链，并在完成后合并或废弃。
+    project_scope:
+      summary: "每个项目自有 todo_set；每项目均可全量跑 spec 验证并同步生成物"
+      todo_per_project: |
+        一个「项目」= Agent 的 WORKSPACE_DIR 所指向的仓库根目录。`todo_set` 描述的 backlog 仅归属该项目，
+        不得在多个仓库之间混用同一批待办语义。切换项目须使用对应该工作区的上下文（会话/线程），
+        必要时清空或重建 todo，避免跨项目串线。
+      full_spec_validate_refresh: |
+        在**项目根**对该项目 `specs/` 执行全量门禁：lint-specs + validate_chain（即 aggregate 层的 validate）。
+        通过后按需运行 generate（及 drift 若启用），使前端/生成代码与规格一致——此即「全量跑 spec 验证更新」。
+        Agent 侧可用 `make_validate`（依赖 make）或等价命令；与 C7 中最小单元 test、总单元 validate 的分层一致。
 
   # ── IO 契约（所有 spec 必须遵循）────────────────────
   io_contract:
@@ -77,6 +135,18 @@ content:
       - name: "changelog"
         description: "变更日志——该 spec 的所有历史版本、每次变更的内容摘要"
         required: true
+
+  # ── 工作台 UI 能力与追溯（spec 先行登记）────────────────
+  workbench_traced_features:
+    - id: "F-ide-001"
+      spec_path: "specs/feature/workbench-shell/workbench-ide-chrome_feature.yaml"
+      summary: "Cursor 式 IDE 壳层（顶栏/左活动栏+侧栏/中央画布与文档/右侧 AI/底部 Dock）区域职责唯一定义"
+    - id: "F-layout-001"
+      spec_path: "specs/feature/workbench-shell/workbench-layout_resize_feature.yaml"
+      summary: "布局尺寸契约 v2（sidebarLeftPx、panelRightPx、aiComposerBarPx、bottomDockPx；LS v2）"
+    - id: "F-conv-001"
+      spec_path: "specs/feature/workbench-shell/workbench-conversation_feature.yaml"
+      summary: "SSE message.delta → 右侧 AI 栏对话区；bridge 手改 sse.ts；对齐 ide-chrome v1.1"
 
   routing_paths:
     new_goal:
@@ -360,7 +430,7 @@ content:
     - "SM4: spec-goal 输出 HTML 原型，用户通过截图确认方向"
     - "SM5: Canvas 展示 SSE 流事件序列（输入→行为→输出），节点类型全覆盖"
     - "SM6: 三条路由路径（goal/feature/bug）清晰区分，各有独立的澄清循环"
-    - "SM7: M6 自举闭环验证通过（用自身生成自身）"
+    - "SM7: M7 自举闭环验证通过（用自身生成自身）"
 
   # ── 技术栈 ──────────────────────────────────────────
   tech_stack:
@@ -375,20 +445,23 @@ content:
 
   # ── 自举策略 ────────────────────────────────────────
   bootstrap_strategy: |
-    Phase 1（手动引导）:
+    Phase 1（手动引导 + 本仓库落地）:
       - 人工写 L1/L2/L3 specs（当前阶段）
       - 人工生成基础 SvelteKit 框架
       - 验证生成流水线可工作
+      - 明确：愿景与集成优先在 vibex-workbench 单仓内闭环，自举证明作为 Phase 2/3 的门闩输入
 
     Phase 2（自举启动）:
       - 用生成的 spec-editor 编辑更多 specs
       - 用 dsl-canvas 可视化自身从属图
       - Canvas 行为可视化上线
+      - Agent / SSE 与「spec 先行 + TDD 约束」在本仓库内可重复演示
 
-    Phase 3（自举闭环）:
-      - vibex-workbench 的所有 specs 由自身编辑
+    Phase 3（自举闭环 = 证明收官）:
+      - vibex-workbench 的所有 specs 由自身编辑为主
       - make generate 生成完整前端
       - 任何变更都走 spec → generate → 落地的闭环
+      - 对应 milestone M7：自举闭环验证通过，即对外宣称「全景 spec + 稳定生成」可复制的起点
 
 derived_from:
   - source: "小羊 DSL-SPEC 设计理念"

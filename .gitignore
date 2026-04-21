@@ -30,3 +30,7 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Agent runtime (local secrets + session blobs)
+agent/.env
+agent/.sessions/

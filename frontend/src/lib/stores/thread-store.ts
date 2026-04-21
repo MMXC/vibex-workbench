@@ -20,7 +20,19 @@ export interface ThreadState {
   currentThreadId: string | null;
   loading: boolean;
   error: string | null;
+  /** 每个 threadId 下的对话气泡（由 SSE message.delta 等填充） */
+  messagesByThread: Record<string, Message[]>;
 }
+
+/** 去掉推理模型包裹块，避免正文区刷屏（MiniMax / DeepSeek 等） */
+export function stripReasoningTags(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/<(?:think|redacted_reasoning)>[\s\S]*?<\/(?:think|redacted_reasoning)>/gi, '')
+    .trim();
+}
+
+const STREAMING_ASSISTANT_ID = '__streaming-assistant__';
 
 function createThreadStore() {
   const { subscribe, set, update } = writable<ThreadState>({
@@ -28,6 +40,7 @@ function createThreadStore() {
     currentThreadId: null,
     loading: false,
     error: null,
+    messagesByThread: {},
   });
 
   return {
@@ -76,7 +89,102 @@ function createThreadStore() {
     },
 
     appendMessage(threadId: string, message: Message) {
-      // Thread 不直接存储 messages；由 sse.ts 中的 SSE 事件驱动
+      update(s => ({
+        ...s,
+        messagesByThread: {
+          ...s.messagesByThread,
+          [threadId]: [...(s.messagesByThread[threadId] ?? []), message],
+        },
+      }));
+    },
+
+    /**
+     * Agent message.delta：
+     * - user：每条追加；
+     * - assistant + is_final:false：累积到同一条「流式」气泡（runToolLoop 每轮文本）；
+     * - assistant + is_final:true：去掉流式占位，追加最终答复（strip 推理标签）。
+     */
+    appendDelta(
+      threadId: string,
+      payload: { role: string; delta: string; is_final?: boolean }
+    ) {
+      const role = payload.role ?? 'assistant';
+      const raw = payload.delta ?? '';
+      const isFinal = payload.is_final === true;
+      const iso = new Date().toISOString();
+
+      if (role === 'user' && raw) {
+        const message: Message = {
+          id: crypto.randomUUID(),
+          threadId,
+          role: 'user',
+          content: raw,
+          createdAt: iso,
+        };
+        update(s => ({
+          ...s,
+          messagesByThread: {
+            ...s.messagesByThread,
+            [threadId]: [...(s.messagesByThread[threadId] ?? []), message],
+          },
+        }));
+        return;
+      }
+
+      if (role !== 'assistant') return;
+
+      update(s => {
+        const prev = [...(s.messagesByThread[threadId] ?? [])];
+
+        if (!isFinal) {
+          const idx = prev.findIndex(m => m.id === STREAMING_ASSISTANT_ID);
+          if (idx >= 0) {
+            const cur = prev[idx];
+            prev[idx] = {
+              ...cur,
+              content: cur.content + raw,
+              createdAt: iso,
+            };
+          } else {
+            prev.push({
+              id: STREAMING_ASSISTANT_ID,
+              threadId,
+              role: 'assistant',
+              content: raw,
+              createdAt: iso,
+            });
+          }
+          return {
+            ...s,
+            messagesByThread: { ...s.messagesByThread, [threadId]: prev },
+          };
+        }
+
+        const withoutStream = prev.filter(m => m.id !== STREAMING_ASSISTANT_ID);
+        const content = stripReasoningTags(raw);
+        if (!content) {
+          return {
+            ...s,
+            messagesByThread: { ...s.messagesByThread, [threadId]: withoutStream },
+          };
+        }
+        return {
+          ...s,
+          messagesByThread: {
+            ...s.messagesByThread,
+            [threadId]: [
+              ...withoutStream,
+              {
+                id: crypto.randomUUID(),
+                threadId,
+                role: 'assistant',
+                content,
+                createdAt: iso,
+              },
+            ],
+          },
+        };
+      });
     },
 
     updateThread(id: string, patch: Partial<Thread>) {
@@ -121,3 +229,10 @@ export const currentThread = derived(threadStore, $s =>
 );
 
 export const threadCount = derived(threadStore, $s => $s.threads.length);
+
+/** 当前线程的对话列表（供 ConversationPanel） */
+export const currentMessages = derived(threadStore, $s => {
+  const tid = $s.currentThreadId;
+  if (!tid) return [] as Message[];
+  return $s.messagesByThread[tid] ?? [];
+});

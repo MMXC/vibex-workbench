@@ -1,0 +1,95 @@
+# ============================================================
+# Level 4 — Workbench 对话区（Agent 文本）功能规格
+# parent: MOD-workbench-shell / workbench-shell_feature
+# UI 容器位置以 workbench-ide-chrome_feature 为准（spec 先行）
+# ============================================================
+
+spec:
+  version: "1.1"
+  level: "4_feature"
+  name: "workbench-conversation"
+  parent: "workbench-shell"
+  status: "active"
+
+meta:
+  module: "MOD-workbench-shell"
+  owner: "hermes"
+  created: "2026-04-21"
+  updated: "2026-04-21"
+
+content:
+  description: |
+    Agent 与用户的消息流通过 SSE `message.delta` 等到达前端，展示在 **右侧 AI 栏上部**（IDE 壳层定义见
+    workbench-ide-chrome_feature.yaml）；用户输入在 **同栏下部 Composer**。
+    中央主体用于画布 / Spec / Diff 等，不再承载主对话流（与 v1.0 文档区别）。
+    不得修改 spec-to-code 生成的 `frontend/src/lib/sse.ts`，由 `workbench-message-sse-bridge.ts` 订阅事件。
+
+  io_contract:
+    input: |
+      - SSE：`message.delta`、`error`（及可选 `message.created`）
+      - 用户切换当前线程（threadId）与在 Composer 提交
+    output: |
+      - threadStore 中当前线程消息列表更新；
+      - ConversationPanel（或等价组件）可滚动展示气泡
+    boundary: |
+      - 不负责 Canvas 节点绘制；不负责左侧工作区文件树。
+      - SSE 事件解析失败时记录控制台错误，不阻塞其它事件。
+    behavior: |
+      1. bridge 将 `message.delta` 转为 threadStore.appendDelta / appendMessage。
+      2. 用户消息与助手最终答复展示规则与 strip 推理标签策略见 thread-store 实现；须符合 sse_contract。
+      3. UI 区域与 IDE 壳层同步演进：对话可视高度受右侧栏布局与 aiComposerBarPx 约束。
+    changelog:
+      - version: "1.1"
+        date: "2026-04-21"
+        author: "hermes"
+        changes:
+          - "对齐 IDE 壳层：对话区迁至右侧 AI 栏上部；中央主体专注画布/文档"
+      - version: "1.0"
+        date: "2026-04-21"
+        author: "hermes"
+        changes:
+          - "初版：SSE bridge + threadStore + ConversationPanel"
+
+  rationale:
+    sse_policy: |
+      docs/vibex-workbench/AGENTS.md 规定 `sse.ts` 仅能通过 spec 再生成修改；
+      在 gen 尚未输出 `message.delta` 片段前，使用 `workbench-message-sse-bridge.ts` 承载契约，
+      避免手改生成文件。
+
+  sse_contract:
+    events:
+      - name: "message.delta"
+        source: "agent/cmd/web/server.go chat / runToolLoop"
+        payload:
+          role: "user | assistant"
+          delta: "string"
+          is_final: "optional boolean; assistant 最终段为 true"
+      - name: "error"
+        source: "agent chat 异步失败"
+        payload:
+          error: "string"
+
+  dependencies:
+    - spec: "specs/feature/workbench-shell/workbench-ide-chrome_feature.yaml"
+    - spec: "specs/feature/workbench-shell/workbench-layout_resize_feature.yaml"
+
+  implementation:
+    files_maintained:
+      - "frontend/src/lib/workbench/workbench-message-sse-bridge.ts"
+      - "frontend/src/lib/components/workbench/ConversationPanel.svelte"
+      - "frontend/src/lib/stores/thread-store.ts"
+      - "frontend/src/routes/workbench/+page.svelte"
+
+  acceptance_criteria:
+    - id: "AC-001"
+      given: "用户已选中某线程且 `VITE_SSE_URL` 指向运行中的 agent"
+      when: "在 Composer 发送消息"
+      then: "右侧 AI 栏对话区可见用户内容与助手回复（来自 `message.delta`）"
+    - id: "AC-002"
+      given: "IDE 壳层已按 ide-chrome spec 渲染"
+      when: "调整右侧栏宽度或 Composer 高度"
+      then: "对话区仍为非零可视高度（在 layout_resize limits 内）"
+    - id: "AC-003"
+      given: "chat 异步失败并广播 `error` 事件"
+      when: "SSE 解析成功"
+      then: "当前线程追加一条 system 气泡展示错误摘要"

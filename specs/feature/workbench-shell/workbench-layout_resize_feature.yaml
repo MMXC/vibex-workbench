@@ -1,0 +1,91 @@
+# ============================================================
+# Level 4 — Workbench 可拖拽分区（布局尺寸契约 v2）
+# parent: workbench-shell / workbench-ide-chrome
+# 取代 v1 中「主栏对话/画布分割 + 通栏 Composer」描述
+# ============================================================
+
+spec:
+  version: "2.0"
+  level: "4_feature"
+  name: "workbench-layout-resize"
+  parent: "workbench-shell"
+  status: "active"
+
+meta:
+  module: "MOD-workbench-shell"
+  owner: "hermes"
+  created: "2026-04-21"
+  updated: "2026-04-21"
+
+content:
+  description: |
+    对标 Cursor / VS Code：用户通过拖拽分隔条调整 **左侧一级侧栏宽度**、**右侧 AI 栏宽度**、
+    **右侧栏内 AI 输入条高度**、**底部 Dock（问题/终端等）高度**。
+    持久化采用 localStorage；**v2 键名与字段**见 persistence；兼容读取 v1 键仅用于迁移默认值。
+    壳层组件由开发者维护（不手改生成的 WorkbenchShell.svelte），详见 workbench-ide-chrome_feature。
+
+  io_contract:
+    input: |
+      - 指针在分隔条上按下并拖拽（pointermove / pointerup）
+      - 视口 resize 时可选重新钳制 AI 输入条高度（依赖右侧栏可用内高）
+    output: |
+      - 更新布局维度对象 WorkbenchLayoutDims（TypeScript）；
+      - localStorage 写入键 `vibex.workbench.layout.v2`（松手 persist；拖拽中仅内存 preview）。
+    boundary: |
+      - 分隔条可点击宽度约 4–5px；limits 见 limits_px。
+      - v1 字段 `conversationPanePx`（主栏对话/画布分割）由 IDE 壳层迁移废除，不再写入 v2。
+      - 窄屏打断点行为由 uiux / ide-chrome 验收约束，本 spec 仅定义桌面级像素契约。
+    behavior: |
+      1. **左竖分隔条**：调整 sidebarLeftPx（一级侧栏 + 活动栏所占复合宽度中的可变部分，实现可将活动栏宽度固定计入左侧）。
+      2. **右竖分隔条**：调整 panelRightPx（右侧 AI 栏总宽）。
+      3. **右侧栏内横分隔条**：调整 aiComposerBarPx（Composer 高度）；上部为 AI 对话区，须保留最小对话高度（实现用 ResizeObserver + clamp）。
+      4. **底部 Dock 上横分隔条**：调整 bottomDockPx（问题/终端等区域高度）。
+      5. pointerup 调用 commit 持久化；拖拽中 preview 不写盘。
+    changelog:
+      - version: "2.0"
+        date: "2026-04-21"
+        author: "hermes"
+        changes:
+          - "对齐 IDE 壳层：引入 bottomDockPx、aiComposerBarPx；废除主栏 conversationPanePx + 通栏 Composer 描述"
+          - "持久化键升级为 v2；允许从 v1 导入侧栏与面板宽度"
+      - version: "1.0"
+        date: "2026-04-21"
+        author: "hermes"
+        changes:
+          - "初版（已 superseded）：三栏 + 主栏对话/画布 + 底部 Composer"
+
+  persistence:
+    storage_key_v2: "vibex.workbench.layout.v2"
+    storage_key_v1_legacy: "vibex.workbench.layout.v1"
+    fields_v2:
+      sidebarLeftPx: "左侧复合栏宽度（px）"
+      panelRightPx: "右侧 AI 栏宽度（px）"
+      aiComposerBarPx: "右侧栏底部 AI 输入（Composer）高度（px）"
+      bottomDockPx: "底部 Dock 面板高度（px）"
+
+  limits_px:
+    sidebar_left: { min: 180, max: 560, default: 260 }
+    panel_right: { min: 240, max: 720, default: 380 }
+    ai_composer_bar: { min: 96, max: 400, default: 156 }
+    bottom_dock: { min: 120, max: 520, default: 200 }
+
+  acceptance_criteria:
+    - id: "LR2-001"
+      given: "桌面宽度 ≥1024px"
+      when: "拖拽左、右竖分隔条"
+      then: "sidebarLeftPx / panelRightPx 在 limits 内连续变化；刷新后保持"
+    - id: "LR2-002"
+      given: "右侧 AI 栏可见"
+      when: "拖拽栏内 Composer 上缘"
+      then: "aiComposerBarPx 更新且不挤没对话区（钳制依赖右侧栏内高）"
+    - id: "LR2-003"
+      given: "底部 Dock 可见"
+      when: "拖拽 Dock 上缘"
+      then: "bottomDockPx 更新且在 limits 内"
+
+  implementation:
+    reference_code:
+      - "frontend/src/lib/stores/workbench-layout-store.ts"
+    shell_components:
+      - "frontend/src/lib/components/workbench/WorkbenchLayoutResizable.svelte（或后续替代壳层，须遵守本契约）"
+      - "frontend/src/routes/workbench/+page.svelte"

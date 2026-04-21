@@ -194,6 +194,21 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, `{"status":"ok","port":33335}`)
 }
 
+// withCORS 允许前端（如 localhost:5173）跨域访问 POST /api/runs（含 OPTIONS 预检）
+func withCORS(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("Access-Control-Allow-Origin", "*")
+		h.Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		h.Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next(w, r)
+	}
+}
+
 type startRunReq struct {
 	ThreadID string `json:"threadId"`
 	Goal     string `json:"goal"`
@@ -223,9 +238,9 @@ func startRunHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/api/sse/threads/", sseHandler)
-	http.HandleFunc("/api/runs", startRunHandler)
-	http.HandleFunc("/api/health", healthHandler)
+	http.HandleFunc("/api/sse/threads/", withCORS(sseHandler))
+	http.HandleFunc("/api/runs", withCORS(startRunHandler))
+	http.HandleFunc("/api/health", withCORS(healthHandler))
 
 	log.Println("[VibeX SSE Backend] Listening on http://0.0.0.0:33335")
 	log.Println("  SSE:  GET  http://localhost:33335/api/sse/threads/<threadId>")

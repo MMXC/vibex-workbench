@@ -37,7 +37,12 @@ import { threadStore, threadCount } from './thread-store';
 
 // ── Helpers ──────────────────────────────────────────────────
 function snap() {
-  let s = { threads: [] as unknown[], loading: false, error: null as string | null };
+  let s = {
+    threads: [] as unknown[],
+    loading: false,
+    error: null as string | null,
+    messagesByThread: {} as Record<string, unknown[]>,
+  };
   const u = threadStore.subscribe(x => { s = x; });
   u();
   return s;

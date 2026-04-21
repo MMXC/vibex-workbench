@@ -194,6 +194,25 @@ nanoClaudeCode/
     └── response-api.md            # Responses API 参考文档
 ```
 
+## Go 模块下载失败（访问 `proxy.golang.org` 超时）
+
+在国内或部分网络环境下，`go run` / `go mod download` 可能拉不到 `proxy.golang.org`（日志里常见 IPv6 `2607:f8b0:...` 超时）。可改用公共镜像（**全局一次即可**）：
+
+```sh
+go env -w GOPROXY=https://goproxy.cn,direct
+go env -w GOSUMDB=sum.golang.google.cn
+```
+
+若仍失败，可换镜像再试：
+
+```sh
+go env -w GOPROXY=https://goproxy.io,direct
+```
+
+然后在 `agent` 目录执行 `go mod download`、`go run ./cmd/web`。
+
+---
+
 ## 参考
 
 [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code)

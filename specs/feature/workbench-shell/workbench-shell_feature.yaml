@@ -4,7 +4,7 @@
 # ============================================================
 
 spec:
-  version: "2.0"
+  version: "2.1"
   level: "4_feature"
   name: "workbench-shell"
   parent: "MOD-workbench-shell"
@@ -14,10 +14,12 @@ meta:
   module: "MOD-workbench-shell"
   owner: "hermes"
   created: "2026-04-20"
-  updated: "2026-04-20"
+  updated: "2026-04-21"
 
 content:
-  description: "工作台外壳——对话面板 + Canvas 行为展示 + 三栏布局"
+  description: |
+    工作台外壳——以 workbench-ide-chrome_feature 为权威：类 Cursor IDE 分区（顶栏、左活动栏+侧栏、中央文档/画布、
+    右侧 AI、底部 Dock）+ Canvas 行为展示；尺寸拖拽见 workbench-layout_resize_feature v2。
 
   # ── IO 契约 ────────────────────────────────────────
   io_contract:
@@ -40,6 +42,11 @@ content:
       4. canvasStore 订阅 → 更新 canvasNodes
       5. 点击旧对话 → conversationStore.setActiveThread() → 触发重放
     changelog:
+      - version: "2.1"
+        date: "2026-04-21"
+        author: "hermes"
+        changes:
+          - "挂接 IDE 壳层 spec（ide-chrome）与 layout_resize v2；描述从旧三栏升级为 Cursor 式分区"
       - version: "2.0"
         date: "2026-04-20"
         author: "hermes"
@@ -59,8 +66,8 @@ content:
       so_that: "我可以在不同对话之间切换查看"
     - id: "US-003"
       as_a: "开发者"
-      i_want: "看到三栏布局：左侧对话列表，中间 Canvas 行为展示，右侧属性面板"
-      so_that: "我清楚当前对话状态和 Canvas 节点详情"
+      i_want: "在 IDE 式分区中看到：左侧工作区/线程、中央画布与文档、右侧 AI 对话与输入"
+      so_that: "我能对照 Spec 治理流程完成需求与可视化"
 
   capabilities:
     - id: "C-001"
@@ -85,6 +92,9 @@ content:
       description: "点击旧对话 → 重放 SSE 事件流到 Canvas"
 
   sub_specs:
+    ide_chrome: "workbench-ide-chrome_feature.yaml"
+    layout_resize: "workbench-layout_resize_feature.yaml"
+    conversation: "workbench-conversation_feature.yaml"
     uiux: "workbench-shell_uiux.yaml"
     service: "workbench-shell_service.yaml"
     data: "workbench-shell_data.yaml"

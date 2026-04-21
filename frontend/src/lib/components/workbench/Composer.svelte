@@ -1,9 +1,9 @@
-// ============================================================
-// Composer — 多模态输入框
-// E3-U2: 底部 RunStatusBar 显示运行状态
-// E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
-// 开发者维护，gen.py 永不覆盖
-// ============================================================
+<!-- ============================================================
+Composer — 多模态输入框
+E3-U2: 底部 RunStatusBar 显示运行状态
+E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
+开发者维护，gen.py 永不覆盖
+============================================================ -->
 
 <script lang="ts">
   import { runStore, activeRun } from '$lib/stores/run-store';

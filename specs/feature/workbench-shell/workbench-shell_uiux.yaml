@@ -1,10 +1,28 @@
 spec:
-  version: '1.0'
+  version: '1.2'
   level: 5a_uiux
   name: workbench-shell_uiux
   parent: workbench-shell
   status: active
 content:
+  # ── IDE 壳层（权威：workbench-ide-chrome_feature）─────────────────────────────
+  ide_chrome_reference:
+    primary_spec: 'specs/feature/workbench-shell/workbench-ide-chrome_feature.yaml'
+    layout_dimensions_spec: 'specs/feature/workbench-shell/workbench-layout_resize_feature.yaml'
+    summary: |
+      顶栏菜单与窗口控件；左活动栏 + 一级侧栏（工作区/Git/搜索/扩展）；
+      中央文档/画布 Tab；右侧 AI 对话 + Composer；底部 Dock（问题/输出/调试/终端）。
+      尺寸契约以 layout_resize **v2**（aiComposerBarPx、bottomDockPx 等）为准。
+
+  # ── 可调整布局（v2 取代「主栏对话/画布 + 通栏 Composer」文案）──────────────────
+  resizable_shell:
+    reference_spec: 'specs/feature/workbench-shell/workbench-layout_resize_feature.yaml'
+    interaction: |
+      左 / 右竖条：侧栏宽度；右侧栏内横条：AI 输入条高度；底部 Dock 上横条：终端等区域高度。
+      持久化键 vibex.workbench.layout.v2；状态落 localStorage。
+    design_tokens_use: |
+      仍沿用 design_tokens（主色、背景、border），像素以运行时 store 为准；
+      shell_layout 下静态 grid 仅作文档参考，不作为唯一真源。
   shell_layout:
     grid_template_columns: "280px 1fr 0px"
     grid_template_rows: 1fr auto

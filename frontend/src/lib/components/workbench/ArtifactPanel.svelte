@@ -1,10 +1,10 @@
-// ============================================================
-// ArtifactPanel — Artifact 注册表面板
-// E4-U1: IndexedDB 持久化（页面刷新恢复）
-// E4-U2: 点击预览 ArtifactPreviewModal
-// E4-U3: 拖拽到 Composer 注入 @artifactId
-// 开发者维护，gen.py 永不覆盖
-// ============================================================
+<!-- ============================================================
+ArtifactPanel — Artifact 注册表面板
+E4-U1: IndexedDB 持久化（页面刷新恢复）
+E4-U2: 点击预览 ArtifactPreviewModal
+E4-U3: 拖拽到 Composer 注入 @artifactId
+开发者维护，gen.py 永不覆盖
+============================================================ -->
 
 <script lang="ts">
   import { artifactStore, filteredArtifacts } from '$lib/stores/artifact-store';

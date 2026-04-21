@@ -5,9 +5,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
+)
+
+const (
+	sseClientChanBuf   = 256
+	maxPendingPerThread = 128
+)
+
+// 无订阅者时先把事件放进队列；首个 SSE 连上后按序回放，避免 POST /api/chat
+// 早于 GET /api/sse 注册导致的「只看到 connected」竞态。
+var (
+	pendingMu sync.Mutex
+	pendingQ  = make(map[string][][]byte) // threadID → 完整 SSE 帧（含 event/data）
 )
 
 // SSEClient represents one SSE connection.
@@ -36,20 +49,55 @@ func unregisterSSEClient(threadID string, c *SSEClient) {
 
 // broadcastSSE sends an SSE event to all clients for a thread.
 func broadcastSSE(threadID, event string, data interface{}) {
-	v, _ := sseClients.Load(threadID)
-	if m, ok := v.(*sync.Map); ok {
-		payload, _ := json.Marshal(data)
-		msg := fmt.Sprintf("event: %s\ndata: %s\n\n", event, payload)
-		m.Range(func(k, _ any) bool {
-			if c, ok := k.(*SSEClient); ok && !c.closed {
-				select {
-				case c.ch <- []byte(msg):
-				default:
-				}
-			}
-			return true
-		})
+	payload, _ := json.Marshal(data)
+	msg := fmt.Sprintf("event: %s\ndata: %s\n\n", event, payload)
+	frame := []byte(msg)
+
+	v, ok := sseClients.Load(threadID)
+	if !ok {
+		enqueuePending(threadID, frame)
+		return
 	}
+	m := v.(*sync.Map)
+	hasSub := false
+	m.Range(func(k, _ any) bool {
+		hasSub = true
+		return false
+	})
+	if !hasSub {
+		enqueuePending(threadID, frame)
+		return
+	}
+
+	m.Range(func(k, _ any) bool {
+		if c, ok := k.(*SSEClient); ok && !c.closed {
+			select {
+			case c.ch <- frame:
+			default:
+				log.Printf("[SSE] client channel full, drop event thread=%s event=%s", threadID, event)
+			}
+		}
+		return true
+	})
+}
+
+func enqueuePending(threadID string, frame []byte) {
+	pendingMu.Lock()
+	defer pendingMu.Unlock()
+	q := pendingQ[threadID]
+	if len(q) >= maxPendingPerThread {
+		log.Printf("[SSE] pending queue full (%d), drop oldest thread=%s", maxPendingPerThread, threadID)
+		q = q[1:]
+	}
+	pendingQ[threadID] = append(q, frame)
+}
+
+func dequeuePending(threadID string) [][]byte {
+	pendingMu.Lock()
+	defer pendingMu.Unlock()
+	q := pendingQ[threadID]
+	pendingQ[threadID] = nil
+	return q
 }
 
 // sseHandler handles SSE connection requests.
@@ -71,13 +119,19 @@ func sseHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ch := make(chan []byte, 64)
+	ch := make(chan []byte, sseClientChanBuf)
 	c := &SSEClient{threadID: threadID, ch: ch}
 	registerSSEClient(threadID, c)
 	defer unregisterSSEClient(threadID, c)
 
 	fmt.Fprintf(w, "event: connected\ndata: %s\n\n", mustMarshal(map[string]string{"threadId": threadID, "status": "connected"}))
 	flusher.Flush()
+
+	// 回放竞态期间缓冲的事件（run.started / tool.* / message.delta 等）
+	for _, frame := range dequeuePending(threadID) {
+		io.WriteString(w, string(frame))
+		flusher.Flush()
+	}
 
 	for {
 		select {

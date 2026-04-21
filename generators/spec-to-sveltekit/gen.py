@@ -966,8 +966,7 @@ def gen_pwa(spec_name: str = "canvas") -> dict[str, str]:
 const CACHE_NAME = 'vibex-v1';
 const STATIC_ASSETS = [
   '/',
-  '/canvas',
-  '/canvas/list',
+  '/workbench',
 ];
 
 self.addEventListener('install', (event) => {

@@ -10,10 +10,10 @@
 
 // Service Worker — VibeX PWA offline support
 const CACHE_NAME = 'vibex-v1';
+// 与 SvelteKit 路由一致（旧版误用 /canvas*，会导致 dev 控制台 404）
 const STATIC_ASSETS = [
   '/',
-  '/canvas',
-  '/canvas/list',
+  '/workbench',
 ];
 
 self.addEventListener('install', (event) => {
