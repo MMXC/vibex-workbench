@@ -58,7 +58,15 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 			Name:        "make_validate",
 			Description: "Run `make validate` in vibex-workbench to check all spec YAML files.",
 			Parameters:  objectSchema(),
-			Handler:    MakeMakeValidateHandler(workspaceDir, setStepType),
+			Handler:     MakeMakeValidateHandler(workspaceDir, setStepType),
+		},
+		{
+			Name:        "make_generate",
+			Description: "Run `make generate` in vibex-workbench — the spec-to-code step. " +
+				"Creates types.ts, *.Skeleton.svelte, and stubs from spec YAML. " +
+				"Use after creating or updating a spec file. This is the core of spec-driven development.",
+			Parameters:  objectSchema(),
+			Handler:     MakeMakeGenerateHandler(workspaceDir, setStepType),
 		},
 		{
 			Name:        "bug_report",

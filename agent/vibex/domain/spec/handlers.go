@@ -257,6 +257,27 @@ func MakeMakeValidateHandler(workspaceDir string, setStepType func(threadID, ste
 	}
 }
 
+// MakeMakeGenerateHandler runs `make generate` — the spec-to-code step.
+// This is the core of spec-driven development:
+//   1. Agent creates/updates spec YAML
+//   2. Calls make_generate → gen.py emits types/components/routes
+//   3. Agent verifies output
+func MakeMakeGenerateHandler(workspaceDir string, setStepType func(threadID, stepType string)) rt.Handler {
+	return func(arguments string) string {
+		if setStepType != nil {
+			setStepType("", "spec-apply")
+		}
+		cmd := exec.Command("make", "generate")
+		cmd.Dir = workspaceDir
+		out, err := cmd.CombinedOutput()
+		text := strings.TrimSpace(string(out))
+		if err != nil {
+			return fmt.Sprintf("make generate FAILED:\n%s\n%v", text, err)
+		}
+		return "make generate PASSED:\n" + text
+	}
+}
+
 func MakeBugReportHandler(workspaceDir string, setStepType func(threadID, stepType string)) rt.Handler {
 	return func(arguments string) string {
 		if setStepType != nil {
