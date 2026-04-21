@@ -63,7 +63,7 @@ func RunInteractive() error {
 			responses.ResponseInputItemParamOfMessage("Sub-agent task summary:\n"+strings.TrimSpace(taskSummary), responses.EasyInputMessageRoleUser),
 		}
 
-		answer, err := runToolLoop(ctx, llm, cfg.SubAgentModel, childTools, childHandlers, childTodo, childMessages, nil, nil, childSkills, skillRegistry)
+		answer, _, err := runToolLoop(ctx, llm, cfg.SubAgentModel, childTools, childHandlers, childTodo, childMessages, nil, nil, childSkills, skillRegistry)
 		if err != nil {
 			return "", err
 		}
@@ -216,10 +216,15 @@ func RunInteractive() error {
 		messages = append(messages, responses.ResponseInputItemParamOfMessage(text, responses.EasyInputMessageRoleUser))
 
 		ctx := context.Background()
-		answer, err := runToolLoop(ctx, llm, cfg.Model, tools, handlers, todo, messages, backgroundMgr, subAgentMgr, parentSkills, skillRegistry)
+		answer, turnItems, err := runToolLoop(ctx, llm, cfg.Model, tools, handlers, todo, messages, backgroundMgr, subAgentMgr, parentSkills, skillRegistry)
 		if err != nil {
 			fmt.Printf("error: %v\n", err)
 			continue
+		}
+
+		// Self-reflection: analyze this turn and execute automatable improvements.
+		if refl := RunSelfReflectionIfWorthy(ctx, llm, cfg.Model, turnItems, answer); refl != "" {
+			fmt.Println(refl)
 		}
 
 		// Persist assistant final text into history.
@@ -243,6 +248,8 @@ func RunInteractive() error {
 
 // runToolLoop executes a tool-use agent loop using the provided LLMClient.
 // It is agnostic to which API (Responses or Chat Completions) backs the client.
+// Returns (answer, inputItems, error). inputItems includes all tool calls and outputs
+// from this turn — use it for self-reflection without modifying the persisted messages.
 func runToolLoop(
 	ctx context.Context,
 	llm adapters.LLMClient,
@@ -255,7 +262,7 @@ func runToolLoop(
 	subAgentMgr *subagent.Manager,
 	skillState *skills.State,
 	skillRegistry *skills.Registry,
-) (string, error) {
+) (string, []responses.ResponseInputItemUnionParam, error) {
 	// inputItems 保存"真实会话历史"（用户输入、assistant 输出、tool 调用与结果）。
 	inputItems := append([]responses.ResponseInputItemUnionParam{}, messages...)
 
@@ -291,7 +298,7 @@ func runToolLoop(
 		// LLMClient handles all API-level differences (Responses vs Chat Completions).
 		text, toolCalls, err := llm.Chat(ctx, model, tools, requestInput)
 		if err != nil {
-			return "", err
+			return "", inputItems, err
 		}
 
 		followUpItems := make([]responses.ResponseInputItemUnionParam, 0, len(toolCalls)*2)
@@ -322,13 +329,13 @@ func runToolLoop(
 					continue
 				}
 			}
-			return strings.TrimSpace(text), nil
+			return strings.TrimSpace(text), inputItems, nil
 		}
 
 		inputItems = append(inputItems, followUpItems...)
 	}
 
-	return "", fmt.Errorf("tool loop exceeded max steps")
+	return "", inputItems, fmt.Errorf("tool loop exceeded max steps")
 }
 
 func summarizeForAutoCompact(
