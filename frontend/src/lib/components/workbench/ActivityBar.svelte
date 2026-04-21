@@ -14,38 +14,44 @@
 	});
 </script>
 
+<!-- 图标与 prototypes/vibex-ide-chrome-r2.html .ab-icon 一致（描边、22×22） -->
 <nav class="activity-bar" aria-label="活动栏">
 	<button
 		type="button"
 		class:active={act === 'explorer'}
-		title="资源管理器（规格文件）"
+		title="工作区（规格文件）"
 		onclick={() => setAct('explorer')}
 	>
-		<span class="ico" aria-hidden="true">📂</span>
+		<svg class="ab-svg" viewBox="0 0 24 24" aria-hidden="true">
+			<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+			<polyline points="9 22 9 12 15 12 15 22" />
+		</svg>
 	</button>
-	<button
-		type="button"
-		class:active={act === 'git'}
-		title="源代码管理"
-		onclick={() => setAct('git')}
-	>
-		<span class="ico" aria-hidden="true">⑂</span>
+	<button type="button" class:active={act === 'git'} title="源代码管理" onclick={() => setAct('git')}>
+		<svg class="ab-svg" viewBox="0 0 24 24" aria-hidden="true">
+			<circle cx="18" cy="18" r="3" />
+			<circle cx="6" cy="6" r="3" />
+			<path d="M6 21V9a9 9 0 009 9" />
+		</svg>
 	</button>
-	<button
-		type="button"
-		class:active={act === 'search'}
-		title="搜索"
-		onclick={() => setAct('search')}
-	>
-		<span class="ico" aria-hidden="true">🔍</span>
+	<button type="button" class:active={act === 'search'} title="搜索" onclick={() => setAct('search')}>
+		<svg class="ab-svg" viewBox="0 0 24 24" aria-hidden="true">
+			<circle cx="11" cy="11" r="8" />
+			<path d="M21 21l-4.35-4.35" />
+		</svg>
 	</button>
 	<button
 		type="button"
 		class:active={act === 'extensions'}
-		title="扩展"
+		title="扩展与自定义"
 		onclick={() => setAct('extensions')}
 	>
-		<span class="ico" aria-hidden="true">🧩</span>
+		<svg class="ab-svg" viewBox="0 0 24 24" aria-hidden="true">
+			<rect x="3" y="3" width="8" height="8" rx="1" />
+			<rect x="13" y="3" width="8" height="8" rx="1" />
+			<rect x="13" y="13" width="8" height="8" rx="1" />
+			<rect x="3" y="13" width="8" height="8" rx="1" />
+		</svg>
 	</button>
 </nav>
 
@@ -100,8 +106,14 @@
 		border-radius: 0 2px 2px 0;
 	}
 
-	.ico {
-		font-size: 18px;
-		line-height: 1;
+	.ab-svg {
+		width: 22px;
+		height: 22px;
+		flex-shrink: 0;
+		stroke: currentColor;
+		fill: none;
+		stroke-width: 1.5;
+		stroke-linecap: round;
+		stroke-linejoin: round;
 	}
 </style>
