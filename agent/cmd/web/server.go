@@ -13,6 +13,7 @@ import (
 	"vibex/agent/agents/background"
 	"vibex/agent/agents/compact"
 	"vibex/agent/agents/sessions"
+	"vibex/agent/agents/runtime"
 	rtools "vibex/agent/agents/runtime/tools"
 	"vibex/agent/agents/skills"
 	"vibex/agent/agents/subagent"
@@ -65,6 +66,7 @@ Core principles:
 
 // runToolLoop executes a tool-use turn via the LLMClient interface.
 // The adapter handles all API-level differences (Responses vs Chat Completions).
+// Returns (answer, turnItems, error). turnItems includes all tool calls/outputs from this turn.
 func runToolLoop(
 	threadID string,
 	llm adapters.LLMClient,
@@ -74,7 +76,7 @@ func runToolLoop(
 	messages []responses.ResponseInputItemUnionParam,
 	skillState *skills.State,
 	skillRegistry *skills.Registry,
-) (string, error) {
+) (string, []responses.ResponseInputItemUnionParam, error) {
 	inputItems := append([]responses.ResponseInputItemUnionParam{}, messages...)
 	bgMgr := background.NewManager()
 
@@ -105,7 +107,7 @@ func runToolLoop(
 		ctx := context.Background()
 		text, toolCalls, err := llm.Chat(ctx, model, tools, reqInput)
 		if err != nil {
-			return "", err
+			return "", inputItems, err
 		}
 
 		if text != "" {
@@ -144,11 +146,11 @@ func runToolLoop(
 
 		if !hasCalls {
 			broadcastSSE(threadID, "run.completed", map[string]string{"summary": "Done."})
-			return strings.TrimSpace(text), nil
+			return strings.TrimSpace(text), inputItems, nil
 		}
 		inputItems = append(inputItems, followUp...)
 	}
-	return "", fmt.Errorf("tool loop exceeded 20 steps")
+	return "", inputItems, fmt.Errorf("tool loop exceeded 20 steps")
 }
 
 func summarizeForAutoCompact(llm adapters.LLMClient, model string, items []responses.ResponseInputItemUnionParam) (string, error) {
@@ -181,7 +183,8 @@ func buildToolsAndHandlers(threadID string, cfg common.Config,
 			responses.ResponseInputItemParamOfMessage(developerMessage, responses.EasyInputMessageRoleDeveloper),
 			responses.ResponseInputItemParamOfMessage("Sub-agent task:\n"+strings.TrimSpace(taskSummary), responses.EasyInputMessageRoleUser),
 		}
-		return runToolLoop(threadID, llm, cfg.SubAgentModel, childTools, childHandlers, childMsgs, childSkills, skillRegistry)
+		answer, _, err := runToolLoop(threadID, llm, cfg.SubAgentModel, childTools, childHandlers, childMsgs, childSkills, skillRegistry)
+		return answer, err
 	}
 
 	// Parent (base nanoClaudeCode) specs
@@ -244,13 +247,21 @@ func runAgentTurn(threadID string, userInput string) (string, error) {
 	broadcastSSE(threadID, "agent.thinking", map[string]string{"status": "processing", "model": model})
 
 	tools, handlers := buildToolsAndHandlers(threadID, cfg, skillRegistry)
-	answer, err := runToolLoop(threadID, llm, model, tools, handlers, messages, state.skillState, skillRegistry)
+	answer, turnItems, err := runToolLoop(threadID, llm, model, tools, handlers, messages, state.skillState, skillRegistry)
 	if err != nil {
 		broadcastSSE(threadID, "run.failed", map[string]interface{}{
 			"run_id": threadID,
 			"error": err.Error(),
 		})
 		return "", err
+	}
+
+	// Self-reflection: analyze this turn and execute automatable improvements.
+	// Results are broadcast via SSE so the frontend can show them.
+	if refl := runtime.RunSelfReflectionIfWorthy(context.Background(), llm, model, turnItems, answer); refl != "" {
+		broadcastSSE(threadID, "agent.self_reflection", map[string]string{
+			"summary": refl,
+		})
 	}
 
 	state.mu.Lock()

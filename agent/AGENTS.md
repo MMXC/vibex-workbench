@@ -144,6 +144,18 @@ cp .env.example .env  # edit with your API key
 ./vibex-agent-web
 ```
 
+## Self-Reflection (auto-improvement after each turn)
+
+After each agent turn, `RunSelfReflectionIfWorthy` analyzes the tool calls from that turn and detects automatable patterns:
+
+| Pattern | Detection | Action |
+|---------|-----------|--------|
+| `validate` → `generate` in same turn | Sequential make calls | Attempt to add auto-chain SSE to handler (conservative: only if `sse` already imported) |
+| `bash` called 3+ times in one turn | High bash frequency | Log pattern for manual follow-up |
+| Same tool called 3+ times | Repetitive pattern | Suggest creating a skill |
+
+Results are broadcast as `agent.self_reflection` SSE events. The agent modifies its own handler code when safe to do so, without requiring user input.
+
 ## Skills
 
 Skills are loaded from `SKILLS_DIR` (`~/.hermes/skills/`).
