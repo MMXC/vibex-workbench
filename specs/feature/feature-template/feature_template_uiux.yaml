@@ -5,7 +5,7 @@
 # 注意: meta_template 级别的 spec 不做从属链验证
 
 spec:
-  version: "1.0"
+  version: "1.1"
   level: "meta_template"
   name: "feature_template_uiux"
   parent: "feature_template_feature"
@@ -27,6 +27,10 @@ template: |
     status: draft
 
   content:
+    # Phase B 可选：与 parent L4 vision_traceability 对齐的一行追溯（不必展开）
+    trace_note: |
+      L5a：UI 切片；与 ${SAFE_NAME}（L4）vision_traceability 对齐时可补交互验收点。
+
     # 默认 flow-canvas 布局（可按需修改 components/regions/state_management）
     canvas_layout:
       type: flow-canvas

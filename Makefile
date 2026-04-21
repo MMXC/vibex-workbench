@@ -36,6 +36,8 @@ init:
 	@echo "[init] Done."
 
 # --- Spec validation ---
+# Tier-1 gates for specs/: lint-specs (syntax + parent file refs) then validate_chain.
+# Layer contract checklist: specs/meta/spec-layer-contract.yaml ; rollout: VISION-TRACEABILITY-ROLLOUT.md
 
 lint-specs:
 	@echo "[lint-specs] Validating spec YAML..."

@@ -5,7 +5,7 @@
 # ============================================================
 
 spec:
-  version: "2.1"
+  version: "2.2"
   level: "4_feature"
   name: "workbench-layout-resize"
   parent: "workbench-shell"
@@ -16,6 +16,7 @@ meta:
   owner: "hermes"
   created: "2026-04-21"
   updated: "2026-04-22"
+  pilot_m0_layer_contract: true
 
 content:
   description: |
@@ -23,6 +24,31 @@ content:
     **右侧栏内 AI 输入条高度**、**底部 Dock（问题/终端等）高度**。
     持久化采用 localStorage；**v2 键名与字段**见 persistence；兼容读取 v1 键仅用于迁移默认值。
     壳层组件由开发者维护（不手改生成的 WorkbenchShell.svelte），详见 workbench-ide-chrome_feature。
+
+  # ── M0：愿景承接（Phase A），与 specs/meta/spec-layer-contract.yaml 对齐 ──
+  vision_traceability:
+    summary: "布局像素契约把 L1 的 Local-first（C5）与体验面可调（C6）落到可持久化、可对照 R2 的验收字段"
+    l1:
+      goal_path: "specs/project-goal/vibex-workbench-goal.yaml"
+      constraint_ids: ["C1", "C5", "C6"]
+      goal_sections_hint:
+        - "content.constraints.C5（Local-first / IndexedDB）"
+        - "content.product_value_layers.experience_visualization"
+        - "content.mission（人机协同可见分区）"
+    l2:
+      skeleton_path: "specs/architecture/vibex-workbench-skeleton.yaml"
+      module_id: "MOD-workbench-shell"
+      anchors_hint:
+        - "content.modules 中 MOD-workbench-shell"
+        - "content.upstream_l1"
+    l3:
+      module_spec_path: "specs/module/MOD-workbench-shell_module.yaml"
+    l4_aggregate_parent:
+      feature_spec_path: "specs/feature/workbench-shell/workbench-shell_feature.yaml"
+      note: "parent=workbench-shell；与 ide-chrome region_map / r2_pixel_parity 联合验收"
+    acceptance_summary:
+      - "pointerup 后 `vibex.workbench.layout.v2` 持久化字段与 limits_px 一致；几何归属见 geometry_accounting"
+      - "窄屏与 Dock 折叠策略以 ide-chrome / uiux 为准；本 spec 锁桌面像素语义"
 
   io_contract:
     input: |
@@ -42,6 +68,11 @@ content:
       4. **底部 Dock 上横分隔条**：调整 bottomDockPx（问题/终端等区域高度）。
       5. pointerup 调用 commit 持久化；拖拽中 preview 不写盘。
     changelog:
+      - version: "2.2"
+        date: "2026-04-22"
+        author: "hermes"
+        changes:
+          - "新增 content.vision_traceability（Phase A：C1/C5/C6 + l4_aggregate_parent）"
       - version: "2.1"
         date: "2026-04-22"
         author: "hermes"

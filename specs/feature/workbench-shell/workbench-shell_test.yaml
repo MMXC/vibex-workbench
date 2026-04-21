@@ -1,10 +1,15 @@
 spec:
-  version: "1.0"
+  version: "1.1"
   level: "5d_test"
   name: "workbench-shell_test"
   parent: "workbench-shell"
   status: "active"
+
 content:
+  trace_note: |
+    Phase B（L5d）：壳层冒烟与布局契约抽样；对齐 L4 workbench-shell vision_traceability（C1/C6/C7）。
+    细粒度分区与像素以 ide-chrome、layout_resize 为准，本文件仅保留可自动化断言条目。
+
   test_cases:
     - id: "TC-001"
       name: "三栏布局正确渲染"

@@ -36,38 +36,58 @@
 | MOD-dsl-visualizer | `dsl-canvas` |
 | MOD-code-generator | `code-gen-panel` |
 
-### 2.3 尚未覆盖的 L4（workbench-shell 子树）
+### 2.3 workbench-shell 子树 L4（Phase A 已完成）
 
-以下文件**尚无** `content.vision_traceability`，按优先级分批补齐：
+已写入 `content.vision_traceability`：
 
-1. **`workbench-shell`**（聚合 L4，`parent: MOD-workbench-shell`）— 建议先做：为子 feature 提供统一 L1/L2 锚点与边界。
-2. **`workbench-layout-resize`** — 与 IDE Chrome、持久化键强相关，验收与 R2 原型对照频繁。
-3. **`workbench-conversation`** — 对话/SSE 与 C6、右侧 AI 栏契约交叉。
-4. **`canvas-renderer`** — Canvas 渲染与 dsl-canvas / shell 边界。
+| Spec | 路径 |
+|------|------|
+| 聚合 L4 | `specs/feature/workbench-shell/workbench-shell_feature.yaml` |
+| 布局 | `specs/feature/workbench-shell/workbench-layout_resize_feature.yaml` |
+| 对话 | `specs/feature/workbench-shell/workbench-conversation_feature.yaml` |
+| Canvas 渲染 | `specs/feature/canvas-renderer/canvas-renderer_feature.yaml`（`parent: MOD-workbench-shell`，独立目录） |
+
+### 2.4 Phase B：L5 代表性 `trace_note`（已于本仓库试点）
+
+在 **`content.trace_note`** 增加 2–4 行可追溯说明（不复制 L4 `vision_traceability` 全文）。试点文件：
+
+| 层级 | 路径 |
+|------|------|
+| L5d | `specs/feature/spec-editor/spec-editor_test.yaml` |
+| L5a | `specs/feature/spec-editor/spec-editor_uiux.yaml` |
+| L5d | `specs/feature/workbench-shell/workbench-shell_test.yaml` |
+| L5d | `specs/feature/routing-panel/routing-panel_test.yaml` |
+| L5d | `specs/feature/code-gen-panel/code-gen-panel_test.yaml`（仍为 draft） |
+
+其余 L5 切片按需增补，避免全仓库同质化堆砌。
 
 ---
 
 ## 3. 推广阶段（建议顺序）
 
-### Phase A — workbench-shell  subtree 收口（当前焦点）
+### Phase A — workbench-shell  subtree 收口（已完成）
 
-在同一子目录 `specs/feature/workbench-shell/` 内连续改，单次 MR 可含 2–4 个文件，改完跑门禁。
-
-| 顺序 | Spec | 约束锚点建议 |
-|------|------|----------------|
-| A1 | `workbench-shell_feature.yaml` | C1、C6、C7；聚合叙事对齐 `experience_visualization` |
-| A2 | `workbench-layout_resize_feature.yaml` | C1、C5（local-first 持久化）、C6 |
+| 顺序 | Spec | 约束锚点（落地） |
+|------|------|------------------|
+| A1 | `workbench-shell_feature.yaml` | C1、C6、C7 |
+| A2 | `workbench-layout_resize_feature.yaml` | C1、C5、C6 |
 | A3 | `workbench-conversation_feature.yaml` | C1、C6、C7 |
-| A4 | `canvas-renderer_feature.yaml` | C6、C7；与 MOD-dsl-visualizer 边界对照 `boundaries.not_here` |
+| A4 | `canvas-renderer_feature.yaml` | C6、C7；附与 `dsl-canvas` 分工 |
 
-### Phase B — L5 切片（按需）
+### Phase B — L5 切片（试点已完成；其余按需）
 
-`spec-layer-contract` 对 L5 的要求侧重 `parent_chain` 与可验收细节；**不强制**每文件冗长 `vision_traceability`。若要为某一主线（例如 spec-editor 测试闭环）增强可追溯性，可在个别代表性的 `*_test.yaml` 或 `*_uiux.yaml` 增加简短 `trace_note`（字段名与生成器约定为准），避免全量 20+ 文件同质化堆砌。
+`spec-layer-contract` 对 L5 的要求侧重 `parent_chain` 与可验收细节；**不强制**每文件冗长 `vision_traceability`。已在代表性 `*_test.yaml` / `*_uiux.yaml` 增加 **`content.trace_note`**（见 §2.4）；其它 L5 可按主线（如 dsl-canvas_test、canvas-renderer_uiux）逐个补一行引用 parent L4 即可。
 
-### Phase C — 模板与 CI
+### Phase C — 模板与 CI（已完成占位）
 
-- `specs/meta/*template*`：在 feature 模板中预留 `vision_traceability` 占位（可选）。
-- CI：保留 `make lint-specs` + `make validate`；后续若接入「段落存在性」抽检，以 `spec-layer-contract.yaml` 为单一真相源。
+| 产物 | 说明 |
+|------|------|
+| `specs/feature/feature-template/feature_template_feature.yaml` | L4 生成用 `template:` 内嵌 **`vision_traceability`** 占位（占位约束 C1/C7，`l3.module_spec_path` 随 `${PARENT_ID}`；生成非 MOD parent 时需人工改路径） |
+| `specs/feature/feature-template/feature_template_uiux.yaml` | L5a `template:` 内含可选 **`trace_note`** 占位 |
+| `specs/meta/snippets/l4-vision-traceability.stub.yaml` | 纯手工新建 L4 时可粘贴的片段（无顶层 `spec`，不参与命名 spec 索引） |
+| Makefile | `# --- Spec validation ---` 段注释标明 **lint-specs → validate** 为一阶门禁 |
+
+**CI**：仍以 `make lint-specs`、`make validate`（及按需 `make drift`）为准；段落存在性机器抽检待定，单一真相源保持 **`spec-layer-contract.yaml`**。
 
 ---
 
@@ -101,3 +121,6 @@
 | 日期 | 说明 |
 |------|------|
 | 2026-04-22 | 初版：五 MOD + 主 L4 已完成；Phase A–C 路线与约束速查 |
+| 2026-04-22 | Phase A 完成：`workbench-shell` 聚合 + layout-resize + conversation + `canvas-renderer` |
+| 2026-04-22 | Phase B 试点：`content.trace_note` 见于 spec-editor / shell / routing / codegen 等 5 个 L5 文件 |
+| 2026-04-22 | Phase C：`feature_template_*` 模板 + `snippets/l4-vision-traceability.stub.yaml`；Makefile 注释门禁 |

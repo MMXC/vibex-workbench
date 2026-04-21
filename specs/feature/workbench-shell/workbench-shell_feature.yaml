@@ -4,7 +4,7 @@
 # ============================================================
 
 spec:
-  version: "2.1"
+  version: "2.2"
   level: "4_feature"
   name: "workbench-shell"
   parent: "MOD-workbench-shell"
@@ -14,12 +14,35 @@ meta:
   module: "MOD-workbench-shell"
   owner: "hermes"
   created: "2026-04-20"
-  updated: "2026-04-21"
+  updated: "2026-04-22"
+  pilot_m0_layer_contract: true
 
 content:
   description: |
     工作台外壳——以 workbench-ide-chrome_feature 为权威：类 Cursor IDE 分区（顶栏、左活动栏+侧栏、中央文档/画布、
     右侧 AI、底部 Dock）+ Canvas 行为展示；尺寸拖拽见 workbench-layout_resize_feature v2。
+
+  # ── M0：愿景承接（L1/L2→L4 聚合），与 specs/meta/spec-layer-contract.yaml 对齐 ──
+  vision_traceability:
+    summary: "聚合 L4：把 L1 体验面与 C6 行为展示落到壳层 Store/Event Bus 边界，并索引子 feature（ide-chrome / layout / conversation / canvas）"
+    l1:
+      goal_path: "specs/project-goal/vibex-workbench-goal.yaml"
+      constraint_ids: ["C1", "C6", "C7"]
+      goal_sections_hint:
+        - "content.product_value_layers.experience_visualization"
+        - "content.constraints（C6 行为展示；C7 门禁与变更派生）"
+        - "content.mission（输入→输出→行为展示）"
+    l2:
+      skeleton_path: "specs/architecture/vibex-workbench-skeleton.yaml"
+      module_id: "MOD-workbench-shell"
+      anchors_hint:
+        - "content.modules 中 MOD-workbench-shell"
+        - "content.upstream_l1"
+    l3:
+      module_spec_path: "specs/module/MOD-workbench-shell_module.yaml"
+    acceptance_summary:
+      - "子 feature（ide-chrome、layout-resize、conversation、canvas-renderer 等）在 parent 链上挂在本聚合或 MOD 下可解析；壳层不负责 spec 解析/路由/生成"
+      - "conversation_store 与 canvas_store 的事件边界与本文件 io_contract 一致；详细分区以 ide-chrome 为准"
 
   # ── IO 契约 ────────────────────────────────────────
   io_contract:
@@ -42,6 +65,11 @@ content:
       4. canvasStore 订阅 → 更新 canvasNodes
       5. 点击旧对话 → conversationStore.setActiveThread() → 触发重放
     changelog:
+      - version: "2.2"
+        date: "2026-04-22"
+        author: "hermes"
+        changes:
+          - "新增 content.vision_traceability（Phase A：聚合 L4 锚点 + 验收摘要）"
       - version: "2.1"
         date: "2026-04-21"
         author: "hermes"

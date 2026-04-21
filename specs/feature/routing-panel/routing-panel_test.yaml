@@ -6,13 +6,17 @@
 # ============================================================
 
 spec:
-  version: "2.0"
+  version: "2.1"
   level: "5d_test"
   name: "routing-panel_test"
   parent: "routing-panel"
   status: "active"
 
 content:
+  trace_note: |
+    Phase B（L5d）：路由 TDD 与 SSE/Canvas 序列断言；对齐 L4 routing-panel vision_traceability（C1/C2/C3/C7）
+    与 L1「变更路由 goal|feature|bug」关切；不替代聚合门禁。
+
   # ── IO 契约 ────────────────────────────────────────
   io_contract:
     input: "路由测试用例（given/when/then/boundary）"
@@ -20,6 +24,11 @@ content:
     boundary: "测试在隔离环境中运行，不涉及真实的 spec 写入或代码生成"
     behavior: "TDD 循环：given → when → then → 失败则迭代修复 → 通过则进入下一测试"
     changelog:
+      - version: "2.1"
+        date: "2026-04-22"
+        author: "hermes"
+        changes:
+          - "新增 content.trace_note（Phase B 轻量追溯）"
       - version: "2.0"
         date: "2026-04-20"
         author: "hermes"

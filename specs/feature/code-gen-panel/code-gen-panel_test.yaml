@@ -1,11 +1,15 @@
 spec:
-  version: "1.0"
+  version: "1.1"
   level: "5d_test"
   name: "code-gen-panel_test"
   parent: "code-gen-panel"
   status: "draft"
 
 content:
+  trace_note: |
+    Phase B（L5d）：生成管线验收草稿；对齐 L4 code-gen-panel vision_traceability（C1/C3/C4/C7）与 L1 C4 自举证明。
+    draft 状态表示用例待与 make generate / SSE 实现对齐后升格。
+
   test_cases:
     - id: "TC-001"
       name: "make generate 执行成功"

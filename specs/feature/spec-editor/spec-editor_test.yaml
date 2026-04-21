@@ -3,13 +3,17 @@
 # parent: spec-editor (L4)
 # ============================================================
 spec:
-  version: "1.0"
+  version: "1.1"
   level: "5d_test"
   name: "spec-editor_test"
   parent: "spec-editor"
   status: "active"
 
 content:
+  trace_note: |
+    Phase B（L5d）：最小可验增量，对齐 L1 C3/C7 与 L4 spec-editor vision_traceability。
+    门禁语义与 generators/validate_specs、spec-engine 父链校验一致；CI 聚合仍以 make validate 为准。
+
   test_cases:
     - id: "TC-001"
       name: "解析标准 L1 spec"

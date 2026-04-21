@@ -177,7 +177,8 @@ flowchart TB
   - `specs/feature/dsl-canvas/dsl-canvas_feature.yaml` — **C1/C3/C6/C7**。  
   - `specs/module/MOD-code-generator_module.yaml` — **C3/C4/C7**（生成输入链 + 自举证明 + 门禁）。  
   - `specs/feature/code-gen-panel/code-gen-panel_feature.yaml` — **C1/C3/C4/C7**。  
-- **推广顺序**：五 MOD 范本已齐；剩余为壳层/workbench-shell 下其它 feature、聚合 L4、L5 切片等按需补 `vision_traceability`；每批改后跑 `make lint-specs` / `make validate`（以本机 Makefile 路径为准）。
+  - **Phase A（壳层收口）**：`workbench-shell_feature.yaml`（**C1/C6/C7**）、`workbench-layout_resize_feature.yaml`（**C1/C5/C6**）、`workbench-conversation_feature.yaml`（**C1/C6/C7**）、`specs/feature/canvas-renderer/canvas-renderer_feature.yaml`（**C6/C7**）。详见根目录 `VISION-TRACEABILITY-ROLLOUT.md`。  
+- **推广顺序**：五 MOD + Phase A L4 + Phase B（5 个 L5 `trace_note`）已齐；**Phase C**：`feature_template_*` 已含 `vision_traceability` / `trace_note` 占位，`specs/meta/snippets/l4-vision-traceability.stub.yaml` 供手工拷贝；门禁仍以 `make lint-specs` / `make validate` 为准；详见 `VISION-TRACEABILITY-ROLLOUT.md` Phase C。
 
 ---
 
@@ -191,3 +192,6 @@ flowchart TB
 | 2026-04-22 | 推广：MOD-spec-engine + spec-editor 增加同构 `vision_traceability` |
 | 2026-04-22 | 推广：MOD-router + routing-panel 增加同构 `vision_traceability` |
 | 2026-04-22 | 推广：MOD-dsl-visualizer + dsl-canvas；MOD-code-generator + code-gen-panel |
+| 2026-04-22 | Phase A：`workbench-shell` 聚合 + layout-resize + conversation + `canvas-renderer`；更新 `VISION-TRACEABILITY-ROLLOUT.md` |
+| 2026-04-22 | Phase B：5 个 L5 试点 `content.trace_note`（spec-editor test/uiux、workbench-shell_test、routing-panel_test、code-gen-panel_test） |
+| 2026-04-22 | Phase C：`feature_template` 占位、`meta/snippets/` 片段、Makefile 门禁注释 |

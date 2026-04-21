@@ -3,13 +3,17 @@
 # parent: spec-editor (L4)
 # ============================================================
 spec:
-  version: "1.0"
+  version: "1.1"
   level: "5a_uiux"
   name: "spec-editor_uiux"
   parent: "spec-editor"
   status: "active"
 
 content:
+  trace_note: |
+    Phase B（L5a）：UI 状态与 Violation 反馈面；对齐 L4 spec-editor（C2 IO 语境、实时校验展示），
+    不单列 vision_traceability，以免与 L4 重复堆叠。
+
   pages:
     - id: "spec-editor-page"
       layout:
