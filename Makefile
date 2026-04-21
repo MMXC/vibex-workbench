@@ -1,4 +1,5 @@
-.PHONY: help generate lint-specs build dev test drift clean init validate
+.PHONY: help generate lint-specs build dev test drift clean init validate \
+	skill-sync-status skill-sync-push skill-sync-pull
 
 SPEC_DIR := $(shell pwd)/specs
 FRONTEND_DIR := $(shell pwd)/frontend
@@ -84,3 +85,25 @@ clean:
 	@rm -rf $(FRONTEND_DIR)/src/generated
 	@rm -rf $(FRONTEND_DIR)/src/lib/generated
 	@echo "✅ 清理完成"
+
+# ── Skill Sync ──────────────────────────────────────────────
+# 双向同步：live /root/.hermes/skills ↔ repo skills/
+# 追踪的 skill 在 SKILL.md 里标记 repo_tracked: true
+#
+# make skill-sync-status    查看同步状态
+# make skill-sync-push     live → repo（稳定后推送）
+# make skill-sync-push SKILL=devops/vibex-qa-entry-points  推送单个
+# make skill-sync-pull      repo → live（新机器初始化）
+
+SKILLS_SCRIPT := $(shell pwd)/scripts/skill-sync.sh
+SKILLS_LIVE := /root/.hermes/skills
+export SKILLS_LIVE_DIR := $(SKILLS_LIVE)
+
+skill-sync-status:
+	@SKILLS_LIVE_DIR=$(SKILLS_LIVE) bash $(SKILLS_SCRIPT) status
+
+skill-sync-push:
+	@SKILLS_LIVE_DIR=$(SKILLS_LIVE) bash $(SKILLS_SCRIPT) push $(SKILL)
+
+skill-sync-pull:
+	@SKILLS_LIVE_DIR=$(SKILLS_LIVE) bash $(SKILLS_SCRIPT) pull $(SKILL)
