@@ -97,6 +97,7 @@
 | 切面 id | 标签（摘要） | 默认钻取目标 |
 |---------|----------------|----------------|
 | `product_and_demo` | 产品与演示 | `specs/feature/workbench-shell/workbench-ide-chrome_feature.yaml` |
+| `l1_l2_lineage` | L1↔L2 衔接 | `specs/project-goal/vibex-workbench-goal.yaml`（`content.l1_l2_lineage`） |
 | `architecture_and_code` | 架构与代码 | `specs/architecture/vibex-workbench-skeleton.yaml` |
 | `quality_and_gates` | 质量与门禁 | `specs/project-goal/vibex-workbench-goal.yaml`（含 success_metrics 等段落） |
 | `narrative_and_flow` | 叙事与对话 | `specs/feature/workbench-shell/workbench-conversation_feature.yaml` |
@@ -162,9 +163,20 @@ flowchart TB
 
 ---
 
-## 9. 修订记录
+## 9. M0 执行：层级契约 + 范本 spec
+
+- **契约（每层最低应含）**：`specs/meta/spec-layer-contract.yaml`（`layers.*.must_contain`）。  
+- **M0 范本（先填再推广）**：
+  - `specs/module/MOD-workbench-shell_module.yaml` — 已加 `content.vision_traceability`；并修正原 `io_contract.changelog` 的 YAML 嵌套错误。  
+  - `specs/feature/workbench-shell/workbench-ide-chrome_feature.yaml` — 已加 `content.vision_traceability` + 验收摘要。  
+- **推广顺序**：按 workbench-shell 子树 → 其它 `specs/module/*` → 各 `*_feature.yaml` 补同构段落；每批改后跑 `make lint-specs` / `make validate`（以本机 Makefile 路径为准）。
+
+---
+
+## 10. 修订记录
 
 | 日期 | 说明 |
 |------|------|
 | 2026-04-22 | 初版：多视角拆解 + 与 goal / skeleton / shell feature / bindings / 原型的关联说明 |
 | 2026-04-22 | 增补：`spec-directory-convention.yaml` + `/api/workspace/specs/convention` |
+| 2026-04-22 | 增补：M0 `spec-layer-contract`、MOD/ide-chrome 范本与执行节 |

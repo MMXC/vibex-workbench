@@ -1,0 +1,77 @@
+# ============================================================
+# Spec 层级契约（M0）— 每层至少承载哪些内容才能对齐产品愿景
+#
+# 用途：重构/评审时对照；后续可接 drift 或 CI 抽检。
+# 真相：仍以各文件正文为准；本表为最低集，可加厚不可无故删减已纳入门禁的段落。
+# ============================================================
+
+version: "1"
+updated: "2026-04-22"
+project: "vibex-workbench"
+
+purpose: |
+  将「愿景 → 可验证交付」拆到固定层级：L1 讲清价值与边界，L2 落成系统分解与集成，
+  L3 锁模块边界，L4 描述可交付能力，L5 承载可测试与可实现细节。
+
+layers:
+  L1_project_goal:
+    id: L1_project_goal
+    directory: "specs/project-goal/"
+    must_contain:
+      - id: narrative
+        description: "使命、目标用户、成功口径；建议含 content.l1_l2_lineage 或等价的 L2 索引"
+      - id: constraints_and_gates_philosophy
+        description: "约束 C*、门禁单元（test/validate）、变更→todo 的纪律（可与 C7 等交叉引用）"
+      - id: value_layers
+        description: "内核治理 / 自举证明 / 体验面 的分层验收语义（避免混为一谈）"
+
+  L2_skeleton:
+    id: L2_skeleton
+    directory: "specs/architecture/"
+    must_contain:
+      - id: upstream_l1
+        description: "显式回指 L1：路径、承接段落、本层产出（不得悬空）"
+      - id: level_mapping
+        description: "L1→L6（或仓内等价层级）映射表"
+      - id: modules_matrix
+        description: "模块/MOD 职责 + 技术栈边界；集成契约入口"
+      - id: integration_or_pipeline
+        description: "模块间契约与/或 generate/自举在仓库中的锚点"
+
+  L3_module:
+    id: L3_module
+    directory: "specs/module/"
+    must_contain:
+      - id: responsibility
+        description: "一句职责 + 与邻接模块的边界（谁不做）"
+      - id: io_contract
+        description: "模块级输入输出边界；与 L2 中本 MOD 条目一致"
+      - id: vision_traceability
+        description: "（M0 起推荐）承接 L1 哪些约束/价值层、L2 哪条 skeleton 段落"
+
+  L4_feature:
+    id: L4_feature
+    directory: "specs/feature/*/*_feature.yaml"
+    must_contain:
+      - id: user_value
+        description: "本能力为用户解决什么（可与 description 合一但需可验收）"
+      - id: io_contract
+        description: "场景级输入/输出/边界（L4 粒度）"
+      - id: vision_traceability
+        description: "（M0 起推荐）显式列出对应的 L1 关切 + L2 模块锚点 + 可测验收摘要"
+
+  L5_slices:
+    id: L5_ux_service_data_test
+    directory: "specs/feature/<slug>/"
+    must_contain:
+      - id: parent_chain
+        description: "spec.parent 指向所属 L4 feature 或约定聚合名"
+      - id: verifiable_detail
+        description: "本切片可独立验收：交互/接口/数据/测试（与层级后缀一致）"
+
+rollout:
+  pilot_m0:
+    description: "先填满 1×L3（MOD-workbench-shell）+ 1×L4（workbench-ide-chrome）作为模板，再批量推广"
+    exemplar_paths:
+      - "specs/module/MOD-workbench-shell_module.yaml"
+      - "specs/feature/workbench-shell/workbench-ide-chrome_feature.yaml"

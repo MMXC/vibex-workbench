@@ -17,7 +17,7 @@ meta:
   project: "vibex-workbench"
   owner: "hermes"
   created: "2026-04-20"
-  updated: "2026-04-21"
+  updated: "2026-04-22"
 
 lifecycle:
   current: "done"
@@ -35,18 +35,32 @@ lifecycle:
       note: "骨架 + 自举策略 + 生成流水线完成"
 
 content:
+  # ── 与 L1 Goal 的回指（避免「骨架悬空」）──────────────────
+  upstream_l1:
+    spec_path: "specs/project-goal/vibex-workbench-goal.yaml"
+    spec_name: "vibex-workbench-goal"
+    note: "本文件 spec.parent 指向 L1；产品叙事与约束以 goal 为准，此处只锁工程化解法"
+    l1_sections_realized_here:
+      - "content.mission / vision_execution / constraints —— 通过 level_mapping、modules、integration_contracts 落实为可实现边界（不抄长文）"
+      - "content.product_value_layers —— 内核/证明/体验在本仓库对应 MOD 划分与生成路径"
+    forward_pointer_from_l1:
+      path_in_goal: "content.l1_l2_lineage"
+      summary: "L1 中「谁拥有产品故事 vs 谁拥有架构拆解」的对照表"
+
   # ── IO 契约 ────────────────────────────────────────
   io_contract:
-    input: "goal-spec 确认的产品方向 + 三条路由路径规范"
-    output: "技术选型决策 + 5个模块职责定义 + 模块间集成契约（Event Bus 协议）"
-    boundary: "骨架层做技术选型和模块划分，不做具体业务功能实现"
+    input: |
+      已确认的 L1 goal：使命与边界、约束 C1–C8、价值分层与愿景落地顺序；
+      以及 L1 中关于变更路由（goal|feature|bug）、Canvas 行为展示、自举与生成验收的语义（不由本层重复定义业务规则）。
+    output: "技术选型共识 + L1→L6 层级映射 + 五模块职责与典型技术栈 + 模块间集成契约（Event 等）+ make generate 与自举阶段策略"
+    boundary: "骨架层做技术选型与模块/集成划分，不写具体 UI 交互与单条路由算法细节（见对应 feature）"
     behavior: |
-      从 goal 推导出骨架结构：
-      1. 分析 goal 使命 → 确定技术栈
-      2. goal 三条路由路径 → 映射到 5 个模块职责
-      3. 定义模块间集成契约（Event Bus 事件名 + payload）
-      4. 设计 make generate 流水线
-      5. 确定自举顺序（Phase1/2/3）
+      从 L1 goal 推导骨架：
+      1. 对照 mission 与约束 → 收敛技术栈与仓库布局
+      2. 对照路由/可视化/治理等关切 → 映射到五个 MOD 的职责与边界（含 MOD-router、可视化与工作台壳层）
+      3. 定义模块间集成契约（事件名 + payload 边界）
+      4. 设计 make generate 流水线与生成物职责
+      5. 确定自举顺序（Phase1/2/3）与与 L1 里程碑可对齐的验收口径
     changelog: []
 
   # ── 9层路径 → Spec 层映射 ──────────────────────────

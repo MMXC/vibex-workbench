@@ -1,102 +1,109 @@
 .PHONY: help generate lint-specs build dev test drift clean init validate \
 	skill-sync-status skill-sync-push skill-sync-pull
 
-SPEC_DIR := $(shell pwd)/specs
-FRONTEND_DIR := $(shell pwd)/frontend
-GENERATORS_DIR := $(shell pwd)/generators
-BACKEND_DIR := $(shell pwd)/backend
-SPEC_ENGINE_DIR := $(shell pwd)/spec-engine
+# Repo root from this Makefile path (avoids Git Bash pwd + Windows Python -> C:\c\... mangling)
+ROOT := $(patsubst %/,%,$(subst \,/,$(dir $(lastword $(MAKEFILE_LIST)))))
+SPEC_DIR := $(ROOT)/specs
+FRONTEND_DIR := $(ROOT)/frontend
+GENERATORS_DIR := $(ROOT)/generators
+BACKEND_DIR := $(ROOT)/backend
+SPEC_ENGINE_DIR := $(ROOT)/spec-engine
+PYTHON ?= python3
+# UTF-8 for Python on Windows GBK consoles; harmless on Linux/macOS
+export PYTHONUTF8 := 1
+export PYTHONIOENCODING := utf-8
 
 help:
-	@echo "VibeX Workbench — Spec 工程自举工作台"
+	@echo "VibeX Workbench -- spec tooling"
 	@echo ""
-	@echo "  make init          初始化项目（首次克隆后）"
-	@echo "  make lint-specs    验证 spec YAML 语法和从属关系"
-	@echo "  make validate      深度验证：从属链 + 语义 + 层级一致性"
-	@echo "  make gen-graph     生成从属关系图（Mermaid）"
-	@echo "  make generate      运行所有代码生成器"
-	@echo "  make dev           启动前端开发服务器"
-	@echo "  make test          运行前端测试"
-	@echo "  make drift         检测 spec 与代码的漂移"
-	@echo "  make build         构建生产版本"
-	@echo "  make clean         清理生成文件"
+	@echo "  make init          First-time setup (npm install in frontend)"
+	@echo "  make lint-specs    Validate spec YAML syntax and parent refs"
+	@echo "  make validate      Deep check: parent chain + level consistency"
+	@echo "  make gen-graph     Emit dependency graph (Mermaid)"
+	@echo "  make generate      Run all code generators"
+	@echo "  make dev           Frontend dev server"
+	@echo "  make test          Frontend tests"
+	@echo "  make drift         Spec vs code drift check"
+	@echo "  make build         Production build"
+	@echo "  make clean         Remove generated artifacts"
 	@echo ""
-	@echo "  make self-generate 生成自身（自举验证）"
-	@echo "  make lint-all      全量验证（lint + validate + drift）"
+	@echo "  make self-generate Self-bootstrap (validate + generate)"
+	@echo "  make lint-all      lint-specs + validate + drift"
 
 init:
-	@echo "初始化 VibeX Workbench..."
+	@echo "[init] Setting up VibeX Workbench..."
 	@cd $(FRONTEND_DIR) && npm install
-	@echo "✅ 初始化完成"
+	@echo "[init] Done."
 
-# ── Spec 验证 ──────────────────────────────────────────────
+# --- Spec validation ---
 
 lint-specs:
-	@echo "🔍 验证 spec YAML 语法..."
-	@python3 $(GENERATORS_DIR)/validate_specs.py $(SPEC_DIR)
-	@echo "✅ 语法验证通过"
+	@echo "[lint-specs] Validating spec YAML..."
+	@cd "$(ROOT)" && $(PYTHON) generators/validate_specs.py specs
+	@echo "[lint-specs] OK."
 
 validate: lint-specs
-	@echo "🔍 从属链 + 层级一致性深度验证..."
-	@python3 $(SPEC_ENGINE_DIR)/validate_chain.py $(SPEC_DIR)
-	@echo "✅ 深度验证通过"
+	@echo "[validate] Parent chain + level consistency..."
+	@cd "$(ROOT)" && $(PYTHON) spec-engine/validate_chain.py specs
+	@echo "[validate] OK."
 
 gen-graph:
-	@echo "📊 生成从属关系图..."
-	@python3 $(SPEC_ENGINE_DIR)/mermaid_gen.py $(SPEC_DIR) 		--output $(FRONTEND_DIR)/src/lib/generated/dependency-graph.mermaid
-	@echo "✅ 从属图生成完成"
+	@echo "[gen-graph] Writing dependency graph..."
+	@cd "$(ROOT)" && $(PYTHON) spec-engine/mermaid_gen.py specs \
+		--output frontend/src/lib/generated/dependency-graph.mermaid
+	@echo "[gen-graph] OK."
 
-# ── 代码生成 ──────────────────────────────────────────────
+# --- Code generation ---
 
 generate: lint-specs
-	@echo "⚙️  生成前端代码..."
-	@python3 $(GENERATORS_DIR)/gen.py $(SPEC_DIR) $(FRONTEND_DIR)
-	@echo "✅ 代码生成完成"
-	@echo "  运行: make dev"
+	@echo "[generate] Running generators..."
+	@cd "$(ROOT)" && $(PYTHON) generators/gen.py specs frontend
+	@echo "[generate] OK."
+	@echo "  Run: make dev"
 
 self-generate: validate generate
-	@echo "🔄 自举生成完成"
-	@echo "  已用 vibex-workbench 的 specs 生成自身代码"
+	@echo "[self-generate] Bootstrap complete."
+	@echo "  Generated from this repo's specs."
 
-# ── 开发 / 构建 ──────────────────────────────────────────────
+# --- Dev / build ---
 
 build: generate
-	@echo "🏗️  构建生产版本..."
+	@echo "[build] Production build..."
 	@cd $(FRONTEND_DIR) && npm run build
-	@echo "✅ 构建完成"
+	@echo "[build] OK."
 
 dev: generate
-	@echo "🚀 启动开发服务器..."
+	@echo "[dev] Starting dev server..."
 	@cd $(FRONTEND_DIR) && npm run dev
 
 test:
-	@echo "🧪 运行测试..."
+	@echo "[test] Running frontend tests..."
 	@cd $(FRONTEND_DIR) && npm test
 
 drift:
-	@echo "🔎 检测 Schema Drift..."
-	@python3 $(GENERATORS_DIR)/drift_check.py $(SPEC_DIR) $(FRONTEND_DIR)
+	@echo "[drift] Checking schema drift..."
+	@cd "$(ROOT)" && $(PYTHON) generators/drift_check.py specs frontend
 
 lint-all: validate drift
-	@echo "✅ 全量验证完成"
+	@echo "[lint-all] All checks passed."
 
 clean:
-	@echo "🧹 清理生成文件..."
+	@echo "[clean] Removing generated files..."
 	@rm -rf $(FRONTEND_DIR)/src/generated
 	@rm -rf $(FRONTEND_DIR)/src/lib/generated
-	@echo "✅ 清理完成"
+	@echo "[clean] OK."
 
-# ── Skill Sync ──────────────────────────────────────────────
-# 双向同步：live /root/.hermes/skills ↔ repo skills/
-# 追踪的 skill 在 SKILL.md 里标记 repo_tracked: true
+# --- Skill Sync ---
+# Bidirectional: live ~/.hermes/skills <-> repo skills/
+# Tracked skills: SKILL.md repo_tracked: true
 #
-# make skill-sync-status    查看同步状态
-# make skill-sync-push     live → repo（稳定后推送）
-# make skill-sync-push SKILL=devops/vibex-qa-entry-points  推送单个
-# make skill-sync-pull      repo → live（新机器初始化）
+# make skill-sync-status    sync status
+# make skill-sync-push      live -> repo
+# make skill-sync-push SKILL=devops/vibex-qa-entry-points  single skill
+# make skill-sync-pull      repo -> live
 
-SKILLS_SCRIPT := $(shell pwd)/scripts/skill-sync.sh
-SKILLS_LIVE := /root/.hermes/skills
+SKILLS_SCRIPT := $(ROOT)/scripts/skill-sync.sh
+SKILLS_LIVE := $(ROOT)/skills
 export SKILLS_LIVE_DIR := $(SKILLS_LIVE)
 
 skill-sync-status:

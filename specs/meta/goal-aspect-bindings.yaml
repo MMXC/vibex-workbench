@@ -1,6 +1,6 @@
 # Phase 0：总目标切面 → 默认钻取路径（本仓库 vibex-workbench）
 # 由 content.goal_spec_visualization.rollout_in_current_product 引用；可视化取此表，真相仍在各 spec 文件。
-version: "1"
+version: "1.1"
 goal_spec_path: "specs/project-goal/vibex-workbench-goal.yaml"
 
 aspects:
@@ -8,10 +8,14 @@ aspects:
     label: "产品与演示"
     target_path: "specs/feature/workbench-shell/workbench-ide-chrome_feature.yaml"
     hint: "壳层与 IDE Chrome 行为（示例入口）"
+  - id: l1_l2_lineage
+    label: "L1↔L2 衔接"
+    target_path: "specs/project-goal/vibex-workbench-goal.yaml"
+    hint: "段落 content.l1_l2_lineage（谁拥有产品叙事 vs 谁落架构）；对端 specs/architecture/vibex-workbench-skeleton.yaml → content.upstream_l1"
   - id: architecture_and_code
     label: "架构与代码"
     target_path: "specs/architecture/vibex-workbench-skeleton.yaml"
-    hint: "MOD、生成流水线、骨架"
+    hint: "L2 骨架：level_mapping、modules、integration_contracts；content.upstream_l1 回指 goal；总览对照 goal content.l1_l2_lineage"
   - id: quality_and_gates
     label: "质量与门禁"
     target_path: "specs/project-goal/vibex-workbench-goal.yaml"

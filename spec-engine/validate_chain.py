@@ -66,7 +66,14 @@ def validate(specs):
         # But L4 must have L3 parent, L3 must have L2 parent, etc.
         if child_lv > 0 and parent_lv > 0:
             if child_lv <= parent_lv:
-                # Same-level is OK for L5 specs
+                # 允许 L4_feature -> L4_feature（子能力挂在聚合 L4，如 workbench-shell）
+                if (
+                    child_lv == 4
+                    and parent_lv == 4
+                    and info["level"] == "4_feature"
+                    and specs[parent]["level"] == "4_feature"
+                ):
+                    continue
                 if not (child_lv == 5 and parent_lv == 4):
                     violations.append(f"LEVEL SKIP: {name} (L{info['level']}) -> parent {parent} (L{specs[parent]['level']})")
     
@@ -82,12 +89,12 @@ def main():
     violations = validate(specs)
     
     if violations:
-        print(f"\n❌ {len(violations)} violation(s):")
+        print(f"\n[ERROR] {len(violations)} violation(s):")
         for v in violations:
             print(f"  {v}")
         sys.exit(1)
     else:
-        print("\n✅ All parent chains valid!")
+        print("\n[OK] All parent chains valid!")
         print("\nSpec tree:")
         levels = {}
         for name, info in specs.items():

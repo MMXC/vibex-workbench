@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """
-validate_specs.py — VibeX Workbench Spec Validator
-验证 spec YAML 语法 + 从属链完整性
+validate_specs.py -- VibeX Workbench Spec Validator
+Validates spec YAML syntax and basic parent-chain resolution.
 """
 import sys
 import yaml
 from pathlib import Path
-from collections import defaultdict
 
 SPEC_DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("specs")
 
@@ -14,7 +13,7 @@ LEVEL_ORDER = {"1_project_goal": 1, "2_architecture": 2, "3_module": 3, "4_featu
 LEVEL_PARENT = {
     "2_architecture": "1_project_goal",
     "3_module": "2_architecture",
-    "4_feature": "3_module",     # 支持 MOD-* parent（L3 module）
+    "4_feature": "3_module",
     "5a_uiux": "4_feature",
     "5b_service": "4_feature",
     "5c_data": "4_feature",
@@ -26,24 +25,21 @@ warnings = []
 specs = {}
 
 def get_spec_path(level: str, name: str) -> Path:
-    """根据 level 和 name 找到 spec 文件路径"""
+    """Resolve spec file path from level and name."""
     name_base = name.replace("-", "_").replace(" ", "_")
-    
+
     if level == "1_project_goal":
         return SPEC_DIR / "project-goal" / f"{name}.yaml"
     elif level == "2_architecture":
-        # 架构文件名为 architecture.yaml，但 name 可能不同
         arch_path = SPEC_DIR / "architecture" / f"{name}.yaml"
         if arch_path.exists():
             return arch_path
         return SPEC_DIR / "architecture" / "architecture.yaml"
     elif level == "3_module":
-        # MOD-* module specs live in specs/module/
         if name.startswith("MOD-"):
             return SPEC_DIR / "module" / f"{name}_module.yaml"
         return SPEC_DIR / "module" / f"{name}_module.yaml"
     elif level.startswith("4_") or level == "4_feature":
-        # MOD-* parent 映射到 L3 module 目录
         if name.startswith("MOD-"):
             return SPEC_DIR / "module" / f"{name}_module.yaml"
         return SPEC_DIR / "feature" / name / f"{name}_feature.yaml"
@@ -54,7 +50,7 @@ def get_spec_path(level: str, name: str) -> Path:
     return Path(name + ".yaml")
 
 def validate_file(path: Path) -> dict | None:
-    """解析并验证单个 spec 文件"""
+    """Parse and validate a single spec file."""
     if not path.exists():
         return None
     try:
@@ -73,78 +69,101 @@ def validate_file(path: Path) -> dict | None:
             "status": spec_meta.get("status"),
         }
     except yaml.YAMLError as e:
-        errors.append(f"YAML 语法错误 {path}: {e}")
+        errors.append(f"YAML error {path}: {e}")
         return None
     except Exception as e:
-        errors.append(f"读取错误 {path}: {e}")
+        errors.append(f"Read error {path}: {e}")
         return None
 
+def resolve_parent_path(child_level: str, parent_name: str) -> Path | None:
+    """
+    For L4 features, parent may be MOD-* (module) or another L4 aggregate (e.g. workbench-shell).
+    Other levels use LEVEL_PARENT -> get_spec_path.
+    """
+    if child_level == "4_feature":
+        candidates = (
+            get_spec_path("3_module", parent_name),
+            get_spec_path("4_feature", parent_name),
+            get_spec_path("2_architecture", parent_name),
+            SPEC_DIR / "project-goal" / f"{parent_name}.yaml",
+        )
+        for p in candidates:
+            if p.exists():
+                return p
+        return candidates[0]
+    expected = LEVEL_PARENT.get(child_level)
+    if not expected:
+        return None
+    return get_spec_path(expected, parent_name)
+
+
 def check_parent_chain(spec: dict):
-    """验证从属链：parent 必须存在且 level 递减"""
+    """Ensure parent exists on disk (resolved path)."""
     level = spec["level"]
     parent = spec["parent"]
 
     if level not in LEVEL_PARENT and level != "1_project_goal":
         return
 
-    # meta_template 是模板元规格，不做从属链验证（parent 含 ${PLACEHOLDER}）
     if level == "meta_template":
         return
-    
+
     if level == "1_project_goal":
         if parent is not None:
-            errors.append(f"{spec['path']}: L1 不应有 parent，当前: {parent}")
+            errors.append(f"{spec['path']}: L1 must not have parent; got: {parent}")
         return
-    
-    expected_parent_type = LEVEL_PARENT.get(level)
+
     if not parent:
-        errors.append(f"{spec['path']}: L{level} 缺少 parent 字段")
+        errors.append(f"{spec['path']}: L{level} missing parent field")
         return
-    
-    parent_path = get_spec_path(expected_parent_type, parent)
+
+    parent_path = resolve_parent_path(level, parent)
+    if parent_path is None:
+        errors.append(f"{spec['path']}: cannot resolve parent '{parent}' (level={level})")
+        return
     if not parent_path.exists():
-        errors.append(f"{spec['path']}: parent '{parent}' 未找到 ({parent_path})")
+        errors.append(f"{spec['path']}: parent '{parent}' not found ({parent_path})")
         return
 
 def main():
     yaml_files = list(SPEC_DIR.rglob("*.yaml"))
     yaml_files = [f for f in yaml_files if "node_modules" not in str(f)]
-    
+
     for path in yaml_files:
         spec = validate_file(path)
         if spec and spec["name"]:
             specs[spec["name"]] = spec
             check_parent_chain(spec)
-    
+
     print(f"\n{'='*60}")
     print(f"VibeX Workbench Spec Validator")
     print(f"{'='*60}")
-    print(f"扫描目录: {SPEC_DIR}")
-    print(f"发现文件: {len(yaml_files)}")
-    print(f"有效 Spec: {len(specs)}")
-    
+    print(f"Scan root: {SPEC_DIR}")
+    print(f"YAML files: {len(yaml_files)}")
+    print(f"Specs with name: {len(specs)}")
+
     if errors:
-        print(f"\n{'❌ 错误 (' + str(len(errors)) + ')'}:")
+        print(f"\n[ERROR] ({len(errors)}):")
         for e in errors:
             print(f"  {e}")
-    
+
     if warnings:
-        print(f"\n{'⚠️  警告 (' + str(len(warnings)) + ')'}:")
+        print(f"\n[WARN] ({len(warnings)}):")
         for w in warnings:
             print(f"  {w}")
-    
+
     if not errors and not warnings:
-        print(f"\n✅ 所有 Spec 验证通过！")
+        print(f"\n[OK] All specs passed.")
     elif not errors:
-        print(f"\n⚠️ 验证完成（{len(warnings)} 个警告）")
+        print(f"\n[WARN] Done with {len(warnings)} warning(s).")
     else:
-        print(f"\n❌ 验证失败（{len(errors)} 个错误）")
+        print(f"\n[FAIL] {len(errors)} error(s)")
         sys.exit(1)
-    
-    print(f"\nSpec 清单:")
+
+    print(f"\nSpec index:")
     for name, spec in sorted(specs.items(), key=lambda x: LEVEL_ORDER.get(x[1]["level"] or "0", 0)):
         lvl = spec["level"] or "?"
-        parent = spec["parent"] or "—"
+        parent = spec["parent"] if spec["parent"] is not None else "-"
         status = spec["status"] or "?"
         print(f"  [{lvl}] {name} (parent: {parent}, status: {status})")
 

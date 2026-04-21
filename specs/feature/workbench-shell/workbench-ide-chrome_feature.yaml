@@ -5,7 +5,7 @@
 # ============================================================
 
 spec:
-  version: "1.4"
+  version: "1.5"
   level: "4_feature"
   name: "workbench-ide-chrome"
   parent: "workbench-shell"
@@ -16,6 +16,7 @@ meta:
   owner: "hermes"
   created: "2026-04-21"
   updated: "2026-04-22"
+  pilot_m0_layer_contract: true
 
   note_r2_pixel_parity: "content.r2_pixel_parity — 原型选择器与 token；会话列表等扩展须先改 spec"
 
@@ -34,6 +35,28 @@ content:
     右侧为辅栏承载「AI 对话记录 + 历史线程上下文 + 底部 AI 输入（Composer）」；
     底部为 Dock（问题、输出、调试控制台、终端等）。
     各区域宽高由用户拖拽可调，并与 workbench-layout_resize_feature（v2）对齐持久化策略。
+
+  # ── M0：愿景承接（L1/L2→L4），与 specs/meta/spec-layer-contract.yaml 对齐 ──
+  vision_traceability:
+    summary: "IDE Chrome 壳层把「可操作的 spec 工作台面」落到固定分区与 Tab 语义"
+    l1:
+      goal_path: "specs/project-goal/vibex-workbench-goal.yaml"
+      constraint_ids: ["C1", "C6"]
+      goal_sections_hint:
+        - "content.mission（人机协同、行为可见）"
+        - "content.product_value_layers.experience_visualization"
+        - "content.l1_l2_lineage（产品叙事 vs 架构拆解边界）"
+    l2:
+      skeleton_path: "specs/architecture/vibex-workbench-skeleton.yaml"
+      module_id: "MOD-workbench-shell"
+      anchors_hint:
+        - "content.modules 中 MOD-workbench-shell"
+        - "content.upstream_l1（与 goal 互指）"
+    l3:
+      module_spec_path: "specs/module/MOD-workbench-shell_module.yaml"
+    acceptance_summary:
+      - "单窗口内可完成：浏览 specs、打开 YAML、切换壳层分区与中央 Tab，且状态可从 UI 读出或与约定 Store 一致"
+      - "与 R2 原型及 content.r2_pixel_parity 的 token/区域语义可对齐验收（扩展须先改 spec）"
 
   io_contract:
     input: |
@@ -55,6 +78,11 @@ content:
       5. **底部 Dock**：横跨窗口底部（置于左/中/右三块主工作区之下）；Tab 含 **问题、输出、调试控制台、终端** 及「更多」溢出或次要入口。
       6. 窄屏（如宽度 <768px）允许降级：隐藏活动栏/侧栏或改为抽屉，但须保留中央主体与 AI 输入可达性（具体断点由 uiux 补充）。
     changelog:
+      - version: "1.5"
+        date: "2026-04-22"
+        author: "hermes"
+        changes:
+          - "新增 content.vision_traceability（M0 层级契约 pilot：L1/L2/L3 锚点 + 验收摘要）"
       - version: "1.4"
         date: "2026-04-22"
         author: "hermes"

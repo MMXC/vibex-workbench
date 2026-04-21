@@ -17,7 +17,7 @@ meta:
   project: "vibex-workbench"
   owner: "hermes"
   created: "2026-04-20"
-  updated: "2026-04-21"
+  updated: "2026-04-22"
 
 lifecycle:
   current: "done"
@@ -80,6 +80,30 @@ content:
     outward_scale: |
       其他新旧项目：在共享同一套 spec 层级与工具链的前提下，通过 WORKSPACE_DIR / 模板与 Agent 技能渐进接入；
       不作为首阶段阻塞项。
+
+  # ── L1 与 L2 的衔接（把项目讲清后，由谁落成「可实施架构」）────
+  l1_l2_lineage:
+    summary: |
+      L1 负责把产品、约束、成功标准与价值边界写清；L2 负责把同一套意图落成
+      技术栈、模块切分、集成方式与生成/自举策略，不重复写长文产品故事。
+    l2_spec:
+      path: "specs/architecture/vibex-workbench-skeleton.yaml"
+      name: "vibex-workbench-skeleton"
+    what_l1_owns:
+      - "使命、用户、成功标准、约束 C1–C8、里程碑、产品价值三层、总目标可视化/切面叙事与治理规则"
+    what_l2_owns:
+      - "L1→L6 的 level_mapping、五模块（MOD）职责与典型技术、模块间 Event/集成契约、make generate 与自举分阶"
+    traceability:
+      - l1_concern: "治理、从属链、门禁与变更派生（C3/C7 等）"
+        in_l2: "level_mapping + 与 spec-engine、validate 工具链相关的模块边界；见 integration_contracts 中发 spec/图 类事件"
+      - l1_concern: "行为展示与 Canvas/SSE（C6）"
+        in_l2: "MOD-dsl-visualizer + MOD-workbench-shell 的 io_contract；Canvas 细化在 feature/workbench-shell/*"
+      - l1_concern: "变更路由 goal|feature|bug 与澄清闭环"
+        in_l2: "MOD-router + routing-panel；路由细则在 feature 层展开，骨架只锁模块位置与集成"
+      - l1_concern: "自举与生成证明（C4、M7）"
+        in_l2: "MOD-code-generator + 生成流水线/自举段落；验收仍以 L1 里程碑为准"
+      - l1_concern: "Local-first / 会话与数据边界（C5 等）"
+        in_l2: "落在 workbench-shell、IndexedDB 等 feature；骨架声明模块边界而非实现细节"
 
   target_users:
     - name: "Spec 工程实践者"
