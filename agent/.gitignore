@@ -1,0 +1,13 @@
+# Environment
+.env
+.env.local
+.env.production
+
+# Binaries
+vibex-agent-web
+vibex-workbench
+vibex-backend
+
+# Playwright
+node_modules/
+playwright/

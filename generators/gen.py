@@ -84,13 +84,31 @@ def gen_types() -> str:
     out = [GEN_HEADER]
     out.append("// ── Generated Types ──────────────────────────────────────────\n")
 
+    # type_map: spec.name (from YAML spec.spec.name) → comma-sep entity names to emit
+    # 2026-04-21 修复：旧名称（thread-manager-data 等）已不存在，改用实际 spec name
     type_map = {
-        "thread-manager-data":   "Thread, Message, ThreadMetadata",
-        "run-engine-data":        "Run, RunStatus, Task, ToolInvocation",
-        "artifact-registry-data": "Artifact, ArtifactVersion",
-        "canvas-workbench-data":  "CanvasNode, CanvasEdge, Viewport",
-        "workbench-shell-data":   "WorkbenchLayout",
+        "code-gen-panel_data":   "GenerationJob, GenerationStep, GenerationEvent",
+        "dsl-canvas_data":        "SpecNode, SpecEdge, MermaidGraph",
+        "routing-panel_data":     "Change, SpecLocation",
+        "spec-editor_data":       "SpecFile, Tab, Violation, LayoutState",
+        "workbench-shell_data":   "WorkbenchLayout",
     }
+
+    # ── 动态发现：自动包含所有 *_data spec（兜底，避免手动维护）────────────
+    import re
+    data_specs = {}
+    for f, data in all_specs(SPEC_DIR):
+        spec_name = data.get("spec", {}).get("name", "")
+        if re.match(r".+_data$", spec_name) and spec_name not in type_map:
+            entities_data = data.get("content", {}).get("entities", [])
+            if isinstance(entities_data, list):
+                names = ", ".join(e.get("entity", "") for e in entities_data if e.get("entity"))
+                if names:
+                    data_specs[spec_name] = names
+    # 合并动态发现（不覆盖显式 type_map）
+    for k, v in data_specs.items():
+        if k not in type_map:
+            type_map[k] = v
     seen = set()
 
     for spec_name, _ in type_map.items():
@@ -118,7 +136,20 @@ def gen_types() -> str:
                 fname  = field.get("name", "field")
                 raw    = field.get("type", "string")
                 ftype  = ts_type(raw)
-                opt    = "" if field.get("required") else "?"
+                # required 逻辑：
+                # 1. 显式 required:true → 必填
+                # 2. 显式 required:false / required:null → 可选
+                # 3. 无 required 字段 → 用启发式（id/name/status 等视为必填）
+                explicit = field.get("required")
+                if explicit is True:
+                    opt = ""
+                elif explicit is False or explicit is None:
+                    # 启发式：常见必填字段即使 YAML 没标 required 也视为必填
+                    required_by_default = {"id", "name", "status", "level", "type", "path",
+                                           "content", "startedAt", "createdAt", "updatedAt"}
+                    opt = "" if fname in required_by_default else "?"
+                else:
+                    opt = "?"
                 desc   = field.get("description", "")
                 out.append(f"  {fname}{opt}: {ftype};  // {desc}\n")
             out.append("}\n\n")
@@ -486,6 +517,41 @@ def gen_routes() -> dict[str, tuple[str, str]]:
     return files
 
 
+# ── types merge ────────────────────────────────────────────────
+def merge_types(existing_path: Path, new_content: str) -> str:
+    """
+    将 gen.py 生成的 spec 类型合并到现有 lib/types.ts：
+    - gen.py spec 类型优先（正确，必填字段由启发式决定）
+    - 保留现有 lib/types.ts 中不在 spec 内的类型（如 Create/Update 变体）
+    - 追加 Thread = ConversationThread 别名
+    """
+    import re
+
+    if not existing_path.exists():
+        return new_content + "\n\nexport type Thread = ConversationThread;\n"
+
+    existing = existing_path.read_text(encoding="utf-8")
+
+    # 从 new_content 提取 interface/type 名称集合
+    new_names = set(re.findall(r'^export (?:interface|type) (\w+)', new_content, re.MULTILINE))
+
+    # 保留 existing 中不在 new_names 里的定义（Create/Update 变体等）
+    kept = []
+    for m in re.finditer(r'^(export (?:interface|type) \w+.*?)(?=\n(?:export[type ]|$))',
+                         existing, re.DOTALL | re.MULTILINE):
+        name_m = re.search(r'export (?:interface|type) (\w+)', m.group(0))
+        if name_m and name_m.group(1) not in new_names:
+            kept.append(m.group(1).rstrip())
+
+    merged = new_content + "\n\n" + "\n\n".join(kept) + "\n"
+
+    # Thread 别名（修复 ConversationThread vs Thread 命名不一致）
+    if "export type Thread = ConversationThread" not in merged:
+        merged += "\n\nexport type Thread = ConversationThread;\n"
+
+    return merged
+
+
 # ── main ─────────────────────────────────────────────────────────
 def main():
     print("VibeX Workbench — Code Generator (B 双文件模式)")
@@ -493,10 +559,19 @@ def main():
     print(f"  Output dir: {OUT_DIR}")
 
     # ── Types ────────────────────────────────────────────────
-    types_path = SRC_DIR / "lib/types/generated.ts"
-    types_path.parent.mkdir(parents=True, exist_ok=True)
-    types_path.write_text(gen_types() + gen_base_types(), encoding="utf-8")
-    print(f"  ✅ Types:   {types_path.relative_to(OUT_DIR)}")
+    # 输出到 lib/types.ts（stores 的实际导入路径），合并而非覆盖
+    types_path = SRC_DIR / "lib/types.ts"
+    new_types = gen_types() + gen_base_types()
+    merged = merge_types(types_path, new_types)
+    types_path.write_text(merged, encoding="utf-8")
+    print(f"  ✅ Types:   {types_path.relative_to(OUT_DIR)} (merged)")
+
+    # 清理孤立的 lib/generated/ 目录（已合并到 lib/types.ts）
+    old_dir = SRC_DIR / "lib/generated"
+    if old_dir.exists():
+        import shutil
+        shutil.rmtree(old_dir)
+        print(f"  🗑️  Removed: lib/generated/ (merged into lib/types.ts)")
 
     # ── Components ───────────────────────────────────────────
     for rel_path, (skeleton, stub) in gen_components().items():

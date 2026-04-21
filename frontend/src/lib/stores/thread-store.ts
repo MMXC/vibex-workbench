@@ -2,7 +2,7 @@
 import { writable, derived } from 'svelte/store';
 import { db } from '$lib/db';
 import type { DBThread } from '$lib/db';
-import type { Thread } from '$lib/types/generated';
+import type { Thread } from '$lib/types';
 
 export type { Thread };
 

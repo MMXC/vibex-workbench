@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"vibex/agent/adapters"
 	"vibex/agent/agents/background"
@@ -223,15 +224,32 @@ func runAgentTurn(threadID string, userInput string) (string, error) {
 	stepType := state.stepType
 	state.mu.RUnlock()
 	model := cfg.GetModelForStep(stepType)
+
+	// S2 SSE lifecycle: emit run lifecycle events aligned with frontend expectations
+	broadcastSSE(threadID, "run.started", map[string]interface{}{
+		"run_id": threadID + "-run-" + fmt.Sprintf("%d", time.Now().Unix()),
+		"thread_id": threadID,
+		"step_type": stepType,
+		"model": model,
+	})
 	if stepType != "" {
 		broadcastSSE(threadID, "agent.step", map[string]string{"type": stepType, "model": model})
 	}
 
+	broadcastSSE(threadID, "run.planning", map[string]interface{}{
+		"run_id": threadID,
+		"status": "planning",
+		"model": model,
+	})
 	broadcastSSE(threadID, "agent.thinking", map[string]string{"status": "processing", "model": model})
 
 	tools, handlers := buildToolsAndHandlers(threadID, cfg, skillRegistry)
 	answer, err := runToolLoop(threadID, llm, model, tools, handlers, messages, state.skillState, skillRegistry)
 	if err != nil {
+		broadcastSSE(threadID, "run.failed", map[string]interface{}{
+			"run_id": threadID,
+			"error": err.Error(),
+		})
 		return "", err
 	}
 

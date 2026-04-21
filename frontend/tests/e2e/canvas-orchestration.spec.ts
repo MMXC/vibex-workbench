@@ -241,7 +241,7 @@ test('E5-U4: sse.ts source contains canvasStore.addEdge in tool.called handler',
 // ── T13: sse.ts file content check for E5-U4 addEdge ───────
 // Note: This is a source-level check. We verify the TS source contains
 // the expected E5-U4 canvasStore.addEdge call in the tool.called handler.
-test('E5-U4: sse.ts source contains canvasStore.addEdge in tool.called handler', async ({ page }) => {
+test('E5-U4: sse.ts file content check for canvasStore.addEdge', async ({ page }) => {
   await gotoWorkbench(page);
 
   // Read the source file directly from the filesystem (via a dedicated API route
