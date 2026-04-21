@@ -146,10 +146,50 @@ func MakeSpecFeatureHandler(workspaceDir string, setStepType func(threadID, step
 			return "error writing feature spec: " + err.Error()
 		}
 		if err := os.WriteFile(uiuxFile, []byte(uiuxTplContent), 0644); err != nil {
-			return fmt.Sprintf("feature spec created: %s\n(error creating uiux sub-spec: %v)\n\nSPEC-DRIVEN LOOP:\n  1. spec_validate\n  2. make_generate\n  3. canvas_update", specFile, err)
+			return fmt.Sprintf("feature spec created: %s\n(error creating uiux sub-spec: %v)", specFile, err)
 		}
 
-		return fmt.Sprintf("feature spec + uiux created:\n  %s\n  %s\nparent: %s\n\nSPEC-DRIVEN LOOP — execute in order:\n  1. spec_validate (check YAML syntax, confirm parent chain)\n  2. make_generate (emit types.ts, *.Skeleton.svelte from specs)\n  3. canvas_update (reflect new spec on canvas)", specFile, uiuxFile, args.ParentSpecID)
+		// ── Auto-chain: make validate + make generate ──
+		// Step 1: validate
+		validateCmd := exec.Command("make", "validate")
+		validateCmd.Dir = workspaceDir
+		valOut, valErr := validateCmd.CombinedOutput()
+		valText := strings.TrimSpace(string(valOut))
+
+		var validationResult string
+		if valErr != nil {
+			validationResult = fmt.Sprintf("⚠️ make validate FAILED (spec created, fix required before generating):\n%s", valText)
+		} else {
+			validationResult = fmt.Sprintf("✅ make validate PASSED")
+		}
+
+		// Step 2: generate code (only if validation passed)
+		var generationResult string
+		if valErr == nil {
+			genCmd := exec.Command("make", "generate")
+			genCmd.Dir = workspaceDir
+			genOut, genErr := genCmd.CombinedOutput()
+			genText := strings.TrimSpace(string(genOut))
+			if genErr != nil {
+				generationResult = fmt.Sprintf("⚠️ make generate FAILED:\n%s", genText)
+			} else {
+				// Extract summary lines
+				lines := strings.Split(genText, "\n")
+				summary := []string{}
+				for _, l := range lines {
+					if strings.Contains(l, "✅") || strings.Contains(l, "❌") || strings.Contains(l, "Template") {
+						summary = append(summary, l)
+					}
+				}
+				if len(summary) == 0 {
+					summary = []string{lines[len(lines)-1]}
+				}
+				generationResult = fmt.Sprintf("✅ make generate PASSED:\n  %s", strings.Join(summary, "\n  "))
+			}
+		}
+
+		return fmt.Sprintf("spec_feature created:\n  %s\n  %s\nparent: %s\n\nAUTO-CHAIN RESULTS:\n  %s\n  %s\n\nNEXT: canvas_update (to reflect new spec on canvas)",
+			specFile, uiuxFile, args.ParentSpecID, validationResult, generationResult)
 	}
 }
 

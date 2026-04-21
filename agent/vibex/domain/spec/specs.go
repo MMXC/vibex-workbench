@@ -18,14 +18,15 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 		{
 			Name:        "spec_feature",
 			Description: "Break a confirmed goal spec into a feature spec (L4). " +
-				"Use after user confirms the goal. " +
-				"SPEC-DRIVEN LOOP: after creating the feature spec, always follow this sequence: " +
-				"(1) spec_validate to check YAML syntax; " +
-				"(2) make_generate to emit types.ts and *.Skeleton.svelte from the spec; " +
+				"Creates both feature and uiux sub-spec in specs/feature/<name>/. " +
+				"Auto-runs make validate after creation. " +
+				"SPEC-DRIVEN LOOP: after this tool, go directly to step 2 (do NOT re-run spec_feature): " +
+				"(1) [DONE by this tool] make_validate via make validate; " +
+				"(2) make_generate to emit types.ts and *.Skeleton.svelte from specs; " +
 				"(3) canvas_update to reflect the new spec on the canvas.",
 			Parameters: objectSchema(
-				reqField("parent_spec_id", "string", "ID of the parent goal spec"),
-				reqField("feature_name", "string", "Name of the feature"),
+				reqField("parent_spec_id", "string", "ID of the parent goal/methodology spec"),
+				reqField("feature_name", "string", "Name of the feature (spaces become hyphens)"),
 			),
 			Handler: MakeSpecFeatureHandler(workspaceDir, setStepType),
 		},
