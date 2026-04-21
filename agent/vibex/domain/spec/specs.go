@@ -9,26 +9,26 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 	return []rt.Spec{
 		{
 			Name:        "spec_designer",
-			Description: "Create a spec YAML draft from user intent. Use when user describes a goal/requirement. Output is a spec draft path for confirmation.",
+			Description: "Create a spec YAML draft from user intent (L1 goal). " +
+				"Auto-emits canvas.spec_created SSE event to update the canvas. " +
+				"After creation, await user confirmation before proceeding.",
 			Parameters: objectSchema(
 				reqField("intent", "string", "User intent in natural language"),
 			),
-			Handler: MakeSpecDesignerHandler(workspaceDir, setStepType),
+			Handler: MakeSpecDesignerHandler(workspaceDir, bc, setStepType),
 		},
 		{
 			Name:        "spec_feature",
 			Description: "Break a confirmed goal spec into a feature spec (L4). " +
 				"Creates both feature and uiux sub-spec in specs/feature/<name>/. " +
-				"Auto-runs make validate after creation. " +
-				"SPEC-DRIVEN LOOP: after this tool, go directly to step 2 (do NOT re-run spec_feature): " +
-				"(1) [DONE by this tool] make_validate via make validate; " +
-				"(2) make_generate to emit types.ts and *.Skeleton.svelte from specs; " +
-				"(3) canvas_update to reflect the new spec on the canvas.",
+				"AUTO-CHAIN (no user action needed): " +
+				"(1) make validate → (2) make generate → (3) canvas.spec_created SSE emitted. " +
+				"After this tool, the full pipeline is complete — go to next task.",
 			Parameters: objectSchema(
 				reqField("parent_spec_id", "string", "ID of the parent goal/methodology spec"),
 				reqField("feature_name", "string", "Name of the feature (spaces become hyphens)"),
 			),
-			Handler: MakeSpecFeatureHandler(workspaceDir, setStepType),
+			Handler: MakeSpecFeatureHandler(workspaceDir, bc, setStepType),
 		},
 		{
 			Name:        "spec_validate",

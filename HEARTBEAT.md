@@ -164,7 +164,17 @@ canvas-renderer_uiux.yaml
   → 创建 specs/feature/<name>/<name>_uiux.yaml      (L5a)
   → [AUTO] make validate  ← 链式执行
   → [AUTO] make generate  ← 链式执行（仅当 validate 通过）
-  → NEXT: canvas_update   ← 仅剩一步
+  → [AUTO] canvas.spec_created SSE  ← 自动更新画布（仅当 generate 通过）
+  → 完整 pipeline 完成
+```
+
+`spec_designer` 也同样升级：
+```
+用户 → spec_designer(intent="...")
+  → 读取 generators/templates/designer_intent_template.yaml.tpl
+  → 生成 specs/project-goal/intent-*.yaml
+  → [AUTO] canvas.spec_created SSE  ← 自动更新画布
+  → 等待用户确认后继续
 ```
 
 **已验证：**
@@ -172,10 +182,14 @@ canvas-renderer_uiux.yaml
 - handler: `MakeMakeGenerateHandler` → `make generate` → gen.py → types/components ✅
 - `spec_feature` 描述内嵌 SPEC-DRIVEN LOOP 指南 ✅
 - `spec_feature` handler 自动创建 feature + uiux 同目录子规格 ✅
+- `spec_feature` 工厂签名加 `Broadcaster`，成功时自动 emit `canvas.spec_created` ✅
+- `MakeSpecDesignerHandler` 同样改为读 `.tpl` 替代硬编码 ✅
+- 三个 template 文件 (`feature_template_*.tpl`, `designer_intent_template.tpl`) 均通过 `make generate` 同步 ✅
 
 **闭环覆盖：**
 ```
-spec_designer → spec_feature → [AUTO: make validate + make generate] → canvas_update
+spec_designer → [AUTO: canvas.spec_created SSE] → 等待确认 → spec_feature
+spec_feature → [AUTO: make validate + make generate + canvas.spec_created SSE]
 ```
 
 ### E3 — spec template 自举闭环 ✅ 已关闭（2026-04-21）
@@ -190,27 +204,28 @@ feature-template spec (level: meta_template, template 字段)
 
 **已验证：**
 - `feature_template_feature.yaml` / `feature_template_uiux.yaml` (level: `meta_template`) ✅
-- `content.template` 顶层字段存完整 YAML template ✅
+- `generators/templates/designer_intent_template.yaml.tpl` (intent spec 模板) ✅
 - `gen.py` 末尾扫描所有 `meta_template` level spec → 写 `generators/templates/*.tpl` ✅
 - handler 从 `.tpl` 文件读取，fallback 触发 `make generate` 再试 ✅
 - `make validate` + `make lint-all` 全绿 ✅
-- `${FEATURE_ID}` / `${SAFE_NAME}` / `${PARENT_ID}` / `${TIMESTAMP}` / `${FEATURE_NAME}` 替换正确 ✅
+- `${FEATURE_ID}` / `${SAFE_NAME}` / `${PARENT_ID}` / `${TIMESTAMP}` / `${FEATURE_NAME}` / `${SPEC_ID}` / `${INTENT}` 替换正确 ✅
 - `validate_specs.py` 跳过 `meta_template` 从属链校验 ✅
+- `MakeSpecDesignerHandler` 同样改为读 `.tpl`（硬编码已移除）✅
 
 **自举覆盖：**
 ```
 spec YAML (template field = feature-template spec)
   → make generate
-  → generators/templates/*.tpl        ← 从 meta_spec 同步
+  → generators/templates/*.tpl        ← 从 spec 同步 ✅
   → handler 读取 .tpl
-  → 生成 specs/feature/<name>/*.yaml  ← 回到 spec
-  → make validate 校验
-  → 若需要 → make generate 更新 .tpl   ← 闭环
+  → 生成 specs/feature/<name>/*.yaml  ← 回到 spec ✅
+  → make validate 校验               ✅
+  → 若 template 变更 → 下次 make generate 更新 .tpl  ← 双向同步 ✅
 ```
 
 **下一步缺口：**
-- `canvas_update` 是否也应该 auto-chain（`spec_feature` 创建后自动更新 canvas 节点）？
-- `spec_designer` 的 template 循环同样可以自举（当前 `spec_designer` 也有硬编码的输出格式）
+- `canvas.spec_created` SSE 事件前端是否已注册 listener（B3 SSE 缺口的 canvas.tdd_* 已有，canvas.spec_created 需要确认）
+- `make_validate` / `make_generate` 工具是否也可以 auto-chain 进 `spec_designer` 流程（当前 `spec_designer` 只做创建，validate/generate 仍由 agent 手动触发）
 
 ### E2 — spec-designer → spec YAML → make validate ✅ 门禁已闭环
 
