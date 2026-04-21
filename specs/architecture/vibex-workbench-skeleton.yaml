@@ -349,6 +349,7 @@ content:
         outputs: ["frontend/src/lib/generated/dependency-graph.mermaid"]
 
   # ── 自举优先级 ────────────────────────────────────
+  # 实现顺序在此定义；「内核 / 自举证明 / 可视化体验」语义边界见 L1：vibex-workbench-goal.content.product_value_layers
   bootstrap_order:
     phase_1:
       - module: "MOD-workbench-shell"

@@ -151,6 +151,186 @@ content:
         通过后按需运行 generate（及 drift 若启用），使前端/生成代码与规格一致——此即「全量跑 spec 验证更新」。
         Agent 侧可用 `make_validate`（依赖 make）或等价命令；与 C7 中最小单元 test、总单元 validate 的分层一致。
 
+  # ── 产品价值分层（内核 / 证明 / 体验面）──────────────────
+  # 将「Spec 治理 + Agent 迭代」与「可视化吸引力」写成可评审语义，避免自举证明与产品体验混为一谈。
+  product_value_layers:
+    summary: |
+      三条腿支撑同一产品：① 治理与迭代内核 ② 自举作为体系证明 ③ 可视化作为人机协同面。
+      验收维度分离：M7 证明「规格语言 + 管线可信」；M5/M6 等证明「行为与 spec 的可视化与控制到位」。
+    kernel_governance_and_agent:
+      meaning: |
+        内核层：分层 Spec 治理（从属链、lint/validate/generate 门禁、变更→todo-spec）与在约束下执行的
+        「spec→代码」迭代主体（Agent：对话对齐 spec、生成/修改、按 IO 契约与 TDD 收敛）。
+        「迭代大脑」的行为契约应落在 feature 规格、集成契约与路由规范中展开，本层只定义价值边界。
+      maps_to_constraints: ["C1", "C3", "C7"]
+      related_specs_hint:
+        - "specs/feature/**（各模块行为与路由）"
+        - "specs/architecture/vibex-workbench-skeleton.yaml（模块与生成步骤）"
+    proof_self_bootstrap:
+      meaning: |
+        证明层：本仓库自举闭环（里程碑 M7）——用自身 specs 驱动自身生成——验证规格语言足以描述工作台、
+        生成管线与 drift/门禁可执行。自举是**验证手段**，不单独承担「产品好用」的全部定义。
+      maps_to_constraints: ["C4"]
+      milestone: "M7"
+      clarifies: |
+        自举通过 ≠ 可视化与 IDE 级 spec 操控已做到极致；二者验收标准不同，可并行推进但不可互相替代。
+    experience_visualization:
+      meaning: |
+        体验层：把抽象治理与 Agent 中间过程翻译成可跟进、可信、可操作的产品面——包括
+        （1）Canvas + SSE 的输入→迭代/测试/修复→输出行为序列；（2）与本 L1 里程碑/路线图对齐的自循环进度呈现，
+        使用户能对照总目标观察落地闭环；（3）spec 的结构化浏览、diff、生命周期状态与细分面板控制（见各 feature spec）。
+      maps_to_constraints: ["C6"]
+      milestones_primary: ["M5", "M6"]
+      related_feature_specs_hint:
+        - "specs/feature/workbench-shell/**（壳层、会话状态、Dock/面板）"
+        - "dsl-visualizer / spec-editor 相关 feature（图形化与编辑体验）"
+    agent_behavior_contract_placement:
+      rule: |
+        「Agent 如何把 spec 映射为代码」的细则（工具序列、SSE 事件名、失败重试）不得在 L1 重复堆砌；
+        须在对应 MOD（workbench-shell、router、integration_contracts）与 feature spec 中单点维护，L1 仅保留本分层的语义锚点。
+
+  # ── 规格层级先行：产品写清，治理有据 ───────────────────
+  spec_hierarchy_as_governance_basis:
+    summary: |
+      当前阶段的首要投入：用既有 spec 层级（L1 目标 → L2 骨架 → feature/test 等下层）把产品意图、边界、模块职责与契约写清楚、写一致。
+      后续门禁（lint/validate）、变更派生 todo、自举与可视化验收，均以「可被引用、可 diff 的规格文本」为裁判依据；
+      规格缺席、矛盾或含糊时，治理规则无法判定对错，只能退化为口头约定。
+    priority_order:
+      - "先在各层级把『产品是什么、不是什么、模块如何协作』落到 YAML 与 io_contract"
+      - "再同步收紧自动化校验与生成覆盖面（避免无文本可依的 enforcement）"
+      - "治理动作（todo-spec、生命周期迁移）须能指向具体 spec 路径与段落，可追溯"
+    relates_to_constraints: ["C2", "C3", "C7"]
+
+  # ── L1 总目标可视化（中心卡片 + 思维导图式切面 + 钻取）────────
+  goal_spec_visualization:
+    summary: |
+      选中「总目标」spec 时，以中心卡片表述产品内核；周围以思维导图（或等价有向图）展开与总目标关联的「切面卡片」，
+      每张卡片绑定一类规格关注点；点击卡片即钻取到下游 spec 文件或嵌入式详情面板。可视层是规范的导航与摘要，
+      不与仓库内 YAML 争抢唯一真相来源（truth 仍在 spec 文本与从属链）。
+    center_card:
+      role: "锚定：产品命名 + 一句话描述 + 关键约束/里程碑摘要"
+      naming_and_tagline:
+        agent_assisted: |
+          Agent 可根据 L1 mission、里程碑与约束生成「产品名称候选 + 简短描述」，用户可选用、改写或否决；
+          最终以用户确认的文本为准（对齐 C2）。
+      detail_panel:
+        trigger: "点击中心卡片展开/侧栏详情面板，可编辑 YAML 或通过表单写回同一 spec"
+        note: "编辑器与只读图谱并存，避免仅图谱可写导致漂移"
+    aspect_graph:
+      layout_metaphor: "思维导图式径向扩展；可实现为力导向图 + 切面分组色带（实现细节见 feature uiux）"
+      drill_down_behavior: |
+        单击切面卡片 → 首选打开该切面默认绑定的下游 spec（如 L2 骨架、feature、integration_contract）；
+        若无独立文件则展开该切面在总目标内的折叠段落或打开「待补齐」占位 todo-spec。
+      default_depth_levels_suggested:
+        overview: "L1 中心：仅摘要与切面入口"
+        one_click: "进入该切面默认绑定的第一层子 spec（多为 L2 或对应 feature）"
+        deep: "沿用 parent 链与模块图，上限由工作台设置「最大图谱深度」避免海量节点"
+      aspect_card_inventory:
+        summary: |
+          下列切面为「地图」条目，不要求一次全开；可按里程碑阶段开关显示。每张卡片映射一类工程关注点，
+          具体字段在对应层级 spec 维护，此处不重复堆砌。
+        groups:
+          - id: product_and_demo
+            label: "产品与演示"
+            cards_hint:
+              - "愿景 / 路线图与里程碑对齐"
+              - "原型与演示切片（goal 路由 HTML 原型等）"
+              - "体验与信息架构（壳层、面板、会话）"
+          - id: domain_ddd
+            label: "领域与上下文"
+            cards_hint:
+              - "限界上下文与通用语言"
+              - "核心实体 / 聚合 / 不变式（与 ER 可对照但语义角度不同）"
+          - id: architecture_and_code
+            label: "架构与代码向"
+            cards_hint:
+              - "模块划分与依赖方向（骨架 MOD）"
+              - "代码层级、集成契约、生成与校验门禁"
+              - "横切：安全、配置、可观测性"
+          - id: data_and_consistency
+            label: "数据与一致性"
+            cards_hint:
+              - "持久化模型、迁移策略"
+              - "强一致 vs 最终一致、幂等与补偿"
+              - "ER：实体—关系视图（可作为独立切面或并入领域/数据）"
+          - id: narrative_and_flow
+            label: "叙事与动态行为"
+            cards_hint:
+              - "用户故事 / 场景验收"
+              - "主流程 / 异常流"
+              - "时序（人机 Agent、SSE、工具调用）— 可与 Canvas 协议交叉引用"
+          - id: platform_infra
+            label: "底层基座（基础设施）"
+            cards_hint:
+              - "数据库 / 缓存 / 队列 / 存储分层"
+              - "Local-first 与离线边界（对齐 C5）"
+            distinction: "与三方接入区分：基座多为项目自有或宿主环境能力；三方为外部服务边界"
+          - id: integrations_external
+            label: "三方与外部能力"
+            cards_hint:
+              - "OAuth、支付、推送等外部 SaaS"
+              - "模型与 AI API（密钥、配额、降级）— 独立卡片以免与内核业务混淆"
+          - id: quality_and_gates
+            label: "质量与门禁"
+            cards_hint:
+              - "测试层级与覆盖策略（对齐 L5d / validate）"
+              - "性能与兼容性预算"
+              - "与本仓 milestone、success_metrics 对齐的验收刻度"
+      open_questions_placeholder: |
+        切面集合可演进；新增切面须声明 parent（L1）或在 L2/feature 单列，避免图谱孤儿节点。
+    # 本仓库（vibex-workbench）按「总目标图谱」落地的分阶段路径；实现细节在对应 feature spec 展开。
+    rollout_in_current_product:
+      summary: |
+        现状：工作台主界面以 Thread / Canvas / Artifact / Composer 为主，尚未把「左侧选 L1 → 中央目标图谱」做成一等公民。
+        原则：先打通数据与导航（能选中、能读 YAML、能钻取），再美化布局与 Agent 命名；原型可参考 prototypes/vibex-ide-chrome-r2.html 的信息架构，不必一次等同最终实现。
+      phase_0_binding_table:
+        goal: "为每个 aspect group 约定默认钻取路径（本仓示例见下），单独维护小表以免写死在 TS 里难以同步"
+        example_paths_vibex_workbench:
+          architecture_and_code: "specs/architecture/vibex-workbench-skeleton.yaml"
+          product_and_demo: "specs/feature/workbench-shell/（多文件；可按里程碑再细分默认入口）"
+          quality_and_gates: "specs/project-goal/vibex-workbench-goal.yaml#success_metrics"
+          narrative_and_flow: "specs/feature/workbench-shell/workbench-conversation_feature.yaml"
+          domain_ddd: "待补：独立 domain spec 或暂挂 L2 段落占位"
+          data_and_consistency: "待补：IndexedDB/Dexie 若有专门 feature 则绑定；否则占位 todo-spec"
+          platform_infra: "agent 侧部署与配置见 agent/；亦可挂 README 段落直至独立 spec"
+          integrations_external: "agent/internal/common/config.go + models.yaml 等（契约级）直至抽出 integration spec"
+      phase_1_shell_slot:
+        goal: "在工作台壳层为「Spec 导航」留出区域：左侧 specs 树或顶栏 Tab（Goal 图谱 | 对话画布）二选一，避免与现有 Canvas 抢同一心智"
+        depends_on_modules: ["MOD-workbench-shell", "MOD-spec-engine（list/read）"]
+      phase_2_static_goal_canvas:
+        goal: "选中 vibex-workbench-goal.yaml 时主区渲染静态中心卡片 + 径向切面卡（文案来自 YAML 解析）；点击切面 → readSpec 打开下游文件或滚动到锚点"
+        reuse_frontend: "frontend 已有 readSpec/listSpecs 契约；需对接真实 FileService 或 workspace 静态服务"
+        partial_implementation_vibex_workbench:
+          summary: "主区 Tab「总目标图谱」+ GoalSpecCanvas；绑定表 specs/meta/goal-aspect-bindings.yaml；本地读 specs 经由 GET /api/workspace/specs/read（WORKSPACE_ROOT 未设时默认 frontend 上一级仓库根）。"
+      phase_3_interaction_polish:
+        goal: "力导向/分组色带、最大深度、窄屏折叠；与 workbench-layout_resize_feature 一致"
+      phase_4_agent_display_name:
+        goal: "Composer 或专用动作请求 Agent 生成命名/标语草案，写入待确认区，用户确认后写回 L1（对齐 C2）"
+      phase_5_miu_bridge:
+        goal: "从某切面或 Thread 派生 todo-spec / MIU 清单，与 thread-store 或 backlog 联动（对齐 C7）"
+    minimum_implementable_unit:
+      summary: |
+        「最小可实现单元」不等于「最小功能切片」 alone：在同一迭代里应能指向可交付、可验证的一组规格与产物，
+        跨越产品、领域、架构、数据、集成与质量门禁中的必要子集；具体门禁仍以 test-spec / validate 为准。
+      facets_non_exhaustive:
+        - name: design
+          artifacts_hint: ["DESIGN.md 或等价设计说明 spec 段落"]
+        - name: product_surface
+          artifacts_hint: ["原型或演示路径", "UI/UX feature spec"]
+        - name: behavior_contract
+          artifacts_hint: ["测试规格", "RED/GREEN 对齐的 IO 契约"]
+        - name: implementation_trace
+          artifacts_hint: ["实现与生成物（或手写代码变更）可追溯回 spec"]
+        - name: architecture_touch
+          artifacts_hint: ["触及的模块/层级/约束说明", "必要时骨架或 ADR 片段"]
+        - name: persistence_and_infra_touch
+          artifacts_hint: ["若涉及存储/队列/缓存则含模型或迁移切片"]
+        - name: integration_touch
+          artifacts_hint: ["若触及外部 API 则含密钥/降级/契约草案"]
+      note: |
+        不要求每个 MIU 面面俱到；但一旦某切面被本次变更触动，须在派生 todo-spec 或下级 spec 中写明，
+        避免「改了代码却无对应切面记录」的静默漂移（对齐 C7）。
+
   # ── Spec 生命周期状态 ────────────────────────────────
   spec_lifecycle:
     summary: "每个 spec 必须包含 spec.status + lifecycle 字段；Agent 自维护 + 用户手动调整"
@@ -587,13 +767,26 @@ content:
 
   # ── 成功指标 ────────────────────────────────────────
   success_metrics:
-    - "SM1: make lint-specs 通过，从属链 100% 完整"
-    - "SM2: make generate 在 5 秒内完成"
-    - "SM3: 所有 spec（L1-L4）包含 input/output/boundary/behavior/changelog 五个字段"
-    - "SM4: spec-goal 输出 HTML 原型，用户通过截图确认方向"
-    - "SM5: Canvas 展示 SSE 流事件序列（输入→行为→输出），节点类型全覆盖"
-    - "SM6: 三条路由路径（goal/feature/bug）清晰区分，各有独立的澄清循环"
-    - "SM7: M7 自举闭环验证通过（用自身生成自身）"
+    summary: |
+      SM1–SM7 编号不变，对外引用以此为准；分层 alignment 仅用于对照 content.product_value_layers（内核 / 证明 / 体验）。
+    alignment_with_product_value_layers:
+      kernel_governance_and_agent:
+        ids: ["SM1", "SM3", "SM6"]
+        note: "治理纪律、契约字段、路由与 Agent 澄清闭环（迭代大脑的外围规则）"
+      proof_self_bootstrap:
+        ids: ["SM2", "SM7"]
+        note: "管线可执行性与性能（SM2）+ 里程碑 M7 自举收官（SM7）；二者均为「体系可信」维度，不等同于可视化体验验收"
+      experience_visualization:
+        ids: ["SM4", "SM5"]
+        note: "面向人的原型确认与 Canvas/SSE 行为展示（与 M5/M6 里程碑同向）"
+    metrics:
+      - "SM1: make lint-specs 通过，从属链 100% 完整"
+      - "SM2: make generate 在 5 秒内完成"
+      - "SM3: 所有 spec（L1-L4）包含 input/output/boundary/behavior/changelog 五个字段"
+      - "SM4: spec-goal 输出 HTML 原型，用户通过截图确认方向"
+      - "SM5: Canvas 展示 SSE 流事件序列（输入→行为→输出），节点类型全覆盖"
+      - "SM6: 三条路由路径（goal/feature/bug）清晰区分，各有独立的澄清循环"
+      - "SM7: M7 自举闭环验证通过（用自身生成自身）"
 
   # ── 技术栈 ──────────────────────────────────────────
   tech_stack:
@@ -607,6 +800,7 @@ content:
     test: "Vitest + Playwright"
 
   # ── 自举策略 ────────────────────────────────────────
+  # 与 content.product_value_layers.proof_self_bootstrap 对照：此处写阶段动作，彼处写「证明 vs 体验」语义边界。
   bootstrap_strategy: |
     Phase 1（手动引导 + 本仓库落地）:
       - 人工写 L1/L2/L3 specs（当前阶段）

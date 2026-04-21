@@ -39,6 +39,7 @@
 		"@xyflow/svelte": "^1.5.2",
 		"codemirror": "^6.0.2",
 		"dagre": "^0.8.5",
-		"dexie": "^4.4.2"
+		"dexie": "^4.4.2",
+		"yaml": "^2.8.3"
 	}
 }

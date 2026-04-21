@@ -5,7 +5,7 @@
 # ============================================================
 
 spec:
-  version: "2.0"
+  version: "2.1"
   level: "4_feature"
   name: "workbench-layout-resize"
   parent: "workbench-shell"
@@ -15,7 +15,7 @@ meta:
   module: "MOD-workbench-shell"
   owner: "hermes"
   created: "2026-04-21"
-  updated: "2026-04-21"
+  updated: "2026-04-22"
 
 content:
   description: |
@@ -42,6 +42,11 @@ content:
       4. **底部 Dock 上横分隔条**：调整 bottomDockPx（问题/终端等区域高度）。
       5. pointerup 调用 commit 持久化；拖拽中 preview 不写盘。
     changelog:
+      - version: "2.1"
+        date: "2026-04-22"
+        author: "hermes"
+        changes:
+          - "新增 geometry_accounting：sidebarLeftPx 含活动栏（建议 48px）、bottomDockPx 不得被壳层魔法 max-height 替代"
       - version: "2.0"
         date: "2026-04-21"
         author: "hermes"
@@ -68,6 +73,20 @@ content:
     panel_right: { min: 240, max: 720, default: 380 }
     ai_composer_bar: { min: 96, max: 400, default: 156 }
     bottom_dock: { min: 120, max: 520, default: 200 }
+
+  # 实现易错点：几何归属写清，避免壳层「看起来乱」却无法验收
+  geometry_accounting:
+    sidebar_left_px:
+      meaning: |
+        `sidebarLeftPx` 表示 **左侧整条复合栏的外宽（像素）**，包含固定宽度的竖向 **活动栏** 与可伸缩的 **一级侧栏 body**。
+        推荐常量：`activity_bar_px = 48`（与 R2 原型 `--ab-w` 一致）；则 **一级侧栏可用内容宽 ≈ sidebarLeftPx − 48**。
+      implementation_must_not: |
+        不得把 sidebarLeftPx 仅赋给文件树而把活动栏再加到窗口外（会导致总宽溢出或拖拽语义与持久化不一致）。
+    bottom_dock_px:
+      meaning: |
+        `bottomDockPx` 为 **底部 Dock 区域总高度（含 Dock 页签条 + 内容区）**，由 **主工作区（wb-row）底边与 Dock 顶边之间的横向分隔条** 调整。
+      implementation_must_not: |
+        不得在壳层再用 `max-height: 40vh` 等与持久化字段无关的魔法数替代 bottomDockPx，否则 violates LR2-003、刷新后 Dock 高度不可复现。
 
   acceptance_criteria:
     - id: "LR2-001"

@@ -5,7 +5,7 @@
 # ============================================================
 
 spec:
-  version: "1.2"
+  version: "1.4"
   level: "4_feature"
   name: "workbench-ide-chrome"
   parent: "workbench-shell"
@@ -16,6 +16,15 @@ meta:
   owner: "hermes"
   created: "2026-04-21"
   updated: "2026-04-22"
+
+  note_r2_pixel_parity: "content.r2_pixel_parity — 原型选择器与 token；会话列表等扩展须先改 spec"
+
+  impl_note_workbench_viewport:
+    summary: |
+      前端工作台对齐 Cursor/R2：左侧为活动栏（📂 Git 🔍 🧩）+ 宽幅侧栏（资源管理器列出 specs/*.yaml；Git/搜索/扩展占位）；
+      中央无主线程列表：未选 spec 时为 Run Canvas；选中 spec 后为 SpecViewer「图谱 | Spec 文本」，总目标切面与中心卡在主区内打开右侧抽屉展示详情；
+      右侧栏为会话历史（线程列表）+ 对话内容 + Composer（拖拽调高度）；底部 Dock 页签「文件 | 编辑 | 终端 | 任务 | 设置」（文件 tab 内嵌 Artifacts）。
+      API：GET /api/workspace/specs/list、GET /api/workspace/specs/read。
 
 content:
   description: |
@@ -46,6 +55,16 @@ content:
       5. **底部 Dock**：横跨窗口底部（置于左/中/右三块主工作区之下）；Tab 含 **问题、输出、调试控制台、终端** 及「更多」溢出或次要入口。
       6. 窄屏（如宽度 <768px）允许降级：隐藏活动栏/侧栏或改为抽屉，但须保留中央主体与 AI 输入可达性（具体断点由 uiux 补充）。
     changelog:
+      - version: "1.4"
+        date: "2026-04-22"
+        author: "hermes"
+        changes:
+          - "新增 r2_pixel_parity：指向 vibex-ide-chrome-r2.html 的 :root token、Grid、主选择器与 resize 类名；扩展（如右侧会话列表）须先改 spec"
+      - version: "1.3"
+        date: "2026-04-22"
+        author: "hermes"
+        changes:
+          - "记录实现：侧栏「会话|规格」+ SpecViewer「图谱|Spec 文本」与 R2 原型对齐；规格树读本地 specs/"
       - version: "1.2"
         date: "2026-04-22"
         author: "hermes"
@@ -202,6 +221,106 @@ content:
         - debug_console
         - terminal
         - more
+
+  # ── R2 原型像素/选择器对照（vibex-ide-chrome-r2.html）──────────────────────
+  r2_pixel_parity:
+    summary: |
+      静态原型 `prototypes/vibex-ide-chrome-r2.html` 中的 **CSS 变量、主区域选择器、Grid 分区**，作为「严格对标 R2」时的机器可读锚点；
+      实现与评审引用本节，避免口头描述与 DOM 漂移。
+    prototype_file:
+      path: "prototypes/vibex-ide-chrome-r2.html"
+      spec_backlink: "文件首部 HTML 注释指向本 feature spec"
+
+    root_grid:
+      container: ".root#root"
+      columns: "var(--ab-w) var(--sidebar-w) 1fr var(--right-w)"
+      rows: "var(--titlebar-h) 1fr var(--dock-tab-h)"
+      areas: |
+        titlebar | titlebar | titlebar | titlebar
+        ab       | sidebar  | center   | right
+        dock     | dock     | dock     | dock
+
+    caveats:
+      grid_row_three_vs_dock_body: |
+        `grid-template-rows` 第三行字面高度为 `--dock-tab-h`（28px），而 DOM 中 `.dock` 还包含 `.dock-content`。
+        对标时须以原型 **实际渲染高度**、`--dock-h`（200px）及页面内 **resize 脚本/叠层** 为准；不得只抄单行 grid 行高而忽略内容区。
+      prototype_right_column: |
+        R2 HTML 中 **右侧列**为 `.ai-chat` + `.composer` 的纵向组合，**未**包含独立「会话/线程列表」strip。
+        若产品要在右侧增加会话列表：必须先修订下方 `extension_before_implementation` 与 `region_map.right_ai_column`，再改代码。
+
+    design_tokens:
+      source: ":root（原型内联 <style>）"
+      color_and_surface:
+        "--bg-base": "#0d0d0e"
+        "--bg-panel": "#131314"
+        "--bg-surface": "#1a1a1c"
+        "--bg-elevated": "#232326"
+        "--bg-hover": "rgba(255,255,255,0.05)"
+        "--border": "rgba(255,255,255,0.07)"
+        "--border-med": "rgba(255,255,255,0.12)"
+        "--brand": "#5856D6"
+        "--brand-hover": "#6c6ad9"
+        "--brand-alpha": "rgba(88,86,214,0.15)"
+        "--text-primary": "#e8e8ed"
+        "--text-secondary": "#8a8a8e"
+        "--text-muted": "#555558"
+        "--success": "#22c55e"
+        "--warning": "#f59e0b"
+        "--error": "#ef4444"
+        "--activity-bar-bg": "#0d0d0e"
+      typography:
+        "--font-ui": "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
+        "--font-mono": "'JetBrains Mono', 'Fira Code', monospace"
+      radii:
+        "--radius-sm": "3px"
+        "--radius-md": "5px"
+        "--radius-lg": "8px"
+      motion:
+        "--transition": "150ms cubic-bezier(0.4,0,0.2,1)"
+      layout_dimensions:
+        "--titlebar-h": "38px"
+        "--ab-w": "48px"
+        "--sidebar-w": "260px"
+        "--right-w": "380px"
+        "--dock-h": "200px"
+        "--composer-h": "156px"
+        "--dock-tab-h": "28px"
+        "--tab-h": "36px"
+
+    selectors_regions:
+      titlebar: ".titlebar"
+      activity_bar: ".ab"
+      sidebar: ".sidebar"
+      sidebar_view_workspace: ".sidebar-view#view-workspace"
+      sidebar_view_git: ".sidebar-view#view-git"
+      sidebar_view_search: ".sidebar-view#view-search"
+      sidebar_view_extensions: ".sidebar-view#view-extensions"
+      center: ".center#center"
+      center_tab_bar: ".center .tab-bar .tab[data-view]"
+      center_pane_canvas: ".center .canvas-view#cv-canvas"
+      center_pane_artifacts: ".center .artifacts-view#cv-artifacts"
+      center_pane_spec_text: ".center .spec-text-view#cv-spec-text"
+      right_column: ".right#rightPanel"
+      right_ai_chat: ".right .ai-chat#aiChat"
+      right_composer: ".right .composer"
+      dock: ".dock#dock"
+      dock_tab: ".dock .dock-tabs .dock-tab[data-panel]"
+      dock_content_problems: ".dock .dock-content#dock-problems"
+      dock_content_output: ".dock .dock-content#dock-output"
+      dock_content_terminal: ".dock .dock-content#dock-terminal"
+      dock_content_debug: ".dock .dock-content#dock-debug"
+
+    resize_handles:
+      sidebar_to_center: ".resize-v.resize-sidebar"
+      center_to_right: ".resize-v.resize-right（位于 .center 内靠右缘，与右侧列分界）"
+      chat_to_composer: ".resize-h.resize-composer"
+      dock_to_main: ".resize-h.resize-dock（根容器末尾，主区与 Dock 分界）"
+
+    extension_before_implementation:
+      rule: |
+        任何偏离上表的产品可见结构（例如在右侧增加独立会话列表 strip、替换 Dock 频道命名与语义、将 Artifacts 移出中央 Tab 等），
+        **必须先更新本 YAML**（`region_map`、`panel_visibility_model`、`changelog` 及本节 `caveats`），再修改前端；
+        「先改 UI 再补 spec」仅允许为紧急修复，且须在合并前回填文档。
 
   dependencies:
     - spec: "specs/feature/workbench-shell/workbench-layout_resize_feature.yaml"
