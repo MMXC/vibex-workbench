@@ -1,0 +1,2259 @@
+<!--
+  spec: specs/feature/workbench-shell/workbench-ide-chrome_feature.yaml
+  version: "1.0"
+  generated: 2026-04-21
+  confirmed_by: pending
+  confirmed_at: pending
+  style: Linear.app dark (AI-native IDE)
+-->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VibeX IDE — Cursor-style Workbench</title>
+<style>
+  :root {
+    --bg-base: #0d0d0e;
+    --bg-panel: #161618;
+    --bg-surface: #1c1c1e;
+    --bg-elevated: #232326;
+    --border: rgba(255,255,255,0.08);
+    --border-strong: rgba(255,255,255,0.14);
+    --brand: #5856D6;
+    --brand-hover: #6c6ad9;
+    --brand-alpha: rgba(88,86,214,0.18);
+    --text-primary: #e8e8ed;
+    --text-secondary: #8a8a8e;
+    --text-muted: #555558;
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --activity-bar-bg: #0d0d0e;
+    --activity-icon: #6e6e73;
+    --activity-icon-active: var(--text-primary);
+    --tab-height: 36px;
+    --titlebar-height: 38px;
+    --activity-bar-width: 48px;
+    --sidebar-width: 260px;
+    --right-panel-width: 380px;
+    --bottom-dock-height: 200px;
+    --composer-height: 156px;
+    --dock-tab-height: 28px;
+    --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.5);
+    --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    background: var(--bg-base);
+    color: var(--text-primary);
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ─── Layout ─── */
+  .wb-root {
+    display: grid;
+    grid-template-rows: var(--titlebar-height) 1fr var(--dock-tab-height);
+    grid-template-columns: var(--activity-bar-width) var(--sidebar-width) 1fr var(--right-panel-width);
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ─── Titlebar ─── */
+  .wb-titlebar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    background: var(--bg-base);
+    border-bottom: 1px solid var(--border);
+    gap: 4px;
+    position: relative;
+    z-index: 100;
+  }
+
+  .wb-titlebar .menu-group {
+    display: flex;
+    gap: 2px;
+  }
+
+  .wb-titlebar .menu-item {
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    cursor: default;
+    transition: background var(--transition), color var(--transition);
+  }
+
+  .wb-titlebar .menu-item:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+  }
+
+  .wb-titlebar .menu-item.active {
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+  }
+
+  .wb-titlebar .wb-title-spacer { flex: 1; }
+
+  .wb-titlebar .wb-title-text {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .wb-titlebar .window-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .win-ctrl {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: opacity var(--transition);
+    opacity: 0.85;
+  }
+  .win-ctrl:hover { opacity: 1; }
+  .win-ctrl.close { background: #ff5f57; }
+  .win-ctrl.min { background: #febc2e; }
+  .win-ctrl.max { background: #28c840; }
+
+  /* ─── Activity Bar ─── */
+  .wb-activity-bar {
+    grid-row: 2;
+    grid-column: 1;
+    background: var(--activity-bar-bg);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 0;
+    gap: 4px;
+    z-index: 10;
+  }
+
+  .ab-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 0;
+    transition: background var(--transition);
+    position: relative;
+    color: var(--activity-icon);
+  }
+
+  .ab-icon:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+
+  .ab-icon.active {
+    color: var(--text-primary);
+  }
+
+  .ab-icon.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 2px;
+    height: 20px;
+    background: var(--brand);
+    border-radius: 0 2px 2px 0;
+  }
+
+  .ab-icon svg { width: 22px; height: 22px; stroke-width: 1.5; fill: none; stroke: currentColor; }
+
+  .ab-spacer { flex: 1; }
+
+  .ab-bottom { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+
+  /* ─── Left Sidebar ─── */
+  .wb-sidebar {
+    grid-row: 2;
+    grid-column: 2;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: width 0s;
+  }
+
+  .sidebar-header {
+    padding: 12px 16px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .sidebar-header .sidebar-title { flex: 1; }
+
+  .sidebar-header button {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    transition: color var(--transition), background var(--transition);
+  }
+  .sidebar-header button:hover { color: var(--text-primary); background: var(--bg-elevated); }
+  .sidebar-header button svg { width: 14px; height: 14px; }
+
+  /* Sidebar views */
+  .sidebar-view { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+  .sidebar-view.active { display: flex; }
+
+  /* Workspace tree */
+  .ws-tree { padding: 8px 0; overflow-y: auto; flex: 1; }
+
+  .ws-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px 4px 16px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 13px;
+    transition: background var(--transition), color var(--transition);
+    border-radius: 0;
+    position: relative;
+  }
+
+  .ws-item:hover { background: rgba(255,255,255,0.04); color: var(--text-primary); }
+  .ws-item.active { background: var(--brand-alpha); color: var(--text-primary); }
+
+  .ws-item.folder { color: var(--text-secondary); }
+  .ws-item .ws-icon { width: 16px; height: 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .ws-item .ws-icon svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; }
+  .ws-item .ws-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .ws-children { padding-left: 12px; }
+  .ws-item.folder > .ws-icon svg { stroke-width: 2; }
+
+  .ws-indent { padding-left: 16px; }
+
+  /* Thread list */
+  .thread-list { padding: 8px 0; overflow-y: auto; flex: 1; }
+
+  .thread-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: background var(--transition);
+    border-left: 2px solid transparent;
+  }
+
+  .thread-item:hover { background: rgba(255,255,255,0.04); }
+  .thread-item.active { background: var(--brand-alpha); border-left-color: var(--brand); }
+
+  .thread-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    background: var(--text-muted);
+  }
+  .thread-dot.running { background: var(--brand); box-shadow: 0 0 6px var(--brand); }
+  .thread-dot.done { background: var(--success); }
+  .thread-dot.error { background: var(--error); }
+
+  .thread-info { flex: 1; min-width: 0; }
+  .thread-title { font-size: 13px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .thread-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* Search view */
+  .search-view { flex: 1; overflow-y: auto; padding: 8px; }
+  .search-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    padding: 6px 10px;
+    margin-bottom: 8px;
+  }
+  .search-input-wrap svg { width: 14px; height: 14px; color: var(--text-muted); flex-shrink: 0; }
+  .search-input-wrap input {
+    flex: 1; background: none; border: none; outline: none;
+    color: var(--text-primary); font-size: 13px; font-family: var(--font-ui);
+  }
+  .search-input-wrap input::placeholder { color: var(--text-muted); }
+  .search-results { font-size: 12px; color: var(--text-muted); padding: 4px 0; }
+
+  /* Extensions view */
+  .ext-list { padding: 8px 0; overflow-y: auto; flex: 1; }
+  .ext-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 16px; cursor: pointer; transition: background var(--transition);
+  }
+  .ext-item:hover { background: rgba(255,255,255,0.04); }
+  .ext-avatar {
+    width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0;
+    background: var(--bg-elevated); display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; color: var(--text-secondary);
+  }
+  .ext-info { flex: 1; min-width: 0; }
+  .ext-name { font-size: 13px; color: var(--text-primary); }
+  .ext-desc { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ─── Center Editor ─── */
+  .wb-center {
+    grid-row: 2;
+    grid-column: 3;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-base);
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  /* Editor Tabs */
+  .wb-editor-tabs {
+    display: flex;
+    align-items: stretch;
+    height: var(--tab-height);
+    background: var(--bg-base);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-shrink: 0;
+  }
+
+  .wb-editor-tabs::-webkit-scrollbar { height: 2px; }
+  .wb-editor-tabs::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 1px; }
+
+  .editor-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-secondary);
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+    transition: background var(--transition), color var(--transition);
+    position: relative;
+    min-width: 0;
+  }
+
+  .editor-tab:hover { background: var(--bg-panel); color: var(--text-primary); }
+  .editor-tab.active {
+    color: var(--text-primary);
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--bg-surface);
+  }
+
+  .editor-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0; right: 0;
+    height: 1px;
+    background: var(--brand);
+  }
+
+  .editor-tab svg { width: 14px; height: 14px; flex-shrink: 0; stroke: currentColor; fill: none; stroke-width: 1.5; }
+
+  .editor-tab .tab-name { overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+
+  .editor-tab .tab-close {
+    width: 16px; height: 16px; border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity var(--transition), background var(--transition);
+    flex-shrink: 0;
+  }
+  .editor-tab:hover .tab-close, .editor-tab.active .tab-close { opacity: 1; }
+  .editor-tab .tab-close:hover { background: var(--bg-elevated); }
+
+  .tab-add-btn {
+    width: var(--tab-height);
+    height: var(--tab-height);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color var(--transition), background var(--transition);
+  }
+  .tab-add-btn:hover { background: var(--bg-panel); color: var(--text-primary); }
+
+  /* Editor Content */
+  .wb-editor-content {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    background: var(--bg-base);
+  }
+
+  .editor-pane { display: none; position: absolute; inset: 0; overflow: hidden; }
+  .editor-pane.active { display: flex; flex-direction: column; }
+
+  /* Canvas pane */
+  .canvas-pane { background: var(--bg-base); }
+  .canvas-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    background: var(--bg-panel);
+  }
+  .canvas-header .ch-title { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+  .canvas-header .ch-badge {
+    font-size: 10px; padding: 1px 6px; border-radius: 10px;
+    background: var(--brand-alpha); color: var(--brand);
+  }
+  .canvas-toolbar {
+    display: flex; gap: 4px; margin-left: auto;
+  }
+  .canvas-toolbar button {
+    background: none; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--text-secondary); cursor: pointer; padding: 4px 8px;
+    font-size: 11px; font-family: var(--font-ui); transition: all var(--transition);
+  }
+  .canvas-toolbar button:hover { background: var(--bg-elevated); color: var(--text-primary); border-color: var(--border-strong); }
+  .canvas-toolbar button.primary { background: var(--brand); border-color: var(--brand); color: white; }
+  .canvas-toolbar button.primary:hover { background: var(--brand-hover); }
+
+  .canvas-body {
+    flex: 1; overflow: hidden; position: relative;
+    background: var(--bg-base);
+    background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* Node styles */
+  .canvas-node {
+    position: absolute;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    padding: 12px 14px;
+    min-width: 160px;
+    box-shadow: var(--shadow-md);
+    cursor: pointer;
+    transition: border-color var(--transition), box-shadow var(--transition);
+  }
+  .canvas-node:hover { border-color: var(--brand); box-shadow: var(--shadow-md), 0 0 0 1px var(--brand-alpha); }
+  .canvas-node.selected { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-alpha); }
+
+  .cn-header { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .cn-icon { width: 18px; height: 18px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+  .cn-title { font-size: 12px; font-weight: 500; color: var(--text-primary); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cn-status { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .cn-body { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cn-footer { display: flex; gap: 6px; margin-top: 6px; }
+  .cn-tag { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: var(--bg-elevated); color: var(--text-muted); }
+
+  /* Artifacts pane */
+  .artifacts-pane { background: var(--bg-base); }
+  .artifacts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    padding: 16px;
+    overflow-y: auto;
+    height: 100%;
+  }
+  .artifact-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color var(--transition), box-shadow var(--transition);
+  }
+  .artifact-card:hover { border-color: var(--brand); box-shadow: var(--shadow-sm); }
+  .artifact-preview {
+    height: 100px;
+    background: var(--bg-surface);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); font-size: 24px;
+  }
+  .artifact-info { padding: 10px 12px; }
+  .artifact-name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+  .artifact-meta { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+
+  /* Spec text pane */
+  .spec-pane { background: var(--bg-base); }
+  .spec-code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.7;
+    padding: 16px;
+    overflow-y: auto;
+    height: 100%;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    tab-size: 2;
+  }
+  .spec-code .k { color: #c586c0; }
+  .spec-code .s { color: #ce9178; }
+  .spec-code .n { color: #b5cea8; }
+  .spec-code .c { color: #6a9955; }
+
+  /* Diff pane */
+  .diff-pane { background: var(--bg-base); }
+  .diff-file-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .diff-badge { font-size: 10px; padding: 1px 6px; border-radius: 3px; }
+  .diff-badge.add { background: rgba(34,197,94,0.15); color: var(--success); }
+  .diff-badge.rem { background: rgba(239,68,68,0.15); color: var(--error); }
+  .diff-lines { font-family: var(--font-mono); font-size: 12px; overflow-y: auto; height: calc(100% - 36px); }
+  .diff-line { padding: 1px 16px; white-space: pre; }
+  .diff-line.add { background: rgba(34,197,94,0.08); color: var(--success); }
+  .diff-line.rem { background: rgba(239,68,68,0.08); color: var(--error); }
+  .diff-line.num { color: var(--text-muted); width: 40px; display: inline-block; text-align: right; padding-right: 12px; user-select: text; }
+
+  /* ─── Right AI Column ─── */
+  .wb-right {
+    grid-row: 2;
+    grid-column: 4;
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  .right-header {
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    height: var(--tab-height);
+    border-bottom: 1px solid var(--border);
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .right-header .rh-title { font-size: 12px; font-weight: 500; color: var(--text-secondary); flex: 1; }
+  .rh-btn {
+    width: 24px; height: 24px; border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; color: var(--text-muted);
+    cursor: pointer; transition: all var(--transition);
+  }
+  .rh-btn:hover { background: var(--bg-elevated); color: var(--text-primary); }
+  .rh-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; }
+
+  /* Chat area */
+  .chat-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .msg { display: flex; gap: 10px; }
+  .msg.user { flex-direction: row-reverse; }
+
+  .msg-avatar {
+    width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600;
+  }
+  .msg.user .msg-avatar { background: var(--brand); color: white; }
+  .msg.assistant .msg-avatar { background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-strong); }
+
+  .msg-bubble {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .msg.user .msg-bubble {
+    background: var(--brand);
+    color: white;
+    border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg);
+    padding: 8px 12px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .msg.assistant .msg-bubble {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-sm);
+    padding: 8px 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-primary);
+  }
+
+  .msg.typing .msg-bubble {
+    position: relative;
+  }
+
+  .typing-dots {
+    display: flex; gap: 4px; padding: 8px 0;
+  }
+  .typing-dots span {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--text-muted);
+    animation: typing-bounce 1.2s infinite;
+  }
+  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typing-bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-4px); opacity: 1; }
+  }
+
+  .msg-code {
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 8px 10px;
+    margin-top: 6px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    overflow-x: auto;
+  }
+
+  /* Chat input area */
+  .chat-input-area {
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .composer-area {
+    display: flex;
+    flex-direction: column;
+    margin: 10px 12px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    transition: border-color var(--transition);
+  }
+  .composer-area:focus-within { border-color: var(--brand); }
+
+  .composer-input {
+    width: 100%;
+    min-height: 60px;
+    max-height: 120px;
+    padding: 10px 12px;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: var(--font-ui);
+    line-height: 1.5;
+    resize: none;
+    overflow-y: auto;
+  }
+  .composer-input::placeholder { color: var(--text-muted); }
+
+  .composer-toolbar {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px 6px;
+    gap: 4px;
+  }
+
+  .composer-tool {
+    width: 24px; height: 24px; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; color: var(--text-muted);
+    cursor: pointer; transition: all var(--transition);
+  }
+  .composer-tool:hover { background: var(--bg-elevated); color: var(--text-secondary); }
+  .composer-tool svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; }
+
+  .composer-send {
+    margin-left: auto;
+    width: 28px; height: 28px; border-radius: var(--radius-md);
+    background: var(--brand); border: none; color: white;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: background var(--transition);
+  }
+  .composer-send:hover { background: var(--brand-hover); }
+  .composer-send svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+  .composer-send:disabled { background: var(--bg-elevated); color: var(--text-muted); cursor: default; }
+
+  /* ─── Bottom Dock ─── */
+  .wb-dock-tabs {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: stretch;
+    height: var(--dock-tab-height);
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .wb-dock-tabs::-webkit-scrollbar { height: 0; }
+
+  .dock-tab {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 12px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+    transition: background var(--transition), color var(--transition);
+    border-top: 1px solid transparent;
+    position: relative;
+  }
+  .dock-tab:hover { background: rgba(255,255,255,0.04); color: var(--text-secondary); }
+  .dock-tab.active { color: var(--text-secondary); border-top: 1px solid var(--text-secondary); margin-top: -1px; }
+  .dock-tab svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.5; }
+
+  .dock-tab .dock-count {
+    font-size: 10px; padding: 0 4px; border-radius: 8px;
+    background: var(--bg-elevated); color: var(--text-muted);
+    min-width: 16px; text-align: center;
+  }
+  .dock-tab.has-errors .dock-count { background: rgba(239,68,68,0.2); color: var(--error); }
+  .dock-tab.has-warnings .dock-count { background: rgba(245,158,11,0.2); color: var(--warning); }
+
+  /* Dock panels */
+  .wb-dock {
+    grid-column: 1 / -1;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    overflow: hidden;
+    display: none;
+    flex-direction: column;
+  }
+  .wb-dock.active { display: flex; }
+
+  .dock-panel { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+  .dock-panel.active { display: flex; }
+
+  /* Problems panel */
+  .problems-list { padding: 8px 0; overflow-y: auto; flex: 1; }
+  .problem-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 5px 12px; font-size: 12px;
+    border-left: 2px solid var(--error); cursor: pointer;
+    transition: background var(--transition);
+  }
+  .problem-item:hover { background: rgba(239,68,68,0.06); }
+  .problem-item.warning { border-left-color: var(--warning); }
+  .problem-item.warning:hover { background: rgba(245,158,11,0.06); }
+  .problem-icon { margin-top: 1px; flex-shrink: 0; }
+  .problem-icon.error { color: var(--error); }
+  .problem-icon.warn { color: var(--warning); }
+  .problem-text { flex: 1; }
+  .problem-file { color: var(--brand); font-family: var(--font-mono); font-size: 11px; }
+  .problem-msg { color: var(--text-secondary); }
+
+  /* Output panel */
+  .output-content {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.6;
+    padding: 8px 12px;
+    color: var(--text-secondary);
+    overflow-y: auto;
+    flex: 1;
+  }
+  .output-line .ts { color: var(--text-muted); }
+  .output-line.ok { color: var(--success); }
+  .output-line.err { color: var(--error); }
+  .output-line.info { color: var(--brand); }
+
+  /* Terminal panel */
+  .terminal-content {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 8px 12px;
+    color: #e2e8f0;
+    overflow-y: auto;
+    flex: 1;
+    background: #0a0a0b;
+  }
+  .terminal-prompt { color: var(--success); }
+  .terminal-cmd { color: var(--text-secondary); }
+  .terminal-out { color: #94a3b8; }
+
+  /* Debug panel */
+  .debug-content { padding: 12px; overflow-y: auto; flex: 1; }
+  .debug-section { margin-bottom: 12px; }
+  .debug-section-title { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .debug-var { display: flex; gap: 8px; padding: 2px 0; font-size: 12px; }
+  .debug-var .dk { color: var(--brand); font-family: var(--font-mono); min-width: 80px; }
+  .debug-var .dv { color: var(--text-secondary); font-family: var(--font-mono); }
+
+  /* ─── Resizable Splitters ─── */
+  .splitter {
+    position: absolute;
+    background: transparent;
+    z-index: 20;
+    transition: background var(--transition);
+  }
+  .splitter:hover, .splitter.dragging { background: var(--brand-alpha); }
+  .splitter::after {
+    content: '';
+    position: absolute;
+    background: var(--border);
+    border-radius: 1px;
+    transition: background var(--transition);
+  }
+  .splitter:hover::after, .splitter.dragging::after { background: var(--brand); }
+
+  .splitter-v {
+    width: 5px; cursor: col-resize; top: 0; bottom: 0;
+  }
+  .splitter-v::after { left: 2px; top: 0; bottom: 0; width: 1px; }
+
+  .splitter-h {
+    height: 5px; cursor: row-resize; left: 0; right: 0;
+  }
+  .splitter-h::after { top: 2px; left: 0; right: 0; height: 1px; }
+
+  /* ─── Command Palette ─── */
+  .cmd-palette-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,0.6);
+    display: none; align-items: flex-start; justify-content: center;
+    padding-top: 80px;
+  }
+  .cmd-palette-overlay.open { display: flex; }
+
+  .cmd-palette {
+    width: 560px; max-height: 400px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md), 0 0 0 1px rgba(88,86,214,0.2);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+
+  .cmd-search {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .cmd-search svg { width: 16px; height: 16px; color: var(--text-muted); flex-shrink: 0; }
+  .cmd-search input {
+    flex: 1; background: none; border: none; outline: none;
+    color: var(--text-primary); font-size: 14px; font-family: var(--font-ui);
+  }
+  .cmd-search input::placeholder { color: var(--text-muted); }
+
+  .cmd-results { overflow-y: auto; padding: 4px 0; }
+  .cmd-group-label {
+    font-size: 10px; font-weight: 600; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 6px 16px 4px;
+  }
+  .cmd-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 16px; cursor: pointer;
+    font-size: 13px; color: var(--text-secondary);
+    transition: background var(--transition), color var(--transition);
+    border-radius: 0;
+  }
+  .cmd-item:hover, .cmd-item.selected { background: var(--brand-alpha); color: var(--text-primary); }
+  .cmd-item svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; flex-shrink: 0; }
+  .cmd-item .cmd-label { flex: 1; }
+  .cmd-item .cmd-kbd {
+    font-size: 11px; padding: 1px 5px; border-radius: 3px;
+    background: var(--bg-panel); border: 1px solid var(--border-strong);
+    color: var(--text-muted); font-family: var(--font-mono);
+  }
+
+  .cmd-footer {
+    border-top: 1px solid var(--border);
+    padding: 6px 16px;
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex; gap: 16px;
+  }
+  .cmd-footer kbd {
+    padding: 0 4px; background: var(--bg-panel);
+    border: 1px solid var(--border-strong); border-radius: 3px;
+    font-family: var(--font-mono); font-size: 10px;
+  }
+
+  /* ─── Status Bar ─── */
+  .wb-statusbar {
+    grid-column: 1 / -1;
+    height: 22px;
+    background: var(--brand);
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    gap: 12px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.85);
+    z-index: 10;
+  }
+  .wb-statusbar .status-item {
+    display: flex; align-items: center; gap: 4px;
+    cursor: default; padding: 0 4px; border-radius: 2px;
+    transition: background rgba(255,255,255,0.15);
+  }
+  .wb-statusbar .status-item:hover { background: rgba(255,255,255,0.2); }
+  .wb-statusbar .status-item svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 1.5; }
+  .wb-statusbar .status-spacer { flex: 1; }
+  .wb-statusbar .status-right { display: flex; gap: 4px; align-items: center; }
+
+  /* ─── Minimap ─── */
+  .minimap {
+    position: absolute;
+    right: 4px;
+    top: 8px;
+    width: 40px;
+    bottom: 8px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    opacity: 0.6;
+  }
+  .minimap-viewport {
+    position: absolute;
+    left: 2px; right: 2px;
+    top: 20px;
+    height: 60px;
+    border: 1px solid var(--brand);
+    border-radius: 1px;
+    background: var(--brand-alpha);
+  }
+  .minimap-block {
+    position: absolute;
+    left: 2px; right: 2px;
+    height: 3px;
+    border-radius: 1px;
+    background: var(--text-muted);
+    opacity: 0.4;
+  }
+
+  /* ─── Scrollbar ─── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+  /* ─── Animations ─── */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes pulse-border { 0%, 100% { border-color: var(--brand); } 50% { border-color: var(--brand-alpha); } }
+
+  .fade-in { animation: fadeIn 200ms ease-out; }
+  .pulse-border { animation: pulse-border 2s infinite; }
+
+  /* Node status colors */
+  .cn-status.idle { background: var(--text-muted); }
+  .cn-status.running { background: var(--brand); box-shadow: 0 0 6px var(--brand); animation: pulse-border 1.5s infinite; }
+  .cn-status.done { background: var(--success); }
+  .cn-status.error { background: var(--error); }
+
+  /* Node type colors */
+  .cn-icon.router { background: rgba(88,86,214,0.2); color: #8b89f5; }
+  .cn-icon.agent { background: rgba(34,197,94,0.15); color: var(--success); }
+  .cn-icon.generator { background: rgba(245,158,11,0.15); color: var(--warning); }
+  .cn-icon.spec { background: rgba(168,85,247,0.15); color: #a855f7; }
+  .cn-icon.user { background: rgba(59,130,246,0.15); color: #60a5fa; }
+</style>
+</head>
+<body>
+
+<div class="wb-root" id="wbRoot">
+
+  <!-- ── Titlebar ── -->
+  <div class="wb-titlebar">
+    <div class="menu-group">
+      <span class="menu-item active">文件</span>
+      <span class="menu-item">编辑</span>
+      <span class="menu-item">视图</span>
+      <span class="menu-item">转到</span>
+      <span class="menu-item">运行</span>
+      <span class="menu-item">终端</span>
+      <span class="menu-item">帮助</span>
+    </div>
+    <span class="wb-title-text">VibeX — vibex-workbench</span>
+    <div class="wb-title-spacer"></div>
+    <div class="window-controls">
+      <div class="win-ctrl close" title="关闭"></div>
+      <div class="win-ctrl min" title="最小化"></div>
+      <div class="win-ctrl max" title="最大化"></div>
+    </div>
+  </div>
+
+  <!-- ── Activity Bar ── -->
+  <div class="wb-activity-bar">
+    <div class="ab-icon active" data-sidebar="workspace" title="工作区">
+      <svg viewBox="0 0 24 24"><path d="M3 7h18M3 12h12M3 17h8"/></svg>
+    </div>
+    <div class="ab-icon" data-sidebar="git" title="Git">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M12 8v4l4 4"/></svg>
+    </div>
+    <div class="ab-icon" data-sidebar="search" title="搜索">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+    </div>
+    <div class="ab-icon" data-sidebar="extensions" title="扩展">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>
+    </div>
+    <div class="ab-spacer"></div>
+    <div class="ab-bottom">
+      <div class="ab-icon" id="cmdPaletteBtn" title="Command Palette (⌘K)">
+        <svg viewBox="0 0 24 24"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/></svg>
+      </div>
+      <div class="ab-icon" title="设置">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Left Sidebar ── -->
+  <div class="wb-sidebar" id="wbSidebar">
+    <!-- Workspace view -->
+    <div class="sidebar-view active" id="sidebar-workspace">
+      <div class="sidebar-header">
+        <span class="sidebar-title">工作区</span>
+        <button title="新建文件"><svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.5"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button title="刷新"><svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.5"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+      </div>
+      <div class="ws-tree">
+        <div class="ws-item folder" data-expanded="true">
+          <span class="ws-icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+          <span class="ws-name">vibex-workbench</span>
+        </div>
+        <div class="ws-children">
+          <div class="ws-item folder" data-expanded="true">
+            <span class="ws-icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+            <span class="ws-name">agent</span>
+          </div>
+          <div class="ws-children">
+            <div class="ws-item" data-file="agent/.env">
+              <span class="ws-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+              <span class="ws-name">.env</span>
+            </div>
+            <div class="ws-item" data-file="agent/workbench.ts">
+              <span class="ws-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+              <span class="ws-name">workbench.ts</span>
+            </div>
+          </div>
+          <div class="ws-item folder" data-expanded="true">
+            <span class="ws-icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+            <span class="ws-name">frontend</span>
+          </div>
+          <div class="ws-children">
+            <div class="ws-item" data-file="frontend/src/routes/workbench/+page.svelte">
+              <span class="ws-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+              <span class="ws-name">+page.svelte</span>
+            </div>
+            <div class="ws-item" data-file="frontend/src/lib/stores/workbench-layout-store.ts">
+              <span class="ws-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+              <span class="ws-name">workbench-layout-store.ts</span>
+            </div>
+          </div>
+          <div class="ws-item folder" data-expanded="true">
+            <span class="ws-icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+            <span class="ws-name">specs</span>
+          </div>
+          <div class="ws-children">
+            <div class="ws-item folder">
+              <span class="ws-icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+              <span class="ws-name">feature</span>
+            </div>
+            <div class="ws-children">
+              <div class="ws-item folder" data-expanded="false">
+                <span class="ws-icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+                <span class="ws-name">workbench-shell</span>
+              </div>
+              <div class="ws-children">
+                <div class="ws-item" data-file="workbench-ide-chrome_feature.yaml">
+                  <span class="ws-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+                  <span class="ws-name">workbench-ide-chrome_feature.yaml</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sidebar-header" style="border-top:1px solid var(--border); border-bottom:none; margin-top:0;">
+        <span class="sidebar-title">线程</span>
+        <button title="新建线程"><svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.5"><path d="M12 5v14M5 12h14"/></svg></button>
+      </div>
+      <div class="thread-list">
+        <div class="thread-item active" data-thread="t1">
+          <div class="thread-dot running"></div>
+          <div class="thread-info">
+            <div class="thread-title">DSL Canvas 可视化迭代</div>
+            <div class="thread-meta">正在运行 · 3 分钟前</div>
+          </div>
+        </div>
+        <div class="thread-item" data-thread="t2">
+          <div class="thread-dot done"></div>
+          <div class="thread-info">
+            <div class="thread-title">workbench IDE 壳层设计</div>
+            <div class="thread-meta">已完成 · 18 分钟前</div>
+          </div>
+        </div>
+        <div class="thread-item" data-thread="t3">
+          <div class="thread-dot done"></div>
+          <div class="thread-info">
+            <div class="thread-title">routing-panel 重构</div>
+            <div class="thread-meta">已完成 · 1 小时前</div>
+          </div>
+        </div>
+        <div class="thread-item" data-thread="t4">
+          <div class="thread-dot error"></div>
+          <div class="thread-info">
+            <div class="thread-title">Canvas 节点拖拽修复</div>
+            <div class="thread-meta">失败 · 2 小时前</div>
+          </div>
+        </div>
+        <div class="thread-item" data-thread="t5">
+          <div class="thread-dot"></div>
+          <div class="thread-info">
+            <div class="thread-title">gen.py B模式验证</div>
+            <div class="thread-meta">未开始 · 3 小时前</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Git view -->
+    <div class="sidebar-view" id="sidebar-git">
+      <div class="sidebar-header">
+        <span class="sidebar-title">源代码管理</span>
+      </div>
+      <div style="padding:12px 16px; font-size:12px; color:var(--text-muted);">
+        <div style="margin-bottom:8px; color:var(--text-secondary); font-weight:500;">master</div>
+        <div style="background:var(--bg-surface); border-radius:var(--radius-md); padding:10px;">
+          <div style="color:var(--text-primary); margin-bottom:6px;">3 个待提交更改</div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:6px; font-size:11.5px;">
+              <span style="color:var(--success);">M</span>
+              <span style="color:var(--text-secondary);">workbench-layout-store.ts</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px; font-size:11.5px;">
+              <span style="color:var(--brand);">A</span>
+              <span style="color:var(--text-secondary);">workbench-ide-chrome_feature.yaml</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px; font-size:11.5px;">
+              <span style="color:var(--success);">M</span>
+              <span style="color:var(--text-secondary);">workbench-message-sse-bridge.ts</span>
+            </div>
+          </div>
+          <div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border); display:flex; gap:6px;">
+            <button class="canvas-toolbar button primary" style="flex:1; font-size:11.5px; padding:5px;">提交</button>
+            <button class="canvas-toolbar button" style="flex:1; font-size:11.5px; padding:5px;">拉取</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search view -->
+    <div class="sidebar-view" id="sidebar-search">
+      <div class="sidebar-header"><span class="sidebar-title">搜索</span></div>
+      <div class="search-view">
+        <div class="search-input-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" placeholder="在仓库中搜索..." id="searchInput">
+        </div>
+        <div class="search-results" id="searchResults">输入关键词开始搜索</div>
+      </div>
+    </div>
+
+    <!-- Extensions view -->
+    <div class="sidebar-view" id="sidebar-extensions">
+      <div class="sidebar-header"><span class="sidebar-title">扩展与自定义</span></div>
+      <div class="ext-list">
+        <div class="ext-item">
+          <div class="ext-avatar" style="background:rgba(88,86,214,0.2); color:#8b89f5;">VB</div>
+          <div class="ext-info">
+            <div class="ext-name">VibeX Core</div>
+            <div class="ext-desc">VibeX 工作台核心扩展 · 已启用</div>
+          </div>
+        </div>
+        <div class="ext-item">
+          <div class="ext-avatar" style="background:rgba(34,197,94,0.15); color:#22c55e;">SS</div>
+          <div class="ext-info">
+            <div class="ext-name">Spec Sync</div>
+            <div class="ext-desc">spec ↔ 代码双向同步 · 已启用</div>
+          </div>
+        </div>
+        <div class="ext-item">
+          <div class="ext-avatar" style="background:rgba(168,85,247,0.15); color:#a855f7;">DG</div>
+          <div class="ext-info">
+            <div class="ext-name">DSL Graph Viewer</div>
+            <div class="ext-desc">DSL 行为 DAG 可视化 · 已启用</div>
+          </div>
+        </div>
+        <div class="ext-item">
+          <div class="ext-avatar" style="background:rgba(245,158,11,0.15); color:#f59e0b;">HA</div>
+          <div class="ext-info">
+            <div class="ext-name">Hermes Agent Bridge</div>
+            <div class="ext-desc">Agent 通信桥接 · 已启用</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Center Editor ── -->
+  <div class="wb-center" id="wbCenter">
+    <!-- Tabs -->
+    <div class="wb-editor-tabs" id="editorTabs">
+      <div class="editor-tab active" data-pane="canvas">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        <span class="tab-name">Canvas</span>
+        <span class="tab-close"><svg viewBox="0 0 24 24" width="10" height="10" stroke="currentColor" fill="none" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></span>
+      </div>
+      <div class="editor-tab" data-pane="artifacts">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span class="tab-name">构件</span>
+        <span class="tab-close"><svg viewBox="0 0 24 24" width="10" height="10" stroke="currentColor" fill="none" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></span>
+      </div>
+      <div class="editor-tab" data-pane="spec-text">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span class="tab-name">workbench-ide-chrome_feature.yaml</span>
+        <span class="tab-close"><svg viewBox="0 0 24 24" width="10" height="10" stroke="currentColor" fill="none" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></span>
+      </div>
+      <div class="editor-tab" data-pane="diff">
+        <svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/><path d="M16 7l5 5-5 5M8 7L3 12l5 5"/></svg>
+        <span class="tab-name">Diff</span>
+        <span class="tab-close"><svg viewBox="0 0 24 24" width="10" height="10" stroke="currentColor" fill="none" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></span>
+      </div>
+      <div class="tab-add-btn" title="新建 Tab">
+        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="1.5"><path d="M12 5v14M5 12h14"/></svg>
+      </div>
+    </div>
+
+    <!-- Pane: Canvas -->
+    <div class="editor-pane canvas-pane active" id="pane-canvas">
+      <div class="canvas-header">
+        <span class="ch-title">DSL 行为图</span>
+        <span class="ch-badge">9 节点</span>
+        <div class="canvas-toolbar">
+          <button>缩放</button>
+          <button>居中</button>
+          <button class="primary" id="runCanvasBtn">运行选中</button>
+        </div>
+      </div>
+      <div class="canvas-body" id="canvasBody">
+        <!-- Minimap -->
+        <div class="minimap" id="minimap">
+          <div class="minimap-block" style="top:4px; width:30px;"></div>
+          <div class="minimap-block" style="top:18px; width:22px;"></div>
+          <div class="minimap-block" style="top:32px; width:28px;"></div>
+          <div class="minimap-block" style="top:50px; width:18px;"></div>
+          <div class="minimap-viewport"></div>
+        </div>
+
+        <!-- Nodes -->
+        <div class="canvas-node selected" id="node-router" style="left:320px; top:80px;">
+          <div class="cn-header">
+            <div class="cn-icon router">R</div>
+            <div class="cn-title">ChangeRouter</div>
+            <div class="cn-status running"></div>
+          </div>
+          <div class="cn-body">route_type: "agent"</div>
+          <div class="cn-footer">
+            <span class="cn-tag">active</span>
+            <span class="cn-tag">v2</span>
+          </div>
+        </div>
+
+        <div class="canvas-node" id="node-agent" style="left:540px; top:60px;">
+          <div class="cn-header">
+            <div class="cn-icon agent">A</div>
+            <div class="cn-title">Hermes Agent</div>
+            <div class="cn-status idle"></div>
+          </div>
+          <div class="cn-body">model: MiniMax-M2.5</div>
+          <div class="cn-footer">
+            <span class="cn-tag">agent</span>
+          </div>
+        </div>
+
+        <div class="canvas-node" id="node-generator" style="left:540px; top:210px;">
+          <div class="cn-header">
+            <div class="cn-icon generator">G</div>
+            <div class="cn-title">Code Generator</div>
+            <div class="cn-status idle"></div>
+          </div>
+          <div class="cn-body">format: svelte5</div>
+          <div class="cn-footer">
+            <span class="cn-tag">gen</span>
+          </div>
+        </div>
+
+        <div class="canvas-node" id="node-spec" style="left:760px; top:60px;">
+          <div class="cn-header">
+            <div class="cn-icon spec">S</div>
+            <div class="cn-title">Spec Engine</div>
+            <div class="cn-status idle"></div>
+          </div>
+          <div class="cn-body">state: generating</div>
+          <div class="cn-footer">
+            <span class="cn-tag">spec</span>
+          </div>
+        </div>
+
+        <div class="canvas-node" id="node-validator" style="left:760px; top:210px;">
+          <div class="cn-header">
+            <div class="cn-icon spec">V</div>
+            <div class="cn-title">Spec Validator</div>
+            <div class="cn-status idle"></div>
+          </div>
+          <div class="cn-body">checks: 6 passed</div>
+          <div class="cn-footer">
+            <span class="cn-tag">check</span>
+          </div>
+        </div>
+
+        <div class="canvas-node" id="node-canvas" style="left:970px; top:130px;">
+          <div class="cn-header">
+            <div class="cn-icon user">C</div>
+            <div class="cn-title">Canvas Renderer</div>
+            <div class="cn-status idle"></div>
+          </div>
+          <div class="cn-body">nodes: 9 | edges: 12</div>
+          <div class="cn-footer">
+            <span class="cn-tag">render</span>
+          </div>
+        </div>
+
+        <!-- SVG edges -->
+        <svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;">
+          <defs>
+            <marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L6,3 z" fill="rgba(255,255,255,0.2)"/>
+            </marker>
+          </defs>
+          <!-- Router → Agent -->
+          <path d="M480 120 C510 120 510 100 540 90" stroke="rgba(255,255,255,0.12)" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+          <!-- Router → Generator -->
+          <path d="M480 135 C510 135 510 240 540 240" stroke="rgba(255,255,255,0.12)" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+          <!-- Agent → Spec -->
+          <path d="M700 95 L758 95" stroke="rgba(255,255,255,0.12)" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+          <!-- Generator → Validator -->
+          <path d="M700 245 L758 245" stroke="rgba(255,255,255,0.12)" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+          <!-- Spec → Canvas -->
+          <path d="M922 95 L968 155" stroke="rgba(255,255,255,0.12)" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+          <!-- Validator → Canvas -->
+          <path d="M922 245 L968 205" stroke="rgba(255,255,255,0.12)" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+          <!-- Router → Spec (alt) -->
+          <path d="M480 135 C520 135 520 180 760 180 C800 180 800 95 758 95" stroke="rgba(255,255,255,0.08)" stroke-width="1" fill="none" stroke-dasharray="4 4"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Pane: Artifacts -->
+    <div class="editor-pane artifacts-pane" id="pane-artifacts">
+      <div class="artifacts-grid">
+        <div class="artifact-card fade-in">
+          <div class="artifact-preview">HTML</div>
+          <div class="artifact-info">
+            <div class="artifact-name">canvas-workbench-prototype.html</div>
+            <div class="artifact-meta">HTML · 28KB · 4 分钟前</div>
+          </div>
+        </div>
+        <div class="artifact-card fade-in" style="animation-delay:60ms">
+          <div class="artifact-preview">YAML</div>
+          <div class="artifact-info">
+            <div class="artifact-name">workbench-ide-chrome_feature.yaml</div>
+            <div class="artifact-meta">YAML · 6.3KB · 18 分钟前</div>
+          </div>
+        </div>
+        <div class="artifact-card fade-in" style="animation-delay:120ms">
+          <div class="artifact-preview">TS</div>
+          <div class="artifact-info">
+            <div class="artifact-name">workbench-layout-store.ts</div>
+            <div class="artifact-meta">TypeScript · 4.6KB · 20 分钟前</div>
+          </div>
+        </div>
+        <div class="artifact-card fade-in" style="animation-delay:180ms">
+          <div class="artifact-preview">TS</div>
+          <div class="artifact-info">
+            <div class="artifact-name">workbench-message-sse-bridge.ts</div>
+            <div class="artifact-meta">TypeScript · 2.1KB · 25 分钟前</div>
+          </div>
+        </div>
+        <div class="artifact-card fade-in" style="animation-delay:240ms">
+          <div class="artifact-preview">YAML</div>
+          <div class="artifact-info">
+            <div class="artifact-name">workbench-layout_resize_feature.yaml</div>
+            <div class="artifact-meta">YAML · 4.3KB · 1 小时前</div>
+          </div>
+        </div>
+        <div class="artifact-card fade-in" style="animation-delay:300ms">
+          <div class="artifact-preview">HTML</div>
+          <div class="artifact-info">
+            <div class="artifact-name">routing-panel-prototype.html</div>
+            <div class="artifact-meta">HTML · 18KB · 2 小时前</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pane: Spec Text -->
+    <div class="editor-pane spec-pane" id="pane-spec-text">
+      <div class="spec-code">spec:
+  version: "1.0"
+  level: "4_feature"
+  name: "workbench-ide-chrome"
+  parent: "workbench-shell"
+  status: "active"
+
+content:
+  description: |
+    Workbench 采用类 Cursor / VS Code 的 IDE 分区：
+    顶部菜单与窗口控制；
+    左侧窄「活动栏」+ 宽幅「一级侧栏」；
+    中央主体为文档/画布区（支持多 Tab）；
+    右侧为辅栏承载「AI 对话 + 底部 Composer」；
+    底部为 Dock（问题、输出、终端等）。
+
+  region_map:
+    top_titlebar:
+      menu_groups: [文件, 编辑, 视图, 转到, 运行, 终端, 帮助]
+      trailing_controls: [设置, 最小化, 最大化, 关闭]
+    left_stack:
+      activity_bar: "竖条图标；切换 primary_sidebar 当前视图"
+      primary_sidebar_views:
+        - id: workspace
+          label: "工作区"
+          contains: "仓库文件树、线程列表等"
+        - id: git
+          label: "源代码管理"
+        - id: search
+          label: "搜索"
+        - id: extensions
+          label: "扩展与自定义"
+    center_editor:
+      tab_kinds:
+        - id: canvas
+          label: "画布"
+          purpose: "Spec 图形 / 行为 DAG"
+        - id: artifacts
+          label: "构件"
+          purpose: "Artifact 列表与预览"
+        - id: spec_text
+          label: "Spec 文本"
+        - id: diff
+          label: "Diff"
+    right_ai_column:
+      upper: "AI 对话记录"
+      lower: "Composer 输入区"
+    bottom_dock:
+      tab_kinds:
+        - problems
+        - output
+        - debug_console
+        - terminal
+        - more</div>
+    </div>
+
+    <!-- Pane: Diff -->
+    <div class="editor-pane diff-pane" id="pane-diff">
+      <div class="diff-file-header">
+        <span class="diff-badge add">+3</span>
+        <span class="diff-badge rem">-1</span>
+        <span style="color:var(--text-secondary); font-family:var(--font-mono); font-size:12px;">workbench-layout-store.ts</span>
+      </div>
+      <div class="diff-lines">
+        <div class="diff-line add"><span class="diff-line num">  87</span> +  /** 右侧 AI 栏内部高度（用于钳制 AI 输入区拖拽） */</div>
+        <div class="diff-line add"><span class="diff-line num">  88</span> +  export const workbenchRightPanelHeight = writable(0);</div>
+        <div class="diff-line add"><span class="diff-line num">  89</span> +</div>
+        <div class="diff-line"><span class="diff-line num">  90</span>  </div>
+        <div class="diff-line rem"><span class="diff-line num">  91</span> -  const LS_KEY = 'vibex.workbench.layout.v1';</div>
+        <div class="diff-line add"><span class="diff-line num">  91</span> +  const LS_KEY_V2 = 'vibex.workbench.layout.v2';</div>
+        <div class="diff-line add"><span class="diff-line num">  92</span> +  const LS_KEY_V1 = 'vibex.workbench.layout.v1';</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right AI Column ── -->
+  <div class="wb-right" id="wbRight">
+    <div class="right-header">
+      <span class="rh-title">hermes (MiniMax-M2.5)</span>
+      <button class="rh-btn" title="线程设置"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4"/></svg></button>
+      <button class="rh-btn" title="清空"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+    </div>
+
+    <!-- Chat messages -->
+    <div class="chat-area" id="chatArea">
+      <div class="msg assistant">
+        <div class="msg-avatar">H</div>
+        <div class="msg-bubble">
+          <div class="msg-text">VibeX 工作台已就绪。你可以在 Canvas 中查看 DSL 行为图，或直接在 Composer 中描述你想要的功能，我会为你生成对应的 YAML spec 或代码。</div>
+        </div>
+      </div>
+      <div class="msg user">
+        <div class="msg-avatar">U</div>
+        <div class="msg-bubble">帮我添加一个新节点类型：Webhook Trigger，监听外部 POST 请求并触发 DSL Run</div>
+      </div>
+      <div class="msg assistant" id="typingMsg" style="display:none;">
+        <div class="msg-avatar">H</div>
+        <div class="msg-bubble">
+          <div class="typing-dots"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="msg assistant" id="responseMsg" style="display:none;">
+        <div class="msg-avatar">H</div>
+        <div class="msg-bubble">
+          <div class="msg-text"></div>
+          <div class="msg-code">node_type: webhook_trigger
+  id: "webhook-trigger-001"
+  fields:
+    - name: endpoint
+      type: string
+      required: true
+    - name: method
+      type: enum[POST, GET, PUT, DELETE]
+      default: POST
+    - name: secret
+      type: string
+      secret: true
+  triggers:
+    - on: "http.request"
+      route_to: "dsl-canvas"</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Composer -->
+    <div class="chat-input-area">
+      <div class="composer-area">
+        <textarea class="composer-input" id="composerInput" placeholder="描述你想要的功能，或按 ⌘K 打开命令面板..." rows="2"></textarea>
+        <div class="composer-toolbar">
+          <button class="composer-tool" title="附件"><svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
+          <button class="composer-tool" title="引用"><svg viewBox="0 0 24 24"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"/></svg></button>
+          <button class="composer-tool" title="模型"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg></button>
+          <button class="composer-send" id="sendBtn" title="发送 (Enter)">
+            <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Bottom Dock Tabs ── -->
+  <div class="wb-dock-tabs">
+    <div class="dock-tab has-errors" data-panel="problems">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      问题 <span class="dock-count">3</span>
+    </div>
+    <div class="dock-tab" data-panel="output">
+      <svg viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      输出
+    </div>
+    <div class="dock-tab" data-panel="debug">
+      <svg viewBox="0 0 24 24"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4M12 16h.01"/></svg>
+      调试
+    </div>
+    <div class="dock-tab" data-panel="terminal">
+      <svg viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      终端
+    </div>
+    <div class="dock-tab" data-panel="more">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+      更多
+    </div>
+  </div>
+
+  <!-- ── Bottom Dock Panel ── -->
+  <div class="wb-dock active" id="wbDock" style="display:none;">
+    <!-- Problems panel -->
+    <div class="dock-panel active" id="panel-problems">
+      <div class="problems-list">
+        <div class="problem-item">
+          <div class="problem-icon error"><svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
+          <div class="problem-text">
+            <div class="problem-file">workbench-layout-store.ts:63</div>
+            <div class="problem-msg">TS6133: 'browser' is declared but never used</div>
+          </div>
+        </div>
+        <div class="problem-item">
+          <div class="problem-icon error"><svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
+          <div class="problem-text">
+            <div class="problem-file">workbench-message-sse-bridge.ts:28</div>
+            <div class="problem-msg">TS18046: 'event' is of type 'unknown'</div>
+          </div>
+        </div>
+        <div class="problem-item warning">
+          <div class="problem-icon warn"><svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+          <div class="problem-text">
+            <div class="problem-file">workbench-ide-chrome_feature.yaml:40</div>
+            <div class="problem-msg">YAML: 'spec-to-code 生成的 WorkbenchShell.svelte 仍为历史产物' 注释引用已废弃路径</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Output panel -->
+    <div class="dock-panel" id="panel-output">
+      <div class="output-content">
+        <div class="output-line"><span class="ts">[14:32:01]</span> <span class="info">INFO</span>  Vite server ready at http://localhost:5173</div>
+        <div class="output-line"><span class="ts">[14:32:03]</span> <span class="ok">OK</span>   Compiled in 1247ms</div>
+        <div class="output-line"><span class="ts">[14:32:15]</span> <span class="info">INFO</span>  SSE connected: /api/workbench/stream</div>
+        <div class="output-line"><span class="ts">[14:32:18]</span> <span class="err">ERR</span>  TypeError: Cannot read properties of undefined (reading 'id')</div>
+        <div class="output-line"><span class="ts">[14:32:20]</span> <span class="ok">OK</span>   Resolved: workbench-layout-store.ts:63</div>
+        <div class="output-line"><span class="ts">[14:33:05]</span> <span class="info">INFO</span>  Thread t1: Hermes Agent started (model: MiniMax-M2.5)</div>
+      </div>
+    </div>
+    <!-- Debug panel -->
+    <div class="dock-panel" id="panel-debug">
+      <div class="debug-content">
+        <div class="debug-section">
+          <div class="debug-section-title">当前状态</div>
+          <div class="debug-var"><span class="dk">thread_id</span><span class="dv">t1 (DSL Canvas 迭代)</span></div>
+          <div class="debug-var"><span class="dk">agent_state</span><span class="dv">running</span></div>
+          <div class="debug-var"><span class="dk">model</span><span class="dv">MiniMax-M2.5-highspeed</span></div>
+          <div class="debug-var"><span class="dk">tokens_in</span><span class="dv">3,847</span></div>
+          <div class="debug-var"><span class="dk">tokens_out</span><span class="dv">1,264</span></div>
+        </div>
+        <div class="debug-section">
+          <div class="debug-section-title">布局状态</div>
+          <div class="debug-var"><span class="dk">sidebarLeftPx</span><span class="dv">260</span></div>
+          <div class="debug-var"><span class="dk">panelRightPx</span><span class="dv">380</span></div>
+          <div class="debug-var"><span class="dk">aiComposerBarPx</span><span class="dv">156</span></div>
+          <div class="debug-var"><span class="dk">bottomDockPx</span><span class="dv">200</span></div>
+        </div>
+      </div>
+    </div>
+    <!-- Terminal panel -->
+    <div class="dock-panel" id="panel-terminal">
+      <div class="terminal-content">
+        <div><span class="terminal-prompt">vibex@workbench</span> <span class="terminal-cmd">~/vibex-workbench</span> <span class="terminal-out">$ pnpm dev</span></div>
+        <div class="terminal-out" style="margin-top:4px;">  VITE v6.0.0  ready in 342 ms</div>
+        <div class="terminal-out">&nbsp;</div>
+        <div><span class="terminal-prompt">→</span> <span class="terminal-out">Local:   http://localhost:5173/</span></div>
+        <div><span class="terminal-out">&nbsp;</span></div>
+        <div><span class="terminal-prompt">vibex@workbench</span> <span class="terminal-cmd">~/vibex-workbench</span> <span class="terminal-out">$ git status</span></div>
+        <div class="terminal-out" style="margin-top:4px;">On branch master</div>
+        <div class="terminal-out">Your branch is up to date with 'origin/master'.</div>
+      </div>
+    </div>
+    <!-- More panel -->
+    <div class="dock-panel" id="panel-more">
+      <div style="padding:16px; color:var(--text-muted); font-size:12px;">
+        <div style="margin-bottom:8px; color:var(--text-secondary);">更多面板</div>
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <div style="cursor:pointer; padding:4px 0;">Ports (已禁用)</div>
+          <div style="cursor:pointer; padding:4px 0;">Docker (已禁用)</div>
+          <div style="cursor:pointer; padding:4px 0;">Timeline (已禁用)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Bar -->
+  <div class="wb-statusbar">
+    <div class="status-item">
+      <svg viewBox="0 0 24 24"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/></svg>
+      main
+    </div>
+    <div class="status-item">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>
+      同步
+    </div>
+    <div class="status-item" id="statusLang">TypeScript</div>
+    <div class="status-item" id="statusEncoding">UTF-8</div>
+    <div class="status-spacer"></div>
+    <div class="status-right">
+      <div class="status-item">⛓ 9 节点 · 12 边</div>
+      <div class="status-item">Ln 1, Col 1</div>
+      <div class="status-item">Spaces: 2</div>
+    </div>
+  </div>
+
+  <!-- Command Palette -->
+  <div class="cmd-palette-overlay" id="cmdPalette">
+    <div class="cmd-palette">
+      <div class="cmd-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" placeholder="输入命令或搜索..." id="cmdInput">
+      </div>
+      <div class="cmd-results" id="cmdResults">
+        <div class="cmd-group-label">常用</div>
+        <div class="cmd-item" data-action="run">
+          <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span class="cmd-label">运行选中节点</span>
+          <span class="cmd-kbd">F5</span>
+        </div>
+        <div class="cmd-item" data-action="stop">
+          <svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"/></svg>
+          <span class="cmd-label">停止运行</span>
+          <span class="cmd-kbd">⇧F5</span>
+        </div>
+        <div class="cmd-item" data-action="toggle-sidebar">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+          <span class="cmd-label">切换侧边栏</span>
+          <span class="cmd-kbd">⌘B</span>
+        </div>
+        <div class="cmd-item" data-action="toggle-dock">
+          <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          <span class="cmd-label">切换底部面板</span>
+          <span class="cmd-kbd">⌘J</span>
+        </div>
+        <div class="cmd-item" data-action="new-thread">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          <span class="cmd-label">新建线程</span>
+          <span class="cmd-kbd">⌘N</span>
+        </div>
+        <div class="cmd-group-label">文件</div>
+        <div class="cmd-item" data-action="open-file">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span class="cmd-label">打开文件</span>
+          <span class="cmd-kbd">⌘O</span>
+        </div>
+        <div class="cmd-item" data-action="save">
+          <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          <span class="cmd-label">保存</span>
+          <span class="cmd-kbd">⌘S</span>
+        </div>
+        <div class="cmd-group-label">视图</div>
+        <div class="cmd-item" data-action="toggle-right">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+          <span class="cmd-label">切换 AI 面板</span>
+          <span class="cmd-kbd">⌘R</span>
+        </div>
+      </div>
+      <div class="cmd-footer">
+        <span><kbd>↑↓</kbd> 导航</span>
+        <span><kbd>↵</kbd> 执行</span>
+        <span><kbd>Esc</kbd> 关闭</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end .wb-root -->
+
+<script>
+(function() {
+  'use strict';
+
+  // ─── Layout resize ───
+  const layout = {
+    sidebarLeftPx: 260,
+    panelRightPx: 380,
+    aiComposerBarPx: 156,
+    bottomDockPx: 200,
+  };
+
+  function applyLayout() {
+    document.documentElement.style.setProperty('--sidebar-width', layout.sidebarLeftPx + 'px');
+    document.documentElement.style.setProperty('--right-panel-width', layout.panelRightPx + 'px');
+    document.documentElement.style.setProperty('--composer-height', layout.aiComposerBarPx + 'px');
+    document.documentElement.style.setProperty('--bottom-dock-height', layout.bottomDockPx + 'px');
+    document.documentElement.style.setProperty('--dock-tab-height', '28px');
+    // Bottom dock grid rows
+    const root = document.getElementById('wbRoot');
+    root.style.gridTemplateRows = 'var(--titlebar-height) 1fr var(--dock-tab-height)';
+  }
+
+  applyLayout();
+
+  // Resizable splitters
+  function makeSplitter(selector, dimKey, dim, onDrag) {
+    const el = document.querySelector(selector);
+    if (!el) return;
+
+    let dragging = false;
+    let startPos = 0;
+    let startVal = 0;
+
+    const limits = {
+      sidebarLeftPx: { min: 180, max: 560 },
+      panelRightPx: { min: 240, max: 720 },
+      aiComposerBarPx: { min: 96, max: 400 },
+      bottomDockPx: { min: 120, max: 520 },
+    };
+
+    el.addEventListener('pointerdown', e => {
+      dragging = true;
+      startPos = dim === 'x' ? e.clientX : e.clientY;
+      startVal = layout[dimKey];
+      el.classList.add('dragging');
+      el.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+
+    el.addEventListener('pointermove', e => {
+      if (!dragging) return;
+      const delta = (dim === 'x' ? e.clientX : e.clientY) - startPos;
+      let newVal;
+      if (dim === 'x') {
+        // sidebar shrinks as mouse moves right; panel shrinks as mouse moves left
+        newVal = dimKey === 'sidebarLeftPx'
+          ? startVal - delta
+          : startVal + delta;
+      } else {
+        newVal = startVal + delta;
+      }
+      const lim = limits[dimKey];
+      newVal = Math.max(lim.min, Math.min(lim.max, Math.round(newVal)));
+      layout[dimKey] = newVal;
+      applyLayout();
+      if (onDrag) onDrag(newVal);
+    });
+
+    el.addEventListener('pointerup', e => {
+      if (!dragging) return;
+      dragging = false;
+      el.classList.remove('dragging');
+      el.releasePointerCapture(e.pointerId);
+      // Persist
+      try {
+        localStorage.setItem('vibex.workbench.layout.v2', JSON.stringify(layout));
+      } catch(e) {}
+      const statusVars = {
+        sidebarLeftPx: 'sidebarLeftPx',
+        panelRightPx: 'panelRightPx',
+        aiComposerBarPx: 'aiComposerBarPx',
+        bottomDockPx: 'bottomDockPx',
+      };
+      const el2 = document.querySelector('.debug-var .dv');
+      if (dimKey === 'sidebarLeftPx') {
+        const dvs = document.querySelectorAll('#panel-debug .debug-var');
+        dvs.forEach(dv => { if (dv.querySelector('.dk')?.textContent === 'sidebarLeftPx') dv.querySelector('.dv').textContent = layout.sidebarLeftPx; });
+      }
+      if (dimKey === 'panelRightPx') {
+        const dvs = document.querySelectorAll('#panel-debug .debug-var');
+        dvs.forEach(dv => { if (dv.querySelector('.dk')?.textContent === 'panelRightPx') dv.querySelector('.dv').textContent = layout.panelRightPx; });
+      }
+      if (dimKey === 'aiComposerBarPx') {
+        const dvs = document.querySelectorAll('#panel-debug .debug-var');
+        dvs.forEach(dv => { if (dv.querySelector('.dk')?.textContent === 'aiComposerBarPx') dv.querySelector('.dv').textContent = layout.aiComposerBarPx; });
+      }
+      if (dimKey === 'bottomDockPx') {
+        const dvs = document.querySelectorAll('#panel-debug .debug-var');
+        dvs.forEach(dv => { if (dv.querySelector('.dk')?.textContent === 'bottomDockPx') dv.querySelector('.dv').textContent = layout.bottomDockPx; });
+      }
+    });
+  }
+
+  // Left sidebar splitter (between sidebar and center)
+  const sidebarSplitter = document.createElement('div');
+  sidebarSplitter.className = 'splitter splitter-v';
+  sidebarSplitter.style.cssText = 'grid-row:2;grid-column:2;left:0;top:0;bottom:0;';
+  document.getElementById('wbRoot').appendChild(sidebarSplitter);
+  makeSplitter('.splitter-v[style*="grid-column:2"]', 'sidebarLeftPx', 'x');
+
+  // Right panel splitter (between center and right)
+  const rightSplitter = document.createElement('div');
+  rightSplitter.className = 'splitter splitter-v';
+  rightSplitter.style.cssText = 'grid-row:2;grid-column:3;right:0;top:0;bottom:0;';
+  document.getElementById('wbRoot').appendChild(rightSplitter);
+  makeSplitter('.splitter-v[style*="grid-column:3"]', 'panelRightPx', 'x');
+
+  // Bottom dock splitter
+  const bottomSplitter = document.createElement('div');
+  bottomSplitter.className = 'splitter splitter-h';
+  bottomSplitter.style.cssText = 'grid-row:3;grid-column:1 / -1;left:0;right:0;bottom:0;top:0;';
+  document.getElementById('wbRoot').appendChild(bottomSplitter);
+  makeSplitter('.splitter-h', 'bottomDockPx', 'y');
+
+  // Right internal splitter (chat / composer)
+  const rightEl = document.getElementById('wbRight');
+  const rightChatArea = rightEl.querySelector('.chat-area');
+  const rightSplitterInt = document.createElement('div');
+  rightSplitterInt.className = 'splitter splitter-h';
+  rightSplitterInt.style.cssText = 'position:relative;height:5px;cursor:row-resize;flex-shrink:0;background:transparent;z-index:5;transition:background 150ms;';
+  rightSplitterInt.style.setProperty('border-top', '1px solid var(--border)');
+  rightSplitterInt.style.setProperty('border-bottom', '1px solid var(--border)');
+  rightEl.insertBefore(rightSplitterInt, rightEl.querySelector('.chat-input-area'));
+
+  let draggingInt = false, startY = 0, startH = 0;
+  rightSplitterInt.addEventListener('pointerdown', e => {
+    draggingInt = true;
+    startY = e.clientY;
+    startH = rightChatArea.offsetHeight;
+    rightSplitterInt.classList.add('dragging');
+    rightSplitterInt.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  rightSplitterInt.addEventListener('pointermove', e => {
+    if (!draggingInt) return;
+    const delta = e.clientY - startY;
+    const newH = Math.max(80, Math.min(rightEl.offsetHeight - 120, startH - delta));
+    rightChatArea.style.flex = 'none';
+    rightChatArea.style.height = newH + 'px';
+  });
+  rightSplitterInt.addEventListener('pointerup', e => {
+    if (!draggingInt) return;
+    draggingInt = false;
+    rightSplitterInt.classList.remove('dragging');
+    rightSplitterInt.releasePointerCapture(e.pointerId);
+    try {
+      localStorage.setItem('vibex.workbench.layout.v2', JSON.stringify(layout));
+    } catch(e) {}
+  });
+
+  // ─── Activity Bar ───
+  document.querySelectorAll('.ab-icon[data-sidebar]').forEach(icon => {
+    icon.addEventListener('click', () => {
+      document.querySelectorAll('.ab-icon[data-sidebar]').forEach(i => i.classList.remove('active'));
+      icon.classList.add('active');
+      const target = icon.dataset.sidebar;
+      document.querySelectorAll('.sidebar-view').forEach(v => v.classList.remove('active'));
+      const view = document.getElementById('sidebar-' + target);
+      if (view) view.classList.add('active');
+    });
+  });
+
+  // ─── Editor Tabs ───
+  document.querySelectorAll('.editor-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      if (tab.classList.contains('tab-add-btn')) return;
+      document.querySelectorAll('.editor-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const paneId = 'pane-' + tab.dataset.pane;
+      document.querySelectorAll('.editor-pane').forEach(p => p.classList.remove('active'));
+      const pane = document.getElementById(paneId);
+      if (pane) pane.classList.add('active');
+      // Update status bar
+      const tabNames = { canvas: 'Canvas', artifacts: '构件', 'spec-text': 'YAML', diff: 'Diff' };
+      document.getElementById('statusLang').textContent = tabNames[tab.dataset.pane] || 'Text';
+    });
+  });
+
+  // ─── Dock Tabs ───
+  document.querySelectorAll('.dock-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.dock-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const panelId = 'panel-' + tab.dataset.panel;
+      document.querySelectorAll('.dock-panel').forEach(p => p.classList.remove('active'));
+      const panel = document.getElementById(panelId);
+      if (panel) panel.classList.add('active');
+      const dock = document.getElementById('wbDock');
+      if (tab.dataset.panel === 'more') {
+        dock.style.display = dock.style.display === 'none' ? 'flex' : 'none';
+      } else {
+        dock.style.display = 'flex';
+      }
+    });
+  });
+
+  // ─── Canvas Node click ───
+  document.querySelectorAll('.canvas-node').forEach(node => {
+    node.addEventListener('click', () => {
+      document.querySelectorAll('.canvas-node').forEach(n => n.classList.remove('selected'));
+      node.classList.add('selected');
+    });
+  });
+
+  // ─── Run Canvas ───
+  document.getElementById('runCanvasBtn').addEventListener('click', () => {
+    const status = document.querySelector('.cn-status.running');
+    if (!status) return;
+    const node = status.closest('.canvas-node');
+    if (!node) return;
+    status.className = 'cn-status done';
+    showToast('节点运行完成', 'ok');
+  });
+
+  // ─── Thread click ───
+  document.querySelectorAll('.thread-item').forEach(item => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.thread-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+    });
+  });
+
+  // ─── File tree ───
+  document.querySelectorAll('.ws-item[data-file]').forEach(item => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.ws-item[data-file]').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      showToast('打开: ' + item.dataset.file, 'info');
+    });
+  });
+
+  document.querySelectorAll('.ws-item.folder').forEach(folder => {
+    folder.addEventListener('click', () => {
+      const expanded = folder.dataset.expanded === 'true';
+      folder.dataset.expanded = (!expanded).toString();
+      const children = folder.parentElement.querySelector('.ws-children');
+      if (children) children.style.display = expanded ? 'none' : 'block';
+    });
+  });
+
+  // ─── Command Palette ───
+  const cmdPalette = document.getElementById('cmdPalette');
+  const cmdInput = document.getElementById('cmdInput');
+  const cmdResults = document.getElementById('cmdResults');
+
+  let cmdSelectedIdx = 0;
+  const cmdItems = () => [...cmdResults.querySelectorAll('.cmd-item')];
+
+  function openCmdPalette() {
+    cmdPalette.classList.add('open');
+    cmdInput.focus();
+    cmdInput.value = '';
+    filterCmdItems('');
+    cmdSelectedIdx = 0;
+    updateCmdSelection();
+  }
+
+  function closeCmdPalette() {
+    cmdPalette.classList.remove('open');
+  }
+
+  function filterCmdItems(query) {
+    const items = cmdItems();
+    items.forEach(item => {
+      const label = item.querySelector('.cmd-label').textContent.toLowerCase();
+      item.style.display = label.includes(query.toLowerCase()) ? '' : 'none';
+    });
+  }
+
+  function updateCmdSelection() {
+    const visible = cmdItems().filter(i => i.style.display !== 'none');
+    visible.forEach((item, idx) => {
+      item.classList.toggle('selected', idx === cmdSelectedIdx);
+    });
+    const selected = visible[cmdSelectedIdx];
+    if (selected) selected.scrollIntoView({ block: 'nearest' });
+  }
+
+  document.getElementById('cmdPaletteBtn').addEventListener('click', openCmdPalette);
+  cmdPalette.addEventListener('click', e => {
+    if (e.target === cmdPalette) closeCmdPalette();
+  });
+
+  cmdInput.addEventListener('input', () => {
+    cmdSelectedIdx = 0;
+    filterCmdItems(cmdInput.value);
+    updateCmdSelection();
+  });
+
+  cmdInput.addEventListener('keydown', e => {
+    const visible = cmdItems().filter(i => i.style.display !== 'none');
+    if (e.key === 'ArrowDown') { e.preventDefault(); cmdSelectedIdx = Math.min(cmdSelectedIdx + 1, visible.length - 1); updateCmdSelection(); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); cmdSelectedIdx = Math.max(cmdSelectedIdx - 1, 0); updateCmdSelection(); }
+    if (e.key === 'Enter') {
+      const selected = visible[cmdSelectedIdx];
+      if (selected) execCmdAction(selected.dataset.action);
+    }
+    if (e.key === 'Escape') closeCmdPalette();
+  });
+
+  cmdItems().forEach(item => {
+    item.addEventListener('click', () => execCmdAction(item.dataset.action));
+    item.addEventListener('mouseenter', () => {
+      cmdSelectedIdx = cmdItems().filter(i => i.style.display !== 'none').indexOf(item);
+      updateCmdSelection();
+    });
+  });
+
+  function execCmdAction(action) {
+    closeCmdPalette();
+    const actions = {
+      'toggle-sidebar': () => {
+        const sb = document.getElementById('wbSidebar');
+        const newW = sb.offsetWidth > 10 ? 0 : 260;
+        sb.style.transition = 'width 200ms';
+        sb.style.width = newW + 'px';
+        setTimeout(() => { sb.style.transition = ''; }, 200);
+      },
+      'toggle-dock': () => {
+        const dock = document.getElementById('wbDock');
+        dock.style.display = dock.style.display === 'none' ? 'flex' : 'none';
+      },
+      'toggle-right': () => {
+        const right = document.getElementById('wbRight');
+        const newW = right.offsetWidth > 10 ? 0 : 380;
+        right.style.transition = 'width 200ms';
+        right.style.width = newW + 'px';
+        setTimeout(() => { right.style.transition = ''; }, 200);
+      },
+      'new-thread': () => showToast('新建线程', 'info'),
+      'open-file': () => showToast('打开文件...', 'info'),
+      'save': () => showToast('已保存', 'ok'),
+      'run': () => {
+        const btn = document.getElementById('runCanvasBtn');
+        if (btn) btn.click();
+      },
+      'stop': () => showToast('已停止', 'warn'),
+    };
+    const fn = actions[action];
+    if (fn) fn();
+  }
+
+  // Global keyboard shortcuts
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); openCmdPalette(); }
+    if (e.key === 'Escape' && cmdPalette.classList.contains('open')) closeCmdPalette();
+    if (e.key === 'F5') { e.preventDefault(); document.getElementById('runCanvasBtn').click(); }
+  });
+
+  // ─── Composer ───
+  const composerInput = document.getElementById('composerInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const chatArea = document.getElementById('chatArea');
+
+  let isGenerating = false;
+
+  function showToast(msg, type) {
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.style.cssText = `
+      position:fixed;bottom:40px;left:50%;transform:translateX(-50%);
+      padding:6px 14px;border-radius:6px;font-size:12px;z-index:2000;
+      background:${type==='ok'?'#22c55e':type==='warn'?'#f59e0b':type==='err'?'#ef4444':'var(--brand)'};
+      color:white;pointer-events:none;animation:fadeIn 200ms ease-out;
+    `;
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2000);
+  }
+
+  composerInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!isGenerating) triggerGeneration();
+    }
+  });
+
+  sendBtn.addEventListener('click', () => {
+    if (!isGenerating) triggerGeneration();
+  });
+
+  function triggerGeneration() {
+    const text = composerInput.value.trim();
+    if (!text) return;
+    isGenerating = true;
+    sendBtn.disabled = true;
+    composerInput.value = '';
+
+    // Add user message
+    const userMsg = document.createElement('div');
+    userMsg.className = 'msg user fade-in';
+    userMsg.innerHTML = '<div class="msg-avatar">U</div><div class="msg-bubble"><div class="msg-text"></div></div>';
+    userMsg.querySelector('.msg-text').textContent = text;
+    chatArea.appendChild(userMsg);
+
+    // Show typing
+    const typingMsg = document.getElementById('typingMsg');
+    typingMsg.style.display = 'flex';
+
+    // Scroll to bottom
+    chatArea.scrollTop = chatArea.scrollHeight;
+
+    // Simulate SSE streaming
+    const responses = [
+      '正在分析你的需求...',
+      '已找到相关 spec：`workbench-ide-chrome_feature.yaml`，正在读取布局规格...',
+      '发现新节点类型 Webhook Trigger 适合作为外部触发器。正在生成 YAML 配置...',
+      '```yaml\\nnode_type: webhook_trigger\\n  id: "webhook-trigger-001"\\n  fields:\\n    - name: endpoint\\n      type: string\\n      required: true\\n    - name: secret\\n      type: string\\n      secret: true\\n  triggers:\\n    - on: "http.request"\\n      route_to: "dsl-canvas"\\n```',
+      '已生成 webhook_trigger 节点类型。Canvas 视图中已添加对应节点。',
+    ];
+
+    let step = 0;
+    const responseMsg = document.getElementById('responseMsg');
+    const responseText = responseMsg.querySelector('.msg-text');
+    const responseCode = responseMsg.querySelector('.msg-code');
+
+    const streamInterval = setInterval(() => {
+      if (step < responses.length) {
+        if (responses[step].startsWith('```')) {
+          typingMsg.style.display = 'none';
+          responseMsg.style.display = 'flex';
+          responseMsg.className = 'msg assistant fade-in';
+          responseCode.innerHTML = responses[step].replace(/```yaml\\n?/g, '').replace(/\\n/g, '<br>');
+        } else {
+          responseText.textContent = responses[step];
+        }
+        chatArea.scrollTop = chatArea.scrollHeight;
+        step++;
+      } else {
+        clearInterval(streamInterval);
+        isGenerating = false;
+        sendBtn.disabled = false;
+        showToast('生成完成', 'ok');
+        chatArea.scrollTop = chatArea.scrollHeight;
+      }
+    }, 800);
+  }
+
+  // ─── Search ───
+  document.getElementById('searchInput').addEventListener('input', e => {
+    const q = e.target.value.trim();
+    const results = document.getElementById('searchResults');
+    if (!q) { results.textContent = '输入关键词开始搜索'; return; }
+    results.innerHTML = `<div style="color:var(--text-secondary);">搜索 "<b>${q}</b>"...</div>`;
+    setTimeout(() => {
+      results.innerHTML = `
+        <div style="color:var(--text-secondary); margin-bottom:6px;">在 47 个文件中找到 12 个结果</div>
+        <div style="cursor:pointer; padding:4px 0; color:var(--brand); font-size:11.5px;" onclick="showToast('跳转到: workbench-layout-store.ts:63')">workbench-layout-store.ts:63</div>
+        <div style="cursor:pointer; padding:4px 0; color:var(--brand); font-size:11.5px;" onclick="showToast('跳转到: workbench-message-sse-bridge.ts:28')">workbench-message-sse-bridge.ts:28</div>
+        <div style="cursor:pointer; padding:4px 0; color:var(--brand); font-size:11.5px;" onclick="showToast('跳转到: workbench-ide-chrome_feature.yaml:40')">workbench-ide-chrome_feature.yaml:40</div>
+      `;
+    }, 400);
+  });
+
+  // ─── Init: load from localStorage ───
+  try {
+    const saved = localStorage.getItem('vibex.workbench.layout.v2');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      Object.assign(layout, parsed);
+      applyLayout();
+    }
+  } catch(e) {}
+
+  // Animate canvas nodes on load
+  setTimeout(() => {
+    document.querySelectorAll('.canvas-node').forEach((node, i) => {
+      node.style.opacity = '0';
+      node.style.transform = 'translateY(8px)';
+      setTimeout(() => {
+        node.style.transition = 'opacity 300ms ease-out, transform 300ms ease-out';
+        node.style.opacity = '1';
+        node.style.transform = 'translateY(0)';
+      }, i * 60);
+    });
+  }, 100);
+
+})();
+</script>
+</body>
+</html>

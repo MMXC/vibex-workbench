@@ -11,13 +11,28 @@ spec:
   level: "2_skeleton"
   name: "vibex-workbench-skeleton"
   parent: "vibex-workbench-goal"
-  status: "active"
+  status: "done"
 
 meta:
   project: "vibex-workbench"
   owner: "hermes"
   created: "2026-04-20"
-  updated: "2026-04-20"
+  updated: "2026-04-21"
+
+lifecycle:
+  current: "done"
+  updated: "2026-04-21T20:00:00"
+  history:
+    - status: "draft"
+      at: "2026-04-20T10:00:00"
+      by: "hermes"
+      trigger: "agent:auto"
+      note: "从 goal spec 派生骨架，完成 5 个模块划分"
+    - status: "done"
+      at: "2026-04-21T20:00:00"
+      by: "hermes"
+      trigger: "agent:auto"
+      note: "骨架 + 自举策略 + 生成流水线完成"
 
 content:
   # ── IO 契约 ────────────────────────────────────────
