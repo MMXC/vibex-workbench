@@ -91,32 +91,61 @@ func MakeSpecFeatureHandler(workspaceDir string, setStepType func(threadID, step
 		b := make([]byte, 4)
 		rand.Read(b)
 		featureID := hex.EncodeToString(b)
-		timestamp := time.Now().Format("20060102-150405")
 		safeName := strings.ReplaceAll(strings.ToLower(args.FeatureName), " ", "-")
-		specFile := filepath.Join(specsDir, fmt.Sprintf("%s-%s-%s.yaml", safeName, timestamp, featureID))
+
+		// Use sub-directory so feature + sub-specs stay together
+		// dir: specs/feature/<safeName>/
+		featureDir := filepath.Join(specsDir, safeName)
+		os.MkdirAll(featureDir, 0755)
+		specFile := filepath.Join(featureDir, fmt.Sprintf("%s_feature.yaml", safeName))
+		uiuxFile := filepath.Join(featureDir, fmt.Sprintf("%s_uiux.yaml", safeName))
 
 		content := fmt.Sprintf(`# Feature Spec %s
 # Child of: %s
 
 spec:
   id: "%s"
-  type: feature
+  version: "1.0"
+  level: "4_feature"
   name: "%s"
   parent: "%s"
-  input: ""
-  output: ""
-  boundary: ""
-  behavior: ""
-  changelog: []
   status: draft
   created_at: "%s"
-`, featureID, args.ParentSpecID, featureID, escapeYAML(args.FeatureName), args.ParentSpecID, time.Now().Format(time.RFC3339))
+
+content:
+  description: "%s"
+  sub_specs:
+    uiux: "%s_uiux.yaml"
+`, featureID, args.ParentSpecID, featureID, safeName, args.ParentSpecID,
+			time.Now().Format(time.RFC3339), escapeYAML(args.FeatureName), safeName)
+
+		uiuxContent := fmt.Sprintf(`# Feature UI/UX Spec — %s
+spec:
+  version: "1.0"
+  level: "5a_uiux"
+  name: "%s_uiux"
+  parent: "%s"
+  status: draft
+
+content:
+  canvas_layout:
+    type: flow-canvas
+    width: "100%%"
+    height: "100%%"
+  regions: []
+  components: []
+  state_management:
+    stores: []
+`, args.FeatureName, safeName, safeName)
 
 		if err := os.WriteFile(specFile, []byte(content), 0644); err != nil {
 			return "error writing feature spec: " + err.Error()
 		}
+		if err := os.WriteFile(uiuxFile, []byte(uiuxContent), 0644); err != nil {
+			return fmt.Sprintf("feature spec created: %s\n(error creating uiux sub-spec: %v)\n\nSPEC-DRIVEN LOOP:\n  1. spec_validate\n  2. make_generate\n  3. canvas_update", specFile, err)
+		}
 
-		return fmt.Sprintf("feature spec created: %s\nfeature: %s\nparent: %s", specFile, args.FeatureName, args.ParentSpecID)
+		return fmt.Sprintf("feature spec + uiux created:\n  %s\n  %s\nparent: %s\n\nSPEC-DRIVEN LOOP — execute in order:\n  1. spec_validate (check YAML syntax, confirm parent chain)\n  2. make_generate (emit types.ts, *.Skeleton.svelte from specs)\n  3. canvas_update (reflect new spec on canvas)", specFile, uiuxFile, args.ParentSpecID)
 	}
 }
 
