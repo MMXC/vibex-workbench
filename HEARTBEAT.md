@@ -181,14 +181,39 @@ spec_designer → spec_feature → spec_validate → make_generate → canvas_up
                                make_validate
 ```
 
-### E3 — spec自举（待验证）
+### E3 — spec template 自举闭环 ✅ 已关闭（2026-04-21）
 
-`spec_designer` 工具 → spec YAML → `make generate` → `make validate` → `spec_designer` 更新
+```
+feature-template spec (level: meta_template, template 字段)
+  → make generate
+  → generators/templates/feature_template_*.yaml.tpl
+  → MakeSpecFeatureHandler 读取 .tpl + ${PLACEHOLDER} 替换
+  → specs/feature/<name>/<name>_feature.yaml + <name>_uiux.yaml
+```
 
-**当前缺口：**
-- `spec_feature` 的 template 仍是硬编码 Go string，未从 spec 驱动
-- uiux sub-spec template（`canvas_layout.type: flow-canvas` 等）是默认值
-- 下一步：`spec_feature` handler 的 content template 应从某 L3/L4 spec 读取，或由 `make_generate` 反向生成
+**已验证：**
+- `feature_template_feature.yaml` / `feature_template_uiux.yaml` (level: `meta_template`) ✅
+- `content.template` 顶层字段存完整 YAML template ✅
+- `gen.py` 末尾扫描所有 `meta_template` level spec → 写 `generators/templates/*.tpl` ✅
+- handler 从 `.tpl` 文件读取，fallback 触发 `make generate` 再试 ✅
+- `make validate` + `make lint-all` 全绿 ✅
+- `${FEATURE_ID}` / `${SAFE_NAME}` / `${PARENT_ID}` / `${TIMESTAMP}` / `${FEATURE_NAME}` 替换正确 ✅
+- `validate_specs.py` 跳过 `meta_template` 从属链校验 ✅
+
+**自举覆盖：**
+```
+spec YAML (template field = feature-template spec)
+  → make generate
+  → generators/templates/*.tpl        ← 从 meta_spec 同步
+  → handler 读取 .tpl
+  → 生成 specs/feature/<name>/*.yaml  ← 回到 spec
+  → make validate 校验
+  → 若需要 → make generate 更新 .tpl   ← 闭环
+```
+
+**下一步缺口：**
+- `spec_feature` handler 的 output message 还可进一步结构化（当前是 plaintext）
+- `spec_validate` / `make_validate` 可在 spec_feature 成功后自动调用（当前靠 tool description 引导 agent 手动执行）
 
 ### E2 — spec-designer → spec YAML → make validate ✅ 门禁已闭环
 
