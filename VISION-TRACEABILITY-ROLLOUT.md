@@ -8,6 +8,9 @@
 
 | 产物 | 路径 |
 |------|------|
+| **Spec → 落地默认步骤（操作卡）** | `SPEC-TO-SHIP-WORKFLOW.md`（门禁命令顺序、generate vs 手写分叉） |
+| **落地层缺口登记（与治理层对照）** | `SPEC-LANDING-GAPS.md`（gen.py 覆盖边界、agent 协议待补） |
+| **Agent / 人：执行协议骨架** | `SPEC-EXECUTION-PROTOCOL.md`（占位；待填满） |
 | 层级最低集 | `specs/meta/spec-layer-contract.yaml`（`layers.*.must_contain`） |
 | 拆解与追溯阅读 | `docs/spec-goal-decomposition-traceability.md` §9–10 |
 | L1 约束定义 | `specs/project-goal/vibex-workbench-goal.yaml`（C1–C8） |
@@ -124,3 +127,6 @@
 | 2026-04-22 | Phase A 完成：`workbench-shell` 聚合 + layout-resize + conversation + `canvas-renderer` |
 | 2026-04-22 | Phase B 试点：`content.trace_note` 见于 spec-editor / shell / routing / codegen 等 5 个 L5 文件 |
 | 2026-04-22 | Phase C：`feature_template_*` 模板 + `snippets/l4-vision-traceability.stub.yaml`；Makefile 注释门禁 |
+| 2026-04-22 | §1 增加指向 `SPEC-TO-SHIP-WORKFLOW.md`（默认落地步骤） |
+| 2026-04-22 | §1 增加 `SPEC-LANDING-GAPS.md`（落地层缺口登记） |
+| 2026-04-22 | §1 增加 `SPEC-EXECUTION-PROTOCOL.md`（执行协议占位） |

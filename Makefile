@@ -15,6 +15,8 @@ export PYTHONIOENCODING := utf-8
 
 help:
 	@echo "VibeX Workbench -- spec tooling"
+	@echo "  (spec change -> ship: SPEC-TO-SHIP-WORKFLOW.md)"
+	@echo "  (governance vs landing gaps: SPEC-LANDING-GAPS.md)"
 	@echo ""
 	@echo "  make init          First-time setup (npm install in frontend)"
 	@echo "  make lint-specs    Validate spec YAML syntax and parent refs"

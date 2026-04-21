@@ -154,6 +154,7 @@ flowchart TB
 
 ## 8. 推荐阅读顺序（落地一条竖切时）
 
+0. **默认落地步骤（命令顺序）**：根目录 `SPEC-TO-SHIP-WORKFLOW.md`；**治理与落地差距**见 `SPEC-LANDING-GAPS.md`。  
 1. **L1**：`specs/project-goal/vibex-workbench-goal.yaml` —— mission、constraints、`product_value_layers`、里程碑段落。  
 2. **L2**：`specs/architecture/vibex-workbench-skeleton.yaml` —— 模块与层级映射。  
 3. **壳层 Feature**：`workbench-ide-chrome_feature.yaml` + `workbench-layout_resize_feature.yaml`。  
@@ -195,3 +196,5 @@ flowchart TB
 | 2026-04-22 | Phase A：`workbench-shell` 聚合 + layout-resize + conversation + `canvas-renderer`；更新 `VISION-TRACEABILITY-ROLLOUT.md` |
 | 2026-04-22 | Phase B：5 个 L5 试点 `content.trace_note`（spec-editor test/uiux、workbench-shell_test、routing-panel_test、code-gen-panel_test） |
 | 2026-04-22 | Phase C：`feature_template` 占位、`meta/snippets/` 片段、Makefile 门禁注释 |
+| 2026-04-22 | 增补根目录 `SPEC-TO-SHIP-WORKFLOW.md`（spec→落地操作卡）；§8 推荐阅读加第 0 步 |
+| 2026-04-22 | 增补 `SPEC-LANDING-GAPS.md`（治理层 vs 落地层缺口登记） |
