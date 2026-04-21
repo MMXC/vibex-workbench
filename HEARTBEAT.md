@@ -162,10 +162,9 @@ canvas-renderer_uiux.yaml
 用户 → spec_feature(name="...")
   → 创建 specs/feature/<name>/<name>_feature.yaml  (L4)
   → 创建 specs/feature/<name>/<name>_uiux.yaml      (L5a)
-  → 输出 SPEC-DRIVEN LOOP 三步提示:
-      (1) spec_validate
-      (2) make_generate     ← 新增内置工具
-      (3) canvas_update
+  → [AUTO] make validate  ← 链式执行
+  → [AUTO] make generate  ← 链式执行（仅当 validate 通过）
+  → NEXT: canvas_update   ← 仅剩一步
 ```
 
 **已验证：**
@@ -176,9 +175,7 @@ canvas-renderer_uiux.yaml
 
 **闭环覆盖：**
 ```
-spec_designer → spec_feature → spec_validate → make_generate → canvas_update
-                                      ↓
-                               make_validate
+spec_designer → spec_feature → [AUTO: make validate + make generate] → canvas_update
 ```
 
 ### E3 — spec template 自举闭环 ✅ 已关闭（2026-04-21）
@@ -212,8 +209,8 @@ spec YAML (template field = feature-template spec)
 ```
 
 **下一步缺口：**
-- `spec_feature` handler 的 output message 还可进一步结构化（当前是 plaintext）
-- `spec_validate` / `make_validate` 可在 spec_feature 成功后自动调用（当前靠 tool description 引导 agent 手动执行）
+- `canvas_update` 是否也应该 auto-chain（`spec_feature` 创建后自动更新 canvas 节点）？
+- `spec_designer` 的 template 循环同样可以自举（当前 `spec_designer` 也有硬编码的输出格式）
 
 ### E2 — spec-designer → spec YAML → make validate ✅ 门禁已闭环
 
