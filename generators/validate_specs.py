@@ -83,8 +83,12 @@ def check_parent_chain(spec: dict):
     """验证从属链：parent 必须存在且 level 递减"""
     level = spec["level"]
     parent = spec["parent"]
-    
+
     if level not in LEVEL_PARENT and level != "1_project_goal":
+        return
+
+    # meta_template 是模板元规格，不做从属链验证（parent 含 ${PLACEHOLDER}）
+    if level == "meta_template":
         return
     
     if level == "1_project_goal":

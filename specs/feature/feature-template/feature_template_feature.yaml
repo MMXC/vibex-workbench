@@ -1,0 +1,38 @@
+# ============================================================
+# Feature Template — Feature Spec 生成模板
+# 用途: spec_feature handler 读取此文件作为 feature spec 的模板
+# 模板语法: ${FEATURE_ID} / ${SAFE_NAME} / ${PARENT_ID} / ${TIMESTAMP} / ${FEATURE_NAME}
+# 注意: meta_template 级别的 spec 不做从属链验证
+
+spec:
+  id: "feature_template"
+  version: "1.0"
+  level: "meta_template"
+  name: "feature_template_feature"
+  parent: "MOD-workbench-shell"
+  status: draft
+  created_at: "2026-01-01T00:00:00Z"
+
+content:
+  description: "L4 Feature spec 生成模板"
+  sub_specs:
+    uiux: "feature_template_uiux.yaml"
+
+template: |
+  # Feature Spec ${FEATURE_ID}
+  # Parent: ${PARENT_ID}
+  # Generated: ${TIMESTAMP}
+
+  spec:
+    id: "${FEATURE_ID}"
+    version: "1.0"
+    level: "4_feature"
+    name: "${SAFE_NAME}"
+    parent: "${PARENT_ID}"
+    status: draft
+    created_at: "${TIMESTAMP}"
+
+  content:
+    description: "${FEATURE_NAME}"
+    sub_specs:
+      uiux: "${SAFE_NAME}_uiux.yaml"

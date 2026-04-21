@@ -19,6 +19,7 @@ from datetime import date
 SPEC_DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("specs")
 OUT_DIR  = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("frontend")
 SRC_DIR  = OUT_DIR / "src"
+GEN_TEMPLATES_DIR = Path("generators/templates")
 
 GEN_HEADER = f"""// ============================================================
 // ⚠️  此文件由 spec-to-code 自动生成
@@ -1114,6 +1115,25 @@ def main():
 
     print(f"\n✅ 生成完成")
     print(f"  运行: make dev")
+
+    # ── E3: Sync handler templates from meta-spec ──────────────────
+    # Reads top-level 'template' field from specs with level: meta_template
+    # Writes to generators/templates/<name>.yaml.tpl
+    # This closes the spec self-bootstrapping loop:
+    #   feature-template spec (level: meta_template, template field)
+    #     → make generate syncs to generators/templates/*.tpl
+    #     → handler reads *.tpl and substitutes ${PLACEHOLDER} tokens
+    for f, data in all_specs(SPEC_DIR):
+        if data.get("spec", {}).get("level") == "meta_template":
+            spec_name = data.get("spec", {}).get("name", "")
+            # template may be at top level or inside content:
+            template_content = data.get("template") or data.get("content", {}).get("template", "")
+            if not template_content:
+                continue
+            tpl_out = GEN_TEMPLATES_DIR / f"{spec_name}.yaml.tpl"
+            tpl_out.parent.mkdir(parents=True, exist_ok=True)
+            tpl_out.write_text(template_content, encoding="utf-8")
+            print(f"  ✅ Template: {tpl_out}  (from spec: {spec_name})")
 
 
 if __name__ == "__main__":

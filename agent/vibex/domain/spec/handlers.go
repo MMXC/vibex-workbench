@@ -100,48 +100,52 @@ func MakeSpecFeatureHandler(workspaceDir string, setStepType func(threadID, step
 		specFile := filepath.Join(featureDir, fmt.Sprintf("%s_feature.yaml", safeName))
 		uiuxFile := filepath.Join(featureDir, fmt.Sprintf("%s_uiux.yaml", safeName))
 
-		content := fmt.Sprintf(`# Feature Spec %s
-# Child of: %s
+		// ── E3: Read templates from generators/templates/ (spec-driven template) ──
+		templateDir := filepath.Join(workspaceDir, "generators", "templates")
+		featureTplPath := filepath.Join(templateDir, "feature_template_feature.yaml.tpl")
+		uiuxTplPath := filepath.Join(templateDir, "feature_template_uiux.yaml.tpl")
 
-spec:
-  id: "%s"
-  version: "1.0"
-  level: "4_feature"
-  name: "%s"
-  parent: "%s"
-  status: draft
-  created_at: "%s"
+		var featureTplContent, uiuxTplContent string
+		if tplBytes, err := os.ReadFile(featureTplPath); err == nil {
+			featureTplContent = string(tplBytes)
+		} else {
+			// Fallback: template not yet generated → generate it now via make generate
+			genCmd := exec.Command("make", "generate")
+			genCmd.Dir = workspaceDir
+			if genOut, genErr := genCmd.CombinedOutput(); genErr != nil {
+				return fmt.Sprintf("make generate FAILED (needed for template sync):\n%s\n%v",
+					strings.TrimSpace(string(genOut)), genErr)
+			}
+			if tplBytes2, err2 := os.ReadFile(featureTplPath); err2 == nil {
+				featureTplContent = string(tplBytes2)
+			} else {
+				return fmt.Sprintf("template not found: %s (after make generate)\n%v", featureTplPath, err2)
+			}
+		}
+		if tplBytes, err := os.ReadFile(uiuxTplPath); err == nil {
+			uiuxTplContent = string(tplBytes)
+		} else {
+			return fmt.Sprintf("template not found: %s\n%v", uiuxTplPath, err)
+		}
 
-content:
-  description: "%s"
-  sub_specs:
-    uiux: "%s_uiux.yaml"
-`, featureID, args.ParentSpecID, featureID, safeName, args.ParentSpecID,
-			time.Now().Format(time.RFC3339), escapeYAML(args.FeatureName), safeName)
+		// ── Substitute placeholders (${FEATURE_ID} etc., synced from meta-spec) ──
+		timestamp := time.Now().Format(time.RFC3339)
+		subs := map[string]string{
+			"${FEATURE_ID}":    featureID,
+			"${SAFE_NAME}":     safeName,
+			"${PARENT_ID}":     args.ParentSpecID,
+			"${TIMESTAMP}":     timestamp,
+			"${FEATURE_NAME}":  escapeYAML(args.FeatureName),
+		}
+		for placeholder, value := range subs {
+			featureTplContent = strings.ReplaceAll(featureTplContent, placeholder, value)
+			uiuxTplContent = strings.ReplaceAll(uiuxTplContent, placeholder, value)
+		}
 
-		uiuxContent := fmt.Sprintf(`# Feature UI/UX Spec — %s
-spec:
-  version: "1.0"
-  level: "5a_uiux"
-  name: "%s_uiux"
-  parent: "%s"
-  status: draft
-
-content:
-  canvas_layout:
-    type: flow-canvas
-    width: "100%%"
-    height: "100%%"
-  regions: []
-  components: []
-  state_management:
-    stores: []
-`, args.FeatureName, safeName, safeName)
-
-		if err := os.WriteFile(specFile, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(specFile, []byte(featureTplContent), 0644); err != nil {
 			return "error writing feature spec: " + err.Error()
 		}
-		if err := os.WriteFile(uiuxFile, []byte(uiuxContent), 0644); err != nil {
+		if err := os.WriteFile(uiuxFile, []byte(uiuxTplContent), 0644); err != nil {
 			return fmt.Sprintf("feature spec created: %s\n(error creating uiux sub-spec: %v)\n\nSPEC-DRIVEN LOOP:\n  1. spec_validate\n  2. make_generate\n  3. canvas_update", specFile, err)
 		}
 

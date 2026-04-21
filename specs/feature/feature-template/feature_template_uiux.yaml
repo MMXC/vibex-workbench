@@ -1,0 +1,38 @@
+# ============================================================
+# Feature Template — UI/UX Spec 生成模板
+# 用途: spec_feature handler 读取此文件作为 feature uiux spec 的模板
+# 模板语法: ${SAFE_NAME} / ${FEATURE_ID} / ${TIMESTAMP}
+# 注意: meta_template 级别的 spec 不做从属链验证
+
+spec:
+  version: "1.0"
+  level: "meta_template"
+  name: "feature_template_uiux"
+  parent: "feature_template_feature"
+  status: draft
+
+content:
+  description: "L5a UI/UX spec 生成模板"
+
+template: |
+  # Feature UI/UX Spec — ${SAFE_NAME}
+  # Parent: ${FEATURE_ID}
+  # Generated: ${TIMESTAMP}
+
+  spec:
+    version: "1.0"
+    level: "5a_uiux"
+    name: "${SAFE_NAME}_uiux"
+    parent: "${SAFE_NAME}"
+    status: draft
+
+  content:
+    # 默认 flow-canvas 布局（可按需修改 components/regions/state_management）
+    canvas_layout:
+      type: flow-canvas
+      width: "100%"
+      height: "100%"
+    regions: []
+    components: []
+    state_management:
+      stores: []
