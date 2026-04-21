@@ -150,19 +150,15 @@ func responseItemToChat(item responses.ResponseInputItemUnionParam) openai.ChatC
 		content := extractResponseMessageContent(msg.Content)
 		role := msg.Role
 		switch role {
-		case responses.EasyInputMessageRoleDeveloper:
+		case responses.EasyInputMessageRoleDeveloper, responses.EasyInputMessageRoleSystem:
+			// Map developer/system→user for MiniMax Chat Completions API.
+			// MiniMax does not support the system role in /v1/chat/completions (error 2013).
+			// Prefix content so the model still knows this is a system message.
+			prefixed := "[System] " + content
 			return openai.ChatCompletionMessageParamUnion{
-				OfDeveloper: &openai.ChatCompletionDeveloperMessageParam{
-					Content: openai.ChatCompletionDeveloperMessageParamContentUnion{
-						OfString: param.Opt[string]{Value: content},
-					},
-				},
-			}
-		case responses.EasyInputMessageRoleSystem:
-			return openai.ChatCompletionMessageParamUnion{
-				OfSystem: &openai.ChatCompletionSystemMessageParam{
-					Content: openai.ChatCompletionSystemMessageParamContentUnion{
-						OfString: param.Opt[string]{Value: content},
+				OfUser: &openai.ChatCompletionUserMessageParam{
+					Content: openai.ChatCompletionUserMessageParamContentUnion{
+						OfString: param.Opt[string]{Value: prefixed},
 					},
 				},
 			}
@@ -191,19 +187,15 @@ func responseItemToChat(item responses.ResponseInputItemUnionParam) openai.ChatC
 		content := extractInputMessageContent(msg.Content)
 		role := strings.ToLower(strings.TrimSpace(msg.Role))
 		switch role {
-		case "developer":
+		case "developer", "system":
+			// Map developer/system→user for MiniMax Chat Completions API.
+			// MiniMax does not support the system role in /v1/chat/completions (error 2013).
+			// Prefix content so the model still knows this is a system message.
+			prefixed := "[System] " + content
 			return openai.ChatCompletionMessageParamUnion{
-				OfDeveloper: &openai.ChatCompletionDeveloperMessageParam{
-					Content: openai.ChatCompletionDeveloperMessageParamContentUnion{
-						OfString: param.Opt[string]{Value: content},
-					},
-				},
-			}
-		case "system":
-			return openai.ChatCompletionMessageParamUnion{
-				OfSystem: &openai.ChatCompletionSystemMessageParam{
-					Content: openai.ChatCompletionSystemMessageParamContentUnion{
-						OfString: param.Opt[string]{Value: content},
+				OfUser: &openai.ChatCompletionUserMessageParam{
+					Content: openai.ChatCompletionUserMessageParamContentUnion{
+						OfString: param.Opt[string]{Value: prefixed},
 					},
 				},
 			}
