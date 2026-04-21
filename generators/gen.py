@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """
 VibeX Workbench — spec-to-code generator
-从 L5 data/uiux spec 生成 TypeScript types + 组件骨架
+从 L5 data/uiux/service spec 生成 TypeScript types + 组件骨架 + service 类
 
 双文件模式 (B):
   *.Skeleton.svelte  ← gen.py 生成（可重跑覆盖）
   *.svelte           ← 开发者写（永不覆盖）
+
+三段生成:
+  1. types.ts         ← data spec → TypeScript interfaces
+  2. Skeleton.svelte ← uiux spec → Svelte 组件骨架
+  3. lib/services/   ← service spec → TypeScript service 类
 
 用法:
   python3 gen.py <spec_dir> <output_dir>
@@ -88,7 +93,134 @@ def ts_type(yaml_type: str) -> str:
     }.get(t, t)
 
 
-# ── 1. TypeScript 类型 ──────────────────────────────────────────
+# ── 1. TypeScript Service 类（从 L5 service spec）────────────────────
+def _parse_param(param_str: str) -> tuple[str, str]:
+    """解析 'name: type' → (name, ts_type)。"""
+    if ':' in param_str:
+        name, typ = param_str.split(':', 1)
+        return name.strip(), ts_type(typ.strip())
+    return param_str, 'unknown'
+
+
+def _parse_method(m) -> tuple[str, list, str]:
+    """
+    解析单个 method，支持两种格式：
+      A. dict:  {"name": "...", "params": ["p: t", ...], "returns": "T"}
+      B. str:   "methodName(param: type): ReturnType"
+               或 "methodName()"
+    返回 (m_name, [(p_name, p_type), ...], return_type)
+    """
+    import re
+    if isinstance(m, str):
+        # 格式 B：解析方法签名字符串
+        sig = m.strip()
+        # 去掉结尾的 () 外的空白
+        match = re.match(r"^(\w+)\s*(?:\((.*)\))?\s*(?::\s*(\w+))?$", sig)
+        if not match:
+            return sig, [], "void"
+        m_name = match.group(1) or sig
+        params_str = match.group(2) or ""
+        returns = match.group(3) or "void"
+        # 解析参数列表
+        param_list = []
+        if params_str.strip():
+            for p in params_str.split(","):
+                p = p.strip()
+                if ":" in p:
+                    p_name, p_type = p.split(":", 1)
+                    param_list.append((p_name.strip(), ts_type(p_type.strip())))
+                else:
+                    param_list.append((p, "unknown"))
+        return m_name, param_list, ts_type(returns)
+    else:
+        # 格式 A：dict
+        m_name = m.get("name", "unknown")
+        raw_params = m.get("params", [])
+        raw_returns = m.get("returns", "void")
+        param_list = [_parse_param(p) for p in raw_params]
+        return m_name, param_list, ts_type(raw_returns)
+
+
+def gen_services() -> dict[str, str]:
+    """
+    扫描所有 *_service.yaml，返回 {rel_path: ts_code}。
+    每个 service spec 生成一个文件：lib/services/<feature>_services.ts
+    """
+    import re
+    result = {}
+    services_dir = SRC_DIR / "lib" / "services"
+
+    for f, data in all_specs(SPEC_DIR):
+        spec_name = data.get("spec", {}).get("name", "")
+        if not re.match(r".+_service$", spec_name):
+            continue
+
+        # feature slug 从 parent 取（如 routing-panel_service → parent=routing-panel）
+        parent = data.get("spec", {}).get("parent") or ""
+        slug = parent.replace("-", "_") if parent else spec_name.replace("_service", "")
+        out_path = services_dir / f"{slug}_services.ts"
+
+        io = data.get("content", {}).get("io_contract", {})
+        services_list = data.get("content", {}).get("services", [])
+
+        lines = [
+            GEN_HEADER_TS.rstrip(),
+            f"// 来源: {f}",
+            f"// parent: {parent}",
+            "",
+            f"/**",
+            f" * {slug}_services — {io.get('description', spec_name)}",
+            f" * input : {io.get('input', '—')}",
+            f" * output: {io.get('output', '—')}",
+            f" * boundary: {io.get('boundary', '—')}",
+            f" */",
+            "",
+        ]
+
+        for svc in services_list:
+            name = svc.get("name", "UnknownService")
+            desc = svc.get("description", "")
+            methods = svc.get("methods", [])
+
+            lines.append(f"// ── {name} ──────────────────────────────────────────")
+            lines.append(f"/** {desc} */")
+            lines.append(f"export class {name} {{")
+            lines.append(f"  constructor() {{}}")
+            lines.append("")
+
+            for m in methods:
+                # 容错：methods 可能是 [{"Name": "...", ...}] 或 ["name_only"]
+                if isinstance(m, str):
+                    m_name, m_params, m_returns = _parse_method(m)
+                else:
+                    m_name, m_params, m_returns = _parse_method(m)
+                param_str = ", ".join(f"{n}: {t}" for n, t in m_params)
+
+                # 生成 JSDoc
+                lines.append(f"  /**")
+                lines.append(f"   * {desc or m_name}")
+                for pn, pt in m_params:
+                    lines.append(f"   * @param {pn} — {pt}")
+                lines.append(f"   * @returns {m_returns}")
+                lines.append(f"   */")
+
+                # 方法签名（async，真实逻辑需开发者补）
+                lines.append(f"  async {m_name}({param_str}): Promise<{ts_type(m_returns)}> {{")
+                lines.append(f"    // TODO: 实现 {m_name} — {desc}")
+                lines.append(f"    throw new Error('NotImplemented: {name}.{m_name}');")
+                lines.append(f"  }}")
+                lines.append("")
+
+            lines.append("}")
+            lines.append("")
+
+        result[str(out_path.relative_to(SRC_DIR))] = "\n".join(lines)
+        print(f"  📦 Service: {out_path.relative_to(SRC_DIR)}  ({len(services_list)} class(es))")
+
+    return result
+
+
+# ── 2. TypeScript 类型 ──────────────────────────────────────────
 def gen_types() -> str:
     out = [GEN_HEADER_TS]
     out.append("// ── Generated Types ──────────────────────────────────────────\n")
@@ -1079,6 +1211,13 @@ def main():
     merged = merge_types(types_path, new_types)
     types_path.write_text(merged, encoding="utf-8")
     print(f"  ✅ Types:   {types_path.relative_to(OUT_DIR)} (merged)")
+
+    # ── Services ────────────────────────────────────────────
+    # 输出到 lib/services/<feature>_services.ts（永不覆盖，幂等写入）
+    for rel_path, code in gen_services().items():
+        svc_path = SRC_DIR / rel_path
+        svc_path.parent.mkdir(parents=True, exist_ok=True)
+        svc_path.write_text(code, encoding="utf-8")
 
     # 清理孤立的 lib/generated/ 目录（已合并到 lib/types.ts）
     old_dir = SRC_DIR / "lib/generated"
