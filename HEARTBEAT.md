@@ -103,3 +103,34 @@ cd frontend && npm run test:e2e:run
 ## 给 Hermes 的一行指令（每期复制）
 
 > 运行 A1–A3；对照 B3 表格填 YES/NO；运行 `cd frontend && npm run test:e2e:run` 确认两条例名通过；输出 PASS/FAIL 表，勿用主观形容词。
+
+---
+
+## E. 闭环状态（spec → 代码生成，已验证的路径）
+
+> 此节记录 spec → 代码 流水线已关闭的路径。新发现断点加在此处。
+
+### E1 — lib/types.ts 生成 ✅ 已关闭（2026-04-21）
+
+```
+spec YAML (*_data.yaml)
+  → make generate
+  → lib/types.ts（gen.py 合并版）
+  → stores/*.ts 实际使用
+```
+
+**已验证：**
+- `type_map` 正确映射实际 spec 名 ✅
+- 动态发现所有 `*_data` spec ✅
+- `required` 启发式（`id`/`name`/`status`/`startedAt` 等 → 必填）✅
+- `lib/generated/` 已删除（合并入 `lib/types.ts`）✅
+- 所有 stores import resolve ✅
+- `Thread` = `ConversationThread` 别名（thread-store.ts）✅
+
+**已知缺口：**
+- 组件生成（`gen_components()`）仍是硬编码模板，未从 `*_uiux.yaml` 读取
+  - 下一步：扩展 gen.py，从 `specs/feature/*_uiux.yaml` 动态生成 `*.Skeleton.svelte`
+
+### E2 — spec-designer → spec YAML → make validate ✅ 门禁已闭环
+
+见 A2（`make validate` = `spec_designer` 工具的终端路径）。
