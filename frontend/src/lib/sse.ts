@@ -135,6 +135,59 @@ const HANDLERS: Record<string, SSEEventHandler> = {
   'edge.added': (data: any) => {
     canvasStore.addEdge(data.edge);
   },
+
+  // ── TDD events (backend: canvas.tdd_nodes / canvas.tdd_cycle) ──
+  'canvas.tdd_nodes': (data: any) => {
+    // TDD test case design: RED phase
+    canvasStore.addNode({
+      id: `tdd-nodes-${data.spec_id ?? 'default'}`,
+      type: 'iteration',
+      position: { x: 200, y: 300 },
+      data: {
+        label: `TDD: ${data.test_count ?? 0} test cases`,
+        status: 'running',
+        test_file: data.test_file,
+        phases: data.phases ?? ['RED', 'GREEN', 'REFACTOR'],
+        ...data,
+      },
+    });
+  },
+  'canvas.tdd_cycle': (data: any) => {
+    // TDD cycle: RED/GREEN/REFACTOR update
+    const statusMap: Record<string, string> = { RED: 'error', GREEN: 'done', REFACTOR: 'running' };
+    canvasStore.addNode({
+      id: `tdd-cycle-${data.spec_id ?? 'default'}`,
+      type: data.phase === 'GREEN' ? 'sequence' : 'iteration',
+      position: { x: 350, y: 350 },
+      data: {
+        label: `TDD ${data.phase ?? '?'}: ${data.passed ?? 0}p / ${data.failed ?? 0}f`,
+        status: statusMap[data.phase ?? ''] ?? 'running',
+        color: data.color,
+        phase: data.phase,
+        ...data,
+      },
+    });
+  },
+
+  // ── Spec creation (backend: canvas.spec_created) ────────────
+  'canvas.spec_created': (data: any) => {
+    canvasStore.addNode({
+      id: `spec-${Date.now()}`,
+      type: 'input',
+      position: { x: 100, y: 100 },
+      data: {
+        label: data.title ?? 'New Spec',
+        status: 'done',
+        ...data,
+      },
+    });
+  },
+
+  // ── Agent self-reflection ────────────────────────────────
+  'agent.self_reflection': (data: any) => {
+    console.info('[SSE] agent.self_reflection:', data.summary ?? data);
+    // Could emit a thread message here if threadStore supports it
+  },
 };
 
 class SSEConsumer {

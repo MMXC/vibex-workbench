@@ -128,8 +128,14 @@ func runToolLoop(
 
 			var args map[string]any
 			json.Unmarshal([]byte(item.OfFunctionCall.Arguments), &args)
+			callID := item.OfFunctionCall.CallID
 			broadcastSSE(threadID, "tool.called", map[string]interface{}{
-				"tool": item.OfFunctionCall.Name, "call_id": item.OfFunctionCall.CallID, "args": args,
+				"toolName":     item.OfFunctionCall.Name, // camelCase for sse.ts
+				"tool":         item.OfFunctionCall.Name, // snake_case for stores/sse.ts
+				"invocationId": callID,                  // camelCase for sse.ts
+				"call_id":      callID,                   // snake_case for stores/sse.ts
+				"runId":        threadID,                 // camelCase: parent run
+				"args":         args,
 			})
 
 			h, ok := handlers[item.OfFunctionCall.Name]
@@ -138,14 +144,19 @@ func runToolLoop(
 				continue
 			}
 			result := h(item.OfFunctionCall.Arguments)
-			followUp = append(followUp, responses.ResponseInputItemParamOfFunctionCallOutput(item.OfFunctionCall.CallID, result))
+			followUp = append(followUp, responses.ResponseInputItemParamOfFunctionCallOutput(callID, result))
 			broadcastSSE(threadID, "tool.completed", map[string]interface{}{
-				"tool": item.OfFunctionCall.Name, "call_id": item.OfFunctionCall.CallID, "result": result,
+				"toolName":     item.OfFunctionCall.Name,
+				"tool":         item.OfFunctionCall.Name,
+				"invocationId": callID,
+				"call_id":      callID,
+				"result":       result,
 			})
 		}
 
 		if !hasCalls {
-			broadcastSSE(threadID, "run.completed", map[string]string{"summary": "Done."})
+			broadcastSSE(threadID, "run.completed", map[string]interface{}{
+				"run_id": threadID, "runId": threadID, "summary": "Done."})
 			return strings.TrimSpace(text), inputItems, nil
 		}
 		inputItems = append(inputItems, followUp...)
@@ -229,11 +240,13 @@ func runAgentTurn(threadID string, userInput string) (string, error) {
 	model := cfg.GetModelForStep(stepType)
 
 	// S2 SSE lifecycle: emit run lifecycle events aligned with frontend expectations
+	runID := threadID + "-run-" + fmt.Sprintf("%d", time.Now().Unix())
 	broadcastSSE(threadID, "run.started", map[string]interface{}{
-		"run_id": threadID + "-run-" + fmt.Sprintf("%d", time.Now().Unix()),
+		"run_id":   runID,    // snake_case for stores/sse.ts
+		"runId":    runID,    // camelCase for sse.ts
 		"thread_id": threadID,
 		"step_type": stepType,
-		"model": model,
+		"model":    model,
 	})
 	if stepType != "" {
 		broadcastSSE(threadID, "agent.step", map[string]string{"type": stepType, "model": model})
@@ -250,7 +263,7 @@ func runAgentTurn(threadID string, userInput string) (string, error) {
 	answer, turnItems, err := runToolLoop(threadID, llm, model, tools, handlers, messages, state.skillState, skillRegistry)
 	if err != nil {
 		broadcastSSE(threadID, "run.failed", map[string]interface{}{
-			"run_id": threadID,
+			"run_id": threadID, "runId": threadID,
 			"error": err.Error(),
 		})
 		return "", err
