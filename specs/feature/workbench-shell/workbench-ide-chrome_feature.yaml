@@ -5,7 +5,7 @@
 # ============================================================
 
 spec:
-  version: "1.0"
+  version: "1.2"
   level: "4_feature"
   name: "workbench-ide-chrome"
   parent: "workbench-shell"
@@ -15,7 +15,7 @@ meta:
   module: "MOD-workbench-shell"
   owner: "hermes"
   created: "2026-04-21"
-  updated: "2026-04-21"
+  updated: "2026-04-22"
 
 content:
   description: |
@@ -28,12 +28,12 @@ content:
 
   io_contract:
     input: |
-      - 用户在顶栏菜单、侧栏视图 Tab、中央文档 Tab、底部 Dock Tab、AI 输入框中的交互（点击、拖拽分隔条、键盘快捷键后续可扩展）。
+      - 用户在顶栏菜单、活动栏图标、一级侧栏内控件、中央文档 Tab、底部 Dock Tab、AI 输入框中的交互（**点击切换为主**；拖拽分隔条；键盘快捷键后续可扩展）。
       - 与工作区相关的 SSE / Store 更新（不改变本 spec 对各区域语义分工）。
     output: |
-      - 各功能区可见性与当前激活 Tab / 视图状态可被用户感知；
+      - **壳层框架**（顶栏、活动栏轨道、三列主区、Dock 条等）与 **当前激活项**（侧栏视图 ID、中央 Tab ID、Dock 频道 ID）可被用户感知或从 UI 状态读出；
       - 拖拽调整后的像素尺寸写入 localStorage（详见 layout_resize v2 契约）；
-      - 中央主体展示当前选中 Tab 对应内容（画布 / 构件列表 / Spec 预览等由各子功能 spec 定义）。
+      - 中央主体仅渲染 **当前选中 Tab** 对应内容（其余 Tab 对应面板可卸载或 `display:none`，实现任选，须避免双实例逻辑冲突）。
     boundary: |
       - 本 spec 约定 **区域划分与命名、默认职责**；单项能力（如 Terminal 真实 PTY）可由后续 feature spec 扩展。
       - 不强制实现原生窗口最小化/最大化（浏览器环境可做占位或降级）；「关闭」行为须不破坏单机侧数据。
@@ -46,11 +46,117 @@ content:
       5. **底部 Dock**：横跨窗口底部（置于左/中/右三块主工作区之下）；Tab 含 **问题、输出、调试控制台、终端** 及「更多」溢出或次要入口。
       6. 窄屏（如宽度 <768px）允许降级：隐藏活动栏/侧栏或改为抽屉，但须保留中央主体与 AI 输入可达性（具体断点由 uiux 补充）。
     changelog:
+      - version: "1.2"
+        date: "2026-04-22"
+        author: "hermes"
+        changes:
+          - "新增 default_session_state：冷启动默认激活项、Dock 默认收起、会话恢复优先级与持久化建议键"
+      - version: "1.1"
+        date: "2026-04-22"
+        author: "hermes"
+        changes:
+          - "新增 panel_visibility_model：明确点击切换、互斥面板、Dock 折叠与可选覆盖层（命令面板等）"
       - version: "1.0"
         date: "2026-04-21"
         author: "hermes"
         changes:
           - "初版：IDE 壳层信息架构与区域职责；作为 Cursor 式布局的权威描述"
+
+  # ── 面板可见性与切换语义（与 HTML 原型 / VS Code 行为对齐）────────────────
+  panel_visibility_model:
+    summary: |
+      多数 **业务内容区** 并非同时铺满屏幕，而是依赖 **单一激活项（互斥）** + **点击切换**；
+      壳层 **外框**（grid/flex 分区、分隔条）与 **条带控件**（Tab 条、活动栏）通常常驻；**具体面板 body** 随激活项切换显示。
+
+    shell_vs_content:
+      shell_persistent: |
+        桌面默认下宜常驻：**顶栏**、**活动栏竖条**、**一级侧栏容器**（宽度可拖）、**中央列容器**（含编辑器 Tab 条）、**右侧 AI 列容器**、**底部 Dock 区域**（至少含 Tab 条；内容区是否展开见下）。
+      content_switchable: |
+        下列为 **点击（或等价键盘）后切换** 的内容，同一时刻每组 **最多一个激活**：
+        - 一级侧栏：`primary_sidebar_views` 中某一视图（活动栏图标驱动）；
+        - 中央主体：`center_editor.tab_kinds` 中某一 Tab；
+        - 底部 Dock：`bottom_dock.tab_kinds` 中某一 **频道**（Problems / Output / …）。
+
+    mutual_exclusion:
+      primary_sidebar: "同一时刻仅一个 `primary_sidebar_views.id` 为 active；切换活动栏图标即切换视图，其它视图 **不占据侧栏主区域**（可不挂载 DOM 或隐藏）。"
+      center_editor: "同一时刻仅一个文档 Tab 为 active；未选中的 Tab 对应 pane **不可见**（实现侧禁止同时显示两个全屏 editor pane）。"
+      bottom_dock: "同一时刻仅一个 Dock **频道**为 active，用于驱动底部 **内容区** 展示哪类信息（问题列表 / 日志流 / 终端等）。"
+
+    dock_expand_collapse:
+      description: |
+        Dock 由 **Tab 条（频道切换）** 与 **内容区（当前频道详情）** 组成；两者关系须在产品与实现中一致。
+      tab_strip: "频道 Tab **建议始终可见**（除非用户通过「视图」菜单或快捷键 **整体隐藏 Dock**）。"
+      body: |
+        **内容区**可在以下形态间切换（与 `bottomDockPx` / 折叠状态联动）：
+        - **展开**：显示当前频道对应面板，高度受 layout_resize 中 **bottomDockPx** 约束；
+        - **仅条带**：高度收束为仅 Tab 条（内容区高度为 0 或近似 0），**不改变**当前选中的频道 ID（再次点击同一 Tab 或专用「向上收起」可切换）；
+        - 具体交互（单击 Tab 是否 toggle 展开/收起）允许实现二选一，但须在 **同一产品版本内一致**，并在 uiux 或本文件 changelog 注明。
+
+    overlays:
+      command_palette: |
+        **命令面板**等为 **模态/半模态覆盖层**，不属于 `region_map` 中的常驻列；由快捷键或按钮唤起，关闭后不占据布局分区。
+      settings: |
+        **设置**既可做覆盖层，也可做中央 Tab；若顶栏要求 **trailing「设置」**，实现须保证用户 **一次点击可达**（不必与活动栏底设置重复，但可同时存在）。
+
+    thread_context_placement:
+      description: |
+        「历史线程」与当前对话的对应关系须在界面中可理解；允许两种合规策略（二选一或并存）：
+      option_a: "**仅左侧工作区视图**：线程列表 + 当前选中线程驱动全局 conversation context（右侧只展示该线程对话）。"
+      option_b: "**右侧 AI 栏增加轻量控件**（如线程标题、下拉切换），与左侧列表状态同步。"
+      note: "验收时至少满足一种；若仅实现 A，须在 conversation_feature 或本 spec 中写明，避免评审争议。"
+
+    optional_status_bar:
+      description: |
+        **状态栏**（分支、编码、Ln/Col 等）为 IDE 常见增强，**未列入 v1.0 region_map**；若实现则置于窗口最底或 Dock 之下，不挤占 bottomDockPx 语义时，须在 uiux 或后续本 spec 版本升格为正式 region。
+
+  # ── 冷启动与默认会话状态（实现与验收的「第一眼」契约）──────────────────────
+  default_session_state:
+    summary: |
+      定义 **无用户历史持久化**（或用户清空站点数据）时的默认 UI 状态；若存在合法持久化快照则 **恢复优先于下列默认值**。
+      与 `workbench-layout_resize_feature` 中的像素默认值 **并列**：布局尺寸走 layout store；**激活哪个 Tab/视图** 走本节或 `ui_session` 持久化。
+
+    cold_start_desktop:
+      description: "视口宽度 ≥1024px，且本地无（或无效）`ui_session` 快照时。"
+      primary_sidebar_view_id: "workspace"
+      center_editor_tab_id: "canvas"
+      bottom_dock:
+        active_channel: "problems"
+        body_expanded: false
+        rationale: |
+          默认 **仅显示 Dock 频道 Tab 条**，内容区高度为 0（或等价「收起」），把纵向空间让给中央画布与 AI 栏。
+          频道默认落在 **问题**，与「先看到门禁/诊断」一致；用户点击频道 Tab 即展开内容区并沿用 `bottomDockPx`。
+      right_ai_column:
+        composer_focused: false
+      overlays_open: []
+      note: |
+        **线程**：若尚无线程，左侧列表可为空态；创建第一条线程后的默认选中策略由 conversation / thread-list feature 定义，本节不要求。
+
+    cold_start_override_errors:
+      description: "可选：冷启动后若聚合诊断存在 **blocking** 级错误（lint-spec / validate 失败等）。"
+      behavior: |
+        可将 `bottom_dock.body_expanded` **自动设为 true** 且保持 `active_channel: problems`，以便用户立即看到错误列表；实现须在发布说明中声明是否启用此策略。
+
+    session_restore_priority:
+      order:
+        - "1) 若存在且校验通过的 **ui_session**（见 persistence_keys），恢复：侧栏视图、中央 Tab、Dock 频道、Dock 是否展开、可选焦点。"
+        - "2) 否则若仅有 **layout v2**（`vibex.workbench.layout.v2`），恢复像素尺寸，**激活项仍用 cold_start_desktop**。"
+        - "3) 否则使用 **cold_start_desktop**。"
+
+    persistence_keys_suggested:
+      layout_v2: "vibex.workbench.layout.v2（已由 layout_resize spec 定义）"
+      ui_session: |
+        建议键名 `vibex.workbench.ui.v1`（JSON），字段示例（实现可增减，但须在 MR 中说明）：
+        - `primarySidebarViewId`: string
+        - `centerTabId`: string
+        - `dockActiveChannel`: problems | output | debug_console | terminal | more
+        - `dockBodyExpanded`: boolean
+        - `lastActiveThreadId`: string | null（若采用左侧线程驱动）
+
+    narrow_screen_defaults:
+      description: "宽度 <768px 时冷启动（无 ui_session）。"
+      sidebar_mode: "hidden_or_drawer"
+      priority_visible: ["center_editor", "right_ai_column"]
+      bottom_dock: "可与桌面相同默认，或强制 body_expanded: false 以省高；须在 uiux 固定一种。"
 
   region_map:
     top_titlebar:
@@ -108,6 +214,10 @@ content:
       given: "桌面宽度 ≥1024px"
       when: "用户打开 Workbench"
       then: "可见顶栏、左侧活动栏+侧栏、中央 Tab 主体、右侧 AI 栏、底部 Dock 五类区域界线清晰"
+    - id: "IDE-004"
+      given: "桌面宽度 ≥1024px"
+      when: "用户依次点击活动栏不同图标、切换中央 Tab、切换 Dock 频道"
+      then: "每组互斥区内 **仅一项** 处于激活展示态；未激活面板不占主可视区（或隐藏/卸载）"
     - id: "IDE-002"
       given: "用户拖拽各分隔条"
       when: "pointerup"
@@ -116,3 +226,7 @@ content:
       given: "右侧 AI 栏"
       when: "Agent 推送 message.delta"
       then: "对话内容出现在右侧上部区域，Composer 固定在右侧下部（高度可调）"
+    - id: "IDE-005"
+      given: "新用户或已清空本地 Workbench 状态，桌面宽度 ≥1024px"
+      when: "首次进入 / 冷启动"
+      then: "侧栏视图为 workspace、中央激活画布 Tab、Dock 选中 problems 且内容区默认收起；随后若写入 ui_session 则下次以恢复为准"
