@@ -185,16 +185,167 @@ def gen_base_types() -> str:
 #   let { ... } = $props();
 #   // grid layout, {@render ...?.()}
 
+
+# ── UIUX spec 读取 ──────────────────────────────────────────────
+def load_uiux_registry() -> dict:
+    """
+    扫描所有 *_uiux.yaml，建立 component_id → spec_data 的 registry。
+    返回 {(feature_name, component_id): spec_data}
+    """
+    registry = {}
+    for f, data in all_specs(SPEC_DIR):
+        spec_name = data.get("spec", {}).get("name", "")
+        # 只处理 uiux spec：名字以 _uiux 结尾
+        if not spec_name.endswith("_uiux"):
+            continue
+        content = data.get("content", {})
+        components = content.get("components", [])
+        feature = spec_name.removesuffix("_uiux")
+        for comp in components:
+            cid = comp.get("id", "")
+            if cid:
+                registry[(feature, cid)] = comp
+    return registry
+
+
+def component_file_path(cid: str) -> str:
+    """component ID → frontend 相对路径"""
+    return f"lib/components/workbench/{cid}.svelte"
+
+
+def gen_skeleton_from_grid(cid: str, grid_cols: str, grid_rows: str,
+                             grid_areas: list, regions: list,
+                             spec_source: str = "") -> str:
+    """
+    从 grid layout 参数生成 Skeleton.svelte。
+    grid_areas: [["L","M","R"], ["B","B","B"]] 等
+    regions: [{snippet, grid_area, components}, ...]
+    """
+    # 构建 grid-template-areas 字符串（无续行符，CSS 不支持 \）
+    areas_str = "\n    ".join(
+        "'" + " ".join(row) + "'" for row in grid_areas
+    )
+
+    # 渲染区域 div（按 grid_area 映射，重复 area 只渲染一次）
+    area_to_region = {r["grid_area"]: r for r in regions}
+    grid_area_tag = {
+        "L": ("aside", "sidebar-left"),
+        "M": ("main", "main-canvas"),
+        "R": ("aside", "sidebar-right"),
+        "B": ("footer", "composer-bar"),
+    }
+    rendered_areas = set()
+    region_divs = []
+    for row in grid_areas:
+        for area in row:
+            if area in rendered_areas:
+                continue  # 同一 grid-area 只渲染一次
+            if area not in area_to_region:
+                continue
+            rendered_areas.add(area)
+            tag, cls = grid_area_tag.get(area, ("div", "region"))
+            reg = area_to_region[area]
+            region_divs.append(
+                f'  <{tag} class="{cls}" style="grid-area: {area};">\n'
+                f'    {{@render {reg["snippet"]}?.()}}\n'
+                f'  </{tag}>'
+            )
+
+    # Props interface：字段间用换行+缩进分隔，最后一个字段带分号
+    prop_fields = ";\n    ".join(f"{r['snippet']}?: Snippet" for r in regions)
+    if prop_fields:
+        prop_fields += ";"
+
+    skeleton = GEN_HEADER + f"""<script lang="ts">
+  import type {{ Snippet }} from 'svelte';
+  // {spec_source}
+  interface Props {{
+    {prop_fields}
+  }}
+  let {{ {", ".join(r["snippet"] for r in regions)} }}: Props = $props();
+</script>
+
+<div class="shell" style="
+  display: grid;
+  grid-template-columns: {grid_cols};
+  grid-template-rows: {grid_rows};
+  grid-template-areas:
+    {areas_str};
+  height: 100vh; overflow: hidden;
+">
+{chr(10).join(region_divs)}
+</div>
+"""
+    return skeleton
+
+
+def gen_stub_with_children(cid: str, regions: list,
+                             registry: dict,
+                             fallback_children: list) -> str:
+    """
+    生成 stub：导入子组件并填充 snippet。
+    regions 的 components[] 映射到文件路径，找不到时用 fallback_children。
+    """
+    # 子组件 import 列表（去重）
+    child_imports = []
+    seen_children = set()
+    for reg in regions:
+        for child_cid in reg.get("components", []):
+            if child_cid in seen_children:
+                continue
+            seen_children.add(child_cid)
+            child_imports.append(
+                f"  import {child_cid} from './{child_cid}.svelte';"
+            )
+    if not child_imports and fallback_children:
+        for fc in fallback_children:
+            child_imports.append(f"  import {fc} from './{fc}.svelte';")
+
+    snippet_blocks = []
+    for reg in regions:
+        children = reg.get("components", [])
+        if not children:
+            snippet_blocks.append(
+                f"  #{{snippet {reg['snippet']}()}}\n"
+                f"    <!-- {reg['snippet']}: 空区域 -->\n"
+                f"  {{/snippet}}"
+            )
+        else:
+            child_tags = "".join(f"    <{c} />\n" for c in children)
+            snippet_blocks.append(
+                f"  #{{snippet {reg['snippet']}()}}\n"
+                f"{child_tags}  {{/snippet}}"
+            )
+
+    return DEV_NOTICE + f"""<script lang="ts">
+  import type {{ Snippet }} from 'svelte';
+  import {cid}Skeleton from './{cid}.Skeleton.svelte';
+{chr(10).join(child_imports)}
+  interface Props {{}}
+  let {{}}: Props = $props();
+</script>
+
+<{cid}Skeleton>
+{chr(10).join(snippet_blocks)}
+</{cid}Skeleton>
+"""
+
+
 def gen_components() -> dict[str, tuple[str, str]]:
     """
-    Returns dict: { "path": (skeleton_content, stub_content) }
+    Returns dict: {{ "path": (skeleton_content, stub_content) }}
     - skeleton: written to path + ".Skeleton.svelte"  (gen.py owns)
     - stub:      written to path                      (developer owns, only if file doesn't exist)
+
+    动态读取 uiux spec：
+    - workbench-shell: 从 shell_layout 读 grid 参数
+    - 其他组件: fallback 到 hardcoded 模板（向后兼容）
     """
     files = {}
+    registry = load_uiux_registry()
 
-    # ── WorkbenchShell ─────────────────────────────────────────
-    skeleton = GEN_HEADER + """<script lang="ts">
+    # 硬编码 fallback（完全匹配旧模板，保持向后兼容）
+    HARDCODED_WORKBENCHSHELL_SKELETON = GEN_HEADER + """<script lang="ts">
   import type { Snippet } from 'svelte';
   // 三栏布局骨架 — Generated from workbench-shell_feature.yaml
   interface Props {
@@ -229,11 +380,11 @@ def gen_components() -> dict[str, tuple[str, str]]:
   </footer>
 </div>
 """
-    stub = DEV_NOTICE + """<script lang="ts">
+    HARDCODED_WORKBENCHSHELL_STUB = DEV_NOTICE + """<script lang="ts">
   import type { Snippet } from 'svelte';
   import WorkbenchShellSkeleton from './WorkbenchShell.Skeleton.svelte';
   // ── 填充 snippet 内容 ──────────────────────────────────────────
-  import ThreadList   from './ThreadList.svelte';
+  import ThreadList    from './ThreadList.svelte';
   import ArtifactPanel from './ArtifactPanel.svelte';
   import Composer      from './Composer.svelte';
   interface Props {}
@@ -262,7 +413,43 @@ def gen_components() -> dict[str, tuple[str, str]]:
   .placeholder { color: #555; font-size: 13px; padding: 16px; }
 </style>
 """
-    files["lib/components/workbench/WorkbenchShell.svelte"] = (skeleton, stub)
+    registry = load_uiux_registry()
+
+    # ── WorkbenchShell: 动态读取 shell_layout ────────────────────
+    uiux_data = None
+    for f, data in all_specs(SPEC_DIR):
+        if data.get("spec", {}).get("name") == "workbench-shell_uiux":
+            uiux_data = data.get("content", {})
+            break
+
+    shell_layout = uiux_data.get("shell_layout") if uiux_data else None
+
+    if shell_layout:
+        # ✅ 从 uiux spec 动态生成
+        grid_cols = shell_layout.get("grid_template_columns", "280px 1fr 0px")
+        grid_rows = shell_layout.get("grid_template_rows", "1fr auto")
+        grid_areas = shell_layout.get("grid_template_areas", [["L","M","R"],["B","B","B"]])
+        regions = shell_layout.get("regions", [])
+
+        skeleton = gen_skeleton_from_grid(
+            "WorkbenchShell", grid_cols, grid_rows, grid_areas, regions,
+            spec_source="Generated from workbench-shell_uiux.yaml (shell_layout)"
+        )
+        stub = gen_stub_with_children(
+            "WorkbenchShell", regions, registry,
+            fallback_children=["ThreadList", "Composer", "ArtifactPanel"]
+        )
+        files["lib/components/workbench/WorkbenchShell.svelte"] = (skeleton, stub)
+    else:
+        # ❌ fallback 到硬编码
+        files["lib/components/workbench/WorkbenchShell.svelte"] = (
+            HARDCODED_WORKBENCHSHELL_SKELETON,
+            HARDCODED_WORKBENCHSHELL_STUB,
+        )
+
+    # ── 其他组件: 保持 hardcoded 模板（向后兼容）────────────────
+    # 以下硬编码模板保持不变，仅修复 Thread import path
+    # (旧的 ThreadList stub 引用了 $lib/types/generated → 已在上轮修复)
 
     # ── Composer ───────────────────────────────────────────────
     skeleton = GEN_HEADER + """<script lang="ts">

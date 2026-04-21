@@ -1,87 +1,122 @@
-# ============================================================
-# Level 5a — Workbench Shell UI/UX 规格
-# parent: workbench-shell (L4)
-# ============================================================
 spec:
-  version: "1.0"
-  level: "5a_uiux"
-  name: "workbench-shell_uiux"
-  parent: "workbench-shell"
-  status: "active"
-
+  version: '1.0'
+  level: 5a_uiux
+  name: workbench-shell_uiux
+  parent: workbench-shell
+  status: active
 content:
+  shell_layout:
+    grid_template_columns: "280px 1fr 0px"
+    grid_template_rows: 1fr auto
+    grid_template_areas:
+    - - L
+      - M
+      - R
+    - - B
+      - B
+      - B
+    regions:
+    - snippet: sidebar
+      grid_area: L
+      components:
+      - ThreadList
+    - snippet: main
+      grid_area: M
+      components: []
+    - snippet: panel
+      grid_area: R
+      components: []
+    - snippet: composer
+      grid_area: B
+      components: []
   pages:
-    - id: "workbench-root"
-      layout:
-        type: "workspace"
-        grid_template: "40px [tabbar] 1fr [main] 24px [statusbar]"
-      regions:
-        - id: "tabbar"
-          position: "top"
-          components: ["TabBar"]
-        - id: "main"
-          position: "center"
-          components: ["WorkbenchLayout"]
-        - id: "statusbar"
-          position: "bottom"
-          components: ["StatusBar"]
-
+  - id: workbench-root
+    layout:
+      type: workspace
+      grid_template: 40px [tabbar] 1fr [main] 24px [statusbar]
+    regions:
+    - id: tabbar
+      position: top
+      components:
+      - TabBar
+    - id: main
+      position: center
+      components:
+      - WorkbenchLayout
+    - id: statusbar
+      position: bottom
+      components:
+      - StatusBar
   components:
-    - id: "WorkbenchLayout"
-      type: "composite"
-      layout:
-        type: "workspace"
-        grid_template: "240px [left] 1fr [main] 300px [right]"
-      regions:
-        - id: "left-sidebar"
-          position: "left"
-          components: ["FileTree"]
-        - id: "main-area"
-          position: "center"
-          components: ["SpecEditor", "DslCanvas"]
-        - id: "right-sidebar"
-          position: "right"
-          components: ["PropertiesPanel"]
-
-    - id: "TabBar"
-      type: "composite"
-      states:
-        - state: "default"
-          style: "background: var(--color-bg-secondary)"
-
-    - id: "StatusBar"
-      type: "composite"
-      states:
-        - state: "default"
-          style: "height: 24px; background: var(--color-bg-secondary)"
-
+  - id: WorkbenchLayout
+    type: composite
+    layout:
+      type: workspace
+      grid_template: 240px [left] 1fr [main] 300px [right]
+    regions:
+    - id: left-sidebar
+      position: left
+      components:
+      - ThreadList
+    - id: main-area
+      position: center
+      components:
+      - DslCanvas
+    - id: right-sidebar
+      position: right
+      components:
+      - ArtifactPanel
+  - id: TabBar
+    type: composite
+    states:
+    - state: default
+      style: 'background: var(--color-bg-secondary)'
+  - id: StatusBar
+    type: composite
+    states:
+    - state: default
+      style: 'height: 24px; background: var(--color-bg-secondary)'
+  - id: Composer
+    type: leaf
+    states:
+    - state: idle
+      placeholder: 输入消息，或 @ 引用 Artifact...
+    - state: running
+      placeholder: 等待响应...
+    props:
+    - name: onsubmit
+      type: '(content: string, mode: string) => void'
+    modes:
+    - text
+    - image
+    - file
+    - url
   state_management:
     stores:
-      - store: "uiStore"
-        state:
-          - name: "leftSidebarOpen"
-            type: "boolean"
-          - name: "rightSidebarOpen"
-            type: "boolean"
-          - name: "activePanel"
-            type: "'files' | 'editor' | 'canvas' | 'properties' | null"
-          - name: "statusMessage"
-            type: "string"
-          - name: "generationStatus"
-            type: "'idle' | 'running' | 'done' | 'error'"
-
+    - store: uiStore
+      state:
+      - name: leftSidebarOpen
+        type: boolean
+      - name: rightSidebarOpen
+        type: boolean
+      - name: activePanel
+        type: '''files'' | ''editor'' | ''canvas'' | ''properties'' | null'
+      - name: statusMessage
+        type: string
+      - name: generationStatus
+        type: '''idle'' | ''running'' | ''done'' | ''error'''
   design_tokens:
     colors:
-      primary: "#6366f1"
-      bg_base: "#0f0f0f"
-      bg_secondary: "#1a1a1a"
-      bg_tertiary: "#141414"
-      border: "#333"
-      text_primary: "#e5e5e5"
-      text_secondary: "#888"
-      accent: "#818cf8"
+      primary: '#6366f1'
+      bg_base: '#0f0f0f'
+      bg_secondary: '#1a1a1a'
+      bg_tertiary: '#141414'
+      border: '#333'
+      text_primary: '#e5e5e5'
+      text_secondary: '#888'
+      accent: '#818cf8'
     layout:
-      left_sidebar_width: "240px"
-      right_sidebar_width: "300px"
-      tabbar_height: "40px"
-      statusbar_height: "24px"
+      left_sidebar_width: 240px
+      right_sidebar_width: 300px
+      tabbar_height: 40px
+      statusbar_height: 24px

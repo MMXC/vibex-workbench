@@ -7,11 +7,11 @@
 
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  // 三栏布局骨架 — Generated from workbench-shell_feature.yaml
+  // Generated from workbench-shell_uiux.yaml (shell_layout)
   interface Props {
-    sidebar?:  Snippet;
-    main?:     Snippet;
-    panel?:    Snippet;
+    sidebar?: Snippet;
+    main?: Snippet;
+    panel?: Snippet;
     composer?: Snippet;
   }
   let { sidebar, main, panel, composer }: Props = $props();
