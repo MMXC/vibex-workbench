@@ -141,9 +141,54 @@ spec YAML (*_data.yaml)
 - 重复 grid-area 自动去重（B B B → 只渲染一次 footer）✅
 - 硬编码 fallback 保留（spec 缺失时走旧模板）✅
 
-**已知缺口：**
-- 其他组件（Composer/ThreadList/ArtifactPanel）仍是 hardcoded 模板
-  - 下一步：对有 `layout.grid_template` 的组件（如 WorkbenchLayout）也做动态生成
+### E1.6 — canvas-uiux spec → SvelteFlow Skeleton ✅ 已关闭（2026-04-21 第三圈）
+
+```
+canvas-renderer_uiux.yaml
+  → make generate
+  → CanvasRenderer.Skeleton.svelte
+```
+
+**已验证：**
+- `components[]: ZoomIn/ZoomOut/FitView/ToggleInteractivity` → 工具栏 4 按钮 ✅
+- `state_management: canvasStore` → reactive nodes/edges 绑定 ✅
+- `behaviors[]: onnodeclick/onnodedoubleclick/onnodedragstop` → 事件处理函数 ✅
+- `design_tokens.bg_canvas: #0a0a0a` → CSS background ✅
+- `sse_events[]` 声明存在（前端监听未实现，缺口同 B3）✅
+
+### E1.7 — Agent 内置 spec驱动循环 ✅ 已关闭（2026-04-21 第四圈）
+
+```
+用户 → spec_feature(name="...")
+  → 创建 specs/feature/<name>/<name>_feature.yaml  (L4)
+  → 创建 specs/feature/<name>/<name>_uiux.yaml      (L5a)
+  → 输出 SPEC-DRIVEN LOOP 三步提示:
+      (1) spec_validate
+      (2) make_generate     ← 新增内置工具
+      (3) canvas_update
+```
+
+**已验证：**
+- `make_generate` tool 注册到 `agent/vibex/domain/spec/specs.go` ✅
+- handler: `MakeMakeGenerateHandler` → `make generate` → gen.py → types/components ✅
+- `spec_feature` 描述内嵌 SPEC-DRIVEN LOOP 指南 ✅
+- `spec_feature` handler 自动创建 feature + uiux 同目录子规格 ✅
+
+**闭环覆盖：**
+```
+spec_designer → spec_feature → spec_validate → make_generate → canvas_update
+                                      ↓
+                               make_validate
+```
+
+### E3 — spec自举（待验证）
+
+`spec_designer` 工具 → spec YAML → `make generate` → `make validate` → `spec_designer` 更新
+
+**当前缺口：**
+- `spec_feature` 的 template 仍是硬编码 Go string，未从 spec 驱动
+- uiux sub-spec template（`canvas_layout.type: flow-canvas` 等）是默认值
+- 下一步：`spec_feature` handler 的 content template 应从某 L3/L4 spec 读取，或由 `make_generate` 反向生成
 
 ### E2 — spec-designer → spec YAML → make validate ✅ 门禁已闭环
 
