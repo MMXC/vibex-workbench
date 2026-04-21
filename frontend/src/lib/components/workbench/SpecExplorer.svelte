@@ -1,10 +1,16 @@
 <!-- Spec 文件树（对齐 R2 sidebar ws-tree）；点击 → specExplorerStore.selectSpec -->
 <script lang="ts">
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
+	import {
+		type ConventionPayload,
+		inferSpecTypeId,
+		specTypeLabel,
+	} from '$lib/workbench/spec-convention';
 
 	let paths = $state<string[]>([]);
 	let loadErr = $state<string | null>(null);
 	let loading = $state(true);
+	let convention = $state<ConventionPayload['convention'] | null>(null);
 
 	let selectedPath = $state<string | null>(null);
 
@@ -14,6 +20,17 @@
 		});
 		return unsub;
 	});
+
+	async function loadConvention() {
+		try {
+			const r = await fetch('/api/workspace/specs/convention');
+			if (!r.ok) return;
+			const j = (await r.json()) as ConventionPayload;
+			convention = j.convention ?? null;
+		} catch {
+			convention = null;
+		}
+	}
 
 	async function loadList() {
 		loading = true;
@@ -35,7 +52,14 @@
 		return path.split('/').length - 2;
 	}
 
+	function badgeShort(specTypeId: string): string {
+		const m = specTypeId.match(/^(L\d+[a-z]*)/i);
+		if (m) return m[1];
+		return specTypeId === 'meta_binding' ? 'meta' : specTypeId.slice(0, 6);
+	}
+
 	$effect(() => {
+		loadConvention();
 		loadList();
 	});
 </script>
@@ -61,6 +85,12 @@
 					onclick={() => specExplorerStore.selectSpec(p)}
 				>
 					<span class="ws-icon">📄</span>
+					{#if convention}
+						{@const tid = inferSpecTypeId(p, convention)}
+						{#if tid}
+							<span class="type-pill" title={specTypeLabel(convention, tid) ?? tid}>{badgeShort(tid)}</span>
+						{/if}
+					{/if}
 					<span class="ws-name">{p.replace(/^specs\//, '')}</span>
 				</button>
 			{/each}
@@ -167,6 +197,21 @@
 		flex-shrink: 0;
 		font-size: 12px;
 		opacity: 0.85;
+	}
+
+	.type-pill {
+		flex-shrink: 0;
+		font-size: 9px;
+		font-weight: 700;
+		letter-spacing: 0.02em;
+		line-height: 1;
+		padding: 2px 5px;
+		border-radius: 4px;
+		background: rgba(88, 86, 214, 0.22);
+		color: #c4b5fd;
+		max-width: 44px;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.ws-name {

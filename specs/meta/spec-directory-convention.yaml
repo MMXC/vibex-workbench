@@ -1,0 +1,221 @@
+# ============================================================
+# Spec 类型 ↔ 目录结构 ↔ 层级关联（本仓库约定）
+#
+# - 用途：列表/图谱/校验可按「路径」推断层级；关联边与 spec 内 parent 对齐。
+# - 真相：仍以各 spec 文件的 spec.parent、spec.level 字段为准；本文件为索引与约定。
+# - 对照：specs/architecture/vibex-workbench-skeleton.yaml → content.level_mapping
+# ============================================================
+
+version: "1"
+updated: "2026-04-22"
+
+meta:
+  project: "vibex-workbench"
+  description: |
+    每种 spec 类型对应固定目录前缀与命名习惯；关联关系描述从属链方向（典型 parent 指向）。
+
+# ── spec.parent（聚合名）→ 权威文件路径（工作台「打开 parent」优先查表）──────────
+# 未命中时前端仍可用启发式（MOD-* → module、*-skeleton → architecture 等）。
+parent_resolve:
+  summary: "与仓库当前 YAML 对齐；新增 feature 时请补一行以免同名歧义"
+  entries:
+    - parent: "vibex-workbench-goal"
+      target_path: "specs/project-goal/vibex-workbench-goal.yaml"
+    - parent: "vibex-workbench-skeleton"
+      target_path: "specs/architecture/vibex-workbench-skeleton.yaml"
+
+    - parent: "MOD-spec-engine"
+      target_path: "specs/module/MOD-spec-engine_module.yaml"
+    - parent: "MOD-dsl-visualizer"
+      target_path: "specs/module/MOD-dsl-visualizer_module.yaml"
+    - parent: "MOD-code-generator"
+      target_path: "specs/module/MOD-code-generator_module.yaml"
+    - parent: "MOD-workbench-shell"
+      target_path: "specs/module/MOD-workbench-shell_module.yaml"
+    - parent: "MOD-router"
+      target_path: "specs/module/MOD-router_module.yaml"
+
+    - parent: "workbench-shell"
+      target_path: "specs/feature/workbench-shell/workbench-shell_feature.yaml"
+    - parent: "dsl-canvas"
+      target_path: "specs/feature/dsl-canvas/dsl-canvas_feature.yaml"
+    - parent: "routing-panel"
+      target_path: "specs/feature/routing-panel/routing-panel_feature.yaml"
+    - parent: "spec-editor"
+      target_path: "specs/feature/spec-editor/spec-editor_feature.yaml"
+    - parent: "code-gen-panel"
+      target_path: "specs/feature/code-gen-panel/code-gen-panel_feature.yaml"
+    - parent: "canvas-renderer"
+      target_path: "specs/feature/canvas-renderer/canvas-renderer_feature.yaml"
+
+    - parent: "feature_template_feature"
+      target_path: "specs/feature/feature-template/feature_template_feature.yaml"
+
+# ── 类型定义：目录 + 文件名模式 + 对应 vibex 层级 ─────────────────
+spec_types:
+  - id: "L1_project_goal"
+    vibex_spec_level: "L1 project-goal"
+    directory: "specs/project-goal/"
+    path_glob: "specs/project-goal/**/*.yaml"
+    filename_hint: "*-goal.yaml 或语义化命名"
+    typical_spec_keys:
+      level: "1_project-goal"
+    default_parent: null
+    notes: "全项目唯一入口目标；被 L2 / 若干 feature 引用为 parent"
+
+  - id: "L2_skeleton"
+    vibex_spec_level: "L2 skeleton"
+    directory: "specs/architecture/"
+    path_glob: "specs/architecture/**/*.yaml"
+    filename_hint: "*-skeleton.yaml"
+    typical_spec_keys:
+      level: "2_skeleton"
+    default_parent: "vibex-workbench-goal"
+    notes: "技术选型 + 模块划分 + 生成流水线；parent 指向 L1 goal"
+
+  - id: "L3_module"
+    vibex_spec_level: "L3 module (MOD)"
+    directory: "specs/module/"
+    path_glob: "specs/module/**/*.yaml"
+    filename_hint: "MOD-*_module.yaml"
+    typical_spec_keys:
+      level: "3_module"
+    default_parent: "vibex-workbench-skeleton"
+    notes: "五大模块之一；parent 多为骨架 spec 名称（无扩展名语义）"
+
+  - id: "L4_feature"
+    vibex_spec_level: "L4 feature"
+    directory: "specs/feature/<feature-slug>/"
+    path_glob: "specs/feature/*/*_feature.yaml"
+    filename_hint: "*_feature.yaml"
+    typical_spec_keys:
+      level: "4_feature"
+    default_parent: "workbench-shell | MOD-* 对应 module 名等"
+    notes: "功能域主规格；位于某 feature 子目录下"
+
+  - id: "L5a_uiux"
+    vibex_spec_level: "L5a uiux"
+    directory: "specs/feature/<feature-slug>/"
+    path_glob: "specs/feature/*/*_uiux.yaml"
+    filename_hint: "*_uiux.yaml"
+    typical_spec_keys:
+      level: "5a_uiux"
+    default_parent: "同目录 *_feature.yaml 对应 spec name"
+    notes: "交互与视觉契约"
+
+  - id: "L5b_component"
+    vibex_spec_level: "L5b component"
+    directory: "specs/feature/<feature-slug>/"
+    path_glob: "specs/feature/*/*.yaml"
+    filename_hint: "canvas-renderer_uiux 等组件级命名（项目内已有）"
+    notes: "与 uiux 区分以 level 字段为准；目录与 feature 共用"
+
+  - id: "L5c_service"
+    vibex_spec_level: "L5c service"
+    directory: "specs/feature/<feature-slug>/"
+    path_glob: "specs/feature/*/*_service.yaml"
+    filename_hint: "*_service.yaml"
+    typical_spec_keys:
+      level: "5c_service"
+
+  - id: "L5d_data"
+    vibex_spec_level: "L5d data"
+    directory: "specs/feature/<feature-slug>/"
+    path_glob: "specs/feature/*/*_data.yaml"
+    filename_hint: "*_data.yaml"
+
+  - id: "L5d_test"
+    vibex_spec_level: "L5d test"
+    directory: "specs/feature/<feature-slug>/"
+    path_glob: "specs/feature/*/*_test.yaml"
+    filename_hint: "*_test.yaml"
+
+  - id: "L5_behavior"
+    vibex_spec_level: "L5 behavior"
+    directory: "specs/feature/<feature-slug>/"
+    path_glob: "specs/feature/*/*_behavior.yaml"
+    filename_hint: "*_behavior.yaml"
+
+  - id: "meta_binding"
+    vibex_spec_level: "meta（索引、绑定）"
+    directory: "specs/meta/"
+    path_glob: "specs/meta/**/*.yaml"
+    filename_hint: "goal-aspect-bindings.yaml、spec-directory-convention.yaml 等"
+    default_parent: null
+    notes: "不参与 parent 链必填；可为切面钻取、目录约定索引"
+
+  - id: "L6_deployment"
+    vibex_spec_level: "deployment"
+    directory: "specs/deployment/"
+    path_glob: "specs/deployment/**/*.yaml"
+    notes: "若引入部署层 spec，放在此目录（当前仓库可无文件）"
+
+# ── 层级关联边（语义）：用于图谱 / 导航；实现时与 YAML 内 parent 交叉校验 ──
+association_links:
+  summary: "自顶向下：Goal → Skeleton → Module → Feature → L5 切片（uiux/service/data/test/behavior）"
+
+  edges:
+    - from: "L1_project_goal"
+      to: "L2_skeleton"
+      relation: "children_by_parent_field"
+      description: "skeleton.spec.parent → goal 的 name"
+
+    - from: "L2_skeleton"
+      to: "L3_module"
+      relation: "children_by_parent_field"
+      description: "module.spec.parent → skeleton name"
+
+    - from: "L3_module"
+      to: "L4_feature"
+      relation: "children_by_parent_field"
+      description: "feature.spec.parent → module 或 shell 聚合名"
+
+    - from: "L4_feature"
+      to: "L5a_uiux"
+      relation: "same_feature_folder"
+      description: "同 feature-slug 目录；parent 指向 feature"
+
+    - from: "L4_feature"
+      to: "L5c_service"
+      relation: "same_feature_folder"
+
+    - from: "L4_feature"
+      to: "L5d_data"
+      relation: "same_feature_folder"
+
+    - from: "L4_feature"
+      to: "L5d_test"
+      relation: "same_feature_folder"
+
+    - from: "L4_feature"
+      to: "L5_behavior"
+      relation: "same_feature_folder"
+
+    - from: "L1_project_goal"
+      to: "meta_binding"
+      relation: "reference_not_parent"
+      description: "goal-aspect-bindings.goal_spec_path 指向 goal 文件；非 parent 链"
+
+# ── 路径 → 推断 spec_type（用于 UI 徽章 / 校验提示）────────────────
+path_inference:
+  rules:
+    - if_path_prefix: "specs/project-goal/"
+      spec_type_id: "L1_project_goal"
+    - if_path_prefix: "specs/architecture/"
+      spec_type_id: "L2_skeleton"
+    - if_path_prefix: "specs/module/"
+      spec_type_id: "L3_module"
+    - if_path_match: "specs/feature/*/*_feature.yaml"
+      spec_type_id: "L4_feature"
+    - if_path_match: "specs/feature/*/*_uiux.yaml"
+      spec_type_id: "L5a_uiux"
+    - if_path_match: "specs/feature/*/*_service.yaml"
+      spec_type_id: "L5c_service"
+    - if_path_match: "specs/feature/*/*_data.yaml"
+      spec_type_id: "L5d_data"
+    - if_path_match: "specs/feature/*/*_test.yaml"
+      spec_type_id: "L5d_test"
+    - if_path_match: "specs/feature/*/*_behavior.yaml"
+      spec_type_id: "L5_behavior"
+    - if_path_prefix: "specs/meta/"
+      spec_type_id: "meta_binding"

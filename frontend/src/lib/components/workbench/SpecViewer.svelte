@@ -4,6 +4,15 @@
 	import GoalSpecCanvas from '$lib/components/workbench/GoalSpecCanvas.svelte';
 	import GenericSpecGraph from '$lib/components/workbench/GenericSpecGraph.svelte';
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
+	import {
+		type ConventionPayload,
+		extractSpecMeta,
+		inferParentSpecPath,
+		inferSiblingFeaturePath,
+		inferSpecTypeId,
+		normalizeSpecPath,
+		specTypeLabel,
+	} from '$lib/workbench/spec-convention';
 
 	let selectedPath = $state<string | null>(null);
 	let centerView = $state<'graph' | 'text'>('graph');
@@ -12,12 +21,34 @@
 	let loading = $state(false);
 	let fetchErr = $state<string | null>(null);
 	let isGoalFile = $state(false);
+	let convention = $state<ConventionPayload['convention'] | null>(null);
+
+	let typeId = $state<string | null>(null);
+	let specParent = $state<string | null>(null);
+	let specName = $state<string | null>(null);
+	let parentGuessPath = $state<string | null>(null);
+	let siblingFeaturePath = $state<string | null>(null);
 
 	$effect(() => {
 		return specExplorerStore.subscribe(s => {
 			selectedPath = s.selectedSpecPath;
 			centerView = s.centerView;
 		});
+	});
+
+	$effect(() => {
+		let cancelled = false;
+		fetch('/api/workspace/specs/convention')
+			.then(r => (r.ok ? r.json() : null))
+			.then((j: ConventionPayload | null) => {
+				if (!cancelled && j?.convention) convention = j.convention;
+			})
+			.catch(() => {
+				if (!cancelled) convention = null;
+			});
+		return () => {
+			cancelled = true;
+		};
 	});
 
 	async function resolveIsGoal(goalPath: string): Promise<boolean> {
@@ -66,6 +97,11 @@
 				fetchErr = e instanceof Error ? e.message : String(e);
 				raw = '';
 				isGoalFile = false;
+				typeId = null;
+				specParent = null;
+				specName = null;
+				parentGuessPath = null;
+				siblingFeaturePath = null;
 			})
 			.finally(() => {
 				if (!cancelled) loading = false;
@@ -74,6 +110,37 @@
 		return () => {
 			cancelled = true;
 		};
+	});
+
+	$effect(() => {
+		if (!selectedPath) {
+			typeId = null;
+			return;
+		}
+		if (!convention) {
+			typeId = null;
+			return;
+		}
+		typeId = inferSpecTypeId(normalizeSpecPath(selectedPath), convention);
+	});
+
+	$effect(() => {
+		if (!raw) {
+			specParent = null;
+			specName = null;
+			parentGuessPath = null;
+			siblingFeaturePath = null;
+			return;
+		}
+		const meta = extractSpecMeta(raw);
+		specParent = meta.parent;
+		specName = meta.name;
+		parentGuessPath = meta.parent ? inferParentSpecPath(meta.parent, convention) : null;
+		if (!selectedPath) return;
+		const norm = normalizeSpecPath(selectedPath);
+		const sib = inferSiblingFeaturePath(norm);
+		siblingFeaturePath =
+			sib && normalizeSpecPath(sib) !== norm ? sib : null;
 	});
 </script>
 
@@ -109,6 +176,46 @@
 				返回画布
 			</button>
 		</div>
+
+		{#if !loading && !fetchErr && raw}
+			<div class="spec-meta" aria-label="规格类型与关联">
+				{#if typeId}
+					<span class="meta-badge" title={convention ? specTypeLabel(convention, typeId) ?? typeId : typeId}
+						>{typeId}</span
+					>
+				{:else}
+					<span class="meta-muted">类型未匹配目录约定</span>
+				{/if}
+				{#if specName}
+					<span class="meta-kv"><span class="meta-k">name</span><code>{specName}</code></span>
+				{/if}
+				{#if specParent}
+					<span class="meta-kv"
+						><span class="meta-k">parent</span><code>{specParent}</code></span
+					>
+					{#if parentGuessPath}
+						<button
+							type="button"
+							class="meta-link"
+							title={parentGuessPath}
+							onclick={() => specExplorerStore.selectSpec(parentGuessPath)}
+						>
+							打开 parent（推断）
+						</button>
+					{/if}
+				{/if}
+				{#if siblingFeaturePath}
+					<button
+						type="button"
+						class="meta-link"
+						title={siblingFeaturePath}
+						onclick={() => specExplorerStore.selectSpec(siblingFeaturePath)}
+					>
+						同目录主 feature
+					</button>
+				{/if}
+			</div>
+		{/if}
 
 		<div class="spec-body">
 			{#if loading}
@@ -228,6 +335,75 @@
 	.spec-close:hover {
 		color: var(--wb-text, #e8e8ed);
 		border-color: rgba(88, 86, 214, 0.35);
+	}
+
+	.spec-meta {
+		flex-shrink: 0;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px 12px;
+		padding: 6px 14px 8px;
+		font-size: 11px;
+		color: var(--wb-text-sec, #8a8a8e);
+		background: rgba(0, 0, 0, 0.2);
+		border-bottom: 1px solid var(--wb-border, rgba(255, 255, 255, 0.07));
+	}
+
+	.meta-badge {
+		padding: 2px 8px;
+		border-radius: 5px;
+		font-weight: 600;
+		font-size: 10px;
+		letter-spacing: 0.02em;
+		background: rgba(88, 86, 214, 0.25);
+		color: #c4b5fd;
+		max-width: 220px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.meta-muted {
+		opacity: 0.85;
+		font-style: italic;
+	}
+
+	.meta-kv {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 6px;
+	}
+
+	.meta-k {
+		color: var(--wb-muted, #555558);
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+	}
+
+	.meta-kv code {
+		font-size: 11px;
+		color: var(--wb-text-sec, #c4c4cc);
+		background: rgba(255, 255, 255, 0.06);
+		padding: 2px 6px;
+		border-radius: 4px;
+	}
+
+	.meta-link {
+		padding: 3px 10px;
+		border-radius: 5px;
+		border: 1px solid rgba(88, 86, 214, 0.35);
+		background: rgba(88, 86, 214, 0.12);
+		color: #c4b5fd;
+		font-size: 11px;
+		cursor: pointer;
+		font-family: inherit;
+	}
+
+	.meta-link:hover {
+		background: rgba(88, 86, 214, 0.22);
+		color: var(--wb-text, #e8e8ed);
 	}
 
 	.spec-body {
