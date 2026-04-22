@@ -114,6 +114,7 @@ function createThreadStore() {
       const iso = new Date().toISOString();
 
       if (role === 'user' && raw) {
+        console.debug('[threadStore] appendDelta user msg, role from payload:', payload.role);
         const message: Message = {
           id: crypto.randomUUID(),
           threadId,

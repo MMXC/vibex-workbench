@@ -23,11 +23,15 @@ function onMessageDelta(e: MessageEvent) {
     const data = JSON.parse(String(e.data)) as Record<string, unknown>;
     const tid = parseThreadId(data);
     if (!tid) return;
+    const role = String(data.role ?? 'assistant');
     threadStore.appendDelta(tid, {
-      role: String(data.role ?? 'assistant'),
+      role,
       delta: typeof data.delta === 'string' ? data.delta : '',
       is_final: data.is_final === true,
     });
+    if (role === 'user') {
+      console.debug('[workbench-message-sse-bridge] stored user delta:', data.delta);
+    }
   } catch {
     console.error('[workbench-message-sse-bridge] message.delta parse failed', e.data);
   }
@@ -38,19 +42,33 @@ function onAppError(e: Event) {
   if (typeof me.data !== 'string' || !me.data.trim().startsWith('{')) return;
   try {
     const data = JSON.parse(me.data) as Record<string, unknown>;
-    const tid = parseThreadId(data);
-    if (!tid) return;
-    const err =
+    const errRaw =
       typeof data.error === 'string'
         ? data.error
         : typeof data.message === 'string'
           ? data.message
-          : JSON.stringify(data);
+          : null;
+
+    if (!errRaw) return;
+
+    // 过滤内部错误码（如 API key / tool id / rate limit），不展示给用户
+    const internalPatterns = [
+      'tool id', 'api key', 'invalid params', 'rate limit',
+      '403', '401', '500', 'internal error',
+    ];
+    const isInternal = internalPatterns.some(p => errRaw.toLowerCase().includes(p));
+    if (isInternal) {
+      console.warn('[workbench] suppressed internal error:', errRaw);
+      return;
+    }
+
+    const tid = parseThreadId(data);
+    if (!tid) return;
     threadStore.appendMessage(tid, {
       id: crypto.randomUUID(),
       threadId: tid,
       role: 'system',
-      content: err,
+      content: errRaw,
       createdAt: new Date().toISOString(),
     });
   } catch {
