@@ -15,10 +15,25 @@ export default defineConfig({
 	server: {
 		port: 5173,
 		strictPort: false,
+		hmr: {
+			// 端口转发/SSH 隧道访问时，强制 HMR WebSocket 连到本机
+			host: '127.0.0.1',
+			port: 5173,
+			clientPort: 5173,
+		},
 		proxy: {
 			'/api': {
 				target: `http://localhost:${SSE_PORT}`,
 				changeOrigin: true,
+				bypass(req) {
+					// SvelteKit server-side API routes — do NOT proxy, let SvelteKit handle
+					const p = req.url ?? '';
+					if (p.startsWith('/api/workspace/specs/list') ||
+						p.startsWith('/api/workspace/specs/convention')) {
+						return p; // bypass → serve via SvelteKit
+					}
+					return undefined; // proxy to Go backend
+				},
 			},
 		},
 	},
