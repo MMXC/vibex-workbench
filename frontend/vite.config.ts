@@ -1,5 +1,5 @@
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 
 /**
  * HMR / 端口说明：
@@ -8,10 +8,18 @@ import { defineConfig } from 'vite';
  *   做法：直连 Vite 端口，或给反向代理开启 WS 转发，或设置 hmr.clientPort / hmr.host
  *   见 https://vite.dev/config/server-options.html#server-hmr
  */
+const SSE_PORT = process.env.VITE_SSE_PORT || '33338';
+
 export default defineConfig({
 	plugins: [sveltekit()],
 	server: {
 		port: 5173,
 		strictPort: false,
+		proxy: {
+			'/api': {
+				target: `http://localhost:${SSE_PORT}`,
+				changeOrigin: true,
+			},
+		},
 	},
 });

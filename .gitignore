@@ -34,3 +34,11 @@ npm-debug.log*
 # Agent runtime (local secrets + session blobs)
 agent/.env
 agent/.sessions/
+# Generators
+generators/__pycache__/
+generators/.criteria_report.json
+generators/.manifest.json
+generators/agent-queue/
+
+# Build artifacts
+agent/web

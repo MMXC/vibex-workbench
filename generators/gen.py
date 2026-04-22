@@ -17,14 +17,16 @@ VibeX Workbench — spec-to-code generator
 """
 
 import sys
+import json
 import yaml
 from pathlib import Path
-from datetime import date
+from datetime import datetime, date
 
 SPEC_DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("specs")
 OUT_DIR  = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("frontend")
 SRC_DIR  = OUT_DIR / "src"
 GEN_TEMPLATES_DIR = Path("generators/templates")
+MANIFEST_PATH = Path("generators/.manifest.json")
 
 GEN_HEADER_TS = f"""// ============================================================
 // ⚠️  此文件由 spec-to-code 自动生成
@@ -48,6 +50,64 @@ DEV_NOTICE_SVELTE = """<!-- ====================================================
 ============================================================ -->
 
 """
+
+
+# ── Generation manifest ──────────────────────────────────────────
+# Closes the loop: gen.py → manifest.json → spec_criteria_validator.py → agent
+class Manifest:
+    """Tracks all files written during a generation run.
+
+    Saved to generators/.manifest.json after main() completes.
+    Consumed by spec_criteria_validator.py for L2 gap analysis.
+    """
+    def __init__(self):
+        self.artifacts = {
+            "types":      [],  # frontend/src/lib/types.ts (always written)
+            "services":   [],  # frontend/src/lib/services/<name>_services.ts
+            "components": [],  # frontend/src/lib/components/<name>.svelte
+            "skeletons":  [],  # frontend/src/lib/components/<name>.svelte.Skeleton.svelte
+            "routes":     [],  # frontend/src/routes/<name>/+page.svelte (+ stubs)
+            "templates":  [],  # generators/templates/<name>.yaml.tpl
+        }
+        self.stats = {
+            "types_merged": False,
+            "services_written": 0,
+            "components_skeletons": 0,
+            "components_stubs": 0,
+            "routes_written": 0,
+            "templates_synced": 0,
+        }
+        self.run_at = datetime.now().isoformat()
+
+    def emit(self, category: str, rel_path: str):
+        """Record a file write. rel_path is relative to OUT_DIR (frontend/)."""
+        if category in self.artifacts:
+            self.artifacts[category].append(str(rel_path))
+
+    def finalize(self):
+        """Write manifest to generators/.manifest.json."""
+        manifest = {
+            "version": "1.0",
+            "generated_at": self.run_at,
+            "spec_dir": str(SPEC_DIR),
+            "output_dir": str(OUT_DIR),
+            "artifacts": self.artifacts,
+            "stats": self.stats,
+            # Convenience: flat list of all generated frontend files
+            "all_files": (
+                self.artifacts["types"]
+                + self.artifacts["services"]
+                + self.artifacts["components"]
+                + self.artifacts["skeletons"]
+                + self.artifacts["routes"]
+            ),
+        }
+        MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
+        MANIFEST_PATH.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+        return manifest
+
+# Global manifest instance — created in main(), finalized at end of main()
+_manifest: Manifest | None = None
 
 
 # ── helpers ──────────────────────────────────────────────────────
@@ -1200,6 +1260,9 @@ def merge_types(existing_path: Path, new_content: str) -> str:
 
 # ── main ─────────────────────────────────────────────────────────
 def main():
+    global _manifest
+    _manifest = Manifest()
+
     print("VibeX Workbench — Code Generator (B 双文件模式)")
     print(f"  Spec dir:   {SPEC_DIR}")
     print(f"  Output dir: {OUT_DIR}")
@@ -1210,6 +1273,8 @@ def main():
     new_types = gen_types() + gen_base_types()
     merged = merge_types(types_path, new_types)
     types_path.write_text(merged, encoding="utf-8")
+    _manifest.emit("types", types_path.relative_to(OUT_DIR))
+    _manifest.stats["types_merged"] = True
     print(f"  ✅ Types:   {types_path.relative_to(OUT_DIR)} (merged)")
 
     # ── Services ────────────────────────────────────────────
@@ -1218,6 +1283,8 @@ def main():
         svc_path = SRC_DIR / rel_path
         svc_path.parent.mkdir(parents=True, exist_ok=True)
         svc_path.write_text(code, encoding="utf-8")
+        _manifest.emit("services", rel_path)
+        _manifest.stats["services_written"] += 1
 
     # 清理孤立的 lib/generated/ 目录（已合并到 lib/types.ts）
     old_dir = SRC_DIR / "lib/generated"
@@ -1234,11 +1301,15 @@ def main():
         # Skeleton: 永远覆盖
         skeleton_out = skeleton_path.with_name(skeleton_path.name + ".Skeleton.svelte")
         skeleton_out.write_text(skeleton, encoding="utf-8")
+        _manifest.emit("skeletons", skeleton_out.relative_to(OUT_DIR))
+        _manifest.stats["components_skeletons"] += 1
         print(f"  ✅ Skeleton: {skeleton_out.relative_to(OUT_DIR)}")
 
         # Stub: 仅当文件不存在时创建
         if stub and not skeleton_path.exists():
             skeleton_path.write_text(stub, encoding="utf-8")
+            _manifest.emit("components", rel_path)
+            _manifest.stats["components_stubs"] += 1
             print(f"  ✅ Stub:     {skeleton_path.relative_to(OUT_DIR)}  ← 首次创建")
         elif stub:
             print(f"  ⏭️  Stub:     {skeleton_path.relative_to(OUT_DIR)}  ← 已存在，跳过")
@@ -1250,12 +1321,16 @@ def main():
 
         if skeleton and not route_path.exists():
             route_path.write_text(skeleton, encoding="utf-8")
+            _manifest.emit("routes", rel_path)
+            _manifest.stats["routes_written"] += 1
             print(f"  ✅ Route:    {route_path.relative_to(OUT_DIR)}  ← 首次创建")
         elif skeleton:
             print(f"  ⏭️  Route:   {route_path.relative_to(OUT_DIR)}  ← 已存在，跳过")
         elif stub:
             if not route_path.exists():
                 route_path.write_text(stub, encoding="utf-8")
+                _manifest.emit("routes", rel_path)
+                _manifest.stats["routes_written"] += 1
                 print(f"  ✅ Stub:     {route_path.relative_to(OUT_DIR)}  ← 首次创建")
             else:
                 print(f"  ⏭️  Stub:    {route_path.relative_to(OUT_DIR)}  ← 已存在，跳过")
@@ -1280,7 +1355,14 @@ def main():
             tpl_out = GEN_TEMPLATES_DIR / f"{spec_name}.yaml.tpl"
             tpl_out.parent.mkdir(parents=True, exist_ok=True)
             tpl_out.write_text(template_content, encoding="utf-8")
+            _manifest.emit("templates", str(tpl_out))
+            _manifest.stats["templates_synced"] += 1
             print(f"  ✅ Template: {tpl_out}  (from spec: {spec_name})")
+
+    # ── Emit manifest ─────────────────────────────────────────
+    m = _manifest.finalize()
+    print(f"\n✅ 生成完成 — {len(m['all_files'])} 个文件已写入 manifest")
+    print(f"  运行: make dev")
 
 
 if __name__ == "__main__":

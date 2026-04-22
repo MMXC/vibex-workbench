@@ -29,7 +29,9 @@ help:
 	@echo "  make build         Production build"
 	@echo "  make clean         Remove generated artifacts"
 	@echo ""
-	@echo "  make self-generate Self-bootstrap (validate + generate)"
+	@echo "  make self-generate Self-bootstrap (validate + generate + criteria check)"
+	@echo "  make spec-criteria  Criteria check L1+L2 (file existence + imports)"
+	@echo "  make spec-iterate  Full iteration: check + self-heal + agent gaps"
 	@echo "  make lint-all      lint-specs + validate + drift"
 
 init:
@@ -65,9 +67,47 @@ generate: lint-specs
 	@echo "[generate] OK."
 	@echo "  Run: make dev"
 
-self-generate: validate generate
+# --- Spec-first self-correction loop ---
+# 3-layer criteria:
+#   L1 (structural): YAML syntax + parent chain   → validate_specs.py
+#   L2 (semantic)  : file existence + imports      → spec_criteria_validator.py
+#   L3 (behavioral): acceptance_criteria          → needs agent/runtime
+#
+# Flow: lint-specs → generate → spec-criteria → [gap修复循环]
+#   self-heal   → 自动修正（template 同步等）
+#   agent action → 推给 openclaw agent（critical gaps only）
+#   skip         → 记录并继续
+
+SPEC_CRITERIA_REPORT := /tmp/spec_criteria_report.json
+
+spec-criteria: lint-specs generate
+	@echo "[spec-criteria] Checking criteria (L1+L2)..."
+	@cd "$(ROOT)" && $(PYTHON) generators/spec_criteria_validator.py \
+		--level L1L2 --json --critical-only > $(SPEC_CRITERIA_REPORT) 2>&1 || true
+	@echo "[spec-criteria] Done. Report: $(SPEC_CRITERIA_REPORT)"
+	@cd "$(ROOT)" && $(PYTHON) generators/spec_criteria_validator.py \
+		--level L1L2 --json --agent-targets 2>/dev/null || echo "No critical gaps."
+
+# spec-iterate: 完整迭代循环（lint + generate + criteria + agent修正）
+# dry-run by default; use SPEC_ITERATE_EXEC=1 to execute
+spec-iterate: lint-specs generate
+	@echo "[spec-iterate] Criteria check..."
+	@cd "$(ROOT)" && $(PYTHON) generators/spec_criteria_validator.py \
+		--level L1L2 --json > $(SPEC_CRITERIA_REPORT) 2>&1 || true
+	@echo "[spec-iterate] Self-correction (dry-run)..."
+	@cd "$(ROOT)" && $(PYTHON) generators/spec_self_corrector.py \
+		--report $(SPEC_CRITERIA_REPORT) --dry-run
+	@if [ "$(SPEC_ITERATE_EXEC)" = "1" ]; then \
+		echo "[spec-iterate] Executing self-heal..."; \
+		cd "$(ROOT)" && $(PYTHON) generators/spec_self_corrector.py \
+			--report $(SPEC_CRITERIA_REPORT) --execute; \
+	fi
+	@echo "[spec-iterate] Done. Critical gaps: run SPEC_ITERATE_EXEC=1 make spec-iterate for auto-fix."
+
+self-generate: validate generate spec-criteria
 	@echo "[self-generate] Bootstrap complete."
 	@echo "  Generated from this repo's specs."
+	@echo "  Criteria report: $(SPEC_CRITERIA_REPORT)"
 
 # --- Dev / build ---
 

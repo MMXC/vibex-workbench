@@ -58,6 +58,8 @@ func main() {
 	http.HandleFunc("/api/threads/", withCORS(historyHandler))
 	http.HandleFunc("/api/skills", withCORS(skillsHandler))
 	http.HandleFunc("/api/step", withCORS(stepHandler))
+	http.HandleFunc("/api/clarifications", withCORS(clarificationsHandler))
+	http.HandleFunc("/api/clarifications/", withCORS(clarificationHandler))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

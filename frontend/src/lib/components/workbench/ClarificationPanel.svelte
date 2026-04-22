@@ -133,6 +133,47 @@
 		});
 	}
 
+	let askQuestion = $state('');
+	let askAnswer = $state('');
+	let askSending = $state(false);
+
+	async function askRound() {
+		if (!askQuestion.trim() || !askAnswer.trim()) return;
+		askSending = true;
+		error = null;
+		try {
+			const r = await fetch(`/api/clarifications/${encodeURIComponent(session.spec_name)}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'qa', question: askQuestion, answer: askAnswer }),
+			});
+			if (!r.ok) throw new Error(await r.text());
+			const res = await r.json();
+			draftText = res.draft ?? draftText;
+			askQuestion = '';
+			askAnswer = '';
+			await loadDetail(); // refresh rounds
+		} catch (e) {
+			error = e instanceof Error ? e.message : String(e);
+		} finally {
+			askSending = false;
+		}
+	}
+
+	async function saveDraft() {
+		if (!draftText.trim()) return;
+		try {
+			const r = await fetch(`/api/clarifications/${encodeURIComponent(session.spec_name)}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'draft', draft: draftText }),
+			});
+			if (!r.ok) throw new Error(await r.text());
+		} catch (e) {
+			error = e instanceof Error ? e.message : String(e);
+		}
+	}
+
 	$effect(() => {
 		loadDetail();
 	});
@@ -189,7 +230,38 @@
 				{/if}
 			</section>
 
-			<!-- Draft / YAML -->
+			<!-- Ask: Add new Q&A round -->
+			{#if session.status !== 'confirmed' && session.status !== 'rejected'}
+				<section class="clf-section clf-ask">
+					<h4 class="clf-section-title">添加澄清轮次</h4>
+					<textarea
+						class="clf-textarea clf-textarea-sm"
+						bind:value={askQuestion}
+						rows={2}
+						placeholder="Q：用户意图 / 关键问题…"
+						spellcheck={false}
+					></textarea>
+					<textarea
+						class="clf-textarea clf-textarea-sm"
+						bind:value={askAnswer}
+						rows={3}
+						placeholder="A：澄清结论 / 派生 spec 内容…"
+						spellcheck={false}
+					></textarea>
+					<div class="clf-ask-actions">
+						<button
+							type="button"
+							class="btn-sm"
+							disabled={askSending || !askQuestion.trim() || !askAnswer.trim()}
+							onclick={askRound}
+						>
+							{askSending ? '添加中…' : '+ 添加轮次'}
+						</button>
+					</div>
+				</section>
+			{/if}
+
+			<!-- L2 Spec 草稿 -->
 			<section class="clf-section">
 				<div class="clf-section-head">
 					<h4 class="clf-section-title">L2 Spec 草稿</h4>
@@ -463,6 +535,41 @@
 		line-height: 1.45;
 		resize: vertical;
 		outline: none;
+	}
+
+	.clf-textarea-sm {
+		font-size: 11px;
+		margin-bottom: 0.4rem;
+	}
+
+	.clf-ask {
+		background: #0f1014;
+		border: 1px solid #27272a;
+		border-radius: 6px;
+		padding: 0.75rem;
+		margin-bottom: 0.75rem;
+	}
+
+	.clf-ask-actions {
+		display: flex;
+		justify-content: flex-end;
+		margin-top: 0.3rem;
+	}
+
+	.clf-ask .btn-sm {
+		background: #3b82f6;
+		color: #fff;
+		border: none;
+		padding: 0.35rem 0.8rem;
+		border-radius: 4px;
+		font-size: 11px;
+		cursor: pointer;
+	}
+
+	.clf-ask .btn-sm:disabled {
+		background: #27272a;
+		color: #52525b;
+		cursor: not-allowed;
 	}
 
 	.clf-pre {

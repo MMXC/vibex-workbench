@@ -19,6 +19,7 @@ import (
 	"vibex/agent/agents/subagent"
 	"vibex/agent/internal/common"
 	"vibex/agent/vibex/domain"
+	"vibex/generators/memlace"
 
 	"github.com/openai/openai-go/v3/responses"
 )
@@ -439,3 +440,190 @@ var (
 	llm           adapters.LLMClient
 	skillRegistry *skills.Registry
 )
+
+// ── MemLace Clarification API ─────────────────────────────────
+
+// memLaceMgr is a singleton, initialized on first use.
+var (
+	_memLaceMgr     *memlace.SessionManager
+	_memLaceMgrOnce bool
+)
+
+func getMemLaceMgr() *memlace.SessionManager {
+	if _memLaceMgrOnce {
+		return _memLaceMgr
+	}
+	_memLaceMgrOnce = true
+	mCfg := memlace.DefaultConfig(cfg.WorkspaceDir)
+	mgr, err := memlace.NewSessionManager(mCfg)
+	if err != nil {
+		return nil
+	}
+	_memLaceMgr = mgr
+	return mgr
+}
+
+// clarificationsHandler: GET /api/clarifications → list all sessions
+func clarificationsHandler(w http.ResponseWriter, r *http.Request) {
+	mgr := getMemLaceMgr()
+	if mgr == nil {
+		http.Error(w, "memlace unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	sessions := mgr.ListSessions()
+	type SessionSummary struct {
+		ID            string `json:"id"`
+		SpecName      string `json:"spec_name"`
+		SpecParent    string `json:"spec_parent"`
+		Phase         string `json:"phase"`
+		Status        string `json:"status"`
+		Rounds        int    `json:"rounds"`
+		CurrentRound  int    `json:"current_round"`
+		HasDraft      bool   `json:"has_draft"`
+		ConfirmedAt   string `json:"confirmed_at,omitempty"`
+		UpdatedAt     string `json:"updated_at"`
+	}
+	var out []SessionSummary
+	for _, s := range sessions {
+		confirmedAt := ""
+		if s.ConfirmedAt != nil {
+			confirmedAt = s.ConfirmedAt.Format(time.RFC3339)
+		}
+		out = append(out, SessionSummary{
+			ID: s.ID, SpecName: s.SpecName, SpecParent: s.SpecParent,
+			Phase: string(s.Phase), Status: string(s.Status),
+			Rounds: len(s.Rounds), CurrentRound: s.CurrentRound,
+			HasDraft: s.DerivedSpecDraft != "",
+			ConfirmedAt: confirmedAt,
+			UpdatedAt: s.UpdatedAt.Format(time.RFC3339),
+		})
+	}
+	if out == nil {
+		out = []SessionSummary{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"count": len(out), "sessions": out})
+}
+
+// clarificationHandler: GET /api/clarifications/:specName → get session detail
+// POST /api/clarifications/:specName {action, ...} → perform action
+func clarificationHandler(w http.ResponseWriter, r *http.Request) {
+	// Extract specName from path: /api/clarifications/:specName
+	parts := strings.TrimPrefix(r.URL.Path, "/api/clarifications/")
+	specName := strings.TrimSuffix(parts, "/")
+	if specName == "" || specName == "/" {
+		http.Error(w, "specName required", http.StatusBadRequest)
+		return
+	}
+	mgr := getMemLaceMgr()
+	if mgr == nil {
+		http.Error(w, "memlace unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method == http.MethodGet {
+		session := mgr.GetSession(specName)
+		if session == nil {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
+		// Render as YAML for the spec draft if confirmed
+		yamlContent := ""
+		if session.Status == memlace.StatusConfirmed && session.DerivedSpecDraft != "" {
+			yamlContent = session.DerivedSpecDraft
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"id":            session.ID,
+			"spec_name":     session.SpecName,
+			"spec_parent":    session.SpecParent,
+			"phase":         string(session.Phase),
+			"status":        string(session.Status),
+			"rounds":        session.Rounds,
+			"current_round": session.CurrentRound,
+			"draft":         session.DerivedSpecDraft,
+			"yaml_content":   yamlContent,
+			"confirmed_at":   session.ConfirmedAt,
+		})
+		return
+	}
+
+	if r.Method == http.MethodPost {
+		var req struct {
+			Action  string `json:"action"` // "confirm"|"reject"|"start"|"qa"|"draft"
+			Phase   string `json:"phase"`
+			Draft   string `json:"draft"`
+			Question string `json:"question"`
+			Answer  string `json:"answer"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad json", http.StatusBadRequest)
+			return
+		}
+		switch req.Action {
+		case "start":
+			session := mgr.CreateSession(specName, "", memlace.ClarificationPhase(req.Phase))
+			questions := memlace.PhaseDefaultQuestions(memlace.ClarificationPhase(req.Phase))
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"session_id": session.ID, "status": session.Status,
+				"phase": req.Phase, "questions": questions,
+			})
+		case "qa":
+			if req.Question == "" || req.Answer == "" {
+				http.Error(w, "question and answer required for qa action", http.StatusBadRequest)
+				return
+			}
+			session, err := mgr.AddRound(specName, req.Question, req.Answer)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"ok": true, "round": session.CurrentRound, "rounds": session.Rounds,
+				"draft": session.DerivedSpecDraft, "status": session.Status,
+			})
+		case "draft":
+			if req.Draft == "" {
+				http.Error(w, "draft content required", http.StatusBadRequest)
+				return
+			}
+			if err := mgr.SetDraft(specName, req.Draft); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]string{"ok": "true", "status": "draft_saved"})
+		case "confirm":
+			session := mgr.GetSession(specName)
+			if session == nil {
+				http.Error(w, "session not found", http.StatusNotFound)
+				return
+			}
+			// 如果 body 带了 draft 内容，先更新 draft
+			if req.Draft != "" {
+				if err := mgr.SetDraft(specName, req.Draft); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+			}
+			if session.DerivedSpecDraft == "" {
+				http.Error(w, "no draft to confirm", http.StatusBadRequest)
+				return
+			}
+			if err := mgr.Confirm(specName); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]string{"ok": "true", "status": "confirmed"})
+		case "reject":
+			if err := mgr.Reject(specName); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]string{"ok": "true", "status": "rejected"})
+		default:
+			http.Error(w, "unknown action: "+req.Action, http.StatusBadRequest)
+		}
+		return
+	}
+	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+}
