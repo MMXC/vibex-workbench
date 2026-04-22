@@ -29,12 +29,25 @@ function onMessageDelta(e: MessageEvent) {
       delta: typeof data.delta === 'string' ? data.delta : '',
       is_final: data.is_final === true,
     });
-    if (role === 'user') {
-      console.debug('[workbench-message-sse-bridge] stored user delta:', data.delta);
-    }
   } catch {
     console.error('[workbench-message-sse-bridge] message.delta parse failed', e.data);
   }
+}
+
+function onRunCompleted(e: MessageEvent) {
+  try {
+    const data = JSON.parse(String(e.data)) as Record<string, unknown>;
+    const tid = parseThreadId(data);
+    if (tid) threadStore.clearPendingAssistant(tid);
+  } catch {}
+}
+
+function onRunFailed(e: MessageEvent) {
+  try {
+    const data = JSON.parse(String(e.data)) as Record<string, unknown>;
+    const tid = parseThreadId(data);
+    if (tid) threadStore.clearPendingAssistant(tid);
+  } catch {}
 }
 
 function onAppError(e: Event) {
@@ -81,6 +94,8 @@ export function connectWorkbenchMessageBridge(url: string) {
   disconnectWorkbenchMessageBridge();
   bridge = new EventSource(url);
   bridge.addEventListener('message.delta', onMessageDelta as EventListener);
+  bridge.addEventListener('run.completed', onRunCompleted as EventListener);
+  bridge.addEventListener('run.failed', onRunFailed as EventListener);
   bridge.addEventListener('error', onAppError as EventListener);
 }
 

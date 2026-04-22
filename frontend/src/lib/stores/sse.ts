@@ -13,8 +13,16 @@ const HANDLERS: Record<string, (data: any) => void> = {
   // ── Run events ─────────────────────────────────────────
   'run.started': (data: any) => runStore.updateRunStatus(data.run_id ?? data.runId, 'executing'),
   'run.planning': (data: any) => runStore.updateRunStatus(data.run_id ?? data.runId, 'planning'),
-  'run.completed': (data: any) => runStore.updateRunStatus(data.run_id ?? data.runId, 'completed', new Date().toISOString()),
-  'run.failed': (data: any) => runStore.updateRunStatus(data.run_id ?? data.runId, 'failed'),
+  'run.completed': (data: any) => {
+    runStore.updateRunStatus(data.run_id ?? data.runId, 'completed', new Date().toISOString());
+    const tid = data.thread_id ?? data.threadId;
+    if (tid) threadStore.clearPendingAssistant(tid);
+  },
+  'run.failed': (data: any) => {
+    runStore.updateRunStatus(data.run_id ?? data.runId, 'failed');
+    const tid = data.thread_id ?? data.threadId;
+    if (tid) threadStore.clearPendingAssistant(tid);
+  },
   'run.cancelled': (data: any) => runStore.updateRunStatus(data.run_id ?? data.runId, 'cancelled'),
 
   // ── Tool events ───────────────────────────────────────

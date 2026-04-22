@@ -23,17 +23,11 @@ export interface ThreadState {
   /** 每个 threadId 下的对话气泡（由 SSE message.delta 等填充） */
   messagesByThread: Record<string, Message[]>;
   /**
-   * 每个 thread 最后一条 assistant 消息的 ID。
+   * 当前 assistant 消息 ID（由 is_final=false 流式 chunk 设置）。
    * 用于 appendDelta 在非 is_final 时追加到同一气泡，
-   * 避免多轮对话时 agent 回复串到同一个 STREAMING_ASSISTANT_ID 气泡里。
+   * 避免多轮对话时 agent 回复串到同一个气泡里。
    */
   pendingAssistantIdByThread: Record<string, string>;
-  /**
-   * 流式期间发送的用户消息先在这里排队。
-   * 等 agent 回复完成后（is_final=true）一次性 flush 进去，
-   * 保证消息顺序：msg1 → agent1 → msg2 → agent2，不会穿插。
-   */
-  queuedUserMessages: Record<string, Message[]>;
 }
 
 /** 去掉推理模型包裹块，避免正文区刷屏（MiniMax / DeepSeek 等） */
@@ -44,8 +38,6 @@ export function stripReasoningTags(text: string): string {
     .trim();
 }
 
-const STREAMING_ASSISTANT_ID = '__streaming-assistant__';
-
 function createThreadStore() {
   const { subscribe, set, update } = writable<ThreadState>({
     threads: [],
@@ -54,7 +46,6 @@ function createThreadStore() {
     error: null,
     messagesByThread: {},
     pendingAssistantIdByThread: {},
-    queuedUserMessages: {},
   });
 
   return {
@@ -102,24 +93,14 @@ function createThreadStore() {
       update(s => ({ ...s, currentThreadId: id }));
     },
 
+    /**
+     * 来自 SSE message.created（由 sseConsumer 调用）的消息追加。
+     * 当前主要用于 system/reflection 类型的消息追加。
+     */
     appendMessage(threadId: string, message: Message) {
       update(s => {
-        // 去重：同一 id 的消息不重复追加
         const existing = s.messagesByThread[threadId] ?? [];
         if (existing.some(m => m.id === message.id)) return s;
-
-        // 如果当前有 pending assistant 消息，用户消息先排队（去重）
-        if (s.pendingAssistantIdByThread[threadId]) {
-          const queued = s.queuedUserMessages[threadId] ?? [];
-          if (queued.some(m => m.id === message.id)) return s;
-          return {
-            ...s,
-            queuedUserMessages: {
-              ...s.queuedUserMessages,
-              [threadId]: [...queued, message],
-            },
-          };
-        }
         return {
           ...s,
           messagesByThread: {
@@ -132,12 +113,12 @@ function createThreadStore() {
 
     /**
      * Agent message.delta：
-     * - user：每条追加；
-     * - assistant + is_final:false：累积到当前 pending 气泡；
-     * - assistant + is_final:true：去掉所有占位，追加最终答复，记住该 ID。
+     * - user：追加到对话（用户消息通过 SSE 回显）。
+     * - assistant + is_final:false：追加到当前 pending 气泡或新建。
+     * - assistant + is_final:true：替换 pending 气泡内容。
      *
-     * 关键修复：使用 pendingAssistantIdByThread[tid] 跟踪当前 assistant 消息 ID，
-     * 避免多轮对话时所有 agent 回复都追加到同一个 STREAMING_ASSISTANT_ID 气泡里。
+     * 不再使用排队机制——SSE 事件本身保证顺序。
+     * pendingAssistantIdByThread 在 run.completed / run.failed 时由外部清除。
      */
     appendDelta(
       threadId: string,
@@ -148,6 +129,7 @@ function createThreadStore() {
       const isFinal = payload.is_final === true;
       const iso = new Date().toISOString();
 
+      // 用户消息：直接追加（server 通过 message.delta 回显用户输入）
       if (role === 'user' && raw) {
         const message: Message = {
           id: crypto.randomUUID(),
@@ -173,14 +155,13 @@ function createThreadStore() {
         const pendingId = s.pendingAssistantIdByThread[threadId];
 
         if (!isFinal) {
-          // 优先用 pending ID，其次用 STREAMING_ASSISTANT_ID
-          const targetId = pendingId ?? STREAMING_ASSISTANT_ID;
+          // 追加到 pending 气泡，或新建
+          const targetId = pendingId ?? '__streaming__';
           const idx = prev.findIndex(m => m.id === targetId);
           if (idx >= 0) {
             const cur = prev[idx];
             prev[idx] = { ...cur, content: cur.content + raw, createdAt: iso };
           } else {
-            // 没有占位消息 → 第一次流式，开始新的
             const newId = crypto.randomUUID();
             prev.push({ id: newId, threadId, role: 'assistant', content: raw, createdAt: iso });
             return {
@@ -195,22 +176,17 @@ function createThreadStore() {
           };
         }
 
-        // is_final: true → 追加最终答复，再 flush 排队的用户消息
-        const withoutPlaceholders = prev.filter(
-          m => m.id !== STREAMING_ASSISTANT_ID && m.id !== pendingId
+        // is_final: true → 替换 pending 气泡内容（去除推理标签）
+        const withoutStreaming = prev.filter(
+          m => m.id !== '__streaming__' && m.id !== pendingId
         );
         const content = stripReasoningTags(raw);
-        const queued = s.queuedUserMessages[threadId] ?? [];
         if (!content) {
-          // assistant 内容为空时也要 flush 排队的用户消息
+          // 空回复也保留结构，清除 pending
           return {
             ...s,
-            messagesByThread: {
-              ...s.messagesByThread,
-              [threadId]: [...withoutPlaceholders, ...queued],
-            },
+            messagesByThread: { ...s.messagesByThread, [threadId]: withoutStreaming },
             pendingAssistantIdByThread: { ...s.pendingAssistantIdByThread, [threadId]: '' },
-            queuedUserMessages: { ...s.queuedUserMessages, [threadId]: [] },
           };
         }
         const finalId = crypto.randomUUID();
@@ -218,12 +194,19 @@ function createThreadStore() {
           ...s,
           messagesByThread: {
             ...s.messagesByThread,
-            [threadId]: [...withoutPlaceholders, { id: finalId, threadId, role: 'assistant', content, createdAt: iso }, ...queued],
+            [threadId]: [...withoutStreaming, { id: finalId, threadId, role: 'assistant', content, createdAt: iso }],
           },
           pendingAssistantIdByThread: { ...s.pendingAssistantIdByThread, [threadId]: '' },
-          queuedUserMessages: { ...s.queuedUserMessages, [threadId]: [] },
         };
       });
+    },
+
+    /** run.completed / run.failed 时清除 pending 状态，确保下一轮正确识别 */
+    clearPendingAssistant(threadId: string) {
+      update(s => ({
+        ...s,
+        pendingAssistantIdByThread: { ...s.pendingAssistantIdByThread, [threadId]: '' },
+      }));
     },
 
     updateThread(id: string, patch: Partial<Thread>) {

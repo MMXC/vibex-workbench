@@ -73,15 +73,8 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 			prevThreadId = t.id;
 		}
 
-		// 先本地存储用户消息，显示在对话区
-		threadStore.appendMessage(effectiveTid!, {
-			id: crypto.randomUUID(),
-			threadId: effectiveTid!,
-			role: 'user',
-			content,
-			createdAt: new Date().toISOString(),
-		});
-
+		// 用户消息通过 SSE message.delta(role='user') 由后端回显，作为唯一来源。
+		// 不再本地提前创建，避免 SSE bridge echo 时 ID 不同导致重复/排队混乱。
 		try {
 			const threadKey = effectiveTid || prevThreadId;
 			if (useMockBackend) {
