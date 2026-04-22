@@ -117,7 +117,10 @@ build: generate
 	@echo "[build] OK."
 
 dev: generate
-	@echo "[dev] Starting dev server..."
+	@echo "[dev] Starting Go backend..."
+	@cd $(ROOT)/agent && WORKSPACE_ROOT=$(ROOT) go run ./cmd/web/ &
+	@sleep 3
+	@echo "[dev] Starting frontend..."
 	@cd $(FRONTEND_DIR) && npm run dev
 
 test:
