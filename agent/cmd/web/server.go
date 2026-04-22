@@ -158,6 +158,12 @@ func runToolLoop(
 		}
 
 		if !hasCalls {
+			// 发送最终消息：is_final=true，触发前端合并气泡并完成
+			if text != "" {
+				broadcastSSE(threadID, "message.delta", map[string]interface{}{
+					"role": "assistant", "delta": strings.TrimSpace(text), "is_final": true,
+				})
+			}
 			broadcastSSE(threadID, "run.completed", map[string]interface{}{
 				"run_id": threadID, "runId": threadID, "summary": "Done."})
 			return strings.TrimSpace(text), inputItems, nil
@@ -333,9 +339,9 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 			broadcastSSE(req.ThreadID, "error", map[string]interface{}{"error": err.Error()})
 			return
 		}
-		broadcastSSE(req.ThreadID, "message.delta", map[string]interface{}{
-			"role": "assistant", "delta": answer, "is_final": true,
-		})
+		// 注意：is_final=true 已由 runToolLoop 在 !hasCalls 时发送，
+		// 此处不再重复 broadcast，避免前端出现两个相同内容的气泡。
+		_ = answer // 已由 runToolLoop 的 SSE 事件消耗
 	}()
 
 	w.Header().Set("Content-Type", "application/json")
