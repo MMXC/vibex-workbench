@@ -42,3 +42,4 @@ generators/agent-queue/
 
 # Build artifacts
 agent/web
+.gstack/

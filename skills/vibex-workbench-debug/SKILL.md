@@ -393,6 +393,176 @@ cd /root/vibex-workbench && make validate 2>&1
 
 **验证：** 修复后运行 `make validate`，确认 0 个 YAML 错误。
 
+## Clarification Flow 调试（2026-04-22 新增）
+
+### 🔴 P1: memlace singleton 每次请求重建
+
+**症状**：`POST /api/clarifications/test-spec {"action":"start"}` 返回成功，但 `GET /api/clarifications` 永远返回空列表。
+
+**根因**：`getMemLaceMgr()` 在每次 HTTP 请求时都调用 `NewSessionManager()`，每次都是新内存实例，创建的 session 全丢。
+
+**修复**（`agent/cmd/web/server.go`）：
+```go
+var (
+    _memLaceMgr     *memlace.SessionManager
+    _memLaceMgrOnce bool
+)
+
+func getMemLaceMgr() *memlace.SessionManager {
+    if _memLaceMgrOnce {
+        return _memLaceMgr
+    }
+    _memLaceMgrOnce = true
+    mCfg := memlace.DefaultConfig(cfg.WorkspaceDir)
+    mgr, err := memlace.NewSessionManager(mCfg)
+    if err != nil {
+        return nil
+    }
+    _memLaceMgr = mgr
+    return mgr
+}
+```
+
+**验证**：
+```bash
+# 启动 agent
+cd /root/vibex-workbench/agent
+go build -o /tmp/vw ./cmd/web/
+WORKSPACE_ROOT=/root/vibex-workbench /tmp/vw > /tmp/vw.log 2>&1 &
+
+# 测试单例
+curl -X POST http://localhost:33338/api/clarifications/test-spec \
+  -H "Content-Type: application/json" \
+  -d '{"action":"start","phase":"mvp_prototype"}'
+curl -s http://localhost:33338/api/clarifications
+# 应该看到 session，不为空
+
+# 验证文件落地
+ls /root/vibex-workbench/.memlace/clarifications/
+cat /root/vibex-workbench/.memlace/clarifications/test-spec.clf.json
+```
+
+---
+
+### 🔴 P2: Go agent API 路由不达（vite proxy 缺失）
+
+**症状**：`ClarificationPanel` 发起 `fetch('/api/clarifications/xxx')` 返回 404。Go agent 在 `localhost:33338`，SvelteKit dev 在 `localhost:5173`，路由不达。
+
+**修复**（`frontend/vite.config.ts`）：
+```ts
+import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig, loadEnv } from 'vite';
+
+const SSE_PORT = process.env.VITE_SSE_PORT || '33338';
+
+export default defineConfig({
+    plugins: [sveltekit()],
+    server: {
+        port: 5173,
+        proxy: {
+            '/api': {
+                target: `http://localhost:${SSE_PORT}`,
+                changeOrigin: true,
+            },
+        },
+    },
+});
+```
+
+**验证**：
+```bash
+curl -s http://localhost:5173/api/clarifications
+# 应该和下面一致
+curl -s http://localhost:33338/api/clarifications
+```
+
+---
+
+### 🔴 P3: clarificationHandler 缺少 qa/draft action
+
+**症状**：`ClarificationPanel` 的"添加轮次"按钮报错 `unknown action: qa`。
+
+**根因**：Go handler 只有 `start/confirm/reject` 三个 action，前端需要 `qa`（新增轮次）和 `draft`（保存草稿）。
+
+**修复**（`agent/cmd/web/server.go`）：
+```go
+var req struct {
+    Action   string `json:"action"` // "start"|"qa"|"draft"|"confirm"|"reject"
+    Phase    string `json:"phase"`
+    Draft    string `json:"draft"`
+    Question string `json:"question"`
+    Answer   string `json:"answer"`
+}
+
+case "qa":
+    session, err := mgr.AddRound(specName, req.Question, req.Answer)
+    // 返回: ok=true, round=N, rounds=[...], draft="...", status="in_progress"
+case "draft":
+    if err := mgr.SetDraft(specName, req.Draft); err != nil { return }
+    // 返回: ok=true, status="draft_saved"
+case "confirm":
+    // body 带 draft 时先更新
+    if req.Draft != "" {
+        mgr.SetDraft(specName, req.Draft)
+    }
+    // ...
+```
+
+**前端对应**：
+```typescript
+// qa action
+fetch(`/api/clarifications/${specName}`, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'qa', question, answer })
+})
+
+// draft action
+fetch(`/api/clarifications/${specName}`, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'draft', draft: draftText })
+})
+
+// confirm action（带 draft）
+fetch(`/api/clarifications/${specName}`, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'confirm', draft: draftText })
+})
+```
+
+---
+
+### 🟡 P4: git commit 混入 generated 文件
+
+**症状**：`.pyc` / `agent-queue/*.json` / `__pycache__/` 被 commit 到仓库。
+
+**修复**：commit 前精确选择文件，不要 `git add -A`：
+```bash
+# 检查待提交文件
+git status -s
+
+# 排除 generated 文件
+git reset HEAD -- generators/__pycache__/ generators/.manifest.json generators/agent-queue/ agent/web
+
+# 只加需要的
+git add frontend/vite.config.ts
+git add frontend/src/lib/components/workbench/ClarificationPanel.svelte
+git add agent/cmd/web/server.go
+git add generators/memlace/
+git add skills/spec-first-workflow/
+```
+
+**常用 .gitignore 规则**：
+```
+generators/__pycache__/
+generators/.criteria_report.json
+generators/.manifest.json
+generators/agent-queue/
+agent/web
+*.pyc
+```
+
+---
+
 ## Git Push 调试（已知问题模式）
 
 ### 症状：`git push` 挂起超时，无错误信息

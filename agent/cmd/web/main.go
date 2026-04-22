@@ -60,6 +60,7 @@ func main() {
 	http.HandleFunc("/api/step", withCORS(stepHandler))
 	http.HandleFunc("/api/clarifications", withCORS(clarificationsHandler))
 	http.HandleFunc("/api/clarifications/", withCORS(clarificationHandler))
+	http.HandleFunc("/api/workspace/specs/read", withCORS(workspaceSpecHandler))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

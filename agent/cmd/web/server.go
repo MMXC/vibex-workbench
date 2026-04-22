@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -620,10 +622,41 @@ func clarificationHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			json.NewEncoder(w).Encode(map[string]string{"ok": "true", "status": "rejected"})
-		default:
-			http.Error(w, "unknown action: "+req.Action, http.StatusBadRequest)
-		}
-		return
+	default:
+		http.Error(w, "unknown action: "+req.Action, http.StatusBadRequest)
+	}
+	return
 	}
 	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+}
+
+// workspaceSpecHandler: GET /api/workspace/specs/read?path=<relative>
+// Reads a spec file from the workspace and returns { path, content }.
+func workspaceSpecHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	relPath := r.URL.Query().Get("path")
+	if relPath == "" {
+		http.Error(w, "path query param required", http.StatusBadRequest)
+		return
+	}
+	// Disallow path traversal: ensure the resolved path is inside WorkspaceDir
+	absPath := filepath.Join(cfg.WorkspaceDir, filepath.Clean(relPath))
+	if !strings.HasPrefix(absPath, cfg.WorkspaceDir) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			http.Error(w, "file not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"path": relPath, "content": string(data)})
 }
