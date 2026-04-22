@@ -54,7 +54,8 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 
 	async function handleSubmit(content: string, mode: string) {
 		const tid = $currentThread?.id;
-		if (!tid) {
+		let effectiveTid = tid;
+		if (!effectiveTid) {
 			const t = {
 				id: crypto.randomUUID(),
 				goal: content.slice(0, 50),
@@ -63,6 +64,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 			};
 			threadStore.addThread(t);
 			threadStore.setCurrentThread(t.id);
+			effectiveTid = t.id;
 			const url = sseConnectPath(t.id);
 			sseConsumer.disconnect();
 			disconnectWorkbenchMessageBridge();
@@ -71,8 +73,17 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 			prevThreadId = t.id;
 		}
 
+		// 先本地存储用户消息，显示在对话区
+		threadStore.appendMessage(effectiveTid!, {
+			id: crypto.randomUUID(),
+			threadId: effectiveTid!,
+			role: 'user',
+			content,
+			createdAt: new Date().toISOString(),
+		});
+
 		try {
-			const threadKey = tid || prevThreadId;
+			const threadKey = effectiveTid || prevThreadId;
 			if (useMockBackend) {
 				await fetch(`${SSE_URL}/api/runs`, {
 					method: 'POST',
