@@ -28,6 +28,12 @@ export interface ThreadState {
    * 避免多轮对话时 agent 回复串到同一个 STREAMING_ASSISTANT_ID 气泡里。
    */
   pendingAssistantIdByThread: Record<string, string>;
+  /**
+   * 流式期间发送的用户消息先在这里排队。
+   * 等 agent 回复完成后（is_final=true）一次性 flush 进去，
+   * 保证消息顺序：msg1 → agent1 → msg2 → agent2，不会穿插。
+   */
+  queuedUserMessages: Record<string, Message[]>;
 }
 
 /** 去掉推理模型包裹块，避免正文区刷屏（MiniMax / DeepSeek 等） */
@@ -48,6 +54,7 @@ function createThreadStore() {
     error: null,
     messagesByThread: {},
     pendingAssistantIdByThread: {},
+    queuedUserMessages: {},
   });
 
   return {
@@ -96,13 +103,31 @@ function createThreadStore() {
     },
 
     appendMessage(threadId: string, message: Message) {
-      update(s => ({
-        ...s,
-        messagesByThread: {
-          ...s.messagesByThread,
-          [threadId]: [...(s.messagesByThread[threadId] ?? []), message],
-        },
-      }));
+      update(s => {
+        // 去重：同一 id 的消息不重复追加
+        const existing = s.messagesByThread[threadId] ?? [];
+        if (existing.some(m => m.id === message.id)) return s;
+
+        // 如果当前有 pending assistant 消息，用户消息先排队（去重）
+        if (s.pendingAssistantIdByThread[threadId]) {
+          const queued = s.queuedUserMessages[threadId] ?? [];
+          if (queued.some(m => m.id === message.id)) return s;
+          return {
+            ...s,
+            queuedUserMessages: {
+              ...s.queuedUserMessages,
+              [threadId]: [...queued, message],
+            },
+          };
+        }
+        return {
+          ...s,
+          messagesByThread: {
+            ...s.messagesByThread,
+            [threadId]: [...existing, message],
+          },
+        };
+      });
     },
 
     /**
@@ -170,20 +195,22 @@ function createThreadStore() {
           };
         }
 
-        // is_final: true → 追加最终答复
+        // is_final: true → 追加最终答复，再 flush 排队的用户消息
         const withoutPlaceholders = prev.filter(
           m => m.id !== STREAMING_ASSISTANT_ID && m.id !== pendingId
         );
         const content = stripReasoningTags(raw);
+        const queued = s.queuedUserMessages[threadId] ?? [];
         if (!content) {
+          // assistant 内容为空时也要 flush 排队的用户消息
           return {
             ...s,
-            messagesByThread: { ...s.messagesByThread, [threadId]: withoutPlaceholders },
-            // 清除 pending，因为该 assistant 消息已完结
-            pendingAssistantIdByThread: {
-              ...s.pendingAssistantIdByThread,
-              [threadId]: '',
+            messagesByThread: {
+              ...s.messagesByThread,
+              [threadId]: [...withoutPlaceholders, ...queued],
             },
+            pendingAssistantIdByThread: { ...s.pendingAssistantIdByThread, [threadId]: '' },
+            queuedUserMessages: { ...s.queuedUserMessages, [threadId]: [] },
           };
         }
         const finalId = crypto.randomUUID();
@@ -191,9 +218,10 @@ function createThreadStore() {
           ...s,
           messagesByThread: {
             ...s.messagesByThread,
-            [threadId]: [...withoutPlaceholders, { id: finalId, threadId, role: 'assistant', content, createdAt: iso }],
+            [threadId]: [...withoutPlaceholders, { id: finalId, threadId, role: 'assistant', content, createdAt: iso }, ...queued],
           },
           pendingAssistantIdByThread: { ...s.pendingAssistantIdByThread, [threadId]: '' },
+          queuedUserMessages: { ...s.queuedUserMessages, [threadId]: [] },
         };
       });
     },
