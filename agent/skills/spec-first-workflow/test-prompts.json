@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "prompt": "我在做 VibeX 工作台，现在用户说「要给 spec 图谱加闪烁的思维导入卡点，点击可以展示澄清详情」。用 spec-first 流程来处理这个需求。",
+    "expected": "先找相关 spec（GoalSpecCanvas/clarification 相关），改 spec 写提案，确认后实现，最后验证。而不是直接写代码。",
+    "category": "happy_path"
+  },
+  {
+    "id": 2,
+    "prompt": "用户说「给 Go agent 加一个新的 memlace 搜索工具，用法和 spec-first 流程一致」，但这是一个新功能，specs/ 目录下找不到任何相关 spec。这种情况怎么处理？",
+    "expected": "先建 L1 总目标 spec，再往下建子 spec，明确 parent 链。不因为找不到就跳过 spec 步骤。",
+    "category": "edge_case_no_spec"
+  },
+  {
+    "id": 3,
+    "prompt": "用户需求进来，我按 spec-first 走了：找 spec → 改 spec → 确认了 → 开始实现。但实现过程中发现 spec 里漏了一个边界条件，代码已经写了一部分。这个情况怎么处理？",
+    "expected": "停下来更新 spec，补上漏掉的边界条件，重新确认后继续实现。不能在未确认的 spec 基础上继续实现。",
+    "category": "spec_mid_implementation_change"
+  }
+]
