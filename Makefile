@@ -117,6 +117,12 @@ build: generate
 	@echo "[build] OK."
 
 dev: generate
+	@echo "[dev] Stopping existing processes..."
+	@-pkill -f "vite" 2>/dev/null || true
+	@-pkill -f "go-run-web" 2>/dev/null || true
+	@-lsof -ti:5173 | xargs kill -9 2>/dev/null || true
+	@-lsof -ti:33338 | xargs kill -9 2>/dev/null || true
+	@sleep 1
 	@echo "[dev] Starting Go backend..."
 	@cd $(ROOT)/agent && WORKSPACE_ROOT=$(ROOT) go run ./cmd/web/ &
 	@sleep 3
