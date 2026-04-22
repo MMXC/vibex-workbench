@@ -22,6 +22,12 @@ export interface ThreadState {
   error: string | null;
   /** 每个 threadId 下的对话气泡（由 SSE message.delta 等填充） */
   messagesByThread: Record<string, Message[]>;
+  /**
+   * 每个 thread 最后一条 assistant 消息的 ID。
+   * 用于 appendDelta 在非 is_final 时追加到同一气泡，
+   * 避免多轮对话时 agent 回复串到同一个 STREAMING_ASSISTANT_ID 气泡里。
+   */
+  pendingAssistantIdByThread: Record<string, string>;
 }
 
 /** 去掉推理模型包裹块，避免正文区刷屏（MiniMax / DeepSeek 等） */
@@ -41,6 +47,7 @@ function createThreadStore() {
     loading: false,
     error: null,
     messagesByThread: {},
+    pendingAssistantIdByThread: {},
   });
 
   return {
@@ -101,8 +108,11 @@ function createThreadStore() {
     /**
      * Agent message.delta：
      * - user：每条追加；
-     * - assistant + is_final:false：累积到同一条「流式」气泡（runToolLoop 每轮文本）；
-     * - assistant + is_final:true：去掉流式占位，追加最终答复（strip 推理标签）。
+     * - assistant + is_final:false：累积到当前 pending 气泡；
+     * - assistant + is_final:true：去掉所有占位，追加最终答复，记住该 ID。
+     *
+     * 关键修复：使用 pendingAssistantIdByThread[tid] 跟踪当前 assistant 消息 ID，
+     * 避免多轮对话时所有 agent 回复都追加到同一个 STREAMING_ASSISTANT_ID 气泡里。
      */
     appendDelta(
       threadId: string,
@@ -114,7 +124,6 @@ function createThreadStore() {
       const iso = new Date().toISOString();
 
       if (role === 'user' && raw) {
-        console.debug('[threadStore] appendDelta user msg, role from payload:', payload.role);
         const message: Message = {
           id: crypto.randomUUID(),
           threadId,
@@ -136,24 +145,24 @@ function createThreadStore() {
 
       update(s => {
         const prev = [...(s.messagesByThread[threadId] ?? [])];
+        const pendingId = s.pendingAssistantIdByThread[threadId];
 
         if (!isFinal) {
-          const idx = prev.findIndex(m => m.id === STREAMING_ASSISTANT_ID);
+          // 优先用 pending ID，其次用 STREAMING_ASSISTANT_ID
+          const targetId = pendingId ?? STREAMING_ASSISTANT_ID;
+          const idx = prev.findIndex(m => m.id === targetId);
           if (idx >= 0) {
             const cur = prev[idx];
-            prev[idx] = {
-              ...cur,
-              content: cur.content + raw,
-              createdAt: iso,
-            };
+            prev[idx] = { ...cur, content: cur.content + raw, createdAt: iso };
           } else {
-            prev.push({
-              id: STREAMING_ASSISTANT_ID,
-              threadId,
-              role: 'assistant',
-              content: raw,
-              createdAt: iso,
-            });
+            // 没有占位消息 → 第一次流式，开始新的
+            const newId = crypto.randomUUID();
+            prev.push({ id: newId, threadId, role: 'assistant', content: raw, createdAt: iso });
+            return {
+              ...s,
+              messagesByThread: { ...s.messagesByThread, [threadId]: prev },
+              pendingAssistantIdByThread: { ...s.pendingAssistantIdByThread, [threadId]: newId },
+            };
           }
           return {
             ...s,
@@ -161,29 +170,30 @@ function createThreadStore() {
           };
         }
 
-        const withoutStream = prev.filter(m => m.id !== STREAMING_ASSISTANT_ID);
+        // is_final: true → 追加最终答复
+        const withoutPlaceholders = prev.filter(
+          m => m.id !== STREAMING_ASSISTANT_ID && m.id !== pendingId
+        );
         const content = stripReasoningTags(raw);
         if (!content) {
           return {
             ...s,
-            messagesByThread: { ...s.messagesByThread, [threadId]: withoutStream },
+            messagesByThread: { ...s.messagesByThread, [threadId]: withoutPlaceholders },
+            // 清除 pending，因为该 assistant 消息已完结
+            pendingAssistantIdByThread: {
+              ...s.pendingAssistantIdByThread,
+              [threadId]: '',
+            },
           };
         }
+        const finalId = crypto.randomUUID();
         return {
           ...s,
           messagesByThread: {
             ...s.messagesByThread,
-            [threadId]: [
-              ...withoutStream,
-              {
-                id: crypto.randomUUID(),
-                threadId,
-                role: 'assistant',
-                content,
-                createdAt: iso,
-              },
-            ],
+            [threadId]: [...withoutPlaceholders, { id: finalId, threadId, role: 'assistant', content, createdAt: iso }],
           },
+          pendingAssistantIdByThread: { ...s.pendingAssistantIdByThread, [threadId]: '' },
         };
       });
     },
