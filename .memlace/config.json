@@ -1,0 +1,6 @@
+{
+  "memory_store": "hermes",
+  "clarifications": ".memlace/clarifications",
+  "work_dir": "",
+  "hermes_link": true
+}

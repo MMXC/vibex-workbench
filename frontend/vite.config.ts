@@ -10,6 +10,8 @@ const SSE_PORT = process.env.VITE_SSE_PORT || '33338';
 
 export default defineConfig({
 	plugins: [sveltekit()],
+	// 确保 HMR 模块缓存每次 dev 启动都干净
+	cacheDir: './node_modules/.vite-dev',
 	server: {
 		port: 5173,
 		strictPort: false,
