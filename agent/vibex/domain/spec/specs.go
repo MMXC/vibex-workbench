@@ -98,6 +98,16 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 			),
 			Handler: MakeSpecResultTrackHandler(bc),
 		},
+		{
+			Name:        "workspace_detect_state",
+			Description: "Detect workspace state: empty (no specs/gen.py) / partial (specs only) / ready (all scaffolding present). " +
+				"Returns state, detection signals, and next-step suggestions. " +
+				"Use this when starting a new project or when the user asks about project status.",
+			Parameters: objectSchema(
+				optField("workspace_root", "string", "Path to workspace root (defaults to WORKSPACE_ROOT env var)"),
+			),
+			Handler: MakeWorkspaceDetectStateHandler(workspaceDir, setStepType),
+		},
 	}
 }
 
