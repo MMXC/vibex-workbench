@@ -124,6 +124,19 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 			),
 			Handler: MakeWorkspaceScaffoldHandler(workspaceDir, setStepType),
 		},
+		{
+			Name:        "spec_write",
+			Description: "Write or overwrite a spec YAML file at a given path. " +
+				"Use this to save edited spec content back to disk. " +
+				"Auto-creates parent directories if needed. " +
+				"After writing, runs a quick validation check and emits canvas.spec_modified event.",
+			Parameters: objectSchema(
+				reqField("spec_path", "string", "Relative path from workspace root (e.g. specs/project-goal/my-goal.yaml)"),
+				reqField("content", "string", "Full YAML content to write"),
+				optField("validate_after", "boolean", "Run validation after write (default true)"),
+			),
+			Handler: MakeSpecWriteHandler(workspaceDir, bc, setStepType),
+		},
 	}
 }
 

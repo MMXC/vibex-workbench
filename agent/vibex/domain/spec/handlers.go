@@ -681,6 +681,93 @@ func MakeWorkspaceScaffoldHandler(workspaceDir string, setStepType func(threadID
 	}
 }
 
+func MakeSpecWriteHandler(workspaceDir string, bc Broadcaster, setStepType func(threadID, stepType string)) rt.Handler {
+	return func(arguments string) string {
+		if setStepType != nil {
+			setStepType("", "spec-apply")
+		}
+
+		var args struct {
+			SpecPath     string `json:"spec_path"`
+			Content     string `json:"content"`
+			ValidateAfter *bool  `json:"validate_after"`
+		}
+		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+			return "invalid args: " + err.Error()
+		}
+		if args.SpecPath == "" {
+			return "spec_path is required"
+		}
+		if args.Content == "" {
+			return "content is required"
+		}
+
+		// Resolve path
+		specPath := args.SpecPath
+		if !filepath.IsAbs(specPath) {
+			specPath = filepath.Join(workspaceDir, specPath)
+		}
+
+		// Create parent dirs
+		parentDir := filepath.Dir(specPath)
+		if err := os.MkdirAll(parentDir, 0755); err != nil {
+			return "error creating directory " + parentDir + ": " + err.Error()
+		}
+
+		// Write file
+		if err := os.WriteFile(specPath, []byte(args.Content), 0644); err != nil {
+			return "error writing file " + specPath + ": " + err.Error()
+		}
+
+		// Quick YAML sanity check
+		issues := []string{}
+		if !strings.Contains(args.Content, "spec:") {
+			issues = append(issues, "missing top-level 'spec:' block")
+		}
+		if strings.Contains(args.Content, "|\n") && strings.Contains(args.Content, "\"") {
+			issues = append(issues, "warning: pipe inside double-quoted string — may misparse as YAML block scalar")
+		}
+
+		// Validation if requested
+		validationResult := ""
+		validateAfter := true
+		if args.ValidateAfter != nil {
+			validateAfter = *args.ValidateAfter
+		}
+		if validateAfter {
+			script := filepath.Join(workspaceDir, "generators", "validate_specs.py")
+			cmd := exec.Command("python3", script, specPath)
+			cmd.Dir = workspaceDir
+			out, err := cmd.CombinedOutput()
+			vout := strings.TrimSpace(string(out))
+			if err != nil {
+				validationResult = fmt.Sprintf("\n⚠️ validation: %s\n%v", vout, err)
+			} else {
+				validationResult = "\n✅ validation passed"
+			}
+		}
+
+		// Canvas update
+		canvasNote := ""
+		if bc != nil {
+			bc("", "canvas.spec_modified", map[string]interface{}{
+				"spec_path":  args.SpecPath,
+				"size":       len(args.Content),
+				"timestamp":  time.Now().Format(time.RFC3339),
+			})
+			canvasNote = "\n✅ canvas updated"
+		}
+
+		status := "✅ "
+		if len(issues) > 0 {
+			status = "⚠️  "
+		}
+
+		return fmt.Sprintf("%swritten: %s\n   %d bytes%s%s",
+			status, specPath, len(args.Content), validationResult, canvasNote)
+	}
+}
+
 func escapeYAML(s string) string {
 	s = strings.ReplaceAll(s, "\\", "\\\\")
 	s = strings.ReplaceAll(s, "\"", "\\\"")
