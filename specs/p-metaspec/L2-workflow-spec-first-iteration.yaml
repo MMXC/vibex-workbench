@@ -1,0 +1,1033 @@
+# L2-workflow: spec-first 迭代工作流
+---
+spec:
+  version: "0.4"
+  level: "2_skeleton"
+  name: "spec-first-workflow"
+  parent: "p-metaspec"
+  status: "done"
+
+meta:
+  type: "skeleton"
+  owner: "hermes"
+  created: "2026-04-20"
+  updated: "2026-04-23"
+
+lifecycle:
+  current: "done"
+  updated: "2026-04-23"
+  history:
+    - status: "draft"
+      at: "2026-04-20T10:00:00"
+      by: "hermes"
+      trigger: "agent:auto"
+      note: "初始版本 v0.1"
+    - status: "done"
+      at: "2026-04-22T20:00:00"
+      by: "hermes"
+      trigger: "agent:auto"
+      note: "Darwin Round 6: 81分达标，W1-W6 io_contract + 纵向链路 + W6 quarterly_review 补全"
+
+io_contract:
+  input: "用户意图（自然语言描述）"
+  output: "可验证代码（已生成文件 + TC 评分 ≥ 0.8）"
+  boundary: "只定义流程步骤，不描述具体工具实现"
+  behavior: |
+    W1 Clarify → W2 Spec → W3 Confirm → W4 Implement → W5 Validate → W6 Iterate
+
+upstream_l1:
+  spec_path: "SPEC.md"
+  spec_name: "p-metaspec"
+  note: "spec-first 工作流是 p-metaspec 的核心流程"
+  l1_sections_realized_here:
+    - "content.routing_paths.spec_first_iteration"
+    - "content.core_specs[L2-workflow]"
+---
+
+# 目标
+
+描述从「用户意图」到「可验证代码」的完整工作流。每个步骤明确定义：
+- **actor**：谁执行（user / agent / system）
+- **input**：接受什么
+- **output**：产出什么
+- **gate**：什么条件放行到下一步
+- **rollback**：失败时如何回退
+
+---
+
+# 工作流阶段图
+
+```
+用户意图
+    ↓
+┌─ W1: Clarify（意图澄清）─────────┐
+│  user + agent 共同明确需求边界     │ ← gate: 用户确认 L2 ClarificationPanel
+└─────────────────────────────────┘
+    ↓
+┌─ W2: Spec（规格生成）────────────┐
+│  agent 根据澄清结果生成 L2+ spec   │ ← gate: 用户确认 spec 内容
+└─────────────────────────────────┘
+    ↓
+┌─ W3: Confirm（确认冻结）─────────┐
+│  用户审阅 spec，确认进入实现        │ ← gate: 用户点击 confirm
+└─────────────────────────────────┘
+    ↓
+┌─ W4: Implement（实现）────────────┐
+│  agent 执行生成 + 手动实现         │ ← gate: make validate 通过
+└─────────────────────────────────┘
+    ↓
+┌─ W5: Validate（验证）────────────┐
+│  自动化测试 + 用户体验验证          │ ← gate: 全部测试通过
+└─────────────────────────────────┘
+    ↓
+┌─ W6: Iterate（迭代）────────────┐
+│  收集反馈，决定下一轮方向          │ ← gate: 用户决策
+└─────────────────────────────────┘
+    ↓
+[结束 / 回退到 W1 / 回退到 W2 / 回退到 W4]
+```
+
+---
+
+# 纵向从属链路定义
+
+本章节明确 L2-workflow 规格文档在整体 spec 体系中的纵向从属关系，
+以及 parent 链路的验证机制，确保规格树从 L1 总目标到 L3 功能模块的完整性。
+
+## Spec 层级定义
+
+|| 层级 | 名称 | parent 指向 | 说明 |
+||-----|------|----------|------|
+|| L1 | 总目标（Mission）| 无（根节点）| 定义项目的使命、愿景和战略目标 |
+|| L2 | 工作流/架构（Workflow/Architecture）| L1 | 定义实现 L1 目标的技术方案和模块划分 |
+|| L3 | 功能模块（Feature Module）| L2 | 定义具体的输入输出契约和行为约束 |
+|| L4 | 子功能/组件（Sub-feature/Component）| L3 | 可选，粒度更细的功能单元 |
+
+## W1-W6 纵向层级映射表
+
+|| 工作流阶段 | Spec 产物层级 | 主要 Spec 产物 | 参与者 | parent 验证要求 |
+||-----------|------------|--------------|------|--------------|
+|| W1 Clarify | L1（部分）| clarification_result（含 scope/exclusions/goals 雏形）| user + agent | 无（L1 尚未正式生成）|
+|| W2 Spec | L1 + L2 + L3（完整树）| L1 goals，L2 架构模块，L3 功能 spec（含 io_contract）| agent + user + system | **所有 L2/L3 必须有 parent 声明；L2.parent → L1.name，L3.parent → L2.name** |
+|| W3 Confirm | L1 + L2 + L3（确认态）| confirmed spec（含 status=confirmed 标记）| user | parent 链路必须完整（回退检查）|
+|| W4 Implement | L3（实现态）| generated_skeleton + handwritten_impl 映射到 L3| agent + system + user | **每个 generated_file 必须可追溯到其 L3 spec（实现与规格对齐）** |
+|| W5 Validate | L3（验证态）| validation_result（含 io_contract_alignment）| system + user | 对齐结果必须关联到对应 L3 |
+|| W6 Iterate | L1 + L2 + L3（迭代决策）| iteration_decision（含 revision_note）| user + agent | 决策必须明确 target spec 及其 parent 链路 |
+
+## Parent 验证机制
+
+### 验证时机
+
+1. **W2 Gate（W2.8 之前）**：每次生成 L2/L3 时，必须通过 parent 完整性检查
+2. **W3 Gate（W3.1 之前）**：confirm 之前，遍历完整 spec 树，验证所有 parent 引用有效
+3. **W4 Gate（W4.3 之前）**：gen.py 执行前，确认每个 L3 的 parent 链完整
+
+### 验证规则
+
+```yaml
+parent_chain_validation:
+  rules:
+    - id: PC-001
+      description: "L2 spec 必须有 parent 字段，且指向已存在的 L1 name"
+      check: "L2.parent == L1.name"
+      severity: error
+      auto_fix: false  # parent 引用不存在的 L1 必须人工确认
+    - id: PC-002
+      description: "L3 spec 必须有 parent 字段，且指向已存在的 L2 name"
+      check: "L3.parent == L2.name"
+      severity: error
+      auto_fix: false
+    - id: PC-003
+      description: "parent 链不得存在环路（L1→...→L5 应为 DAG，非循环图）"
+      check: "spec_tree 是有向无环图（DAG）"
+      severity: error
+      auto_fix: false
+    - id: PC-004
+      description: "同一 L2 下的 L3 不得重名"
+      check: "L3.name 在同一 parent 下唯一"
+      severity: warning
+      auto_fix: true   # agent 可自动重命名（L3-name-v2）
+    - id: PC-005
+      description: "L1 根节点不得有 parent 字段（根节点禁止有 parent）"
+      check: "L1.parent == null"
+      severity: error
+      auto_fix: false
+    - id: PC-006
+      description: "实现文件到 L3 的可追溯性（L3.source_file 声明）"
+      check: "每个 L3 应对应至少一个 generated_file 或 handwritten_file"
+      severity: warning
+      auto_fix: true   # agent 自动补充 L3.source_file 映射
+  enforcement:
+    auto_fail_on_error: true   # PC-001/002/003/005 失败 → 阻断 spec 生成
+    warn_only_on_warning: true  # PC-004/006 失败 → 仅警告，不阻断
+  tooling:
+    validation_script: "python3 validate_parent_chain.py --spec <spec-path>"
+    CI_gate: true               # 必须在 CI 中强制执行
+```
+
+### 验证错误回退
+
+| 验证失败类型 | 回退动作 |
+|------------|---------|
+| PC-001（L2.parent 指向不存在的 L1）| 阻断 W2，agent 列出可用的 L1 列表，用户选择或新建 L1 |
+| PC-002（L3.parent 指向不存在的 L2）| 阻断 W2，agent 自动修复 parent 引用 |
+| PC-003（环路检测）| 阻断 W2，agent 输出环路路径，用户手动拆分 |
+| PC-005（L1 有 parent）| 阻断 W2，拒绝生成，提示 L1 根节点禁止有 parent |
+| PC-004/006（重名/可追溯性警告）| 记录到 spec warnings，允许继续，但必须在下个 W3 确认前修复 |
+
+---
+
+# W1: 意图澄清（Clarify）
+
+## 参与者
+
+- **user**：提问、选择、确认
+- **agent**：追问、拆解、整理
+
+## 输入
+
+```yaml
+user_input: "帮我做一个待办事项管理"
+```
+
+## 输出
+
+```yaml
+clarification_result:
+  project_goal: "待办事项管理应用"
+  scope:
+    - "需要创建、编辑、删除待办"
+    - "需要按优先级排序"
+    - "需要本地持久化"
+  exclusions:
+    - "不需要多用户协作"
+    - "不需要云同步"
+  tech_hint: "前端 Svelte，后端 Go"
+  confidence: high|medium|low
+```
+
+## 步骤分解
+
+```
+W1.1 agent 接收用户输入
+W1.2 agent 拆解意图 → 生成澄清问题列表
+W1.3 展示 ClarificationPanel UI（卡片列表）
+    - 每个卡片一个问题
+    - 用户选择或填写
+W1.4 agent 汇总澄清结果 → 生成 scope + exclusions
+W1.5 用户审阅 → 确认或修改
+```
+
+## Gate 条件
+
+- `confidence >= medium`（agent 对意图理解充分）
+- 用户明确选择了 scope 和 exclusions
+- 技术栈提示已给出
+
+## 歧义处理
+
+| 歧义类型 | 处理方式 |
+|---------|---------|
+| 需求模糊 | agent 提出澄清问题，用户回答 |
+| 技术选型未给 | agent 给出建议，用户确认 |
+| 范围过大 | agent 拆分优先级，用户决定本轮范围 |
+| 范围过小 | agent 建议扩展，用户决定 |
+
+## io_contract
+
+```yaml
+input:
+  user_raw_text: string              # 用户原始意图文本
+  project_context:                   # （可选）项目已有 spec 链路
+    existing_specs: [path-list]
+output:
+  clarification_result:
+    project_goal: string
+    scope: [string]
+    exclusions: [string]
+    tech_hint: string
+    confidence: high|medium|low
+    answered_questions: [{id, question, answer}]
+error_codes:
+  WF-001: "歧义无法澄清，W1.3 超过 3 轮追问仍无法收敛"
+  WF-006: "用户主动放弃澄清（clarification_abort 事件）"
+fallback:
+  WF-001: → 路由到 W6（revise_scope）
+  WF-006: → 终止工作流，记录放弃原因
+```
+
+---
+
+# W2: 规格生成（Spec）
+
+## 参与者
+
+- **agent**：主导生成
+- **user**：审阅
+- **system**：gen.py 框架代码生成
+
+## 输入
+
+```yaml
+clarification_result: {...}   # W1 输出
+project_context:
+  existing_specs: [spec-path-list]  # 已有 spec 链路
+```
+
+## 输出
+
+```yaml
+generated_spec:
+  L1:
+    name: project-name
+    mission: "..."
+    goals: ["...", "..."]
+  L2:
+    - name: architecture-name
+      parent: project-name
+      tech_stack: ["...", "..."]
+      modules: ["...", "..."]
+  L3[]:
+    - name: feature-name
+      parent: architecture-name
+      io_contract: {...}
+      behaviors: ["...", "..."]
+      constraints: ["...", "..."]
+```
+
+## 步骤分解
+
+```
+W2.1 agent 读取项目已有 spec（理解现有架构）
+W2.2 agent 根据 clarification_result 生成 L1 总目标
+W2.3 agent 生成 L2 架构（技术选型 + 模块划分）
+W2.4 agent 生成 L3 功能模块（每个带 io_contract）
+W2.5 agent 为每个 L3 声明 constraints（技术约束）
+W2.6 gen.py 根据 L3 spec 生成框架代码（Skeleton 文件）
+W2.7 agent 为每个 L3 补充 user_stories
+W2.8 展示 SpecViewer UI，用户可逐层展开审阅
+```
+
+## Gate 条件
+
+- L1 的 goals 可度量（每条 goal 有明确的验收标准）
+- L2 的模块划分无遗漏（L3 覆盖全部 scope）
+- L3 的 io_contract 每条都有输入/输出字段定义
+- 所有 L2+ 有 parent 声明
+- 无环路（L1→...→L5 链路完整）
+
+## 失败处理
+
+- L2 模块重复 → 合并或重命名
+- parent 引用缺失 → 创建缺失的父节点
+- io_contract 字段不完整 → 标记为 draft，等 W1 再次澄清
+
+## io_contract
+
+```yaml
+input:
+  clarification_result:               # W1 输出
+    project_goal: string
+    scope: [string]
+    exclusions: [string]
+    tech_hint: string
+    confidence: high|medium|low
+  project_context:
+    existing_specs: [path-list]
+output:
+  generated_spec:
+    L1:
+      name: string
+      mission: string
+      goals: [{id, text, acceptance_criteria: string}]
+    L2[]:
+      - name: string
+        parent: string
+        tech_stack: [string]
+        modules: [string]
+    L3[]:
+      - name: string
+        parent: string
+        io_contract: {inputs: [...], outputs: [...], errors: [...]}
+        behaviors: [string]
+        constraints: [string]
+        user_stories: [string]
+error_codes:
+  WF-002: "spec 内部冲突（L2 模块名重复，或 L3 parent 引用不存在的 L2）"
+  WF-007: "gen.py 返回 exit_code=2（spec_invalid，YAML 解析失败或 parent 链路断裂）"
+  WF-008: "gen.py 返回 exit_code=3（generator_missing，找不到对应 generator）"
+fallback:
+  WF-002: → agent 自动修复（合并/重命名/补 parent），重新生成
+  WF-007: → agent 修复 spec YAML，重新执行 W2
+  WF-008: → agent 注册缺失的 generator 或降级为 handwritten（见 W4.3）
+```
+
+---
+
+# W3: 确认冻结（Confirm）
+
+## 参与者
+
+- **user**：唯一决策者
+- **agent**：准备对比视图
+
+## 输入
+
+```yaml
+generated_spec: {...}    # W2 输出
+diff_against: previous-spec-path  # 相比上一个版本的变更
+```
+
+## 输出
+
+```yaml
+confirmed_spec:
+  spec_paths: [spec-path-list]
+  status: confirmed
+  confirmed_at: ISO8601
+  confirmed_by: user
+  change_summary: "新增 L3:待办创建, 删除 L3:待办分享"
+```
+
+## 步骤分解
+
+```
+W3.1 展示 SpecViewer 对比视图
+    - 绿色：新增内容
+    - 红色：删除内容
+    - 黄色：变更内容
+W3.2 展示 changelog（自动生成）
+W3.3 用户逐层审阅 L1 → L2 → L3
+W3.4 用户对每个 L3 可选择：
+    - confirm（冻结，进入 W4）
+    - draft（返回 W2 继续修改）
+    - reject（放弃该功能）
+W3.5 确认后，spec 状态变为 confirmed（不可直接修改）
+W3.6 confirmed spec 进入 W4 实现阶段
+```
+
+## Gate 条件
+
+- 用户必须逐层确认（或批量确认）
+- 每个 L3 的 io_contract 被用户审阅过
+- constraints 被用户确认（或删除不合理约束）
+
+## 回退机制
+
+```
+W3.5 之前：任意修改，无需记录
+W3.5 之后：confirmed spec 如需修改 → 走 W6 iteration 流程
+           不允许直接覆盖 confirmed spec
+           必须新建 revision（如 spec.v2.yaml）
+```
+
+## io_contract
+
+```yaml
+input:
+  generated_spec: {...}           # W2 输出（完整 L1+L2+L3 树）
+  diff_against: spec-path|null   # 对比上一版本（首次 confirm 时为 null）
+output:
+  confirmed_spec:
+    spec_paths: [path-list]       # 已确认的 spec 文件路径列表
+    status: confirmed|draft|rejected
+    confirmed_at: ISO8601
+    confirmed_by: user-id
+    change_summary: string
+    L3_statuses:
+      - path: path
+        status: confirmed|draft|rejected
+        confirmed_at: ISO8601|null
+error_codes:
+  WF-009: "用户拒绝确认（reject rate > 50% 的 L3）"
+fallback:
+  WF-009: → 汇总被拒 L3，进入 W6（back_to_spec 或 revise_scope）
+```
+
+---
+
+# W4: 实现（Implement）
+
+## 参与者
+
+- **agent**：主导实现
+- **system**：gen.py 生成框架代码
+- **user**：审批高风险操作
+
+## 输入
+
+```yaml
+confirmed_spec:
+  spec_paths: [...]
+  L3_list: [...]
+```
+
+## 输出
+
+```yaml
+implementation_result:
+  generated_files: [file-list]       # gen.py 生成
+  handwritten_files: [file-list]    # agent 手动实现
+  build_status: success|failed
+  test_status: pass|fail|skipped
+```
+
+## 步骤分解
+
+```
+W4.1 gen.py 读取所有 confirmed L3 spec
+W4.2 对于每个 L3：
+    W4.2.1 gen.py 查找对应 generator
+    W4.2.2 执行 pre_hook（validate-spec-yaml）
+    W4.2.3 渲染 Skeleton 文件
+    W4.2.4 执行 separation_rules（保护 content 文件）
+    W4.2.5 执行 post_hook（lint-generated）
+    W4.2.6 如有错误，记录到 errors 列表
+W4.3 agent 根据 L3 补充业务逻辑（手动实现部分）
+W4.4 agent 为每个 L3 写单元测试
+W4.5 make validate 运行全量验证
+W4.6 如有失败：agent 修复 → 重新验证（最多 3 轮）
+W4.7 如 3 轮后仍失败：进入 W6 iteration，决定方向
+```
+
+## Gate 条件
+
+- `make validate` 全部通过
+- 无 build error
+- L3 行为与 io_contract 对齐（测试覆盖）
+
+## 高风险操作（需用户审批）
+
+|| 风险等级 | 操作类型 | 阈值 | 处理 | 审批方式 |
+|---------|---------|------|------|------|
+|| 🔴 高 | 删除已有文件（任意）| 任意字节数 | 用户审批（阻断式）| 必须显式确认 |
+|| 🔴 高 | 修改 confirmed spec | 任意字段 | 禁止直接修改，必须走 W6 iteration 流程 | W6 审批 |
+|| 🟡 中 | 外部 API 调用（高敏感）| 涉及支付/认证/数据删除 | 用户审批（阻断式）| 必须显式确认 |
+|| 🟡 中 | 外部 API 调用（中敏感）| 涉及用户数据读写/状态变更 | 用户审批（提示式）| 确认或取消 |
+|| 🟡 中 | 修改 content 文件 | 任意 | 系统阻止（separation_rules）| 自动阻断 |
+|| 🟢 低 | 外部 API 调用（低敏感）| 纯读取/公开数据/无状态调用 | agent 自动执行，事后记录 | 事后审计 |
+|| 🟢 低 | 修改 draft spec（未 confirmed）| 任意字段 | agent 自动执行 | 事后审计 |
+
+**外部 API 敏感度分级标准：**
+
+| 等级 | 类型 | 示例 | 审批要求 |
+|------|------|------|---------|
+| 高敏感 | 支付、认证凭据、个人隐私数据删除 | `POST /payments`, `DELETE /users/{id}`, `PUT /auth/revoke` | 用户必须显式输入 `APPROVE_<action>` 命令 |
+| 中敏感 | 用户数据读写、业务状态变更 | `PUT /users/{id}`, `POST /orders`, `PATCH /todos/{id}` | 用户点击确认按钮，提供操作摘要 |
+| 低敏感 | 纯读取、公开数据、无状态调用 | `GET /products`, `GET /todos`, `GET /public/info` | agent 自动执行，记录到操作日志 |
+
+## io_contract
+
+```yaml
+input:
+  confirmed_spec:
+    spec_paths: [path-list]
+    L3_list: [...]
+output:
+  implementation_result:
+    generated_files: [path-list]      # gen.py 生成的骨架文件
+    handwritten_files: [path-list]    # agent 手动实现文件
+    build_status: success|failed|partial
+    test_status: pass|fail|skipped
+    errors[]:
+      - level: error|warning
+        file: path
+        message: string
+        L3: path|null
+error_codes:
+  WF-003: "make validate 返回 exit_code=1（build 或 lint 失败）"
+  WF-007: "gen.py 返回 exit_code=2（spec_invalid，YAML 解析失败或 parent 链路断裂）"
+  WF-008: "gen.py 返回 exit_code=3（generator_missing，找不到对应 generator）"
+  WF-010: "separation_rules 阻止写入（protected file 被覆盖）"
+fallback:
+  WF-003: → agent 修复（最多 3 轮），仍失败 → W6
+  WF-007: → 回退到 W2 修复 spec
+  WF-008: → 注册缺失 generator 或降级为 handwritten
+  WF-010: → 系统阻止并告警，agent 手动处理
+```
+
+---
+
+# W5: 验证（Validate）
+
+## 参与者
+
+- **system**：自动化测试
+- **user**：用户体验验证
+
+## 输入
+
+```yaml
+implementation_result: {...}   # W4 输出
+confirmed_spec: {...}          # W3 输出（L3 io_contract 基准）
+```
+
+## 输出
+
+```yaml
+validation_result:
+  automated_tests:
+    unit: pass|n|total
+    integration: pass|n|total
+    e2e: pass|n|total
+  io_contract_alignment:
+    L3-name:
+      inputs_verified: [field-list]
+      outputs_verified: [field-list]
+      aligned: true|false
+  manual_tests:
+    - scenario: "..."
+      result: pass|fail
+  user_signoff: true|false
+```
+
+## 步骤分解
+
+```
+W5.1  运行单元测试（jest/vitest）
+W5.2  运行集成测试（supertest/playwright）
+W5.3  agent 对比每个 L3 的实现输出 vs io_contract 定义
+      - 逐字段核对 inputs/outputs 是否存在且类型匹配
+      - 记录对齐缺口（unmatched_fields）
+W5.4  agent 生成测试覆盖率报告
+W5.5  用户体验验证（手动操作关键路径）
+W5.6  用户填写 sign-off（通过/需修改）
+W5.7  如需修改 → 进入 W6 iteration
+W5.8  全部通过 → spec 标记为 implemented
+```
+
+## Gate 条件
+
+- 自动化测试覆盖率 ≥ 80%（关键路径 100%）
+- 每个 L3 的 io_contract 对齐率 = 100%（或明确记录缺口并获用户批准）
+- 用户 sign-off = true
+- 无 critical 级别 bug
+
+## 回退机制
+
+```
+W5 验证失败（非 critical bug）：
+    → agent 自动修复单元测试或类型错误（最多 2 轮）
+    → 仍失败 → 进入 W6，用户决策
+
+W5 验证失败（critical bug）：
+    → 立即进入 W6，建议 back_to_impl
+
+W5 io_contract 对齐率 < 100%：
+    → 记录未对齐字段到 validation_result.io_contract_alignment
+    → 用户判断是否接受缺口
+    → 不接受 → back_to_spec (W2) 或 back_to_impl (W4)
+```
+
+## io_contract
+
+```yaml
+input:
+  implementation_result: {...}    # W4 输出
+  confirmed_spec: {...}           # W3 输出（L3 io_contract 基准）
+output:
+  validation_result:
+    automated_tests:
+      unit:     {pass: N, fail: N, total: N}
+      integration: {pass: N, fail: N, total: N}
+      e2e:      {pass: N, fail: N, total: N}
+      coverage:
+        line: N%
+        branch: N%
+        critical_path: N%
+    io_contract_alignment:
+      L3-name:
+        inputs_verified:  [field-list]
+        outputs_verified: [field-list]
+        unmatched_fields: [{field, expected, actual, severity}]
+        aligned: true|false
+    manual_tests[]:
+      - scenario: string
+        result: pass|fail|skipped
+        notes: string
+    user_signoff: true|false
+    overall_status: passed|failed|conditional_pass
+error_codes:
+  WF-004: "测试失败（critical bug 发现）"
+  WF-011: "io_contract 对齐率 < 80%（严重偏离）"
+fallback:
+  WF-004: → 立即进入 W6，建议 back_to_impl
+  WF-011: → 进入 W6，建议 back_to_spec 或 back_to_impl
+  non_critical: → agent 自动修复（最多 2 轮），仍失败 → W6
+```
+
+---
+
+# W6: 迭代（Iterate）
+
+## 参与者
+
+- **user**：主导决策（所有迭代方向选择必须由 user 做出）
+- **agent**：分析、汇总、建议
+
+## 常规迭代（每 L3 完成后）
+
+### 输入
+
+```yaml
+context:
+  current_spec: confirmed-spec-path
+  implementation: implementation-result
+  validation: validation-result
+  user_feedback: "..."
+```
+
+### 输出
+
+```yaml
+iteration_decision:
+  decision: continue|revise_scope|back_to_spec|back_to_impl|finish
+  next_action:
+    target: L3-path | null
+    action: add|remove|modify|implement
+  revision_note: "..."
+  iteration_count: N   # 当前迭代轮次（用于终止判断）
+```
+
+### 步骤分解
+
+```
+W6.1  agent 汇总 validation 结果 + 用户反馈
+W6.2  agent 分析 gap：
+      - 功能缺失？→ 建议新增 L3
+      - 实现不符合 spec？→ 建议回到 W4 修复
+      - spec 本身不合理？→ 建议回到 W2 重写
+      - 目标达成？→ 建议 finish
+W6.3  agent 检查 iteration_count：
+      - count ≥ 5 → 强制要求用户决定：finish 或 终止
+      - count ≥ 10 → 强制终止，禁止继续迭代
+W6.4  展示 iteration panel（带建议 + 风险提示）
+W6.5  用户选择决策：
+      - continue：继续下一个 L3（count++）
+      - revise_scope：调整 scope，进入 W1 重新澄清
+      - back_to_spec：修改 spec，进入 W2
+      - back_to_impl：修复实现，进入 W4
+      - finish：当前目标完成，标记 done
+```
+
+## 季度回顾（quarterly_review）
+
+每完成一轮 L3 迭代周期（或每 10 个 iteration_count），
+自动触发 quarterly_review，聚焦 spec 体系的长期健康度。
+
+### 参与者
+
+- **user**（主导）：审阅、决策
+- **agent**（辅助）：生成分析报告、列出建议清单
+
+### 触发条件
+
+- iteration_count 累计达到 10 的倍数（10, 20, 30, ...）
+- 或 user 主动触发（通过 `quarterly_review` 命令）
+
+### Action 清单（user 必须逐项审阅）
+
+```yaml
+quarterly_review:
+  trigger: automatic|manual
+  iteration_snapshot: N          # 本季度累计迭代轮次
+
+  actions:
+    - action: review_deprecated
+      description: "审阅已标记为 deprecated 的 spec"
+      target_scope: "所有 L1/L2/L3 中 status=deprecated 的节点"
+      required_output:
+        - "保留的 deprecated spec：维持 deprecated 状态，说明原因"
+        - "需删除的 deprecated spec：执行删除，记录到 changelog"
+        - "可恢复的 deprecated spec：撤销 deprecated 标记，重新激活"
+      user_decision_required: true
+
+    - action: cleanup_unused
+      description: "清理未使用的 spec 节点"
+      target_scope: "所有 L3 中 source_file 映射为空且超过 3 个迭代周期未修改的节点"
+      required_output:
+        - "确认删除的 unused spec：执行删除，记录到 changelog"
+        - "保留的 unused spec：说明保留原因（如跨项目引用），更新 source_file 映射"
+      user_decision_required: true
+
+    - action: adjust_l1_goals
+      description: "审阅并调整 L1 goals"
+      target_scope: "当前项目的 L1，总览所有 L2 和 L3 的实现进度"
+      required_output:
+        - "已完成的 goal：标记为 completed，说明完成时间"
+        - "过时的 goal：更新目标文本或移入 archived_goals"
+        - "新出现的 goal：记录到 next_quarter_goals，由 user 决定是否加入 L1"
+        - "L2/L3 与 L1 不对齐的部分：列出对齐缺口，进入 revise_scope 流程"
+      user_decision_required: true
+
+    - action: cross_spec_health
+      description: "全链路 spec 健康度检查"
+      required_output:
+        - "parent 链断裂的节点：列出并要求立即修复"
+        - "io_contract 字段缺失的 L3：列出并要求补全"
+        - "constraints 过期的 L3：列出并要求更新"
+        - "spec 文档注释率：覆盖率应 ≥ 90%"
+      user_decision_required: false  # 警告类输出，无需决策
+
+  output:
+    quarterly_report:
+      deprecated_summary: {kept: N, deleted: N, restored: N}
+      unused_summary: {deleted: N, retained: N}
+      l1_goals_summary: {completed: N, active: N, archived: N, new: N}
+      health_score: N/100
+    generated_at: ISO8601
+    approved_by: user-id
+```
+
+### Gate 条件
+
+- quarterly_review 的所有 `user_decision_required: true` 的 action 必须有 user 明确决策
+- 未完成的 quarterly_review 不得开始新的 W1-W5 迭代周期
+- quarterly_review 完成后，iteration_count 重置为 0（新周期开始）
+
+## 共享 Gate 条件（常规迭代 + 季度回顾）
+
+- iteration_count ≤ 10（硬上限，不可绕过）
+- 用户必须做出明确决策（不允许"跳过"）
+- 用户选择 finish 时，confirmed spec 状态变为 `implemented`
+
+## 回退机制
+
+W6 本身是回退调度层，依赖下游阶段（W1/W2/W4）的回退定义。
+不允许从 W6 直接跳转到 W5（验证不通过须先修复）。
+
+## io_contract
+
+```yaml
+input:
+  context:
+    current_spec: path
+    implementation: {...}     # W4 输出
+    validation: {...}        # W5 输出
+    user_feedback: string
+    iteration_count: N
+output:
+  iteration_decision:
+    decision: continue|revise_scope|back_to_spec|back_to_impl|finish|deprecate
+    next_action:
+      target: path|null
+      action: add|remove|modify|implement
+    revision_note: string
+    iteration_count: N
+    termination_reason: string|null
+error_codes:
+  WF-005: "迭代轮次超限（iteration_count ≥ 10）"
+fallback:
+  WF-005: → 强制终止，生成迭代总结报告，禁止继续迭代
+  iteration_count ≥ 5: → 强制要求用户做明确决策（finish 或 终止）
+```
+
+---
+
+# 全局依赖定义
+
+本文档引用的所有系统组件必须遵循以下接口规范。
+任何实现必须满足这些契约，否则 spec-first 工作流无法闭环。
+
+## gen.py（L3 骨架代码生成器）
+
+```yaml
+interface:
+  command: "gen.py [spec-path...] [flags]"
+  arguments:
+    spec-path:  path   # L3 spec 文件路径（位置参数，可多个）
+    --target-dir, -d: path   # 输出目录路径（默认 src/generated/）
+    --dry-run: flag   # 仅打印将要生成的文件，不写入
+    --force: flag     # 强制覆盖已存在的 Skeleton 文件
+    --watch: flag     # 监听 specs/ 目录变更，持续生成
+    --generator, -g: string  # 指定生成器类型：svelte/go
+  exit_codes:
+    0: success                    # 骨架生成成功
+    1: partial_success           # 部分成功（有 skipped 或 warnings）
+    2: spec_invalid              # spec YAML 校验不通过、parent 链路断裂
+    3: generator_missing          # 找不到对应 L3 的 generator 插件
+    4: render_error              # 模板渲染失败
+  output:
+    stdout: generation log
+    stderr: error detail
+    files: [generated-file-list]  # 写入选定的 --out 目录
+  pre_hooks:
+    - name: validate-spec-yaml
+      command: "python3 -c 'import yaml; yaml.safe_load(open(\"<spec>\"))'"
+      required: true
+  post_hooks:
+    - name: lint-generated
+      command: "make lint FILE=<generated-file>"
+      required: false  # 失败不阻断，但记录到 errors
+  error_format:
+    errors:
+      - level: error|warning
+        file: "<path>"
+        message: "<string>"
+spec_internal_ref:
+  - W2.6   # "gen.py 根据 L3 spec 生成框架代码（Skeleton 文件）"
+  - W4.2.2 # "执行 pre_hook（validate-spec-yaml）"
+  - W4.2.4 # "执行 separation_rules（保护 content 文件）"
+  - W4.2.5 # "执行 post_hook（lint-generated）"
+  - W4.2.6 # "如有错误，记录到 errors 列表"
+```
+
+## make validate（全量验证命令）
+
+```yaml
+interface:
+  command: "make validate [TARGET=<L3-name>]"
+  targets:
+    all:        # 默认：lint + type-check + unit + integration
+    lint:       # 代码风格检查（.eslintrc / .golangci-lint 等）
+    type-check: # 类型检查（tsc --noEmit / go vet 等）
+    unit:       # 单元测试（jest / go test 等）
+    integration:# 集成测试（supertest / playwright 等）
+  exit_codes:
+    0: all targets pass
+    1: one or more targets failed
+  output:
+    stdout: TAP/JUnit format summary
+    coverage_report: "coverage/index.html"
+  coverage_threshold:
+    line: 80
+    branch: 70
+    critical_path: 100  # 关键路径（按 io_contract 字段覆盖）必须 100%
+spec_internal_ref:
+  - W4.5      # "make validate 运行全量验证"
+  - W4.6      # "agent 修复 → 重新验证（最多 3 轮）"
+  - W4.gate   # "make validate 全部通过"
+  - W5.1      # "运行单元测试（jest/vitest）"
+  - W5.2      # "运行集成测试（supertest/playwright）"
+```
+
+## separation_rules（骨架/内容分离规则）
+
+```yaml
+interface:
+  config_file: ".spec-governance/separation.yaml"
+  format:
+    protected_dirs:
+      - path: "src/content/**"
+        reason: "用户编写的内容文件，禁止 gen.py 覆盖"
+      - path: "*.user.md"
+        reason: "手动维护文档"
+    protected_by_extension:
+      - ".content.ts"
+      - ".manual.ts"
+    overwrite_allowed:
+      - path: "src/generated/**"
+        reason: "gen.py 生成的骨架文件，可安全覆盖"
+  enforcement:
+    pre_write:  # gen.py 写入前检查
+      command: "python3 check_separation.py --file <target>"
+      block_on_violation: true
+    post_write: # 写完后验证
+      command: "python3 verify_separation.py"
+      report: true
+spec_internal_ref:
+  - W4.2.4   # "执行 separation_rules（保护 content 文件）"
+  - W4.risk  # "修改 content 文件 → 系统阻止（separation_rules）"
+```
+
+## ClarificationPanel（意图澄清 UI 组件）
+
+```yaml
+interface:
+  component: "ClarificationPanel"
+  mount_point: "/clarify"
+  events:
+    IN:  clarification_questions: [{id, question, type, options?}]
+    OUT: clarification_complete: {answers: [{question_id, answer}], confidence}
+    OUT: clarification_abort: {}
+  requirements:
+    - 每个问题卡片支持：单选、多选、文本输入
+    - 支持跳过非关键问题（记录为 skipped=true）
+    - 完成后触发 agent 汇总，生成 clarification_result
+    - 用户可回退修改之前的选择
+spec_internal_ref:
+  - W1.3   # "展示 ClarificationPanel UI（卡片列表）"
+```
+
+## SpecViewer（规格审阅 UI 组件）
+
+```yaml
+interface:
+  component: "SpecViewer"
+  mount_point: "/spec"
+  modes:
+    view:   # 只读展示，支持层层展开（L1→L2→L3）
+    diff:   # 对比视图（需要 diff_against 参数）
+    edit:   # 草稿编辑（仅限未 confirmed 的 spec）
+  events:
+    IN:  spec_paths: [spec-path-list]
+    IN:  diff_against: spec-path  # diff 模式时必需
+    OUT: spec_confirmed: {paths: [...], confirmed_at, confirmed_by}
+    OUT: spec_draft_updated: {path, changes: [...]}
+    OUT: L3_status_changed: {path, status: confirmed|draft|rejected}
+  requirements:
+    - 颜色编码：绿色=新增，红色=删除，黄色=变更
+    - 自动生成 changelog
+    - 支持逐层（L1/L2/L3）批量确认
+    - 已 confirmed 的 spec 不可在 view 模式下直接修改
+spec_internal_ref:
+  - W2.8   # "展示 SpecViewer UI，用户可逐层展开审阅"
+  - W3.1   # "展示 SpecViewer 对比视图"
+```
+
+## 全局错误码索引
+
+本文档所有错误码统一在此注册，任何阶段均可引用。
+
+| 错误码 | 描述 | 首次定义 | 默认回退 |
+|--------|------|---------|---------|
+| WF-001 | W1 歧义无法澄清，超过 3 轮追问仍无法收敛 | W1.io_contract | → W6（revise_scope）|
+| WF-002 | spec 内部冲突（L2 模块名重复，或 parent 引用缺失）| W2.io_contract | → agent 自动修复 |
+| WF-003 | make validate 返回 exit_code=1（build/lint 失败）| W4.io_contract | → agent 修复（最多 3 轮），失败 → W6 |
+| WF-004 | 测试失败（critical bug 发现）| W5.io_contract | → 立即 W6（back_to_impl）|
+| WF-005 | 迭代轮次超限（iteration_count ≥ 10）| W6.io_contract | → 强制终止，生成总结报告 |
+| WF-006 | 用户主动放弃澄清（clarification_abort 事件）| W1.io_contract | → 终止工作流，记录放弃原因 |
+| WF-007 | gen.py 返回 exit_code=2（spec_invalid，YAML 解析失败或 parent 链路断裂）| W2.io_contract | → 回退到 W2 修复 spec |
+| WF-008 | gen.py 返回 exit_code=3（generator_missing，找不到对应 generator）| W2.io_contract | → 注册缺失 generator 或降级 handwritten |
+| WF-009 | 用户拒绝确认（reject rate > 50% 的 L3）| W3.io_contract | → W6（back_to_spec 或 revise_scope）|
+| WF-010 | separation_rules 阻止写入（protected file 被覆盖）| W4.io_contract | → 系统阻止并告警，agent 手动处理 |
+| WF-011 | io_contract 对齐率 < 80%（严重偏离）| W5.io_contract | → W6（back_to_spec 或 back_to_impl）|
+
+## 全局依赖索引
+
+本文档引用的所有外部组件汇总索引。
+
+| 组件 | 类型 | 规范章节 | 本 spec 引用位置 |
+|------|------|---------|----------------|
+| gen.py | CLI 工具 | 全局依赖定义 §gen.py | W2.6, W4.2.2, W4.2.4, W4.2.5, W4.2.6 |
+| make validate | CLI 命令 | 全局依赖定义 §make validate | W4.5, W4.6, W4.gate, W5.1, W5.2 |
+| separation_rules | 配置文件 | 全局依赖定义 §separation_rules | W4.2.4, W4.risk |
+| ClarificationPanel | UI 组件 | 全局依赖定义 §ClarificationPanel | W1.3 |
+| SpecViewer | UI 组件 | 全局依赖定义 §SpecViewer | W2.8, W3.1 |
+| validate-spec-yaml | pre_hook | gen.py 接口定义 | W4.2.2 |
+| lint-generated | post_hook | gen.py 接口定义 | W4.2.5 |
+| check_separation.py | 守护脚本 | separation_rules.enforcement | W4.risk |
+| verify_separation.py | 验证脚本 | separation_rules.enforcement | W4.risk |
+
+---
+
+# 质量评估（Darwin Rubrics）
+
+|| # | 维度 | 权重 | 评分标准 |
+||---|------|------|---------|
+|| 1 | **步骤完整性** | 20 | 6 个阶段是否都有明确定义 |
+|| 2 | **Gate 条件可判定性** | 20 | 每个 gate 的判定标准是否清晰、无歧义 |
+|| 3 | **回退机制覆盖** | 20 | 每个阶段失败时的回退路径是否完整 |
+|| 4 | **角色分离清晰度** | 15 | user/agent/system 职责是否互不重叠 |
+|| 5 | **自动化程度** | 15 | 哪些步骤可自动，哪些必须人工 |
+|| 6 | **歧义处理覆盖** | 10 | 每个阶段的歧义处理是否完整 |
+
+**最低门槛**：总分 ≥ 80，且 W1/W2/W4 每步都有 gate 定义。
+
+**版本历史**
+
+|| 版本 | 日期 | 变更说明 |
+||-----|------|---------|
+|| 0.1 | - | 初始版本（first-iteration） |
+||| 0.2 | 2026-04-23 | 补充 W5 回退机制；补充 W6 迭代终止条件（count≤10）；新增"全局依赖定义"章节（gen.py/make validate/separation_rules/ClarificationPanel/SpecViewer）；补充 W5 io_contract 对齐验证步骤 |
+||| 0.4 | 2026-04-23 | Round 6 Darwin 迭代：聚焦 D1 纵向从属完整性。新增「纵向从属链路定义」章节（含 L1-L4 层级定义表、W1-W6 层级映射表、parent 验证机制 PC-001~PC-006 及验证错误回退表）；扩展 W6 为常规迭代+季度回顾（quarterly_review，含 4 项 action：审阅 deprecated/清理 unused/调整 L1 goals/全链路健康度检查）；高风险操作表扩展为 7 行并区分🔴高/🟡中/🟢低风险等级，新增外部 API 敏感度分级标准表 |

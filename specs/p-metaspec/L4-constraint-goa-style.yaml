@@ -1,0 +1,880 @@
+# L4-constraint: 技术约束规格
+---
+spec:
+  version: "0.3"
+  level: "4_feature"
+  name: "vibex-constraint-system"
+  parent: "p-metaspec"
+  status: "done"
+
+meta:
+  type: "feature"
+  module: "spec-engine"
+  owner: "hermes"
+  created: "2026-04-20"
+  updated: "2026-04-23"
+
+lifecycle:
+  current: "done"
+  updated: "2026-04-23"
+  history:
+    - status: "draft"
+      at: "2026-04-20T10:00:00"
+      by: "hermes"
+      trigger: "agent:auto"
+      note: "初始版本 v0.1"
+    - status: "done"
+      at: "2026-04-22T20:00:00"
+      by: "hermes"
+      trigger: "agent:auto"
+      note: "Darwin Round 5: 84分达标，C1.4 安全约束扩展 + C1.5 跨端点不变量"
+
+io_contract:
+  input: "spec YAML 文件 + 约束声明（constraint declarations）"
+  output: "约束验证代码（自动生成）"
+  boundary: "只生成约束验证代码，不生成业务逻辑"
+  behavior: "解析约束声明 → 生成验证函数 → 注入到目标代码"
+
+upstream_l1:
+  spec_path: "SPEC.md"
+  spec_name: "p-metaspec"
+  l1_sections_realized_here:
+    - "content.core_specs[L4-constraint]"
+    - "content.constraints[C4 跨 Spec 一致性]"
+
+vision_traceability:
+  summary: "约束系统是 spec 治理的技术保障"
+  l1:
+    goal_path: "SPEC.md"
+    constraint_ids: ["C4", "C5"]
+---
+
+# 目标
+
+将**技术约束**声明式地嵌入 spec，在约束被违反时自动生成验证代码 + 运行时错误。借鉴 goa DSL 的 validation 模式，让约束成为 spec 的一等公民，而非事后追加的注释。
+
+---
+
+# C1: 约束类型体系
+
+## C1.0 顶层 io_contract 引用规范
+
+每个使用约束的 L3 spec **必须**在顶层声明 io_contract 的位置和引用路径：
+
+```yaml
+# L3 spec 示例
+---
+name: user-authentication
+parent: vibex-auth-module
+type: L3
+version: "0.1"
+
+io_contract:
+  input:
+    source: L4-constraint  # 约束来源于 L4-constraint spec
+    endpoint: POST /auth/login
+    fields: [...]
+    cross_constraints: [...]
+  output:
+    success: 200
+    error: 400|401|429
+    shape:
+      - name: token
+        type: string
+      - name: user_id
+        type: integer
+
+generated_validator: auth_login_validator.go   # 自动生成文件路径
+```
+
+## C1.1 字段级约束（field-level）
+
+```yaml
+io_contract:
+  input:
+    fields:
+      - name: email
+        type: string
+        required: true
+        constraints:
+          - rule: format
+            value: email          # RFC 5322 邮箱格式
+          - rule: max_length
+            value: 254
+      - name: password
+        type: string
+        required: true
+        constraints:
+          - rule: min_length
+            value: 8
+          - rule: pattern
+            value: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)"
+            message: "必须包含大小写字母和数字"
+          - rule: max_length
+            value: 128
+      - name: age
+        type: integer
+        constraints:
+          - rule: minimum
+            value: 0
+          - rule: maximum
+            value: 150
+      - name: status
+        type: enum
+        values: [pending, active, deleted]
+        constraints:
+          - rule: enum
+            value: [pending, active, deleted]
+      - name: file_size
+        type: integer
+        constraints:
+          - rule: exclusive_minimum
+            value: 0
+          - rule: exclusive_maximum
+            value: 10485760   # 10MB
+```
+
+## C1.2 字段间约束（cross-field）
+
+### 1.2.1 约束示例
+
+```yaml
+io_contract:
+  input:
+    fields:
+      - name: start_date
+        type: string  # ISO 8601
+        constraints:
+          - rule: format
+            value: date
+      - name: end_date
+        type: string
+        constraints:
+          - rule: format
+            value: date
+    cross_constraints:
+      - rule: date_range
+        fields: [start_date, end_date]
+        message: "结束日期必须晚于开始日期"
+      - rule: required_with
+        base_field: end_date
+        required_fields: [start_date]  # end_date 存在时 start_date 必须存在
+```
+
+### 1.2.2 标准跨字段约束类型库
+
+```yaml
+cross_constraint_library:
+  # 1. 范围约束：字段A必须小于字段B
+  - rule: compare_lt
+    fields: [field_a, field_b]    # field_a < field_b
+    applies_to: [integer, float, date, datetime]
+
+  # 2. 互斥约束：两个字段不能同时存在
+  - rule: mutually_exclusive
+    fields: [field_a, field_b]
+
+  # 3. 依赖存在约束：base 存在时，targets 也必须存在
+  - rule: required_with
+    base_field: base
+    required_fields: [target_a, target_b]
+
+  # 4. 总和约束：多个数值字段之和不超过某阈值
+  - rule: sum_max
+    fields: [quantity, weight]
+    max_value: 1000
+
+  # 5. 一致性约束：两个字段值必须相等
+  - rule: must_equal
+    fields: [password, confirm_password]
+    message: "两次输入的密码不一致"
+
+  # 6. 正则匹配约束：某字段值必须匹配另一字段的值格式
+  - rule: matches_pattern_of
+    base_field: pattern
+    target_field: value
+```
+
+### 1.2.3 自定义跨字段约束注册
+
+```yaml
+cross_constraints:
+  - rule: custom
+    name: subscription_not_expired
+    description: "用户订阅未过期时才能访问高级功能"
+    fields: [subscription_status, feature_tier]
+    code_snippet:           # 签名模板，gen.py 填充
+      go: "func ValidateSubscriptionNotExpired(subscription_status, feature_tier string) error"
+      typescript: "function validateSubscriptionNotExpired(subscription_status: string, feature_tier: string): Error | null"
+    test_required: true    # 自定义约束必须提供测试用例
+```
+
+## C1.3 协议级约束（protocol-level）
+
+```yaml
+protocol_constraints:
+  http:
+    timeout_ms: 30000
+    max_body_bytes: 1048576       # 1MB
+    allowed_methods: [GET, POST, PUT, DELETE]
+    required_headers: [Content-Type]
+    cors:
+      allowed_origins: ["https://app.vibex.com"]
+      allowed_methods: [GET, POST]
+  auth:
+    required: true
+    type: bearer|basic|jwt|apikey
+    jwt:
+      algorithm: RS256
+      expiry_hours: 24
+```
+
+## C1.4 安全约束
+
+### 1.4.1 敏感字段掩码
+
+```yaml
+security_constraints:
+  - rule: no_sensitive_in_logs
+    fields: [password, token, api_key, secret, credit_card, ssn]
+    action: mask     # 运行时自动将字段值替换为 "***"
+    log_behavior: omit  # 可选：完全不记录该字段
+```
+
+### 1.4.2 XSS 防护约束
+
+```yaml
+security_constraints:
+  # HTML 净化：移除危险标签和属性
+  - rule: html_sanitization
+    fields: [content, description, bio, comment]
+    allowed_tags: [p, br, strong, em, ul, ol, li, a, span]
+    allowed_attributes:
+      a: [href, title]
+      span: [class]
+    strip_scripts: true
+    strip_event_handlers: true
+    url_schemes_whitelist: [http, https, mailto]
+
+  # URL 净化：防止 javascript: 协议和 data: 协议
+  - rule: url_sanitization
+    fields: [redirect_url, callback_url, avatar_url, link]
+    allowed_schemes: [http, https]
+    blocked_patterns:
+      - "^javascript:"
+      - "^data:"
+      - "^vbscript:"
+    max_length: 2048
+
+  # 富文本内容：阻止 JavaScript 能力
+  - rule: javascript_blocking
+    fields: [rich_content, html_content, markdown]
+    blocking_rules:
+      - pattern: "<script"
+        action: strip_tag
+      - pattern: "on\\w+="
+        action: strip_attribute
+      - pattern: "javascript:"
+        action: reject
+```
+
+### 1.4.3 SQL / NoSQL 注入防护约束
+
+```yaml
+security_constraints:
+  # 参数化查询：强制使用绑定变量
+  - rule: parametrized_query
+    applies_to: all_query_fields
+    enforcement: mandatory    # mandatory | advisory
+    code_generation_template:
+      go: "db.QueryContext(ctx, $QUERY, $BIND_VARS...)"
+      python: "cursor.execute($QUERY, $BIND_VARS)"
+      typescript: "db.query($QUERY, [$BIND_VARS])"
+    blocked_patterns:
+      - "\\bOR\\b.*="
+      - "UNION\\s+SELECT"
+      - ";\\s*DROP\\s+TABLE"
+      - "--"
+      - "'\\s+OR\\s+'\\s*=\\s*'"
+
+  # SQL 注入安全字段标注
+  - rule: sql_injection_safe
+    fields: [username, search_query, filter_value]
+    requires_parametrization: true
+
+  # NoSQL 注入防护：防止操作符注入
+  - rule: nosql_injection_safe
+    fields: [query, filter, selector]
+    blocked_patterns:
+      - "^\\$"
+      - "\\bwhere\\b.*\\$gt"
+      - "\\bwhere\\b.*\\$ne"
+    enforcement: strict
+    mongo_template: "{$expr: {$eq: ['$field', $value]}}"
+
+  # 避免字符串拼接查询
+  - rule: no_string_concatenation_in_query
+    severity: error
+    message: "禁止将用户输入直接拼接到 SQL/NoSQL 查询字符串中"
+```
+
+### 1.4.4 CSRF 防护约束
+
+```yaml
+security_constraints:
+  # CSRF Token 验证
+  - rule: csrf_token_required
+    applies_to: [POST, PUT, PATCH, DELETE]
+    token_location: [header, body, cookie]
+    token_header: X-CSRF-Token
+    token_field: csrf_token
+    cookie_name: csrf_cookie
+    validate_on:
+      - session_based
+      - stateless_jwt
+    secret_min_length: 32
+
+  # SameSite Cookie 属性
+  - rule: same_site_cookie
+    cookie_names: [session_id, auth_token, csrf_cookie]
+    same_site: strict   # strict | lax | none
+    secure: true
+    http_only: true
+
+  # Origin / Referer 验证
+  - rule: origin_validation
+    applies_to: [POST, PUT, PATCH, DELETE]
+    allowed_origins:
+      - "https://app.vibex.com"
+      - "https://admin.vibex.com"
+    allowed_referers:
+      - "^https://(app|admin)\\.vibex\\.com/"
+    check_order: [origin, referer]   # 先检查 Origin，再检查 Referer
+    strict_mode: true               # 两者都缺失时 reject（非 GET/HEAD）
+    fail_action: reject_with_403
+
+  # CORS 白名单
+  - rule: cors_whitelist
+    allowed_origins: ["https://app.vibex.com"]
+    allowed_methods: [GET, POST, PUT, DELETE]
+    allowed_headers: [Content-Type, Authorization, X-Requested-With]
+    exposed_headers: [X-Total-Count, X-Page-Number]
+    max_age_seconds: 86400
+    allow_credentials: true
+```
+
+### 1.4.5 Rate Limiting 约束
+
+```yaml
+security_constraints:
+  - rule: rate_limit_per_ip
+    scope: ip
+    requests: 100
+    window_seconds: 60
+    response_header: X-RateLimit-Limit
+    retry_after_header: Retry-After
+  - rule: rate_limit_per_user
+    scope: authenticated_user
+    requests: 1000
+    window_seconds: 3600
+  - rule: rate_limit_per_endpoint
+    scope: [ip, endpoint]
+    limits:
+      POST /auth/login: 5/minute
+      POST /payments: 10/minute
+      GET /export: 3/minute
+```
+
+### 1.4.6 安全约束 → 代码生成映射
+
+||| 安全规则 | Go | Python | TypeScript |
+|||---------|-----|--------|------------|
+|| `no_sensitive_in_logs` | `log.Printf("password=***")` | `logging.warning("password=***")` | `console.log("password=***")` |
+|| `html_sanitization` | `bluemonday.UGCPolicy()` | `bleach.clean(v, tags, attrs)` | `DOMPurify.sanitize(v)` |
+|| `url_sanitization` | `net/url.Parse` + scheme check | `urllib.parse` + scheme check | `new URL(v)` + check |
+|| `javascript_blocking` | `re.ReplaceAllString(script_regex, "")` | `re.sub(pattern, "", v)` | `v.replace(/regex/, "")` |
+|| `sql_injection_safe` | 绑定变量 `$1,$2` | `?` 参数占位符 | `?` 参数占位符 |
+|| `nosql_injection_safe` | BSON 构造而非字符串拼接 | PyMongo 参数绑定 | MongoDB driver params |
+|| `csrf_token_required` | `gorilla/csrf` middleware | `flask_wtf.csrf` | `csurf` middleware |
+|| `same_site_cookie` | `http.SameSiteStrictMode` | `samesite='Strict'` | `SameSite=Strict` |
+|| `origin_validation` | 请求头解析 + 白名单比对 | `request.origin` 检查 | `request.headers.get('origin')` |
+|| `rate_limit_per_ip` | ` tollbooth`/limiter | `flask-limiter` | `express-rate-limit` |
+
+ ---
+
+# C1.5 跨端点不变量（Inter-Endpoint Invariants）
+
+## 1.5.1 概念定义
+
+跨端点不变量约束定义的是跨越多个 API 端点的**全局状态不变量**。与字段级（intra-field）和跨字段（cross-field）约束不同，这些约束涉及多个 API 端点之间的状态依赖关系，用于防止业务逻辑漏洞。
+
+```
+字段级约束：  endpoint-A: field-1 < field-2
+跨字段约束：  endpoint-B: address.state 必须与 address.country 匹配
+跨端点不变量：endpoint-C → endpoint-D: 状态机转换必须合法
+```
+
+## 1.5.2 定义格式
+
+```yaml
+inter_endpoint_invariants:
+  - id: order-lifecycle
+    name: 订单状态机不变量
+    description: "订单在生命周期中状态转换必须遵循合法路径"
+    scope: order_service    # 关联的服务/模块
+    state_machine:
+      model: order_status
+      states: [created, paid, shipped, delivered, cancelled, refunded]
+      initial: created
+      transitions:
+        - from: created
+          to: [paid, cancelled]
+          via: [POST /orders/{id}/pay, POST /orders/{id}/cancel]
+        - from: paid
+          to: [shipped, refunded]
+          via: [POST /orders/{id}/ship, POST /orders/{id}/refund]
+        - from: shipped
+          to: [delivered, refunded]
+          via: [POST /orders/{id}/deliver, POST /orders/{id}/refund]
+        - from: delivered
+          to: [refunded]
+          via: [POST /orders/{id}/refund]
+        - from: cancelled
+          to: []             # 终态，不可再转换
+        - from: refunded
+          to: []             # 终态，不可再转换
+
+  - id: user-session-invariants
+    name: 用户会话不变量
+    description: "会话状态与认证状态必须一致"
+    scope: auth_service
+    invariants:
+      - rule: session_active_requires_auth
+        description: "会话有效时用户必须已认证"
+        endpoints: [GET /profile, POST /orders]
+        condition: "session.expires_at > now() implies user.authenticated == true"
+        violation_response: 401
+        message: "会话无效或已过期，请重新登录"
+      - rule: logout_invalidates_session
+        description: "登出后 session 必须失效"
+        endpoints: [POST /auth/logout, DELETE /auth/sessions]
+        post_condition: "session.active == false"
+
+  - id: payment-gateway-invariants
+    name: 支付网关不变量
+    description: "支付相关操作不能并发或重复"
+    scope: payment_service
+    invariants:
+      - rule: idempotency_required
+        description: "所有支付操作必须携带幂等键"
+        endpoints: [POST /payments, POST /orders/{id}/pay]
+        required_header: Idempotency-Key
+        max_key_age_seconds: 86400
+      - rule: no_double_spend
+        description: "同一支付源不能并发扣款"
+        endpoints: [POST /payments]
+        lock_field: payment_source_id
+        lock_scope: user
+        lock_duration_ms: 30000
+```
+
+## 1.5.3 状态机定义规范
+
+### 状态机元模型
+
+```yaml
+state_machine_model:
+  name: <model_name>       # 状态机名称
+  states: [<state>]        # 所有可能状态列表
+  initial: <state>         # 初始状态（必须）
+  final_states: [<state>]  # 终态集合（可选，无出口的状态）
+  transitions:
+    - from: <state>
+      to: <state>|[<state>]
+      via: <endpoint>|[<endpoint>]
+      guard: <condition_expression>   # 可选：前置条件
+      effect: <post_condition>       # 可选：后置效果
+```
+
+### 转换合法性规则
+
+```yaml
+transition_validity:
+  # 规则1：合法转换必须在 transitions 中明确声明
+  explicit_transitions_only: true
+
+  # 规则2：终态不能有出口转换
+  no_transitions_from_final: true
+
+  # 规则3：每个状态至少有一条入边和出边（初始/终态除外）
+  connectivity_check: true
+
+  # 规则4：转换必须通过对应的 API 端点触发
+  endpoint_authorization:
+    endpoint: POST /orders/{id}/cancel
+    allowed_roles: [owner, admin]
+    allowed_states: [created, pending]
+```
+
+## 1.5.4 跨端点不变量示例
+
+### 示例 1：订阅 + 访问控制
+
+```yaml
+inter_endpoint_invariants:
+  - id: subscription-access
+    name: "订阅有效时才能访问高级功能"
+    scope: subscription_service
+    invariants:
+      - rule: feature_access_requires_active_subscription
+        description: "只有 active 订阅用户可以访问高级功能"
+        access_endpoint: GET /premium/content
+        subscription_endpoint: GET /subscription
+        condition: >
+          if access_endpoint.user_id == subscription_endpoint.user_id
+          then subscription_endpoint.status == "active"
+        violation_response: 403
+        message: "需要有效的订阅才能访问此内容"
+```
+
+### 示例 2：库存 + 订单（乐观锁）
+
+```yaml
+inter_endpoint_invariants:
+  - id: inventory-order-consistency
+    name: "库存与订单数量必须一致"
+    scope: order_service
+    invariants:
+      - rule: order_quantity_lte_inventory
+        description: "下单数量不能超过可用库存"
+        endpoints: [POST /orders]
+        check: |
+          order.quantity <= inventory.available
+            where inventory.sku == order.sku
+        failure_mode: reject_with_insufficient_stock
+      - rule: inventory_reserved_on_order
+        description: "下单成功后立即扣减库存"
+        endpoints: [POST /orders, POST /orders/{id}/cancel]
+        post_condition: >
+          if order.status == "confirmed"
+          then inventory.reserved == inventory.reserved + order.quantity
+        rollback: >
+          if order.status == "cancelled"
+          then inventory.reserved == inventory.reserved - order.quantity
+```
+
+## 1.5.5 验证方式
+
+### 阶段 1：静态验证（Spec Review）
+
+```bash
+# constraint_validator.py 验证状态机定义
+constraint_validator.py --spec spec.yaml --check-invariant-consistency
+
+# 检查项：
+# - 状态机所有状态都有定义
+# - transitions.from 引用了已声明的状态
+# - 没有孤立状态（除了 initial 和 final）
+# - 终态集合 = 出口为空的节点集合
+```
+
+### 阶段 2：合约测试（Contract Test）
+
+```yaml
+# 为每个跨端点不变量生成合约测试
+contract_tests:
+  - id: order-state-transition-test
+    spec: order-lifecycle
+    test_cases:
+      - name: can_pay_from_created
+        action: POST /orders/{id}/pay
+        preconditions:
+          - GET /orders/{id} returns status=created
+        expected: 200, status=paid
+
+      - name: cannot_pay_from_cancelled
+        action: POST /orders/{id}/pay
+        preconditions:
+          - POST /orders/{id}/cancel returns 200
+          - GET /orders/{id} returns status=cancelled
+        expected: 409 Conflict, code=INVALID_STATE_TRANSITION
+
+      - name: cannot_pay_twice
+        action: POST /orders/{id}/pay
+        preconditions:
+          - POST /orders/{id}/pay returns 200
+        expected: 409 Conflict, code=ORDER_ALREADY_PAID
+```
+
+### 阶段 3：运行时强制
+
+```yaml
+# 在 API 网关或中间件层实现状态机强制
+gateway_middleware:
+  state_machine_enforcer:
+    enabled: true
+    cache_state_in: redis
+    key_pattern: "order:state:{order_id}"
+    ttl_seconds: 3600
+    on_violation:
+      http_status: 409
+      body:
+        code: INVALID_STATE_TRANSITION
+        message: "订单当前状态不允许此操作"
+        current_state: "{{state}}"
+        attempted_transition: "{{transition}}"
+        allowed_transitions: "{{allowed}}"
+```
+
+## 1.5.6 不变量冲突检测
+
+```yaml
+invariant_conflict_detection:
+  # 检测两个不变量是否相互矛盾
+  - name: 检测死锁不变量
+    check: >
+      invariant_A: "endpoint-X requires resource-A locked"
+      invariant_B: "endpoint-Y requires resource-B locked"
+      conflict: "endpoint-X holds B and endpoint-Y holds A"
+    resolution: deadlock_detection_timeout_ms
+
+  - name: 检测循环依赖
+    check: >
+      invariant_A: "A depends on B"
+      invariant_B: "B depends on C"
+      invariant_C: "C depends on A"
+    resolution: fail_fast_with_circular_dependency_error
+```
+
+---
+
+# C2: 约束到验证代码的映射
+
+## C2.1 验证代码生成规则
+
+每个约束字段在实现时自动生成对应验证代码：
+
+```yaml
+# Spec 中声明约束
+- name: email
+  type: string
+  constraints:
+    - rule: format
+      value: email
+
+# gen.py 自动生成验证代码（以 Go 为例）
+func ValidateEmail(email string) error {
+    if email == "" {
+        return errors.New("email is required")
+    }
+    if !isValidEmail(email) {
+        return errors.New("invalid email format")
+    }
+    if len(email) > 254 {
+        return errors.New("email must be at most 254 characters")
+    }
+    return nil
+}
+
+# 自动生成的测试用例
+func TestValidateEmail(t *testing.T) {
+    cases := []struct {
+        input    string
+        expected error
+    }{
+        {"", errors.New("email is required")},
+        {"not-an-email", errors.New("invalid email format")},
+        {"a@"", errors.New("invalid email format")},
+        {strings.Repeat("a", 255) + "@b.com", errors.New("email must be at most 254 chars")},
+        {"valid@example.com", nil},
+    }
+    for _, c := range cases {
+        if got := ValidateEmail(c.input); !errors.Is(got, c.expected) {
+            t.Errorf("ValidateEmail(%q) = %v; want %v", c.input, got, c.expected)
+        }
+    }
+}
+```
+
+## C2.2 各语言验证代码模板
+
+### C2.2.1 字段级约束映射
+
+|| 约束规则 | Go | Python | TypeScript |
+||---------|-----|--------|------------|
+|| `required` | `if v == ""` | `if not v` | `if (!v)` |
+|| `min_length` | `len(v) < n` | `len(v) < n` | `v.length < n` |
+|| `max_length` | `len(v) > n` | `len(v) > n` | `v.length > n` |
+|| `pattern` | `regexp.MustCompile` | `re.match` | `new RegExp` |
+|| `format: email` | `net/mail.ParseAddress` | `email_validator.validate` | `z.string().email()` |
+|| `format: uri` | `url.Parse` | `urllib.parse` | `new URL()` |
+|| `format: date` | `time.Parse("2006-01-02")` | `datetime.fromisoformat` | `!isNaN(Date.parse(v))` |
+|| `minimum` | `v < n` | `v < n` | `v < n` |
+|| `maximum` | `v > n` | `v > n` | `v > n` |
+|| `exclusive_minimum` | `v <= n → error` | `v <= n → error` | `v < n` |
+|| `exclusive_maximum` | `v >= n → error` | `v >= n → error` | `v > n` |
+|| `enum` | `switch case` | `v in [...]` | `v === x \|\| v === y` |
+
+### C2.2.2 跨字段约束映射
+
+|| 跨字段规则 | Go | Python | TypeScript |
+||-----------|-----|--------|------------|
+|| `date_range` | `end.Before(start)` | `end_date < start_date` | `new Date(end) < new Date(start)` |
+|| `required_with` | `if base != "" && sub == ""` | `if base and not sub` | `if (base && !sub)` |
+
+### C2.2.3 协议级约束映射
+
+|| 协议规则 | Go | Python | TypeScript |
+||---------|-----|--------|------------|
+|| `timeout_ms` | `http.Client{Timeout: t}` | `requests.get(timeout=t)` | `fetch(url, {signal: AbortSignal})` |
+|| `max_body_bytes` | `io.LimitReader(r, n)` | `max_bytes=n in request` | `signal.abort()` at n bytes |
+|| `required_headers` | `if h == "" return 400` | `if not headers.get(h)` | `if (!headers.has(h))` |
+
+---
+
+# C3: 约束元数据
+
+## C3.1 约束来源标记
+
+```yaml
+# 约束可以标记来源，便于追踪
+constraints:
+  - rule: min_length
+    value: 8
+    source: security        # security | business | performance | compliance
+    reason: "OWASP 建议最小密码长度"
+    citation: "OWASP ASVS 2.5.1"
+  - rule: max_length
+    value: 254
+    source: protocol       # RFC 5321
+    reason: "SMTP 邮箱地址最大长度"
+    citation: "RFC 5321 Section 4.5.3"
+```
+
+## C3.2 约束版本管理
+
+```yaml
+constraint_versions:
+  - rule: min_length(password)
+    v1: 6
+    v2: 8      # 2026-01-01 升级
+    current: 8
+    upgrade_note: "符合 OWASP 2025 标准"
+```
+
+---
+
+# C4: 约束验证生命周期
+
+## C4.1 三阶段验证
+
+### 工具接口规范
+
+#### constraint_validator.py（阶段1 Spec 静态验证）
+
+```bash
+# CLI 接口
+constraint_validator.py --spec <spec-path> [--strict] [--output json|text]
+
+# 退出码
+0: 验证通过
+1: 语法错误（constraint 字段语法错误）
+2: 引用错误（parent 不存在 / cross_constraints 字段名不存在）
+3: 矛盾错误（min > max / exclusive_min >= maximum）
+4: 严重错误（缺失必需字段）
+
+# 校验规则清单
+- frontmatter 语法正确性
+- parent 引用存在且可达
+- io_contract.fields 中 name 唯一
+- cross_constraints 引用的字段在 fields 中已声明
+- 无矛盾约束（min_length > max_length, minimum > maximum, exclusive_min >= maximum）
+- enum values 与 fields.type=enum 一致
+- security_constraints.fields 与 io_contract.fields 有交集
+```
+
+#### lint-generated post_hook（阶段2 编译时验证）
+
+```bash
+# Go: go vet ./...
+# Python: mypy, pylint
+# TypeScript: tsc --noEmit, eslint
+```
+
+#### 运行时验证（阶段3）
+
+生成的验证函数在每个请求到达时执行，按 C4.2 错误响应格式返回。
+
+### 验证流程
+
+```
+阶段1：Spec 验证（静态）
+  ├── 工具：constraint_validator.py
+  ├── 时机：gen.py pre_hook
+  ├── 内容：
+  │   ├── frontmatter 中 constraints 语法正确性
+  │   ├── parent 引用存在
+  │   ├── cross_constraints 字段名正确
+  │   └── 无矛盾约束（如 min > max）
+  └── 失败：阻止生成，中断工作流
+
+阶段2：代码生成验证（编译时）
+  ├── 工具：各语言 linter/type-checker
+  ├── 时机：post_hook lint-generated
+  ├── 内容：
+  │   ├── 生成的验证函数类型正确
+  │   └── 无死代码
+  └── 失败：abort 生成
+
+阶段3：运行时验证
+  ├── 工具：生成的验证函数
+  ├── 时机：每个请求到达时
+  ├── 内容：
+  │   ├── 字段值满足所有 constraints
+  │   ├── 安全约束生效（log masking）
+  │   └── 协议约束（timeout/rate_limit）
+  └── 失败：返回 400 + 详细错误信息
+```
+
+## C4.2 错误响应格式
+
+```yaml
+# 约束违反时的标准错误响应
+validation_error:
+  code: CONSTRAINT_VIOLATION
+  http_status: 400
+  details:
+    - field: email
+      rule: format
+      message: "无效的邮箱格式"
+      received: "not-an-email"
+    - field: password
+      rule: pattern
+      message: "必须包含大小写字母和数字"
+      received: "***"   # 敏感字段自动掩码
+```
+
+---
+
+# C5: 质量评估（Darwin Rubrics）
+
+| # | 维度 | 权重 | 评分标准 |
+|---|------|------|---------|
+| 1 | **约束类型覆盖度** | 25 | required/format/min/max/pattern/enum/cross 至少 5 种 |
+| 2 | **代码生成映射完整性** | 25 | 每种约束类型都有对应生成模板 |
+| 3 | **三阶段验证覆盖** | 20 | 静态/编译时/运行时 全部覆盖 |
+| 4 | **安全约束质量** | 15 | 敏感字段掩码(XSS防护/SQL注入/CSRF/跨端点不变量各2分) |
+| 5 | **约束来源追溯** | 15 | 每个约束有 source/reason/citation |
+
+**最低门槛**：总分 ≥ 80，且代码生成映射至少覆盖 Go + TypeScript。
+
+### L4-constraint 安全约束专项评分子表
+
+| # | 安全子项 | 分值 | 评估标准 |
+|---|---------|------|---------|
+| S1 | 敏感字段掩码 | 3 | `no_sensitive_in_logs` 覆盖 ≥6 类敏感字段（password/token/api_key/secret/credit_card/ssn），log_behavior=omit |
+| S2 | XSS 防护 | 2 | `html_sanitization` + `url_sanitization` + `javascript_blocking` 三规则完整，含 allowed_tags/whitelist/attribute strip |
+| S3 | SQL/NoSQL 注入防护 | 2 | `parametrized_query`（mandatory）+ `nosql_injection_safe`（strict）+ blocked_patterns 覆盖 UNION/DROP/OR/注释注入 |
+| S4 | CSRF 防护 | 2 | `csrf_token_required` + `same_site_cookie`（strict）+ `origin_validation`（strict_mode=true）三重保障 |
+| S5 | Rate Limiting | 1 | `rate_limit_per_ip` + `rate_limit_per_user` + `rate_limit_per_endpoint`，覆盖 login/payments/export 关键端点 |
+| S6 | 跨端点不变量 | 2 | 状态机不变量（`order-lifecycle`）+ 会话不变量（`session_active_requires_auth`）+ 支付幂等（`idempotency_required`）+ 无双重支付（`no_double_spend`）|

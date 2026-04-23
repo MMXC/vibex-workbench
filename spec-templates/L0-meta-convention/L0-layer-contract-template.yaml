@@ -1,0 +1,219 @@
+---
+spec:
+  version: "1.0"
+  level: "0_meta-convention"
+  name: "layer-contract"
+  parent: null          # L0 无 parent，自身是根
+  status: "confirmed"
+
+meta:
+  type: "meta-convention"
+  owner: "hermes"
+  created: "2026-04-23"
+  updated: "2026-04-23"
+  goskill_ref: "goskill/SPEC.md § Layer Model"
+
+lifecycle:
+  current: "confirmed"
+  updated: "2026-04-23"
+
+# ── io_contract ─────────────────────────────────
+io_contract:
+  input: |
+    任意项目从 0 开始建立 spec 体系时，需要知道：
+    每层 spec 该包含什么字段、如何组织、相互关系是什么。
+  output: |
+    本文档定义了 L1–L5 每层的 must_contain 字段集、
+    可选 mixin 列表，以及层间从属关系的语义约束。
+  boundary: |
+    本文档只定义规范格式，不定义任何业务逻辑。
+    它是元层级约束，不是功能规格。
+  behavior: |
+    1. 解析 spec 的 level 字段，确定其层级
+    2. 按层级验证 must_contain 字段是否齐全
+    3. 对 mixin 字段执行合并运算
+    4. 对 parent 链路做递归验证
+
+# ── content ─────────────────────────────────────
+content:
+  summary: |
+    定义 L1–L5 每层 spec 的 must_contain 字段集和层间从属关系。
+    每层声明其 parent 层，形成纵向从属链。
+
+  # 各层 must_contain 字段
+  layer_contracts:
+    - level: "1_project-goal"
+      description: "项目要做什么、不做什么、成功标准是什么"
+      must_contain:
+        - spec.level
+        - spec.name
+        - spec.parent          # L1 固定 null
+        - meta.owner
+        - lifecycle
+        - io_contract
+        - content.mission
+        - content.target_users
+        - content.constraints
+        - content.l1_l2_lineage    # L1 独有两个字段
+        - content.product_value_layers
+        - changelog
+      optional:
+        - content.spec_lifecycle
+        - content.routing_paths
+        - content.goal_spec_visualization
+      mixin_targets: ["constraints", "product_value_layers"]
+
+    - level: "2_skeleton"
+      description: "把 L1 goal 意图落地为技术架构骨架"
+      must_contain:
+        - spec.level
+        - spec.name
+        - spec.parent          # 必须指向某个 L1 spec.name
+        - meta.module
+        - lifecycle
+        - io_contract
+        - content.modules_matrix
+        - content.l2_l3_lineage
+        - changelog
+      optional:
+        - content.tech_stack
+        - content.api_design
+        - content.data_model
+        - content.entry_points
+      mixin_targets: ["modules_matrix", "tech_stack"]
+
+    - level: "3_module"
+      description: "模块边界 + 公开 API 签名"
+      must_contain:
+        - spec.level
+        - spec.name
+        - spec.parent          # 必须指向某个 L2 spec.name
+        - meta.module
+        - lifecycle
+        - io_contract
+        - content.public_api
+        - content.state_definitions
+        - content.l3_l4_lineage
+        - changelog
+      optional:
+        - content.internal_structure
+        - content.dependencies
+        - content.error_handling
+      mixin_targets: ["public_api", "state_definitions"]
+
+    - level: "4_feature"
+      description: "功能行为描述 + 验收标准"
+      must_contain:
+        - spec.level
+        - spec.name
+        - spec.parent          # 必须指向某个 L3 spec.name
+        - meta.module
+        - lifecycle
+        - io_contract
+        - content.behaviors
+        - content.test_scenarios
+        - content.l4_l5_lineage
+        - changelog
+      optional:
+        - content.user_stories
+        - content.ui_flow
+        - content.error_messages
+        - content.constraints
+      mixin_targets: ["behaviors", "test_scenarios"]
+
+    - level: "5_slice"
+      description: "具体文件/脚本的生成规格"
+      must_contain:
+        - spec.level
+        - spec.name
+        - spec.parent          # 必须指向某个 L4 spec.name
+        - meta.module
+        - lifecycle
+        - io_contract
+        - content.file_path
+        - content.code_template
+        - content.generation_rules
+        - changelog
+      optional:
+        - content.unit_tests
+        - content.documentation
+        - content.dependencies
+      mixin_targets: ["code_template", "generation_rules"]
+
+  # 层间从属规则
+  parent_chain_rules:
+    - rule: "L1.parent == null（顶级项目目标，无上级）"
+      enforced: true
+    - rule: "L2.parent 必须是一个已确认的 L1 spec.name"
+      enforced: true
+    - rule: "L3.parent 必须是一个已确认的 L2 spec.name"
+      enforced: true
+    - rule: "L4.parent 必须是一个已确认的 L3 spec.name"
+      enforced: true
+    - rule: "L5.parent 必须是一个已确认的 L4 spec.name"
+      enforced: true
+    - rule: "parent 链路断裂 = 违规，validate_specs.py 返回 exit_code=2"
+      enforced: true
+    - rule: "同一项目内 spec.name 全局唯一"
+      enforced: true
+
+  # mixin 合并语义（同层 mixin，无 diamond）
+  mixin_merge_rules:
+    - rule: "io_contract 字段：基础 + mixin 并集，后者 override 前者"
+    - rule: "behaviors 列表：拼接，不去重"
+    - rule: "constraints 列表：拼接，不去重"
+    - rule: "test_scenarios 列表：拼接，不去重"
+    - rule: "meta / lifecycle：取主 spec 值，忽略 mixin 值"
+    - rule: "循环 mixin 检测：spec.name 图中有环 → exit_code=2"
+    - rule: "同层 mixin 不会产生 diamond（mixin 来自横切维度）"
+
+  # Ln_L(n+1)_lineage 字段语义
+  lineage_fields:
+    - field: "l1_l2_lineage"
+      from: "L1 goal"
+      to: "L2 skeleton"
+      content: "what_l1_owns / what_l2_owns / traceability"
+    - field: "l2_l3_lineage"
+      from: "L2 skeleton"
+      to: "L3 module"
+      content: "which_modules / module_boundaries / cross_module_contracts"
+    - field: "l3_l4_lineage"
+      from: "L3 module"
+      to: "L4 feature"
+      content: "which_features / feature_ownership"
+    - field: "l4_l5_lineage"
+      from: "L4 feature"
+      to: "L5 slice"
+      content: "which_files / generation_order"
+
+  # 验证工具
+  validation:
+    script: "validate_specs.py"
+    checks:
+      - name: "parent_chain"
+        description: "验证 parent 链路完整且无断裂"
+        exit_code_on_fail: 2
+      - name: "must_contain"
+        description: "验证每层 spec 包含必须字段"
+        exit_code_on_fail: 2
+      - name: "mixin_cycle"
+        description: "检测 mixin 引用环"
+        exit_code_on_fail: 2
+      - name: "io_contract_present"
+        description: "验证 io_contract 存在于 frontmatter"
+        exit_code_on_fail: 2
+      - name: "yaml_frontmatter_valid"
+        description: "YAML frontmatter 可被 safe_load 解析"
+        exit_code_on_fail: 2
+
+changelog:
+  - version: "1.0"
+    date: "2026-04-23"
+    author: "hermes"
+    changes:
+      - "初始版本：L0-layer-contract"
+      - "定义 L1–L5 每层 must_contain 字段集"
+      - "定义 parent chain 验证规则"
+      - "定义 mixin 合并语义（同层，无 diamond）"
+      - "定义 lineage 字段语义"
+---

@@ -1,0 +1,115 @@
+---
+spec:
+  version: "0.1"
+  level: "2_skeleton"
+  name: "{short-name}"              # L2 spec 名称
+  parent: "{l1-spec-name}"          # 指向 L1 goal spec.name
+  status: "proposal"
+
+meta:
+  type: "skeleton"
+  module: "{main-module-name}"       # 主要所属模块
+  owner: "{owner}"
+  created: "{YYYY-MM-DD}"
+  updated: "{YYYY-MM-DD}"
+
+lifecycle:
+  current: "proposal"
+  updated: "{YYYY-MM-DD}"
+  history:
+    - status: "proposal"
+      at: "{YYYY-MM-DDTHH:MM:SS}"
+      by: "{owner}"
+      trigger: "user:manual"
+      note: "初始骨架"
+
+# ── io_contract ─────────────────────────────────
+io_contract:
+  input: |
+    L1 goal spec（含 mission + constraints）
+    + 项目的技术栈偏好 / 团队技术背景
+  output: |
+    L2 skeleton spec，含：
+    - modules_matrix（模块划分 + 依赖图）
+    - tech_stack（语言/框架/关键库）
+    - api_design（关键 API 路径）
+    - entry_points（CLI/Web/API 入口）
+  boundary: |
+    L2 定义"用什么技术"和"分哪些模块"，
+    不定义模块内部实现细节（那是 L3/L4 的职责）。
+  behavior: |
+    1. 解析 L1 goal spec 的 mission 和 constraints
+    2. 拆解为技术模块集合
+    3. 定义模块间依赖关系
+    4. 输出 modules_matrix
+
+# ── content ─────────────────────────────────────
+content:
+  tech_stack:
+    language: "{语言，如 Go / Python / TypeScript}"
+    framework: "{主框架，如 SvelteKit / Gin / FastAPI}"
+    key_libraries:
+      - name: "{库名}"
+        version: "{版本约束}"
+        purpose: "{用途}"
+    runtime: "{运行时，如 Node.js 20 / Go 1.22}"
+    package_manager: "{包管理器}"
+
+  modules_matrix:
+    - module: "{module-name}"
+      responsibility: "{模块职责（一句话）}"
+      public_api:
+        - "{exported_function_or_endpoint}"
+      depends_on:
+        - "{other-module}"
+      generated_by: "{gen.py 模板路径}"
+
+  api_design:
+    base_url: "/api/{version}"
+    auth: "{认证方式，如 JWT / Bearer}"
+    key_endpoints:
+      - path: "/api/xxx"
+        method: "GET|POST|PUT|DELETE"
+        description: "{端点描述}"
+
+  entry_points:
+    - type: "cli"
+      command: "go run cmd/xxx/main.go"
+      description: "{CLI 入口}"
+    - type: "web"
+      port: 33338
+      description: "{Web 服务入口}"
+
+  l2_l3_lineage:
+    summary: |
+      L2 定义模块划分，L3 把每个模块展开为具体实现。
+    which_modules_become_l3:
+      - module: "{module-name}"
+        l3_note: "{L3 要展开的内容}"
+    module_boundaries:
+      - boundary: "{模块边界描述}"
+        rationale: "{为什么这样划分}"
+    cross_module_contracts:
+      - contract: "{跨模块接口}"
+        between: "{module-A} ↔ {module-B}"
+
+  # 自举启示：gen.py 的 Skeleton 生成逻辑
+  bootstrap_hints:
+    gen_py_pattern: |
+      gen.py 读取 L2 YAML → 解析 modules_matrix →
+      对每个 module 查找对应模板 →
+      渲染 Skeleton 文件（含占位符）
+    skeleton_principle: |
+      Skeleton = 架构骨架 + 类型定义 + 公开 API 签名，
+      不含业务逻辑（那是开发者填的）
+    idempotency: |
+      gen.py 必须幂等：重复运行不破坏已有代码。
+      只覆盖 *.Skeleton.svelte，不覆盖 *.svelte。
+
+changelog:
+  - version: "0.1"
+    date: "{YYYY-MM-DD}"
+    author: "{owner}"
+    changes:
+      - "初始骨架"
+---

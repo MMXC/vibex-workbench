@@ -1,0 +1,107 @@
+---
+spec:
+  version: "0.1"
+  level: "1_project-goal"
+  name: "{project-name}"           # 全小写 kebab-case
+  parent: null                      # L1 固定 null
+  status: "proposal"
+
+meta:
+  type: "project-goal"
+  owner: "{owner}"                  # 负责人用户名
+  created: "{YYYY-MM-DD}"
+  updated: "{YYYY-MM-DD}"
+
+lifecycle:
+  current: "proposal"
+  updated: "{YYYY-MM-DD}"
+  history:
+    - status: "proposal"
+      at: "{YYYY-MM-DDTHH:MM:SS}"
+      by: "{owner}"
+      trigger: "user:manual"
+      note: "初始提出"
+
+# ── io_contract ─────────────────────────────────
+io_contract:
+  input: |
+    用户描述的产品意图——可以是：
+    - 自然语言描述（"我想做一个 X"）
+    - 参考链接（GitHub repo、截图、Figma）
+    - 已有 spec 的变更需求
+  output: |
+    L1 goal spec，含：
+    - content.mission（使命）
+    - content.target_users（目标用户）
+    - content.constraints（成功标准）
+    - content.l1_l2_lineage（L1/L2 分工）
+    - content.product_value_layers（三层价值）
+  boundary: |
+    L1 只回答"做什么/不做什么/成功什么样"，
+    不描述具体技术实现（那是 L2 的职责）。
+    L1 不写代码，只写规格。
+  behavior: |
+    1. 接收用户意图（clarification 如果需要）
+    2. 写成 L1 goal spec
+    3. 确认 spec 完整（Darwin 迭代达标）
+    4. 进入 L2 skeleton 阶段
+
+# ── content ─────────────────────────────────────
+content:
+  mission: |
+    用一段话描述这个项目/功能的核心目标。
+    回答：它解决什么问题？为谁解决？
+
+  target_users:
+    - name: "{用户群体名称}"
+      description: "{用户群体的具体描述}"
+      pain_point: "{他们现在的痛点}"
+
+  constraints:
+    - id: "C1"
+      name: "{约束名称}"
+      rule: "{具体的约束规则}"
+      verification: "{如何验证这条约束}"
+    # 可添加 C2、C3...
+
+  l1_l2_lineage:
+    summary: |
+      L1 负责定义"做什么"，L2 负责把意图落地为技术架构。
+      本节说明两者的边界划分。
+    what_l1_owns:
+      - "{L1 独有哪些职责}"
+    what_l2_owns:
+      - "{L2 独有哪些职责}"
+    traceability:
+      - l1_concern: "{L1 关心的某个点}"
+        in_l2: "{对应 L2 哪里}"
+
+  product_value_layers:
+    summary: |
+      三层价值：① 用户直接价值 ② 体系证明价值 ③ 体验/工具价值。
+    direct_value:
+      meaning: "{用户能感知到的直接价值}"
+    proof_value:
+      meaning: "{证明体系有效性的价值（如自举通过）}"
+    experience_value:
+      meaning: "{开发者体验层面的价值}"
+
+  # ── 可选字段 ────────────────────────────────
+  # spec_lifecycle: 见 spec-governance 元体系定义的状态值
+  # routing_paths: 用户意图 → 哪个工作流（spec-first / incremental）
+  # goal_spec_visualization: Canvas 展示用
+
+  # ── 自举工程落地要点 ────────────────────────
+  # goskill 启示：
+  # 1. L1 goal 是 gen.py 的调用入口（通过 spec snippet）
+  # 2. L1 goal 的 io_contract.output 必须包含"生成的代码文件"
+  # 3. L1 goal 的 content.constraints 要定义验收标准（TC 评分目标）
+  # 4. 自举流水线 TC-001 测试的就是 L1 goal → L4 代码生成的完整链路
+
+changelog:
+  - version: "0.1"
+    date: "{YYYY-MM-DD}"
+    author: "{owner}"
+    changes:
+      - "初始版本"
+---

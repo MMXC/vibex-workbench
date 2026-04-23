@@ -1,0 +1,81 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "{slice-name}"               # slice 名称
+  parent: "{l4-spec-name}"          # L4 feature spec.name
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "{module-name}"
+  owner: "{owner}"
+  created: "{YYYY-MM-DD}"
+  updated: "{YYYY-MM-DD}"
+
+lifecycle:
+  current: "proposal"
+  updated: "{YYYY-MM-DD}"
+
+io_contract:
+  input: |
+    对应 L4 behavior 的输出（spec snippet 或 detailed spec）
+    + gen.py 的上下文（目标目录、框架版本等）
+  output: |
+    一个具体的文件（.svelte / .ts / .go / .py 等）
+    + 单元测试文件（可选）
+  boundary: |
+    L5 只管"这个文件的内容"，不管其他文件。
+    文件间关系在 L4 behaviors 里描述。
+  behavior: |
+    1. gen.py 读取 L5 spec
+    2. 选择对应模板
+    3. 用 spec 数据渲染模板
+    4. 写入目标文件
+
+content:
+  file_path: "{src/generated/ComponentName.skeleton.svelte}"
+
+  file_type: "{svelte|typescript|go|python|bash}"
+
+  generation_rules:
+    - rule: "模板选择"
+      detail: "{如何选择对应模板}"
+    - rule: "占位符替换"
+      detail: "{spec 数据如何填入模板}"
+    - rule: "幂等性"
+      detail: "{重复生成不破坏已有代码}"
+
+  code_template: |
+    ```{{language}}
+    {模板内容，含 {{placeholder}} 占位符}
+    ```
+
+  unit_tests:
+    file_path: "{test/path/to/spec_test.go}"
+    coverage_target: "{覆盖率目标，如 80%}"
+    test_pattern: |
+      {测试模式描述}
+
+  dependencies:
+    - file: "{依赖的文件}"
+      reason: "{为什么依赖它}"
+
+  # 自举启示：gen.py 的 skeleton/content 双层模式
+  skeleton_pattern: |
+    vibex-workbench 规则：
+    - *.Skeleton.svelte = gen.py 生成，可覆盖
+    - *.svelte = 开发者私有，不覆盖
+    - stores/types/routes = gen.py 生成，开发者可编辑
+    
+    幂等性保证：gen.py 运行时只写 .Skeleton.svelte，
+    开发者把 .Skeleton.svelte 内容复制到 .svelte，
+    然后填入业务逻辑。
+
+changelog:
+  - version: "0.1"
+    date: "{YYYY-MM-DD}"
+    author: "{owner}"
+    changes:
+      - "初始 slice 定义"
+---

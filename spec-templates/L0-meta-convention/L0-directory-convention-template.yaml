@@ -1,0 +1,113 @@
+---
+spec:
+  version: "1.0"
+  level: "0_meta-convention"
+  name: "directory-convention"
+  parent: null
+  status: "confirmed"
+
+meta:
+  type: "meta-convention"
+  owner: "hermes"
+  created: "2026-04-23"
+
+lifecycle:
+  current: "confirmed"
+  updated: "2026-04-23"
+
+io_contract:
+  input: |
+    一个新项目要在 spec-governance 下建立目录结构。
+  output: |
+    符合约定的目录树 + SPEC.md（L1 goal）+ 层级化 spec 文件。
+  boundary: |
+    只定义约定，不创建任何具体业务文件。
+  behavior: |
+    1. 创建 project-catalog.json 条目
+    2. 创建项目根目录
+    3. 创建 SPEC.md（L1 goal 入口）
+    4. 按层级创建子目录和 spec 文件
+
+content:
+  summary: |
+    定义 spec-governance 下所有项目的目录结构约定。
+    格式：项目名 / SPEC.md + L{n}-{short-name}.{level}.yaml
+
+  project_root: |
+    ~/.hermes/spec-governance/projects/{project-name}/
+
+  directory_structure:
+    - path: "SPEC.md"
+      level: "1_project-goal"
+      description: "L1 goal spec，项目入口文件"
+      format: "Markdown + YAML frontmatter"
+    - path: "L2-{short-name}.yaml"
+      level: "2_skeleton"
+      description: "L2 skeleton spec"
+      format: "Markdown + YAML frontmatter（方案C）"
+    - path: "L3-{short-name}_module.yaml"
+      level: "3_module"
+      description: "L3 module spec"
+      format: "Markdown + YAML frontmatter"
+    - path: "L4-{short-name}_feature.yaml"
+      level: "4_feature"
+      description: "L4 feature spec"
+      format: "Markdown + YAML frontmatter"
+    - path: "L5-{short-name}_slice.yaml"
+      level: "5_slice"
+      description: "L5 slice spec"
+      format: "Markdown + YAML frontmatter"
+
+  naming_rules:
+    - rule: "project-name = 纯小写字母 + 连字符（kebab-case）"
+      examples: ["vibex-workbench", "p-metaspec", "eval-ai-repro"]
+    - rule: "short-name ≤ 3 个单词，全小写"
+      examples: ["workbench-shell", "spec-first", "bootstrap-pipeline"]
+    - rule: "L{n} 前缀区分层级（L2/L3/L4/L5）"
+    - rule: "SPEC.md 固定大写，是项目的 L1 goal 入口"
+    - rule: "mixin 文件命名：L{n}-{short-name}_mixin-{mixin-name}.yaml"
+      examples: ["L4-workbench_mixin-security.yaml"]
+
+  file_format_rules:
+    - rule: "文件扩展名：.md（方案C）或 .yaml（纯YAML）"
+      note: "推荐 .md：YAML frontmatter + Markdown body，人类可读"
+    - rule: ".yaml 文件可含 Markdown 代码块（作为 YAML 字符串值）"
+      note: "但 backtick 开头行不能出现在 YAML 多文档分隔符之后"
+    - rule: "每个文件必须有 YAML frontmatter（含 spec.level + spec.parent）"
+      note: "即使 .yaml 文件也要有 frontmatter"
+
+  project_catalog:
+    path: "~/.hermes/spec-governance/project-catalog.json"
+    entry_fields:
+      - name: "id"
+        type: "string"
+        description: "项目唯一标识（kebab-case）"
+      - name: "name"
+        type: "string"
+        description: "项目中文名"
+      - name: "spec_level"
+        type: "string"
+        description: "最高 spec 层级（如 L4）"
+      - name: "status"
+        type: "string"
+        description: "proposal|draft|confirmed|done|abandoned"
+      - name: "darwin_score"
+        type: "number"
+        description: "最新 Darwin 评分（0-100）"
+      - name: "created"
+        type: "string"
+        description: "ISO 日期"
+      - name: "owner"
+        type: "string"
+        description: "负责人"
+      - name: "tags"
+        type: "array"
+        description: "标签列表"
+
+changelog:
+  - version: "1.0"
+    date: "2026-04-23"
+    author: "hermes"
+    changes:
+      - "初始版本：L0-directory-convention"
+---

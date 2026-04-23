@@ -1,0 +1,106 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "{feature-name}"             # 功能名称
+  parent: "{l3-spec-name}"           # L3 module spec.name
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "{module-name}"
+  owner: "{owner}"
+  created: "{YYYY-MM-DD}"
+  updated: "{YYYY-MM-DD}"
+
+lifecycle:
+  current: "proposal"
+  updated: "{YYYY-MM-DD}"
+
+io_contract:
+  input: |
+    用户操作（如：点击按钮、提交表单、发送 API 请求）
+    或系统事件（如：定时触发、文件变更）
+  output: |
+    用户可见结果（如：界面变化、API 响应）
+    + 副作用（如：数据库写入、日志输出）
+  boundary: |
+    功能边界内的行为才在 behaviors 里描述。
+    边界外由其他 L4 或 L3 处理。
+  behavior: |
+    1. 接收输入（input）
+    2. 执行业务逻辑（behaviors）
+    3. 产生输出（output）
+    4. 触发副作用
+
+# ── mixins ─────────────────────────────────────
+# mixins:
+#   - "L4-workbench_mixin-security"    # 安全横切 concern
+#   - "L4-workbench_mixin-observability"
+
+# ── content ─────────────────────────────────────
+content:
+  behaviors:
+    - id: "B1"
+      trigger: "{什么触发这个行为}"
+      action: "{具体做什么}"
+      expected_result: "{期望结果}"
+      error_handling: "{错误如何处理}"
+    # 更多 behaviors...
+
+  test_scenarios:
+    - id: "TC-{n}"
+      scenario: "{测试场景描述}"
+      given: "{前置条件}"
+      when: "{触发动作}"
+      then: "{期望结果}"
+      evaluation: |
+        {eval 评分标准：如何判断 TC 通过/部分通过/失败}
+    # 更多测试场景...
+
+  user_stories:
+    - id: "US-{n}"
+      as_a: "{用户角色}"
+      i_want: "{我想要什么}"
+      so_that: "{以便}"
+      acceptance: "{验收标准}"
+
+  constraints:
+    - id: "C1"
+      name: "{约束名}"
+      rule: "{约束规则}"
+      validation: "{如何验证}"
+
+  l4_l5_lineage:
+    summary: "{L4 定义行为，L5 定义具体文件如何生成}"
+    which_files:
+      - file: "{文件名}"
+        generated_from: "{对应的 behavior}"
+    generation_order:
+      - "{文件生成顺序（如：types → store → component）}"
+
+  # 自举启示：goskill goa DSL 格式可作为 L4 behaviors 的结构化参考
+  goskill_inspiration:
+    goa_style: |
+      VibeX L4 behaviors 可参考 goskill goa 格式：
+      ```yaml
+      behaviors:
+        - method: "CreateUser"
+          context:
+            input: "user registration data"
+            output: "created user + token"
+          validation:
+            - "email format"
+            - "password strength"
+      ```
+    why_reference: |
+      goa 的 context/validation 分离与 VibeX io_contract/behaviors
+      的分离哲学一致，可互相借鉴。
+
+changelog:
+  - version: "0.1"
+    date: "{YYYY-MM-DD}"
+    author: "{owner}"
+    changes:
+      - "初始功能定义"
+---

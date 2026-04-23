@@ -1,0 +1,76 @@
+---
+spec:
+  version: "0.1"
+  level: "3_module"
+  name: "{module-name}"              # 模块名
+  parent: "{l2-spec-name}"          # L2 skeleton spec.name
+  status: "proposal"
+
+meta:
+  type: "module"
+  module: "{module-name}"
+  owner: "{owner}"
+  created: "{YYYY-MM-DD}"
+  updated: "{YYYY-MM-DD}"
+
+lifecycle:
+  current: "proposal"
+  updated: "{YYYY-MM-DD}"
+
+io_contract:
+  input: |
+    L2 skeleton spec 的 modules_matrix 中该模块的定义
+  output: |
+    L3 module spec，含：
+    - public_api（函数/方法签名）
+    - state_definitions（内部状态）
+    - dependencies（外部依赖）
+  boundary: |
+    L3 只定义模块的对外接口，
+    不定义调用方如何使用（那是 L4 feature 的职责）。
+  behavior: |
+    1. 解析模块职责
+    2. 定义公开 API 签名
+    3. 定义内部状态机
+    4. 输出 L3 spec
+
+content:
+  public_api:
+    - function: "{exported_function}"
+      signature: "{func(arg: Type): ReturnType}"
+      description: "{函数作用}"
+      side_effects: "{有无副作用}"
+    # 更多 API...
+
+  state_definitions:
+    - state: "{StateName}"
+      description: "{状态含义}"
+      allowed_transitions:
+        - from: "{from-state}"
+          to: "{to-state}"
+          trigger: "{触发条件}"
+    # 更多状态...
+
+  internal_structure: |
+    {模块内部组织结构的文字描述}
+
+  dependencies:
+    - name: "{库/模块名}"
+      type: "internal|external"
+      purpose: "{用途}"
+    # 更多依赖...
+
+  l3_l4_lineage:
+    summary: "{L3 定义接口，L4 使用接口实现功能}"
+    which_features:
+      - feature: "{feature-name}"
+        uses_api:
+          - "{function}"
+
+changelog:
+  - version: "0.1"
+    date: "{YYYY-MM-DD}"
+    author: "{owner}"
+    changes:
+      - "初始模块定义"
+---
