@@ -599,6 +599,88 @@ func MakeWorkspaceDetectStateHandler(workspaceDir string, setStepType func(threa
 	}
 }
 
+func MakeWorkspaceScaffoldHandler(workspaceDir string, setStepType func(threadID, stepType string)) rt.Handler {
+	return func(arguments string) string {
+		if setStepType != nil {
+			setStepType("", "spec-apply")
+		}
+
+		var args struct {
+			WorkspaceRoot string `json:"workspace_root"`
+			ProjectName  string `json:"project_name"`
+			Owner        string `json:"owner"`
+			DryRun       bool   `json:"dry_run"`
+			Confirm      bool   `json:"confirm"`
+		}
+		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+			return "invalid args: " + err.Error()
+		}
+
+		if args.WorkspaceRoot == "" {
+			return "workspace_root is required"
+		}
+
+		projectName := args.ProjectName
+		if projectName == "" {
+			projectName = "my-project"
+		}
+		owner := args.Owner
+		if owner == "" {
+			owner = "user"
+		}
+
+		script := filepath.Join(workspaceDir, "generators", "scaffold_generator.py")
+		if _, err := os.Stat(script); os.IsNotExist(err) {
+			return fmt.Sprintf("scaffold_generator.py not found at %s", script)
+		}
+
+		cmdArgs := []string{script, args.WorkspaceRoot,
+			"--project-name", projectName,
+			"--owner", owner,
+		}
+		if args.DryRun {
+			cmdArgs = append(cmdArgs, "--dry-run")
+		}
+		if args.Confirm {
+			cmdArgs = append(cmdArgs, "--confirm")
+		}
+
+		cmd := exec.Command("python3", cmdArgs...)
+		cmd.Dir = workspaceDir
+		out, err := cmd.CombinedOutput()
+		text := string(out)
+
+		if err != nil {
+			return fmt.Sprintf("scaffold FAILED:\n%s\n%v", text, err)
+		}
+
+		// Format output for readability
+		lines := strings.Split(strings.TrimSpace(text), "\n")
+		var b strings.Builder
+		for _, line := range lines {
+			b.WriteString(line + "\n")
+		}
+
+		// Auto-detect state after scaffold
+		if args.Confirm && !args.DryRun {
+			detector := filepath.Join(workspaceDir, "generators", "state_detector.py")
+			detCmd := exec.Command("python3", detector, args.WorkspaceRoot, "--json")
+			detCmd.Dir = workspaceDir
+			detOut, _ := detCmd.CombinedOutput()
+			var result map[string]interface{}
+			if json.Unmarshal(detOut, &result) == nil {
+				state, _ := result["state"].(string)
+				b.WriteString(fmt.Sprintf("\n状态验证: %s\n", state))
+				if state == "ready" {
+					b.WriteString("✅ 脚手架完整，workspace 已就绪\n")
+				}
+			}
+		}
+
+		return b.String()
+	}
+}
+
 func escapeYAML(s string) string {
 	s = strings.ReplaceAll(s, "\\", "\\\\")
 	s = strings.ReplaceAll(s, "\"", "\\\"")

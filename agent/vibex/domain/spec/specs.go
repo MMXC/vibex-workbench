@@ -108,6 +108,22 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 			),
 			Handler: MakeWorkspaceDetectStateHandler(workspaceDir, setStepType),
 		},
+		{
+			Name:        "workspace_scaffold",
+			Description: "Scaffold a new VibeX project from scratch. " +
+				"Creates the minimal directory structure: specs/, generators/, spec-templates/, Makefile, frontend/package.json. " +
+				"Uses vibex-workbench scaffold files as templates. " +
+				"IMPORTANT: Must call state_detector FIRST to check current state. " +
+				"Do NOT scaffold into an existing 'ready' workspace.",
+			Parameters: objectSchema(
+				reqField("workspace_root", "string", "Target workspace root path"),
+				optField("project_name", "string", "Project name (kebab-case, used for spec filenames)"),
+				optField("owner", "string", "Owner username"),
+				optField("dry_run", "boolean", "Preview files without writing (default false)"),
+				optField("confirm", "boolean", "Skip confirmation prompt (default false)"),
+			),
+			Handler: MakeWorkspaceScaffoldHandler(workspaceDir, setStepType),
+		},
 	}
 }
 
