@@ -14,6 +14,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"time"
 )
 
@@ -237,13 +240,119 @@ func startRunHandler(w http.ResponseWriter, r *http.Request) {
 	go runMockRun(req.ThreadID)
 }
 
+// ── Workspace API ────────────────────────────────────────────────
+
+// workspaceRunMakeHandler — P4: POST /api/workspace/run-make
+func workspaceRunMakeHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	defer r.Body.Close()
+	var body struct {
+		Target    string `json:"target"`
+		Workspace string `json:"workspace"`
+	}
+	json.NewDecoder(r.Body).Decode(&body)
+
+	ws := body.Workspace
+	if ws == "" {
+		ws = "."
+	}
+	target := body.Target
+	if target == "" {
+		target = "validate"
+	}
+	cmd := exec.Command("make", target)
+	cmd.Dir = ws
+	out, err := cmd.CombinedOutput()
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"ok":        err == nil,
+		"target":    target,
+		"output":    string(out),
+		"workspace": ws,
+	})
+}
+func workspaceDetectStateHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	defer r.Body.Close()
+	var body struct {
+		WorkspaceRoot string `json:"workspace_root"`
+	}
+	json.NewDecoder(r.Body).Decode(&body)
+
+	ws := body.WorkspaceRoot
+	if ws == "" {
+		ws = "."
+	}
+
+	script := filepath.Join(getBinaryDir(), "generators", "state_detector.py")
+	cmd := exec.Command("python3", script, ws)
+	cmd.Dir = filepath.Dir(script)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Fprintf(w, `{"error":"%v","output":%q}`, err, string(out))
+		return
+	}
+	fmt.Fprint(w, string(out))
+}
+
+// workspaceScaffoldHandler — P2: POST /api/workspace/scaffold
+func workspaceScaffoldHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	defer r.Body.Close()
+	var body struct {
+		WorkspaceRoot string `json:"workspace_root"`
+		Confirm       bool   `json:"confirm"`
+	}
+	json.NewDecoder(r.Body).Decode(&body)
+
+	ws := body.WorkspaceRoot
+	if ws == "" {
+		ws = "."
+	}
+
+	script := filepath.Join(getBinaryDir(), "generators", "scaffold_generator.py")
+	args := []string{script, ws}
+	if body.Confirm {
+		args = append(args, "--confirm")
+	}
+	cmd := exec.Command("python3", args...)
+	cmd.Dir = ws
+	out, err := cmd.CombinedOutput()
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"ok":     err == nil,
+		"output": string(out),
+		"error":  err,
+	})
+}
+
+// getBinaryDir returns the directory containing the backend binary (parent of backend/)
+func getBinaryDir() string {
+	exe, _ := os.Executable()
+	if exe == "" {
+		return "."
+	}
+	return filepath.Dir(exe)
+}
+
 func main() {
 	http.HandleFunc("/api/sse/threads/", withCORS(sseHandler))
 	http.HandleFunc("/api/runs", withCORS(startRunHandler))
 	http.HandleFunc("/api/health", withCORS(healthHandler))
+	http.HandleFunc("/api/workspace/detect-state", withCORS(workspaceDetectStateHandler))
+	http.HandleFunc("/api/workspace/scaffold", withCORS(workspaceScaffoldHandler))
+	http.HandleFunc("/api/workspace/run-make", withCORS(workspaceRunMakeHandler))
 
 	log.Println("[VibeX SSE Backend] Listening on http://0.0.0.0:33335")
-	log.Println("  SSE:  GET  http://localhost:33335/api/sse/threads/<threadId>")
-	log.Println("  Runs: POST http://localhost:33335/api/runs")
+	log.Println("  Workspace: POST http://localhost:33335/api/workspace/detect-state")
+	log.Println("  Workspace: POST http://localhost:33335/api/workspace/scaffold")
+	log.Println("  Workspace: POST http://localhost:33335/api/workspace/run-make")
 	log.Fatal(http.ListenAndServe(":33335", nil))
 }
