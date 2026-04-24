@@ -57,11 +57,18 @@ func workspaceDetectStateHandler(w http.ResponseWriter, r *http.Request) {
 		return ""
 	}()
 
-	// 调用 state_detector.py
+	result := map[string]interface{}{"workspaceRoot": resolveRoot}
+	// 调用 state_detector.py — 基于 backend binary 位置推导 generators 路径
+	// backend binary 在 backend/vibex-backend 或 backend/vibex-backend.exe
+	// generators 在同级的 ../generators/
 	scriptPath := filepath.Join(filepath.Dir(os.Args[0]), "..", "generators", "state_detector.py")
-	// Fallback: search in common locations
+	scriptPath, _ = filepath.Abs(scriptPath) // 规范化路径
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
-		scriptPath = "/root/v-test/generators/state_detector.py"
+		result["state"] = "error"
+		result["error"] = fmt.Sprintf("state_detector.py not found at %s", scriptPath)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(result)
+		return
 	}
 
 	cmd := exec.Command("python3", scriptPath, resolveRoot, "--json")
@@ -70,7 +77,6 @@ func workspaceDetectStateHandler(w http.ResponseWriter, r *http.Request) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	result := map[string]interface{}{"workspaceRoot": resolveRoot}
 	if err := cmd.Run(); err != nil {
 		// 即使出错也尝试解析已输出内容
 		result["state"] = "error"
@@ -130,10 +136,11 @@ func workspaceScaffoldHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 调用 scaffolder.py
-	scriptPath := "/root/v-test/generators/scaffolder.py"
+	// 调用 scaffolder.py — 基于 backend binary 位置推导 generators 路径
+	scriptPath := filepath.Join(filepath.Dir(os.Args[0]), "..", "generators", "scaffolder.py")
+	scriptPath, _ = filepath.Abs(scriptPath)
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
-		http.Error(w, "scaffolder.py not found", http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("scaffolder.py not found at %s", scriptPath), http.StatusInternalServerError)
 		return
 	}
 

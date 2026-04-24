@@ -45,7 +45,7 @@ def detect_state(workspace_root: str) -> dict:
     makefile_has_lint = False
     makefile_exists = os.path.isfile(makefile_path)
     if makefile_exists:
-        with open(makefile_path, "r") as f:
+        with open(makefile_path, "r", encoding="utf-8") as f:
             content = f.read()
             makefile_has_lint = "lint-specs" in content or "lint_specs" in content
     signals.append({
