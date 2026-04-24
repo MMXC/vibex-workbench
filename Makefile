@@ -186,19 +186,8 @@ frontend-build:
 	@echo "[frontend-build] Building SvelteKit frontend..."
 	@cd $(FRONTEND_DIR) && npm run build
 	@echo "[frontend-build] Adding cache-busting version to index.html..."
-	@cd $(ROOT) && $(PYTHON) -c "
-import time, re, pathlib
-html = pathlib.Path('$(FRONTEND_DIR)/build/index.html').read_text()
-ts = str(int(time.time()))
-# Append ?v=TIMESTAMP to all src/href URLs that don't already have a query string
-def buster(m):
-    url = m.group(1)
-    sep = '&' if '?' in url else '?'
-    return m.group(0).replace(m.group(1), url + sep + 'v=' + ts)
-html = re.sub(r'(src|href)=\"(/[^\"]+)\"', buster, html)
-pathlib.Path('$(FRONTEND_DIR)/build/index.html').write_text(html)
-print('[cache-bust] v=' + ts)
-"
+	@echo "[cache-bust] v=$(FRONTEND_DIR)/build/index.html..."
+	@$(PYTHON) $(ROOT)/scripts/cache_bust.py $(FRONTEND_DIR)/build/index.html
 	@echo "[frontend-build] OK → frontend/build/"
 
 # ── Wails Native Shell ──────────────────────────────────────
