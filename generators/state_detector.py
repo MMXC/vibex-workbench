@@ -18,10 +18,9 @@ import json
 
 
 def detect_state(workspace_root: str) -> dict:
-    """返回仓库状态对象"""
+    """返回仓库状态对象（empty | half | ready）。"""
     workspace_root = os.path.abspath(workspace_root)
     signals = []
-    state = "empty"
 
     # Signal 1: specs/ 目录
     specs_path = os.path.join(workspace_root, "specs")
@@ -44,37 +43,29 @@ def detect_state(workspace_root: str) -> dict:
     # Signal 3: Makefile 含 lint-specs
     makefile_path = os.path.join(workspace_root, "Makefile")
     makefile_has_lint = False
-    if os.path.isfile(makefile_path):
+    makefile_exists = os.path.isfile(makefile_path)
+    if makefile_exists:
         with open(makefile_path, "r") as f:
             content = f.read()
             makefile_has_lint = "lint-specs" in content or "lint_specs" in content
     signals.append({
         "path": "Makefile",
-        "exists": os.path.isfile(makefile_path),
+        "exists": makefile_exists,
         "reason": "lint-specs target 存在" if makefile_has_lint else "Makefile 存在但无 lint-specs"
-    })
-
-    # Signal 4: frontend/package.json (可选)
-    frontend_pkg = os.path.join(workspace_root, "frontend", "package.json")
-    frontend_exists = os.path.isfile(frontend_pkg)
-    signals.append({
-        "path": "frontend/package.json",
-        "exists": frontend_exists,
-        "reason": "前端配置存在" if frontend_exists else "无前端配置（可选项）"
     })
 
     # 综合判断状态
     if specs_exists and gen_exists and makefile_has_lint:
         state = "ready"
-    elif specs_exists:
-        state = "partial"
+    elif specs_exists or gen_exists:
+        state = "half"
     else:
         state = "empty"
 
     # 生成建议
     suggestions = {
         "empty": ["点击「初始化脚手架」开始搭建项目"],
-        "partial": ["运行「生成脚手架」补全目录结构", "或手动创建 generators/gen.py"],
+        "half": ["运行「生成脚手架」补全目录结构", "或手动创建 generators/gen.py 和 Makefile"],
         "ready": ["在 spec 编辑器中打开或新建规格文件", "运行「校验」检查 spec 质量"],
     }[state]
 
@@ -107,7 +98,7 @@ def main():
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
         # 人类可读输出
-        icons = {"empty": "⬜", "partial": "🟨", "ready": "🟩", "error": "❌"}
+        icons = {"empty": "⬜", "half": "🟨", "ready": "🟩", "error": "❌"}
         icon = icons.get(result["state"], "?")
         print(f"{icon} State: {result['state']}")
         print(f"   目录: {result['workspace_root']}")
