@@ -90,7 +90,7 @@ func (a *App) SpawnGoBackend(ctx context.Context) (map[string]any, error) {
 
 	port := a.backendPort
 	if port == 0 {
-		port = 33335
+		port = 33338
 	}
 	a.backendPort = port
 

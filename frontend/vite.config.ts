@@ -8,7 +8,7 @@ import { defineConfig, loadEnv } from 'vite';
  */
 const SSE_PORT = process.env.VITE_SSE_PORT || '33338';
 // Wails mode: Go backend subprocess runs on this port
-const BACKEND_PORT = process.env.VITE_BACKEND_PORT || '33335';
+const BACKEND_PORT = process.env.VITE_BACKEND_PORT || '33338';
 
 export default defineConfig({
 	plugins: [sveltekit()],

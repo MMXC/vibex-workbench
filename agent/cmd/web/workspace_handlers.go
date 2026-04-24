@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -324,4 +325,78 @@ func workspaceRunMakeHandler(w http.ResponseWriter, r *http.Request) {
 		"timeout":  timedOut,
 		"target":   target,
 	})
+}
+
+// ── specs/list ────────────────────────────────────────────────────
+
+// workspaceSpecsListHandler GET /api/workspace/specs/list
+// Query: ?workspaceRoot=/path/to/workspace
+// Response: { "paths": ["L1-goal/my-goal.yaml", "specs/L2-feature/feat.yaml", ...] }
+func workspaceSpecsListHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	wsRoot := r.URL.Query().Get("workspaceRoot")
+	if wsRoot == "" {
+		wsRoot = cfg.WorkspaceDir
+	}
+	if wsRoot == "" {
+		wsRoot = os.Getenv("WORKSPACE_ROOT")
+	}
+	if wsRoot == "" {
+		http.Error(w, "workspaceRoot required", http.StatusBadRequest)
+		return
+	}
+
+	specsDir := filepath.Join(wsRoot, "specs")
+	var paths []string
+	err := filepath.Walk(specsDir, func(full string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // skip errors
+		}
+		if !info.IsDir() && (strings.HasSuffix(full, ".yaml") || strings.HasSuffix(full, ".yml")) {
+			rel, err := filepath.Rel(wsRoot, full)
+			if err == nil {
+				paths = append(paths, filepath.ToSlash(rel))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		http.Error(w, "failed to walk specs dir: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	sort.Strings(paths)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"paths": paths})
+}
+
+// ── specs/convention ──────────────────────────────────────────────
+
+// workspaceSpecsConventionHandler GET /api/workspace/specs/convention
+// Returns a summary of the VibeX spec naming/structure convention.
+func workspaceSpecsConventionHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	convention := map[string]interface{}{
+		"directory_levels": []map[string]string{
+			{"L1-goal": "顶层目标 spec（如 specs/L1-goal/xxx.yaml）"},
+			{"L2-feature": "功能级 spec（如 specs/L2-feature/xxx.yaml）"},
+			{"L3-module": "模块级 spec（如 specs/L3-module/xxx.yaml）"},
+			{"L4-feature": "特性级 spec（如 specs/L4-feature/xxx.yaml）"},
+			{"L5-component": "组件级 spec（如 specs/L5-component/xxx.yaml）"},
+		},
+		"required_frontmatter": []string{"name", "level", "parent"},
+		"file_pattern":         "*.yaml 或 *.yml",
+		"description":          "VibeX 使用五层 spec 体系（L1–L5），通过 YAML frontmatter 的 level 和 parent 字段建立父子关系，构成规格树。",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(convention)
 }

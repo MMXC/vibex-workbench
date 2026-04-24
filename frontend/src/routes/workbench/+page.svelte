@@ -26,7 +26,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 	import { openDirectoryDialog, eventsOn, eventsEmit } from '$lib/wails-runtime';
 	import { appendOutput, clearOutput } from '$lib/stores/workspace-output-store';
 
-	const SSE_URL = import.meta.env.VITE_SSE_URL || 'http://localhost:33335';
+	const SSE_URL = import.meta.env.VITE_SSE_URL || 'http://localhost:33338';
 	const useMockBackend =
 		import.meta.env.VITE_MOCK_SSE === '1' || import.meta.env.VITE_MOCK_SSE === 'true';
 

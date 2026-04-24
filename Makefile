@@ -172,15 +172,24 @@ WAILS_TAGS := webkit2_41
 # Detect headless: no DISPLAY + no WSLG display → use xvfb
 IS_HEADLESS := $(shell if [ -z "$$DISPLAY" ] && [ -z "$$WAYLAND_DISPLAY" ]; then echo 1; else echo 0; fi)
 
-WAILS_RUN := $(if $(filter 1,$(IS_HEADLESS)),xvfb-run -a,wails)
+# wails binary location
+WAILS_BIN := $(shell which wails 2>/dev/null || echo /root/go/bin/wails)
 
 .PHONY: wails-dev
 wails-dev:
-	cd $(ROOT) && GOFLAGS="-tags=$(WAILS_TAGS)" $(WAILS_RUN) dev -tags "$(WAILS_TAGS)"
+	@if [ "$(IS_HEADLESS)" = "1" ]; then \
+		cd $(ROOT) && GOFLAGS="-tags=$(WAILS_TAGS)" xvfb-run -a $(WAILS_BIN) dev -tags "$(WAILS_TAGS)"; \
+	else \
+		cd $(ROOT) && GOFLAGS="-tags=$(WAILS_TAGS)" $(WAILS_BIN) dev -tags "$(WAILS_TAGS)"; \
+	fi
 
 .PHONY: wails-dev-browser
 wails-dev-browser:
-	cd $(ROOT) && GOFLAGS="-tags=$(WAILS_TAGS)" wails dev -tags "$(WAILS_TAGS)" -devtools
+	@if [ "$(IS_HEADLESS)" = "1" ]; then \
+		cd $(ROOT) && GOFLAGS="-tags=$(WAILS_TAGS)" xvfb-run -a $(WAILS_BIN) dev -tags "$(WAILS_TAGS)" -devtools; \
+	else \
+		cd $(ROOT) && GOFLAGS="-tags=$(WAILS_TAGS)" $(WAILS_BIN) dev -tags "$(WAILS_TAGS)" -devtools; \
+	fi
 
 .PHONY: wails-build
 wails-build:

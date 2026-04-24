@@ -192,7 +192,7 @@ const HANDLERS: Record<string, SSEEventHandler> = {
 
 class SSEConsumer {
   private es: EventSource | null = null;
-  private url: string = import.meta.env.VITE_SSE_URL || 'http://localhost:33335';
+  private url: string = import.meta.env.VITE_SSE_URL || 'http://localhost:33338';
   private retryCount = 0;
   private maxRetries = 5;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
