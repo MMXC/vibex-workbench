@@ -169,9 +169,14 @@ skill-sync-pull:
 # Required: webkit2gtk-4.1 (not 4.0) on this system → tag webkit2_41
 WAILS_TAGS := webkit2_41
 
+# Detect headless: no DISPLAY + no WSLG display → use xvfb
+IS_HEADLESS := $(shell if [ -z "$$DISPLAY" ] && [ -z "$$WAYLAND_DISPLAY" ]; then echo 1; else echo 0; fi)
+
+WAILS_RUN := $(if $(filter 1,$(IS_HEADLESS)),xvfb-run -a,wails)
+
 .PHONY: wails-dev
 wails-dev:
-	cd $(ROOT) && GOFLAGS="-tags=$(WAILS_TAGS)" xvfb-run -a wails dev -tags "$(WAILS_TAGS)"
+	cd $(ROOT) && GOFLAGS="-tags=$(WAILS_TAGS)" $(WAILS_RUN) dev -tags "$(WAILS_TAGS)"
 
 .PHONY: wails-dev-browser
 wails-dev-browser:
