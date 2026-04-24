@@ -25,7 +25,10 @@ warnings = []
 specs = {}
 
 def get_spec_path(level: str, name: str) -> Path:
-    """Resolve spec file path from level and name."""
+    """Resolve spec file path from level and name.
+    Checks multiple candidate directories to support both legacy
+    (specs/module/) and new (specs/L3-module/) layouts.
+    """
     name_base = name.replace("-", "_").replace(" ", "_")
 
     if level == "1_project_goal":
@@ -37,10 +40,21 @@ def get_spec_path(level: str, name: str) -> Path:
         return SPEC_DIR / "architecture" / "architecture.yaml"
     elif level == "3_module":
         if name.startswith("MOD-"):
-            return SPEC_DIR / "module" / f"{name}_module.yaml"
+            # Try new layout: specs/L3-module/MOD-xxx.yaml
+            p = SPEC_DIR / "L3-module" / f"{name}.yaml"
+            if p.exists():
+                return p
+            # Try legacy layout: specs/module/MOD-xxx_module.yaml
+            p = SPEC_DIR / "module" / f"{name}_module.yaml"
+            if p.exists():
+                return p
+            return p  # return legacy path as default
         return SPEC_DIR / "module" / f"{name}_module.yaml"
     elif level.startswith("4_") or level == "4_feature":
         if name.startswith("MOD-"):
+            p = SPEC_DIR / "L3-module" / f"{name}.yaml"
+            if p.exists():
+                return p
             return SPEC_DIR / "module" / f"{name}_module.yaml"
         return SPEC_DIR / "feature" / name / f"{name}_feature.yaml"
     elif level.startswith("5_"):
@@ -50,16 +64,26 @@ def get_spec_path(level: str, name: str) -> Path:
     return Path(name + ".yaml")
 
 def validate_file(path: Path) -> dict | None:
-    """Parse and validate a single spec file."""
+    """Parse and validate a single spec file.
+    Handles two YAML formats:
+    - Markdown with YAML frontmatter (--- separator): extract frontmatter only
+    - Pure YAML with top-level fields (new VibeX format, no spec: wrapper)
+    """
     if not path.exists():
         return None
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             raw = f.read()
-        data = yaml.safe_load(raw)
+        # Strip Markdown YAML frontmatter: keep only content before first ---
+        yaml_content = raw.split("\n---\n")[0].split("\n---\r\n")[0]
+        data = yaml.safe_load(yaml_content)
         if data is None:
             return None
-        spec_meta = data.get("spec", {})
+        # Support both nested spec: wrapper and flat root-level fields
+        if isinstance(data, dict) and "spec" in data:
+            spec_meta = data.get("spec", {})
+        else:
+            spec_meta = data  # new flat format: name/level/parent at root
         return {
             "path": path,
             "name": spec_meta.get("name"),
@@ -101,6 +125,11 @@ def check_parent_chain(spec: dict):
     """Ensure parent exists on disk (resolved path)."""
     level = spec["level"]
     parent = spec["parent"]
+    path = spec["path"]
+
+    # p-metaspec/ files are meta-specs about specs themselves; skip parent chain
+    if "p-metaspec" in str(path):
+        return
 
     if level not in LEVEL_PARENT and level != "1_project_goal":
         return

@@ -9,12 +9,23 @@ def load_specs(spec_dir):
     specs = {}
     for path in Path(spec_dir).rglob("*.yaml"):
         try:
-            with open(path) as f:
-                data = yaml.safe_load(f)
-            if data and "spec" in data:
+            with open(path, encoding="utf-8") as f:
+                raw = f.read()
+            # Strip Markdown YAML frontmatter
+            yaml_content = raw.split("\n---\n")[0].split("\n---\r\n")[0]
+            data = yaml.safe_load(yaml_content)
+            if data is None:
+                continue
+            # Support both nested spec: wrapper and flat root-level fields
+            if isinstance(data, dict) and "spec" in data:
                 name = data["spec"].get("name")
                 level = data["spec"].get("level", "")
                 parent = data["spec"].get("parent")
+            else:
+                name = data.get("name")
+                level = data.get("level", "")
+                parent = data.get("parent")
+            if name:
                 specs[name] = {
                     "level": level,
                     "parent": parent,
@@ -53,7 +64,9 @@ def validate(specs):
         if parent is None:
             continue
         
-        # Parent must exist
+        # Parent must exist; skip p-metaspec (virtual meta-level parent)
+        if parent == "p-metaspec":
+            continue
         if parent not in specs:
             violations.append(f"MISSING PARENT: {name} (L{info['level']}) -> parent '{parent}' not found")
             continue
@@ -66,13 +79,16 @@ def validate(specs):
         # But L4 must have L3 parent, L3 must have L2 parent, etc.
         if child_lv > 0 and parent_lv > 0:
             if child_lv <= parent_lv:
-                # 允许 L4_feature -> L4_feature（子能力挂在聚合 L4，如 workbench-shell）
+                # 允许 L4_feature → L4_feature（子能力挂在聚合 L4，如 workbench-shell）
                 if (
                     child_lv == 4
                     and parent_lv == 4
                     and info["level"] == "4_feature"
                     and specs[parent]["level"] == "4_feature"
                 ):
+                    continue
+                # 允许 L2_skeleton → L2_skeleton（骨架 spec 之间的模板关系）
+                if child_lv == 2 and parent_lv == 2 and "_skeleton" in info["level"] and "_skeleton" in specs[parent]["level"]:
                     continue
                 if not (child_lv == 5 and parent_lv == 4):
                     violations.append(f"LEVEL SKIP: {name} (L{info['level']}) -> parent {parent} (L{specs[parent]['level']})")
