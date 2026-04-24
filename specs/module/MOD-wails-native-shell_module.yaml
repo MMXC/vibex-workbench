@@ -1,0 +1,179 @@
+# ============================================================
+# Level 3 — Wails Native Shell 模块规格
+# Module Specification
+#
+# parent: wails-native-shell-skeleton (L2)
+# 本模块定义：Go App struct、Wails binding methods、Go 子进程生命周期管理、原生窗口
+# ============================================================
+
+spec:
+  version: "0.1"
+  level: "3_module"
+  name: "MOD-wails-native-shell"
+  parent: "wails-native-shell-skeleton"
+  status: "proposal"
+
+meta:
+  project: "vibex-workbench"
+  module: "wails-native-shell"
+  owner: "hermes"
+  created: "2026-04-24"
+  updated: "2026-04-24"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-24"
+  history:
+    - status: "proposal"
+      at: "2026-04-24T14:00:00"
+      by: "hermes"
+      trigger: "user:manual"
+      note: "初始模块定义"
+
+# ── IO 契约 ──────────────────────────────────────────────────
+io_contract:
+  input: |
+    Wails 应用启动信号（用户双击可执行文件）
+    + 所需环境：Go toolchain + npm
+    + 已有：Go backend binary（或源码路径）、SvelteKit 前端构建产物
+  output: |
+    打开的 Wails 窗口（WebView 加载 SvelteKit）
+    + Go backend 子进程运行中
+    + Go ↔ JS 绑定可用：OpenDirectoryDialog / SpawnGoBackend / GetWorkspaceRoot / RunMake / KillGoBackend
+  boundary: |
+    本模块管理进程生命周期和窗口，不处理 SvelteKit 路由和 Go backend 业务逻辑。
+    Go backend 崩溃时 Wails 窗口保持可见，WebView 优雅降级。
+
+# ── 模块内容 ────────────────────────────────────────────────
+content:
+  public_api:
+    # Go struct 绑定方法（前端通过 wailsjs/go/ 自动生成的 TS 调用）
+
+    - method: "OpenDirectoryDialog"
+      signature: "func (a *App) OpenDirectoryDialog(ctx context.Context) (string, error)"
+      description: "打开系统原生目录选择器对话框，用户确认后返回绝对路径，取消返回空字符串"
+      go_example: |
+        path, err := runtime.OpenDirectoryDialog(ctx, runtime.OpenDialogOptions{
+            Title:            "选择工作区目录",
+            DefaultDirectory:  a.workspaceRoot,
+        })
+      ts_equivalent: |
+        import { OpenDirectoryDialog } from '@/wailsjs/go/main/App';
+        const path = await OpenDirectoryDialog();
+
+    - method: "SpawnGoBackend"
+      signature: "func (a *App) SpawnGoBackend(ctx context.Context) (map[string]any, error)"
+      description: "启动 Go backend 子进程，记录 PID 和端口，返回 {ok, port, pid}"
+      go_example: |
+        cmd := exec.CommandContext(ctx, a.backendBinary, "-port", fmt.Sprintf("%d", port))
+        cmd.Stdout = os.Stdout
+        cmd.Stderr = os.Stderr
+        if err := cmd.Start(); err != nil {
+            return nil, err
+        }
+        a.backendCmd = cmd
+        runtime.EventsEmit(ctx, "backend:ready", map[string]any{"port": port, "pid": cmd.Process.Pid})
+
+    - method: "GetWorkspaceRoot"
+      signature: "func (a *App) GetWorkspaceRoot() string"
+      description: "返回当前工作区根路径（内存缓存，无持久化）"
+      returns: "string（空字符串表示未选择）"
+
+    - method: "RunMake"
+      signature: "func (a *App) RunMake(ctx context.Context, target string, workspace string) (map[string]any, error)"
+      description: "在指定 workspace 执行 make target"
+      returns: "{ok: bool, output: string}"
+      go_example: |
+        cmd := exec.CommandContext(ctx, "make", target)
+        cmd.Dir = workspace
+        out, err := cmd.CombinedOutput()
+        return map[string]any{"ok": err == nil, "output": string(out)}, err
+
+    - method: "KillGoBackend"
+      signature: "func (a *App) KillGoBackend(ctx context.Context) error"
+      description: "强制终止 Go backend 子进程（窗口关闭或用户手动触发）"
+      go_example: |
+        if a.backendCmd != nil && a.backendCmd.Process != nil {
+            return a.backendCmd.Process.Signal(syscall.SIGTERM)
+        }
+
+  state_definitions:
+    - state: "App.workspaceRoot"
+      type: "string"
+      description: "当前工作区根路径，未选择则为空字符串"
+    - state: "App.backendCmd"
+      type: "*exec.Cmd"
+      description: "Go backend 子进程的 Cmd 引用，nil 表示未启动"
+    - state: "App.backendPort"
+      type: "int"
+      description: "Go backend HTTP 监听端口，0 表示未分配"
+
+  internal_structure: |
+    vibex-workbench/
+    ├── main.go              # Wails App struct + wails.Run() + 生命周期钩子
+    ├── go.mod               # go get github.com/wailsapp/wails/v2@v2.12.0
+    ├── wails.json           # 构建配置（npm scripts 映射）
+    ├── backend/             # 原有 Go backend（不做修改）
+    │   └── ...
+    └── frontend/            # SvelteKit 前端（已有，adapter-static）
+        ├── svelte.config.js # 更新为 adapter-static
+        └── build/           # npm run build 输出，embed.FS 引用此目录
+
+  dependencies:
+    - name: "github.com/wailsapp/wails/v2"
+      version: "^2.12.0"
+      type: "go-module"
+      purpose: "Wails runtime，wails.Run() 入口"
+    - name: "github.com/wailsapp/wails/v2/pkg/runtime"
+      version: "^2.12.0"
+      type: "go-module"
+      purpose: "OpenDirectoryDialog, EventsEmit, WindowGetPosition 等 runtime API"
+    - name: "github.com/wailsapp/wails/v2/pkg/options"
+      version: "^2.12.0"
+      type: "go-module"
+      purpose: "options.App struct，Wails 应用配置"
+    - name: "github.com/wailsapp/wails/v2/pkg/options/assetserver"
+      version: "^2.12.0"
+      type: "go-module"
+      purpose: "AssetServer 配置，embed.FS 嵌入前端资源"
+    - name: "@wailsjs/runtime"
+      version: "^2"
+      type: "npm-package"
+      purpose: "JS 端 runtime（EventsOn, EventsEmit, Quit 等）"
+
+  l3_l4_lineage:
+    summary: "L3 定义 Go binding 接口和子进程管理；L4 展开具体实现细节（错误处理、日志、dev/prod 区分）"
+    which_features:
+      - feature: "wails-app-entry"
+        uses_api:
+          - "main.go — wails.Run(&options.App{})"
+          - "App struct — 所有 public binding methods"
+      - feature: "go-backend-process"
+        uses_api:
+          - "SpawnGoBackend — backend 子进程启动"
+          - "KillGoBackend — backend 子进程终止"
+          - "OnStartup — 自动 spawn"
+          - "OnBeforeClose — 自动 kill"
+      - feature: "native-directory-picker"
+        uses_api:
+          - "OpenDirectoryDialog — runtime.OpenDirectoryDialog 封装"
+          - "GetWorkspaceRoot — 当前路径查询"
+
+  error_handling:
+    go_binary_not_found: |
+      Go backend binary 路径未找到 → SpawnGoBackend 返回 error，
+      前端 /workspace 显示错误提示"请确保项目已正确构建"
+    go_port_conflict: |
+      指定端口被占用 → 换随机可用端口（portpicker），通过 args 通知 Go backend
+    window_close_cleanup: |
+      OnBeforeClose → KillGoBackend() → 返回 false 允许关闭
+    go_backend_crash: |
+      Go backend 子进程意外退出 → 前端 SSE 连接断开 → 显示重连按钮
+      （不自动重启，避免无限循环）
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-24"
+    author: "hermes"
+    changes:
+      - "初始模块定义"

@@ -1,0 +1,208 @@
+# ============================================================
+# Level 2 — Wails Native Shell 骨架规格
+# Skeleton Specification
+#
+# parent: vibex-workbench-skeleton (L2)
+# 从现有 L2 派生：迁移至 Wails v2 本地桌面，替代 SvelteKit-only 浏览器端
+# 解决：浏览器端无法原生访问本地文件 + 用户必须跑两进程才能用的体验问题
+# ============================================================
+
+spec:
+  version: "0.1"
+  level: "2_skeleton"
+  name: "wails-native-shell-skeleton"
+  parent: "vibex-workbench-skeleton"
+  status: "proposal"
+
+meta:
+  project: "vibex-workbench"
+  module: "wails-native-shell"
+  owner: "hermes"
+  created: "2026-04-24"
+  updated: "2026-04-24"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-24"
+  history:
+    - status: "proposal"
+      at: "2026-04-24T14:00:00"
+      by: "hermes"
+      trigger: "user:manual"
+      note: "初始骨架：从 SvelteKit-only 迁移到 Wails v2 本地桌面"
+
+# ── IO 契约 ──────────────────────────────────────────────────
+io_contract:
+  input: |
+    vibex-workbench-skeleton（L2）：SvelteKit 前端 + Go backend 双进程架构
+    + 用户反馈：需要本地双击即用、不靠端口、不起两进程
+    + 迁移决策：SvelteKit 前端保留，Wails v2 替代 npm dev + go run
+  output: |
+    Wails v2 本地桌面应用：
+    - 单个可执行文件（mac: .app, Windows: .exe, Linux: binary），双击启动
+    - 启动时自动 spawn Go backend 子进程
+    - WebView 内跑 SvelteKit 前端（无需端口）
+    - /workspace 入口用原生目录选择器（runtime.OpenDirectoryDialog）
+  boundary: |
+    Wails 层只负责：进程生命周期、目录选择、窗口管理、Go↔JS 绑定。
+    不改变 SvelteKit 前端路由、Go backend 业务逻辑、spec 生成流水线。
+
+# ── 技术选型 ────────────────────────────────────────────────
+content:
+  tech_stack:
+    language: "Go (Wails v2) + TypeScript (SvelteKit) + Go (backend)"
+    framework: "Wails v2.12.0 + SvelteKit（现有前端，adapter-static）+ Gin-ish Go HTTP（现有 backend）"
+    key_libraries:
+      - name: "github.com/wailsapp/wails/v2"
+        version: "^2.12.0"
+        purpose: "Wails v2 runtime，Go ↔ WebView 桥接"
+      - name: "github.com/wailsapp/wails/v2/pkg/runtime"
+        version: "^2.12.0"
+        purpose: "runtime.OpenDirectoryDialog / Events / Window API"
+      - name: "@sveltejs/adapter-static"
+        version: "^3"
+        purpose: "SvelteKit 预构建为静态文件，Wails embed.FS 嵌入"
+      - name: "@wailsjs/runtime"
+        version: "^2"
+        purpose: "JS 端 runtime（EventsOn, EventsEmit 等）"
+    runtime: "Wails v2.12.0 + SvelteKit 5 + Go 1.22+"
+    package_manager: "npm (frontend) + go build (Wails)"
+
+  modules_matrix:
+    - module: "wails-native-shell"
+      responsibility: "Wails 应用入口、Go ↔ JS 绑定、窗口管理、子进程生命周期、原生目录选择"
+      public_api:
+        - "wails.Run(&options.App{}) — 启动应用"
+        - "OpenDirectoryDialog(ctx) — 触发原生目录选择"
+        - "SpawnGoBackend(ctx) — 启动 Go backend 子进程"
+        - "GetWorkspaceRoot(ctx) — 读取当前工作区根路径"
+      depends_on: []
+      generated_by: "main.go（手写，不走 gen.py）"
+
+    - module: "sveltekit-frontend"
+      responsibility: "SvelteKit 前端（/workspace + /workbench），Wails WebView 内运行"
+      public_api:
+        - "/workspace — 工作区选择入口"
+        - "/workbench — 主工作台"
+        - "/api/workspace/* — workspace API 调用（dev 走 Vite proxy，prod 走 Go backend HTTP）"
+      depends_on: ["wails-native-shell"]
+      generated_by: "frontend/（现有，adapter-static 预构建）"
+
+    - module: "go-backend"
+      responsibility: "Go HTTP backend（SSE + workspace API），作为 Wails 子进程运行"
+      public_api:
+        - "GET /api/sse/:threadId — SSE 流"
+        - "POST /api/workspace/detect-state — 检测目录状态"
+        - "POST /api/workspace/scaffold — 初始化脚手架"
+        - "POST /api/workspace/run-make — 执行 make target"
+      depends_on: ["wails-native-shell"]
+      generated_by: "backend/main.go（现有，保持不变）"
+
+  api_design:
+    wails_binding_contracts:
+      - method: "OpenDirectoryDialog"
+        args: "ctx context.Context, opts runtime.OpenDialogOptions"
+        returns: "string, error"
+        description: "触发原生目录选择器，返回选中路径，用户取消返回空字符串"
+      - method: "SpawnGoBackend"
+        args: "ctx context.Context"
+        returns: "{ok: bool, port: int}, error"
+        description: "启动 Go backend 子进程，返回端口"
+      - method: "GetWorkspaceRoot"
+        args: "ctx context.Context"
+        returns: "string, error"
+        description: "返回当前工作区根路径"
+      - method: "RunMake"
+        args: "ctx context.Context, target string, workspace string"
+        returns: "{ok: bool, output: string}, error"
+        description: "在 workspace 执行 make target"
+      - method: "KillGoBackend"
+        args: "ctx context.Context"
+        returns: "error"
+        description: "终止 Go backend 子进程"
+
+    events:
+      - event: "backend:ready"
+        direction: "Go → JS"
+        payload: "{port: int, pid: int}"
+        description: "Go backend 子进程启动成功"
+      - event: "backend:error"
+        direction: "Go → JS"
+        payload: "string (error message)"
+        description: "Go backend 启动失败"
+      - event: "workspace:selected"
+        direction: "JS → Go"
+        payload: "string (path)"
+        description: "用户选择了工作区目录"
+
+  entry_points:
+    - type: "desktop-app"
+      command: "双击 WailsApp / WailsApp.exe / WailsApp.app"
+      description: "用户入口：双击即用，无需终端"
+
+  l2_l3_lineage:
+    summary: |
+      L2 定义 Wails 迁移架构：Go 主进程 + SvelteKit WebView + Go 子进程。
+      L3 把 wails-native-shell 模块展开为 Go binding 实现与子进程管理细节。
+    which_modules_become_l3:
+      - module: "wails-native-shell"
+        l3_note: "main.go Wails App struct、Tauri-style binding commands、Go 子进程 spawn/cleanup、Cargo → go.mod"
+
+  bootstrap_hints:
+    gen_py_pattern: |
+      本 spec 不走 gen.py。Wails 相关文件为手写 Go，
+      SvelteKit 前端和 Go backend 保持现有实现不变。
+    skeleton_principle: |
+      Wails 层 = 胶水层：连接用户交互（窗口/目录选择）与已有业务（Go backend）。
+      不重写前端 UI，不重写 Go 业务逻辑。
+    idempotency: |
+      Wails 项目初始化后，main.go 等文件由 Go 代码规范管理，
+      不与 gen.py 流水线交叉。wails dev 不影响 Go backend 状态。
+
+  migration_strategy:
+    summary: "从现有双进程（SvelteKit + Go）迁移到 Wails 单可执行文件，分阶段进行"
+    phase_1:
+      name: "Wails 脚手架 + 最小验证"
+      goal: "创建 main.go + wails.json，wails dev 能启动 + 显示 SvelteKit 前端"
+      deliverables:
+        - "main.go（Wails App struct + wails.Run()）"
+        - "wails.json（Wails 构建配置）"
+        - "go.mod 更新（添加 wails v2 依赖）"
+        - "frontend/svelte.config.js 更新（adapter-static）"
+      exit_criteria: "wails dev → 窗口打开 → WebView 显示 SvelteKit 前端 → 无报错"
+    phase_2:
+      name: "Go backend 子进程集成"
+      goal: "Wails 启动时自动启动 Go backend 子进程，WebView 能访问 /api"
+      deliverables:
+        - "Go: SpawnGoBackend() binding method"
+        - "Go: OnStartup → spawn backend process"
+        - "Go: OnBeforeClose → kill backend process"
+        - "wails dev 时 Vite proxy → Go backend localhost:33335"
+      exit_criteria: "Wails app 内 /api/health 返回 200"
+    phase_3:
+      name: "原生目录选择器替换 /workspace 输入"
+      goal: "/workspace 入口改用 Wails runtime.OpenDirectoryDialog"
+      deliverables:
+        - "Go: OpenDirectoryDialog binding method"
+        - "SvelteKit: /workspace 改用 Wails runtime API"
+        - "workspaceRoot 存入 localStorage"
+      exit_criteria: "点击「选择目录」→ 弹出系统目录选择器 → 选中后自动检测状态"
+    phase_4:
+      name: "生产打包验证"
+      goal: "wails build 生成可执行文件，分发无需 npm / go 环境"
+      deliverables:
+        - "wails build 成功"
+        - ".exe / .app / linux binary 在目标机器运行正常"
+      exit_criteria: "双击生成的 .exe → 启动 → Go backend 自动启动 → WebView 显示 /workspace"
+
+  constraint_preservation:
+    C5_local_first: "✅ 迁移后仍是 local-first：所有数据在本地，无服务端依赖"
+    C6_behavior_display: "✅ Canvas SSE 流不受影响：Go backend SSE endpoint 保持不变"
+    existing_workflow: "✅ /workspace → /workbench → spec 读写 → make validate/generate 链路完全保持"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-24"
+    author: "hermes"
+    changes:
+      - "初始骨架：Wails v2 替代 SvelteKit dev server + Go backend 子进程集成"
