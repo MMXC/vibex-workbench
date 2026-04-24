@@ -42,4 +42,6 @@ generators/agent-queue/
 
 # Build artifacts
 agent/web
+agent/cmd/web/vibex-agent-web
+backend/vibex-backend
 .gstack/

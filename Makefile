@@ -165,6 +165,16 @@ skill-sync-push:
 skill-sync-pull:
 	@SKILLS_LIVE_DIR=$(SKILLS_LIVE) bash $(SKILLS_SCRIPT) pull $(SKILL)
 
+# ── Agent binary ────────────────────────────────────────────────
+# agent/cmd/web is a separate Go module.
+# Build result placed at backend/vibex-backend (where main.go OnDomReady looks for it).
+
+.PHONY: agent-build
+agent-build:
+	@echo "[agent-build] Building Go agent..."
+	@cd $(ROOT)/agent/cmd/web && go build -o $(ROOT)/backend/vibex-backend .
+	@echo "[agent-build] OK → backend/vibex-backend"
+
 # ── Wails Native Shell ──────────────────────────────────────
 # Required: webkit2gtk-4.1 (not 4.0) on this system → tag webkit2_41
 WAILS_TAGS := webkit2_41
@@ -176,7 +186,8 @@ IS_HEADLESS := $(shell if [ -z "$$DISPLAY" ] && [ -z "$$WAYLAND_DISPLAY" ]; then
 WAILS_BIN := $(shell which wails 2>/dev/null || echo /root/go/bin/wails)
 
 .PHONY: wails-dev
-wails-dev:
+wails-dev: agent-build
+	@echo "[wails-dev] Starting VibeX Workbench..."
 	@if [ "$(IS_HEADLESS)" = "1" ]; then \
 		cd $(ROOT) && GOFLAGS="-tags=$(WAILS_TAGS)" xvfb-run -a $(WAILS_BIN) dev -tags "$(WAILS_TAGS)"; \
 	else \
@@ -184,7 +195,8 @@ wails-dev:
 	fi
 
 .PHONY: wails-dev-browser
-wails-dev-browser:
+wails-dev-browser: agent-build
+	@echo "[wails-dev-browser] Starting VibeX Workbench with devtools..."
 	@if [ "$(IS_HEADLESS)" = "1" ]; then \
 		cd $(ROOT) && GOFLAGS="-tags=$(WAILS_TAGS)" xvfb-run -a $(WAILS_BIN) dev -tags "$(WAILS_TAGS)" -devtools; \
 	else \
@@ -192,5 +204,6 @@ wails-dev-browser:
 	fi
 
 .PHONY: wails-build
-wails-build:
-	cd $(ROOT) && wails build -tags "$(WAILS_TAGS)"
+wails-build: agent-build build
+	@echo "[wails-build] Building production binary..."
+	@cd $(ROOT) && wails build -tags "$(WAILS_TAGS)"
