@@ -7,6 +7,8 @@ import { defineConfig, loadEnv } from 'vite';
  * - 若通过端口转发/代理访问，Vite 会自动处理 HMR WebSocket，无需手动配置。
  */
 const SSE_PORT = process.env.VITE_SSE_PORT || '33338';
+// Wails mode: Go backend subprocess runs on this port
+const BACKEND_PORT = process.env.VITE_BACKEND_PORT || '33335';
 
 export default defineConfig({
 	plugins: [sveltekit()],
@@ -17,7 +19,7 @@ export default defineConfig({
 		strictPort: false,
 		proxy: {
 			'/api': {
-				target: `http://localhost:${SSE_PORT}`,
+				target: `http://localhost:${BACKEND_PORT}`,
 				changeOrigin: true,
 				bypass(req) {
 					// SvelteKit server-side API routes — do NOT proxy, let SvelteKit handle

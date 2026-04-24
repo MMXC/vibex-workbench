@@ -164,3 +164,19 @@ skill-sync-push:
 
 skill-sync-pull:
 	@SKILLS_LIVE_DIR=$(SKILLS_LIVE) bash $(SKILLS_SCRIPT) pull $(SKILL)
+
+# ── Wails Native Shell ──────────────────────────────────────
+# Required: webkit2gtk-4.1 (not 4.0) on this system → tag webkit2_41
+WAILS_TAGS := webkit2_41
+
+.PHONY: wails-dev
+wails-dev:
+	cd $(ROOT) && GOFLAGS="-tags=$(WAILS_TAGS)" xvfb-run -a wails dev -tags "$(WAILS_TAGS)"
+
+.PHONY: wails-dev-browser
+wails-dev-browser:
+	cd $(ROOT) && GOFLAGS="-tags=$(WAILS_TAGS)" wails dev -tags "$(WAILS_TAGS)" -devtools
+
+.PHONY: wails-build
+wails-build:
+	cd $(ROOT) && wails build -tags "$(WAILS_TAGS)"
