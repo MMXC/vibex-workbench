@@ -6,7 +6,9 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,6 +26,40 @@ import (
 
 //go:embed all:frontend/build
 var assets embed.FS
+
+// indexHTML returns the embedded index.html content.
+// Used by the SPA fallback handler.
+func getIndexHTML() ([]byte, error) {
+	f, err := assets.Open("index.html")
+	if err != nil {
+		return nil, fmt.Errorf("open index.html from embed: %w", err)
+	}
+	defer f.Close()
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return nil, fmt.Errorf("read index.html: %w", err)
+	}
+	return data, nil
+}
+
+// spaFallbackHandler serves index.html for any GET request that the
+// embed cannot satisfy. This enables SPA client-side routing (e.g. /workbench).
+type spaFallbackHandler struct{}
+
+func (h *spaFallbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	data, err := getIndexHTML()
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
+}
 
 // App — 所有 Wails binding methods 都定义在此 struct 上
 type App struct {
@@ -275,6 +311,7 @@ func main() {
 			Height: 800,
 			AssetServer: &assetserver.Options{
 				Assets: assets,
+				Handler: &spaFallbackHandler{},
 			},
 			BackgroundColour: options.NewRGBA(30, 30, 30, 255),
 			Bind: []interface{}{app},
