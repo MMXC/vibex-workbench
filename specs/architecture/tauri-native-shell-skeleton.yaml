@@ -1,0 +1,198 @@
+# ============================================================
+# Level 2 — Tauri Native Shell 骨架规格
+# Skeleton Specification
+#
+# parent: vibex-workbench-skeleton (L2)
+# 从现有 L2 派生：迁移至 Tauri 本地桌面，替代 SvelteKit-only 浏览器端
+# 解决：浏览器端无法原生访问本地文件 + 用户必须跑两进程才能用的体验问题
+# ============================================================
+
+spec:
+  version: "0.1"
+  level: "2_skeleton"
+  name: "tauri-native-shell-skeleton"
+  parent: "vibex-workbench-skeleton"
+  status: "proposal"
+
+meta:
+  project: "vibex-workbench"
+  module: "tauri-native-shell"
+  owner: "hermes"
+  created: "2026-04-24"
+  updated: "2026-04-24"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-24T14:00:00"
+  history:
+    - status: "proposal"
+      at: "2026-04-24T14:00:00"
+      by: "hermes"
+      trigger: "user:manual"
+      note: "初始骨架：从 SvelteKit-only 迁移到 Tauri 本地桌面"
+
+# ── IO 契约 ──────────────────────────────────────────────────
+io_contract:
+  input: |
+    vibex-workbench-skeleton（L2）：SvelteKit 前端 + Go backend 双进程架构
+    + 用户反馈：需要本地双击即用、不靠端口、不起两进程
+    + 迁移决策：SvelteKit 前端保留，Tauri 替代 npm dev + go run
+  output: |
+    Tauri 本地桌面应用：
+    - 单个 .exe / .app，双击启动
+    - 启动时自动 spawn Go backend 子进程
+    - WebView 内跑 SvelteKit 前端（无需端口）
+    - /workspace 入口用原生目录选择器
+  boundary: |
+    Tauri 层只负责：进程生命周期、目录选择、窗口管理。
+    不改变 SvelteKit 前端路由、Go backend 业务逻辑、spec 生成流水线。
+  behavior: |
+    1. 用户双击 Tauri app → 启动 Rust 主进程
+    2. Rust 启动 Go backend 子进程（同一工作目录）
+    3. Rust 打开 WebView，加载 SvelteKit（dev: localhost:5173 / prod: 打包后的文件）
+    4. 前端 /workspace 路由通过 Tauri IPC 调用原生目录选择器
+    5. 退出时 Rust 负责回收 Go 子进程
+
+# ── 技术选型 ────────────────────────────────────────────────
+content:
+  tech_stack:
+    language: "Rust (Tauri) + TypeScript (SvelteKit) + Go (backend)"
+    framework: "Tauri v2 + SvelteKit（现有前端） + Gin-ish Go HTTP（现有 backend）"
+    key_libraries:
+      - name: "@tauri-apps/api"
+        version: "^2"
+        purpose: "Rust ↔ WebView IPC 调用"
+      - name: "tauri-plugin-shell"
+        version: "^2"
+        purpose: "Tauri 内管理子进程（Go backend）"
+      - name: "tauri-plugin-dialog"
+        version: "^2"
+        purpose: "原生目录选择器（替代 webkitdirectory input）"
+      - name: "tauri-plugin-process"
+        version: "^2"
+        purpose: "窗口退出时清理 Go 子进程"
+    runtime: "Tauri v2 + SvelteKit 5 + Go 1.22+"
+    package_manager: "npm (frontend) + cargo (Tauri)"
+
+  modules_matrix:
+    - module: "tauri-native-shell"
+      responsibility: "Tauri 应用入口、Rust 主进程、窗口管理、子进程生命周期、原生目录选择"
+      public_api:
+        - "TauriApp.run() — 启动应用"
+        - "invoke('open-directory-picker') — 触发原生目录选择"
+        - "invoke('spawn-go-backend') — 启动 Go backend 子进程"
+        - "invoke('get-workspace-root') — 读取当前工作区根路径"
+      depends_on: []
+      generated_by: "src-tauri/src/main.rs + Cargo.toml（手写，不走 gen.py）"
+
+    - module: "sveltekit-frontend"
+      responsibility: "SvelteKit 前端（/workspace + /workbench），Tauri WebView 内运行"
+      public_api:
+        - "/workspace — 工作区选择入口"
+        - "/workbench — 主工作台"
+        - "/api/workspace/* — workspace API 调用（走 Tauri IPC 而非 HTTP）"
+      depends_on: ["tauri-native-shell"]
+      generated_by: "frontend/（现有，保持不变）"
+
+    - module: "go-backend"
+      responsibility: "Go HTTP backend（SSE + workspace API），作为 Tauri 子进程运行"
+      public_api:
+        - "GET /api/sse/:threadId — SSE 流"
+        - "POST /api/workspace/detect-state — 检测目录状态"
+        - "POST /api/workspace/scaffold — 初始化脚手架"
+        - "POST /api/workspace/run-make — 执行 make target"
+      depends_on: ["tauri-native-shell"]
+      generated_by: "backend/main.go（现有，保持不变）"
+
+  api_design:
+    tauri_ipc_contracts:
+      - command: "open-directory-picker"
+        returns: "{ path: string | null }"
+        description: "触发原生目录选择器，用户取消返回 null"
+      - command: "get-workspace-root"
+        returns: "{ path: string }"
+        description: "返回当前工作区根路径（上次选中的或默认）"
+      - command: "spawn-go-backend"
+        returns: "{ ok: boolean, port: number }"
+        description: "启动 Go backend 子进程，返回监听端口"
+      - command: "run-make"
+        args: "{ target: string, workspace: string }"
+        returns: "{ ok: boolean, output: string }"
+        description: "通过 Tauri → Go backend → make 命令"
+
+  entry_points:
+    - type: "desktop-app"
+      command: "双击 TauriApp.exe / TauriApp.app"
+      description: "用户入口：双击即用，无需终端"
+
+  l2_l3_lineage:
+    summary: |
+      L2 定义 Tauri 迁移架构：Rust 主进程 + SvelteKit WebView + Go 子进程。
+      L3 把 tauri-native-shell 模块展开为 Rust IPC 命令实现与子进程管理细节。
+    which_modules_become_l3:
+      - module: "tauri-native-shell"
+        l3_note: "Rust main.rs、Tauri commands、Go 子进程 spawn/cleanup、Cargo.toml 依赖"
+    module_boundaries:
+      - boundary: "Tauri (Rust) ↔ WebView (SvelteKit)"
+        rationale: "Tauri 通过 invoke() 暴露 Rust 命令，前端 ts 调用；WebView 跑 SvelteKit 无需网络端口"
+      - boundary: "Tauri (Rust) ↔ Go backend (子进程)"
+        rationale: "Rust 通过 Command::new 启动 Go binary，端口固定或通过 args 传递；Rust 持有 PID，退出时 kill"
+      - boundary: "SvelteKit ↔ Go backend"
+        rationale: "dev 时走 Vite proxy（localhost:5173 → localhost:33335）；prod 时走 Tauri IPC invoke → Rust → HTTP to localhost:33335（Go 作为独立服务启动）或直接 Go binary 调用"
+
+  bootstrap_hints:
+    gen_py_pattern: |
+      本 spec 不走 gen.py。Tauri 相关文件（src-tauri/）为手写 Rust，
+      SvelteKit 前端和 Go backend 保持现有实现不变。
+    skeleton_principle: |
+      Tauri 层 = 胶水层：连接用户交互（窗口/目录选择）与已有业务（Go backend）。
+      不重写前端 UI，不重写 Go 业务逻辑。
+    idempotency: |
+      Tauri 项目初始化后，src-tauri/ 内文件由 Rust 代码规范管理，
+      不与 gen.py 流水线交叉。重启 Tauri dev 不影响 Go backend 状态。
+
+  migration_strategy:
+    summary: "从现有双进程（SvelteKit + Go）迁移到 Tauri 单应用，分阶段进行"
+    phase_1:
+      name: "Tauri 脚手架 + 最小验证"
+      goal: "创建 src-tauri/，Tauri 能启动 + 显示空白 WebView"
+      deliverables:
+        - "src-tauri/Cargo.toml + tauri.conf.json"
+        - "src-tauri/src/main.rs（最小 Rust 入口）"
+        - "tauri dev 能启动，显示 Tauri 默认窗口"
+      exit_criteria: "双击 Tauri app → 窗口打开 → 无报错"
+    phase_2:
+      name: "Go backend 子进程集成"
+      goal: "Tauri 启动时自动启动 Go backend 子进程，WebView 能访问 /api"
+      deliverables:
+        - "Rust: spawn_go_backend() command"
+        - "Rust: on_window_close → kill Go PID"
+        - "Go backend 作为独立 HTTP 服务（现有端口 33335 或随机可用端口）"
+      exit_criteria: "Tauri app 内打开 http://localhost:33335/api/health 返回 200"
+    phase_3:
+      name: "原生目录选择器替换 /workspace 输入"
+      goal: "/workspace 入口改用 Tauri 原生 dialog，替代手动输入路径"
+      deliverables:
+        - "Rust: open_directory_picker() command"
+        - "SvelteKit: /workspace 改用 Tauri dialog API"
+        - "workspaceRoot 存入 localStorage + Tauri store"
+      exit_criteria: "点击「选择目录」→ 弹出系统目录选择器 → 选中后自动检测状态"
+    phase_4:
+      name: "生产打包验证"
+      goal: "Tauri build 生成 .exe / .app，分发无需 npm / go 环境"
+      deliverables:
+        - "tauri build 成功"
+        - ".exe 在无 Rust/Go 环境的机器上运行正常"
+      exit_criteria: "双击生成的 .exe → 启动 → Go backend 自动启动 → WebView 显示 /workspace"
+
+  constraint_preservation:
+    C5_local_first: "✅ 迁移后仍是 local-first：所有数据在本地，无服务端依赖"
+    C6_behavior_display: "✅ Canvas SSE 流不受影响：Go backend SSE endpoint 保持不变"
+    existing_workflow: "✅ /workspace → /workbench → spec 读写 → make validate/generate 链路完全保持"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-24"
+    author: "hermes"
+    changes:
+      - "初始骨架：Tauri 替代 SvelteKit dev server + Go backend 子进程集成"
