@@ -30,14 +30,17 @@ var assets embed.FS
 // indexHTML returns the embedded index.html content.
 // Used by the SPA fallback handler.
 func getIndexHTML() ([]byte, error) {
+	// Try embed first
 	f, err := assets.Open("index.html")
-	if err != nil {
-		return nil, fmt.Errorf("open index.html from embed: %w", err)
+	if err == nil {
+		defer f.Close()
+		return io.ReadAll(f)
 	}
-	defer f.Close()
-	data, err := io.ReadAll(f)
+	// Fallback: read directly from disk (dev mode)
+	diskPath := "frontend/build/index.html"
+	data, err := os.ReadFile(diskPath)
 	if err != nil {
-		return nil, fmt.Errorf("read index.html: %w", err)
+		return nil, fmt.Errorf("embed index.html: %w; disk fallback %s: %v", err, diskPath, err)
 	}
 	return data, nil
 }
@@ -54,7 +57,9 @@ func (h *spaFallbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data, err := getIndexHTML()
 	if err != nil {
 		fmt.Printf("[spaFallback] getIndexHTML error: %v\n", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "Internal Server Error: %v\n", err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
