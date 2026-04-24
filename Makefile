@@ -196,14 +196,43 @@ frontend-build:
 # Required: webkit2gtk-4.1 (not 4.0) on this system → tag webkit2_41
 WAILS_TAGS := webkit2_41
 
+# Detect OS: windows/linux/darwin (using Go so it's always reliable with Wails)
+IS_WINDOWS := $(shell go env GOOS 2>/dev/null | grep -q windows && echo 1 || echo 0)
+
+# Check if wails.localhost resolves
+WAILS_HOST_RESOLVES := $(shell go env GOOS 2>/dev/null | grep -q windows && \
+	ping -n 1 -w 500 wails.localhost >NUL 2>&1 && echo 1 || echo 0 || echo 1)
+
 # Detect headless: no DISPLAY + no WSLG display → use xvfb
 IS_HEADLESS := $(shell if [ -z "$$DISPLAY" ] && [ -z "$$WAYLAND_DISPLAY" ]; then echo 1; else echo 0; fi)
 
 # wails binary location
 WAILS_BIN := $(shell which wails 2>/dev/null || echo /root/go/bin/wails)
 
+# ── Windows hosts fix ─────────────────────────────────────────
+# Windows can't resolve wails.localhost (no mDNS/Bonjour).
+# Auto-add 127.0.0.1 wails.localhost to hosts file if needed.
+.PHONY: wails-hosts-setup
+wails-hosts-setup:
+ifneq ($(strip $(IS_WINDOWS)),0)
+	@echo "[wails-hosts] Checking wails.localhost resolution..."
+	@powershell -Command " \
+		$$h='C:\\Windows\\System32\\drivers\\etc\\hosts'; \
+		$$l='127.0.0.1  wails.localhost'; \
+		if(!(Select-String -Path $$h -Pattern 'wails.localhost' -Quiet)) { \
+			Write-Host '[wails-hosts] Adding wails.localhost to hosts file (needs admin)...'; \
+			$$a=@(); \
+			Get-Content $$h | ForEach-Object { $$a+=$_ }; \
+			$$a+=''; $$a+='# Added by VibeX Workbench'; $$a+=$$l; \
+			Set-Content -Path $$h -Value ($$a -join \"`r`n\"); \
+			Write-Host '[wails-hosts] Done.'; \
+		} else { \
+			Write-Host '[wails-hosts] wails.localhost already in hosts file.'; \
+		}"
+endif
+
 .PHONY: wails-dev
-wails-dev: agent-build frontend-build
+wails-dev: agent-build frontend-build wails-hosts-setup
 	@echo "[wails-dev] Starting VibeX Workbench..."
 	@if [ "$(IS_HEADLESS)" = "1" ]; then \
 		cd $(ROOT) && GOFLAGS="-tags=$(WAILS_TAGS)" xvfb-run -a $(WAILS_BIN) dev -tags "$(WAILS_TAGS)"; \
@@ -212,7 +241,7 @@ wails-dev: agent-build frontend-build
 	fi
 
 .PHONY: wails-dev-browser
-wails-dev-browser: agent-build
+wails-dev-browser: agent-build wails-hosts-setup
 	@echo "[wails-dev-browser] Starting VibeX Workbench with devtools..."
 	@if [ "$(IS_HEADLESS)" = "1" ]; then \
 		cd $(ROOT) && GOFLAGS="-tags=$(WAILS_TAGS)" xvfb-run -a $(WAILS_BIN) dev -tags "$(WAILS_TAGS)" -devtools; \
