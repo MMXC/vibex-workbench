@@ -53,6 +53,7 @@ func (h *spaFallbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	data, err := getIndexHTML()
 	if err != nil {
+		fmt.Printf("[spaFallback] getIndexHTML error: %v\n", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
