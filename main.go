@@ -269,7 +269,13 @@ func main() {
 				runtime.MenuSetApplicationMenu(ctx, appMenu)
 			},
 			OnDomReady: func(ctx context.Context) {
-				// DOM ready, frontend JS is running
+				// 启动时自动 spawn Go backend
+				go func() {
+					_, err := app.SpawnGoBackend(ctx)
+					if err != nil {
+						runtime.LogError(ctx, "Auto-spawn backend failed: "+err.Error())
+					}
+				}()
 			},
 			OnBeforeClose: func(ctx context.Context) bool {
 				app.KillGoBackend(ctx)

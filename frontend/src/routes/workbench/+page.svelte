@@ -5,6 +5,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 ============================================================ -->
 
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { sseConsumer } from '$lib/sse';
 	import {
 		connectWorkbenchMessageBridge,
@@ -20,12 +21,54 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 	import WorkbenchCenterTabs from '$lib/components/workbench/WorkbenchCenterTabs.svelte';
 	import R2Dock from '$lib/components/workbench/R2Dock.svelte';
 	import SpecViewer from '$lib/components/workbench/SpecViewer.svelte';
+	import StatusBar from '$lib/components/workbench/StatusBar.svelte';
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
 
 	const SSE_URL = import.meta.env.VITE_SSE_URL || 'http://localhost:33335';
 	const useMockBackend =
 		import.meta.env.VITE_MOCK_SSE === '1' || import.meta.env.VITE_MOCK_SSE === 'true';
+
+	// Status bar state
+	let workspaceRoot = $state('—');
+	let backendStatus = $state<'connecting' | 'ready' | 'error'>('connecting');
+	let workspaceState = $state<'empty' | 'half' | 'ready'>('empty');
+
 	let prevThreadId: string | null = null;
+
+	// 监听 Wails backend 事件
+	onMount(() => {
+		const rt = (window as any).runtime;
+		if (!rt) return;
+
+		rt.EventsOn('backend:ready', (data: any) => {
+			backendStatus = 'ready';
+			console.log('[Workbench] Backend ready:', data);
+		});
+		rt.EventsOn('backend:error', (_msg: any) => {
+			backendStatus = 'error';
+		});
+		rt.EventsOn('workspace:selected', (path: string) => {
+			workspaceRoot = path;
+			detectWorkspaceState(path);
+		});
+	});
+
+	/** 检测 workspace 状态：空 / 半成品 / 就绪 */
+	async function detectWorkspaceState(root: string) {
+		try {
+			const res = await fetch(`/api/workspace/detect-state`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ workspaceRoot: root }),
+			});
+			if (res.ok) {
+				const data = await res.json();
+				workspaceState = data.state ?? 'empty';
+			}
+		} catch {
+			// ignore — state stays 'empty'
+		}
+	}
 
 	function sseConnectPath(tid: string) {
 		return useMockBackend
@@ -135,6 +178,14 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 
 		{#snippet dock()}
 			<R2Dock />
+		{/snippet}
+
+		{#snippet statusbar()}
+			<StatusBar
+				{workspaceRoot}
+				{backendStatus}
+				{workspaceState}
+			/>
 		{/snippet}
 	</WorkbenchLayoutResizable>
 </div>

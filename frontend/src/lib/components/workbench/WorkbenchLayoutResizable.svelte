@@ -20,9 +20,10 @@ Spec: workbench-layout_resize_feature + workbench-ide-chrome
 		main?: Snippet;
 		rightPanel?: Snippet;
 		dock?: Snippet;
+		statusbar?: Snippet;
 	}
 
-	let { titlebar, activityBar, sidebar, main, rightPanel, dock }: Props = $props();
+	let { titlebar, activityBar, sidebar, main, rightPanel, dock, statusbar }: Props = $props();
 
 	let dims = $state<WorkbenchLayoutDims>({
 		sidebarLeftPx: 260,
@@ -163,6 +164,10 @@ Spec: workbench-layout_resize_feature + workbench-ide-chrome
 			{@render dock()}
 		{/if}
 	</div>
+
+	{#if statusbar}
+		{@render statusbar()}
+	{/if}
 </div>
 
 <style>
