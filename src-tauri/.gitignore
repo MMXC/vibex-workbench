@@ -1,0 +1,16 @@
+# Tauri
+src-tauri/target/
+src-tauri/Cargo.lock
+
+# Build
+*.exe
+*.dmg
+*.app
+*.deb
+*.rpm
+*.msi
+
+# Icons
+src-tauri/icons/*.icns
+src-tauri/icons/*.ico
+src-tauri/icons/*.png

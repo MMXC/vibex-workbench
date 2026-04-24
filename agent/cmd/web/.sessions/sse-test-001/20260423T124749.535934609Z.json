@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "saved_at": "2026-04-23T12:47:49.535941557Z",
+  "messages": [
+    {
+      "type": "message",
+      "role": "developer",
+      "content": "You are an expert code generator. Your task is to generate code files based on a specification.\n\nIMPORTANT RULES:\n1. For MULTI-ARTIFACT specs (e.g., gen.py + 3 functions), output each artifact SEPARATELY:\n   # FILE: gen.py\n   ```python\n   import argparse\n   def parse_args(...): ...\n   def load_spec(...): ...\n   def dispatch_generation(...): ...\n   ```\n   # FILE: gen.py::parse_args\n   ```python\n   def parse_args(argv: list[str]) -\u003e argparse.Namespace:\n       ...\n   ```\n   # FILE: gen.py::load_spec\n   ```python\n   def load_spec(path: str) -\u003e dict:\n       ...\n   ```\n   # FILE: gen.py::dispatch_generation\n   ```python\n   def dispatch_generation(spec: dict, options: dict) -\u003e list[str]:\n       ...\n   ```\n2. For SINGLE-ARTIFACT specs, output just one # FILE: block.\n3. If a filepath contains :: (e.g. gen.py::parse_args), the :: part is a FUNCTION NAME.\n   Write the full file with that function added/updated. Keep other existing functions intact.\n4. After writing all files, also print the # FILE: markers so the evaluation framework can detect them.\n5. Use bash to run tests or validate syntax.\n\nGenerate all requested files now. Start with the main entry point."
+    },
+    {
+      "type": "message",
+      "role": "user",
+      "content": "say hello"
+    },
+    {
+      "type": "message",
+      "role": "assistant",
+      "content": "\u003cthink\u003e\nThe user wants me to generate code files based on a specification. However, looking at the message, it seems like there's no actual specification provided - the user just says \"say hello\" at the end.\n\nLet me re-read the prompt. It appears to be a framework prompt that defines how I should generate code, and then there's a user message that says \"say hello\" and some system instructions about using todo_set and skill_load.\n\nSince there's no specification provided, but the user says \"say hello\", I think they want me to just greet them and ask for the specification. Let me do that.\n\nActually, looking more carefully at the system message, it seems like this might be a test or a framework that's being set up. The user message ends with \"say hello\" which could be:\n\n1. A simple greeting request\n2. Part of a test\n3. Something else\n\nGiven the context, I think the most appropriate response is to greet them and ask for the specification they want me to work with, since my role is to generate code based on a specification.\n\nLet me write a simple hello response.\n\u003c/think\u003e\n\nHello! 👋\n\nI'm ready to help you generate code files based on your specifications. However, I don't see a specification provided in your message.\n\nPlease provide:\n- The specification for the code you want me to generate\n- Details about the files, functions, or artifacts needed\n- Any specific requirements or constraints\n\nOnce you share the specification, I'll generate the requested code files following the guidelines in my system instructions.\n\nWhat would you like me to build?"
+    }
+  ],
+  "todo": {
+    "version": 0,
+    "phase": "empty"
+  }
+}

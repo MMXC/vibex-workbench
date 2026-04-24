@@ -1,0 +1,35 @@
+---
+spec:
+  version: "0.1"
+  level: "3_module"
+  name: "MOD-workspace-root"
+  parent: "vibex-workbench-skeleton"
+  status: "proposal"
+
+meta:
+  type: "module"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-24"
+  updated: "2026-04-24"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-24"
+
+io_contract:
+  input: |
+    用户在 UI 指定一个目录路径（通过目录选择器或输入框）
+  output: |
+    WORKSPACE_ROOT 贯穿全链路：
+    - frontend store 更新
+    - backend env 注入
+    - agent WORKSPACE_ROOT env
+    - 所有 API 请求携带 workspace_root header/param
+  boundary: |
+    只负责"路径绑定"，不负责路径有效性检查（那是 state detection 的职责）
+  behavior:
+    - "用户输入/选择目录路径"
+    - "frontend store.setWorkspaceRoot(path)"
+    - "所有 backend/agent 请求携带 WORKSPACE_ROOT header"
+    - "agent 进程重启使用新 WORKSPACE_ROOT"

@@ -1,0 +1,67 @@
+---
+spec:
+  version: "0.1"
+  level: "3_module"
+  name: "MOD-scaffolding"
+  parent: "vibex-workbench-skeleton"
+  status: "proposal"
+
+meta:
+  type: "module"
+  module: "generators"
+  owner: "hermes"
+  created: "2026-04-24"
+  updated: "2026-04-24"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-24"
+
+io_contract:
+  input: |
+    - WORKSPACE_ROOT（目标目录）
+    - options: {includeAgent: bool, includeFrontend: bool, includePython: bool}
+  output: |
+    在目标目录生成最小可跑骨架：
+    - specs/ 目录（含一份入口 L1 spec）
+    - generators/gen.py
+    - generators/validate_specs.py
+    - spec-engine/validate_chain.py
+    - Makefile（含 lint-specs / validate / generate target）
+    - frontend/package.json（可选）
+    - agent/.env.example（可选）
+  boundary: |
+    只做首次脚手架生成，不做增量更新。
+    不覆盖已有文件（幂等检查）。
+  behavior:
+    - "检查目标目录是否为空或 partial 状态"
+    - "读取 spec-templates 模板"
+    - "渲染骨架文件（目录结构 + 最小配置）"
+    - "写入磁盘前展示预览"
+    - "用户确认后写入"
+    - "返回生成结果摘要"
+
+content:
+  generated_artifacts:
+    - path: "specs/"
+      type: "directory"
+      content: "空目录，含 .gitkeep"
+    - path: "specs/L1-goal/ENTRY.yaml"
+      type: "file"
+      template: "spec-templates/L1-goal/L1-goal-template.yaml"
+    - path: "generators/gen.py"
+      type: "file"
+      template: "generators/gen.py skeleton"
+    - path: "generators/validate_specs.py"
+      type: "file"
+      source: "现有脚本"
+    - path: "spec-engine/validate_chain.py"
+      type: "file"
+      source: "现有脚本"
+    - path: "Makefile"
+      type: "file"
+      template: "vibex Makefile skeleton"
+    - path: "frontend/package.json"
+      type: "file"
+      source: "vibex-workbench 现有 package.json 简化版"
+      condition: "includeFrontend=true"

@@ -1,11 +1,20 @@
-<!-- R2 顶栏：品牌 Logo + 菜单 + 居中标题 + 设置 / Cursor 式窗口控件 -->
+<!-- R2 顶栏：品牌 Logo + 居中标题 + 设置
+     窗口控件（最小化/最大化/关闭）由系统原生标题栏提供，不再在 WebView 内渲染。
+     顶部菜单栏由 Wails 原生 MenuSetApplicationMenu 提供，不在此组件内。
+-->
 <script lang="ts">
 	let { title = 'VibeX Workbench' }: { title?: string } = $props();
-	const menus = ['文件', '编辑', '视图', '转到', '运行', '终端', '帮助'] as const;
+	const menus = ['文件', '编辑', '视图', '终端', '帮助'] as const;
 
-	/** Web 壳占位：无 Electron 时不执行窗口命令 */
-	function noopWin(_action: 'min' | 'max' | 'close'): void {
-		/* 桌面壳接入时可替换为 IPC */
+	/** Wails 桌面：调用 window.runtime 窗口管理 */
+	async function handleMinimize() {
+		await (window as any).runtime?.WindowMinimise();
+	}
+	async function handleMaximize() {
+		await (window as any).runtime?.WindowToggleMaximise();
+	}
+	async function handleClose() {
+		await (window as any).runtime?.Quit();
 	}
 </script>
 
@@ -14,11 +23,6 @@
 		<a class="brand" href="/workbench" title="VibeX Workbench" aria-label="VibeX Workbench">
 			<img class="brand-logo" src="/vibex-logo.svg" alt="" width="26" height="26" />
 		</a>
-		<div class="menu">
-			{#each menus as m (m)}
-				<button type="button" class="menu-btn">{m}</button>
-			{/each}
-		</div>
 	</div>
 
 	<span class="spacer" aria-hidden="true"></span>
@@ -27,23 +31,23 @@
 	<div class="trail">
 		<button type="button" class="icon-btn" title="设置" aria-label="设置">
 			<svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true">
-				<path
-					d="M12 15a3 3 0 100-6 3 3 0 000 6z"
-				/>
+				<path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
 				<path
 					d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"
 				/>
 			</svg>
 		</button>
 
-		<!-- Cursor / VS Code（Windows）式：细线图标 + 悬停底；关闭悬停红底 — 视觉对齐桌面 IDE -->
+		<!-- 桌面模式：显示真实窗口控件（浏览器模式下这些按钮仍保留用于占位）
+		     浏览器端：noop，无实际效果
+		     桌面端（Wails）：调用 window.runtime -->
 		<div class="window-controls" role="toolbar" aria-label="窗口">
 			<button
 				type="button"
 				class="win win-min"
 				title="最小化"
 				aria-label="最小化"
-				onclick={() => noopWin('min')}
+				onclick={handleMinimize}
 			>
 				<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
 					<path d="M2 6h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
@@ -54,7 +58,7 @@
 				class="win win-max"
 				title="最大化"
 				aria-label="最大化"
-				onclick={() => noopWin('max')}
+				onclick={handleMaximize}
 			>
 				<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
 					<rect
@@ -74,7 +78,7 @@
 				class="win win-close"
 				title="关闭"
 				aria-label="关闭"
-				onclick={() => noopWin('close')}
+				onclick={handleClose}
 			>
 				<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
 					<path d="M2 2l8 8M10 2L2 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
@@ -99,6 +103,9 @@
 		font-size: 12.5px;
 		color: var(--text-primary, #e8e8ed);
 		user-select: none;
+		/* 桌面端：系统标题栏已提供窗口控件，
+		   此处 win-min/win-max/win-close 可保留作备选/辅助，
+		   在 macOS 上可通过 Accessibility 使用系统原生按钮。 */
 	}
 
 	.lead {
@@ -129,31 +136,6 @@
 	.brand-logo {
 		display: block;
 		flex-shrink: 0;
-	}
-
-	.menu {
-		display: flex;
-		gap: 1px;
-		flex-shrink: 0;
-		align-items: center;
-	}
-
-	.menu-btn {
-		background: none;
-		border: none;
-		color: var(--text-secondary, #8a8a8e);
-		font: inherit;
-		padding: 5px 8px;
-		border-radius: var(--radius-sm, 3px);
-		cursor: default;
-		transition:
-			background 150ms ease,
-			color 150ms ease;
-	}
-
-	.menu-btn:hover {
-		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
-		color: var(--text-primary, #e8e8ed);
 	}
 
 	.spacer {

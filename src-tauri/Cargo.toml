@@ -1,0 +1,26 @@
+[package]
+name = "vibex-workbench"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+tauri = { version = "1.8", features = ["shell-open-api", "window-close"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+env_logger = "0.11"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
+
+# Force indexmap to 2.7.0 (last edition2021 version compatible with Rust 1.75).
+# indexmap 2.14.0 uses edition2024 which Cargo 1.75 can't parse.
+[patch.crates-io]
+indexmap = { path = "../patches/indexmap-2.7.0" }

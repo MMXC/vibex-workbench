@@ -1,0 +1,36 @@
+---
+spec:
+  version: "0.1"
+  level: "3_module"
+  name: "MOD-build-panel"
+  parent: "vibex-workbench-skeleton"
+  status: "proposal"
+
+meta:
+  type: "module"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-24"
+  updated: "2026-04-24"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-24"
+
+io_contract:
+  input: |
+    用户点击「校验 Spec」或「生成代码」按钮
+  output: |
+    执行 make lint-specs / make validate / make generate
+    返回 stdout/stderr 前 500 字符 + exit code
+    成功：绿色提示 "✅ lint-specs 通过"
+    失败：红色浮层，显示错误摘要
+  boundary: |
+    只负责"调用"和"展示结果"，不负责自动修复。
+    执行在 backend 进程（WORKSPACE_ROOT 环境变量注入）。
+  behavior:
+    - "用户点击按钮"
+    - "POST /api/workspace/run-make {target: 'lint-specs'}"
+    - "backend 执行 make -C WORKSPACE_ROOT target"
+    - "返回 {stdout, stderr, exit_code}"
+    - "前端展示结果或错误浮层"

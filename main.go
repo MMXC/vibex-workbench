@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -156,6 +157,85 @@ func (a *App) RunMake(ctx context.Context, target string, workspace string) (map
 	}, err
 }
 
+// ── App Menu ──────────────────────────────────────────────
+
+func buildAppMenu(ctx context.Context) *menu.Menu {
+	appMenu := menu.NewMenu()
+
+	// 文件
+	fileMenu := appMenu.AddSubmenu("文件")
+	fileMenu.AddText("新建项目", nil, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(ctx, "menu:new-project")
+	})
+	fileMenu.AddText("打开项目…", nil, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(ctx, "menu:open-project")
+	})
+	fileMenu.AddSeparator()
+	fileMenu.AddText("保存", nil, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(ctx, "menu:save")
+	})
+	fileMenu.AddSeparator()
+	fileMenu.AddText("退出", nil, func(_ *menu.CallbackData) {
+		runtime.Quit(ctx)
+	})
+
+	// 编辑
+	editMenu := appMenu.AddSubmenu("编辑")
+	editMenu.AddText("撤销", nil, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(ctx, "menu:undo")
+	})
+	editMenu.AddText("重做", nil, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(ctx, "menu:redo")
+	})
+	editMenu.AddSeparator()
+	editMenu.AddText("剪切", nil, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(ctx, "menu:cut")
+	})
+	editMenu.AddText("复制", nil, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(ctx, "menu:copy")
+	})
+	editMenu.AddText("粘贴", nil, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(ctx, "menu:paste")
+	})
+
+	// 视图
+	viewMenu := appMenu.AddSubmenu("视图")
+	viewMenu.AddText("侧边栏", nil, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(ctx, "menu:toggle-sidebar")
+	})
+	viewMenu.AddText("底部面板", nil, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(ctx, "menu:toggle-dock")
+	})
+	viewMenu.AddSeparator()
+	viewMenu.AddText("开发者工具", nil, func(_ *menu.CallbackData) {
+		runtime.WindowReload(ctx)
+	})
+
+	// 终端
+	termMenu := appMenu.AddSubmenu("终端")
+	termMenu.AddText("新建终端", nil, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(ctx, "menu:new-terminal")
+	})
+	termMenu.AddText("运行 make generate", nil, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(ctx, "menu:run-generate")
+	})
+	termMenu.AddText("运行 make lint-specs", nil, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(ctx, "menu:run-lint")
+	})
+
+	// 帮助
+	helpMenu := appMenu.AddSubmenu("帮助")
+	helpMenu.AddText("关于 VibeX Workbench", nil, func(_ *menu.CallbackData) {
+		runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
+			Type:    runtime.InfoDialog,
+			Title:   "关于 VibeX Workbench",
+			Message: "VibeX Workbench\n\n规格驱动的 AI 辅助开发工作台。\n\n版本: dev",
+		})
+	})
+
+	return appMenu
+}
+
 // ── Helper Functions ───────────────────────────────────────
 
 func isPortAvailable(port int) bool {
@@ -184,13 +264,16 @@ func main() {
 			Bind: []interface{}{app},
 			OnStartup: func(ctx context.Context) {
 				app.ctx = ctx
+				// 设置原生应用菜单
+				appMenu := buildAppMenu(ctx)
+				runtime.MenuSetApplicationMenu(ctx, appMenu)
 			},
 			OnDomReady: func(ctx context.Context) {
 				// DOM ready, frontend JS is running
 			},
 			OnBeforeClose: func(ctx context.Context) bool {
 				app.KillGoBackend(ctx)
-				return false
+				return true // 允许窗口关闭
 			},
 			OnShutdown: func(ctx context.Context) {
 				// cleanup

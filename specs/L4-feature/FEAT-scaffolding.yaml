@@ -1,0 +1,67 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-scaffolding"
+  parent: "MOD-scaffolding"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "generators"
+  owner: "hermes"
+  created: "2026-04-24"
+  updated: "2026-04-24"
+
+io_contract:
+  input: |
+    WORKSPACE_ROOT + scaffolding options
+  output: |
+    在目录生成最小骨架文件，写入结果摘要
+  boundary: |
+    不覆盖已有文件，只生成缺失部分
+  behavior:
+    - "前端打开 scaffolding wizard 抽屉"
+    - "展示将要创建的文件预览"
+    - "用户选择组件（agent/frontend/python）"
+    - "POST /api/workspace/scaffold → backend 生成文件"
+    - "展示生成结果 + 错误（如有）"
+
+content:
+  behaviors:
+    - id: "B1"
+      trigger: "用户在 empty 状态点击「初始化脚手架」"
+      action: "打开 wizard → 展示预览 → 用户确认 → POST scaffold"
+      expected_result: "目录出现 specs/ + generators/ + Makefile 等文件"
+      error_handling: "权限不足时显示 '无法写入目录，请检查权限'"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "开发者"
+      i_want: "点击一次就能生成完整项目骨架"
+      so_that: "不用手动创建目录和配置文件"
+      acceptance: "生成后 spec-editor 可打开，make validate 可运行"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "空目录初始化"
+      given: "/tmp/scaffold-test 为空"
+      when: "POST /api/workspace/scaffold"
+      then: "目录包含 specs/ + generators/gen.py + Makefile"
+      evaluation: "所有文件存在且格式正确"
+    - id: "TC-2"
+      scenario: "幂等性"
+      given: "目录已有部分骨架"
+      when: "再次 POST /api/workspace/scaffold"
+      then: "不覆盖已有文件，报告哪些文件跳过"
+      evaluation: "已有文件内容不变"
+
+  constraints:
+    - id: "C1"
+      name: "确认门槛"
+      rule: "写入前必须展示预览，用户点击确认"
+      validation: "没有确认步骤则不写入磁盘"
+    - id: "C2"
+      name: "幂等写入"
+      rule: "已有文件跳过，不覆盖"
+      validation: "重复运行不破坏已有内容"

@@ -1,0 +1,73 @@
+---
+spec:
+  version: "0.1"
+  level: "3_module"
+  name: "MOD-state-detection"
+  parent: "vibex-workbench-skeleton"
+  status: "proposal"
+
+meta:
+  type: "module"
+  module: "generators"
+  owner: "hermes"
+  created: "2026-04-24"
+  updated: "2026-04-24"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-24"
+
+io_contract:
+  input: |
+    仓库根目录路径（WORKSPACE_ROOT）
+  output: |
+    状态对象：
+    - state: "empty" | "partial" | "ready"
+    - signals: [{path, reason}]  # 触发判断的文件/目录列表
+    - suggestions: [string]       # 下一步建议文案
+  boundary: |
+    只做只读探测，不做写操作。
+    不提供自动修复建议，只给文案。
+  behavior:
+    - "检测 specs/ 是否存在"
+    - "检测 generators/gen.py 是否存在"
+    - "检测 frontend/package.json 是否存在"
+    - "检测 Makefile 是否含 lint-specs/generate"
+    - "综合判断状态 + 生成建议"
+
+content:
+  detection_signals:
+    empty:
+      signals:
+        - path: "specs/"
+          exists: false
+          reason: "无 specs 目录"
+        - path: "generators/gen.py"
+          exists: false
+          reason: "无生成器入口"
+      suggestions:
+        - "点击「初始化脚手架」开始搭建项目"
+    partial:
+      signals:
+        - path: "specs/"
+          exists: true
+          reason: "specs 目录存在"
+        - path: "generators/gen.py"
+          exists: false
+          reason: "生成器未配置"
+      suggestions:
+        - "运行「生成脚手架」补全目录结构"
+    ready:
+      signals:
+        - path: "specs/"
+          exists: true
+        - path: "generators/gen.py"
+          exists: true
+        - path: "Makefile"
+          exists: true
+          reason: "lint-specs/generate target 存在"
+        - path: "frontend/package.json"
+          exists: true
+      suggestions:
+        - "在 spec 编辑器中打开或新建规格文件"
+        - "运行「校验」检查 spec 质量"

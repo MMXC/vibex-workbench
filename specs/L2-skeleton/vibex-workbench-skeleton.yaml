@@ -1,0 +1,188 @@
+---
+spec:
+  version: "0.1"
+  level: "2_skeleton"
+  name: "vibex-workbench-skeleton"
+  parent: "vibex-workbench-mvp"
+  status: "proposal"
+
+meta:
+  type: "skeleton"
+  module: "vibex-workbench"
+  owner: "hermes"
+  created: "2026-04-24"
+  updated: "2026-04-24"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-24"
+  history:
+    - status: "proposal"
+      at: "2026-04-24T00:00:00"
+      by: "hermes"
+      trigger: "user:manual"
+      note: "定义技术骨架与模块划分"
+
+io_contract:
+  input: |
+    L1 goal spec（vibex-workbench-mvp）
+  output: |
+    技术骨架 spec，含：
+    - tech_stack（Go agent / SvelteKit frontend / Python generators）
+    - modules_matrix（agent / backend / frontend / generators / spec-templates）
+    - api_design（workspace API endpoints）
+    - entry_points（agent web server / frontend dev server）
+  boundary: |
+    L2 定义技术选型和模块划分，不定义模块内部实现（L3 职责）。
+  behavior:
+    - "解析 L1 mission 和 constraints"
+    - "拆解为 5 个技术模块"
+    - "定义模块间依赖关系"
+    - "输出 modules_matrix"
+
+content:
+  tech_stack:
+    language: "Go / TypeScript / Python"
+    framework: "nanoClaudeCode (agent) / SvelteKit (frontend) / stdlib (generators)"
+    key_libraries:
+      - name: "nanoClaudeCode"
+        version: "S01-S08"
+        purpose: "Go coding agent engine"
+      - name: "memlace"
+        version: "pure stdlib"
+        purpose: "轻量记忆系统，Go 实现"
+      - name: "SvelteKit"
+        version: "latest"
+        purpose: "前端 SSR 框架"
+      - name: "sse"
+        version: "stdlib"
+        purpose: "Server-Sent Events，agent ↔ frontend 通信"
+    runtime: "Go 1.22+ / Node.js 20+ / Python 3.11+"
+    package_manager: "go mod / npm / pip"
+
+  modules_matrix:
+    - module: "agent"
+      responsibility: "Go coding agent，通过 SSE 与前端通信，执行 tool calls"
+      public_api:
+        - "POST /api/chat"
+        - "GET /api/sse/{threadId}"
+        - "GET /api/threads/{threadId}/history"
+      depends_on: []
+      generated_by: null
+    - module: "backend"
+      responsibility: "轻量 Go HTTP 层，承载 workspace API + SSE bridge"
+      public_api:
+        - "GET /api/workspace/detect-state"
+        - "POST /api/workspace/scaffold"
+        - "POST /api/workspace/run-make"
+        - "GET /api/workspace/specs/list"
+        - "GET /api/workspace/specs/read"
+        - "POST /api/workspace/specs/write"
+      depends_on: ["agent"]
+      generated_by: null
+    - module: "frontend"
+      responsibility: "SvelteKit 应用，workbench shell + spec editor + canvas"
+      public_api:
+        - "GET /"
+        - "GET /workbench"
+      depends_on: ["backend", "generators"]
+      generated_by: "generators/spec-to-sveltekit/gen.py"
+    - module: "generators"
+      responsibility: "Python 代码生成器 + 校验脚本"
+      public_api:
+        - "generators/gen.py"
+        - "generators/validate_specs.py"
+        - "generators/spec-engine/validate_chain.py"
+        - "generators/state_detector.py"
+        - "generators/scaffolder.py"
+      depends_on: []
+      generated_by: null
+    - module: "spec-templates"
+      responsibility: "L0–L5 spec 模板，驱动 generator 骨架生成"
+      public_api:
+        - "spec-templates/L1-goal/"
+        - "spec-templates/L2-skeleton/"
+        - "spec-templates/L3-module/"
+        - "spec-templates/L4-feature/"
+        - "spec-templates/L5-slice/"
+      depends_on: []
+      generated_by: null
+
+  api_design:
+    base_url: "/api"
+    auth: "none (MVP 阶段无 Auth）"
+    key_endpoints:
+      - path: "/api/workspace/detect-state"
+        method: "GET"
+        description: "探测仓库状态：empty / partial / ready + 下一步建议"
+      - path: "/api/workspace/scaffold"
+        method: "POST"
+        description: "在仓库根生成最小脚手架"
+      - path: "/api/workspace/run-make"
+        method: "POST"
+        description: "执行 make target，返回 stdout/stderr"
+      - path: "/api/workspace/specs/list"
+        method: "GET"
+        description: "列出仓库中所有 spec 文件"
+      - path: "/api/workspace/specs/read"
+        method: "GET"
+        description: "读取单个 spec 文件内容"
+      - path: "/api/workspace/specs/write"
+        method: "POST"
+        description: "写入/创建 spec 文件"
+      - path: "/api/chat"
+        method: "POST"
+        description: "发送消息给 agent，返回 threadId"
+      - path: "/api/sse/{threadId}"
+        method: "GET"
+        description: "SSE 流，接收 agent 事件"
+
+  entry_points:
+    - type: "agent-web"
+      command: "cd agent && WORKSPACE_ROOT=$(pwd) go run ./cmd/web/"
+      port: 33338
+      description: "Go agent web server"
+    - type: "frontend-dev"
+      command: "cd frontend && npm run dev"
+      port: 5173
+      description: "SvelteKit 开发服务器"
+    - type: "make"
+      command: "make lint-specs && make validate && make generate"
+      description: "本地 spec 校验与代码生成"
+
+  l2_l3_lineage:
+    summary: |
+      L2 定义 5 个模块，L3 把每个模块展开为具体实现。
+      agent 模块已实现（L3 关注 tool handler 扩展）。
+      backend 模块部分实现（缺少 workspace API 实现）。
+      frontend 模块部分实现（services 层大量 NotImplemented）。
+      generators 模块部分实现（validate 已有，scaffolder/state_detector 缺失）。
+      spec-templates 模块完整。
+    which_modules_become_l3:
+      - module: "agent"
+        l3_note: "扩展 tool handlers，支持 MVP 5 项能力相关的 tool"
+      - module: "backend"
+        l3_note: "实现 workspace API endpoints"
+      - module: "frontend"
+        l3_note: "实现 spec-editor / state-detection UI / scaffolding wizard / make 按钮"
+      - module: "generators"
+        l3_note: "实现 state_detector.py + scaffolder.py + make-run API"
+      - module: "spec-templates"
+        l3_note: "模板已就绪，无需 L3"
+
+  bootstrap_hints:
+    gen_py_pattern: |
+      gen.py 读取 L3 module specs → 解析 modules_matrix →
+      对每个 module 查找对应模板 → 渲染 Skeleton 文件
+    skeleton_principle: |
+      Skeleton = 架构骨架 + 类型定义 + 公开 API 签名，
+      不含业务逻辑（那是开发者填的）
+    idempotency: |
+      gen.py 必须幂等：只覆盖 *.Skeleton.svelte，不覆盖 *.svelte
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-24"
+    author: "hermes"
+    changes:
+      - "初始骨架，定义 5 模块 + API 设计"

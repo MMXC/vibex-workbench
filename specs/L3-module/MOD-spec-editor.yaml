@@ -1,0 +1,36 @@
+---
+spec:
+  version: "0.1"
+  level: "3_module"
+  name: "MOD-spec-editor"
+  parent: "vibex-workbench-skeleton"
+  status: "proposal"
+
+meta:
+  type: "module"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-24"
+  updated: "2026-04-24"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-24"
+
+io_contract:
+  input: |
+    - 用户点击 spec 列表中的某一项
+    - 用户编辑 YAML 内容并点击保存
+    - 用户点击「新建 L1」触发向导
+  output: |
+    - spec 内容渲染到 CodeMirror 编辑器
+    - 保存后写入 SPEC_ROOT/specs/ 目录
+    - 触发 validate 校验，结果显示在浮层
+  boundary: |
+    只负责 spec 文件的读/写/列表。
+    不负责 spec 内容校验（L4 spec-editor 职责）。
+  behavior:
+    - "list: 调用 /api/workspace/specs/list → 渲染文件列表"
+    - "read: 调用 /api/workspace/specs/read?path=xxx → 渲染编辑器"
+    - "write: 调用 /api/workspace/specs/write → 保存到磁盘"
+    - "new: 加载 L1-goal-template.yaml → 渲染新建向导"

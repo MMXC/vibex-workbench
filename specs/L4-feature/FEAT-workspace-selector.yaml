@@ -1,0 +1,65 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-workspace-selector"
+  parent: "MOD-workspace-root"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-24"
+  updated: "2026-04-24"
+
+io_contract:
+  input: |
+    用户点击工作台顶栏的仓库路径输入框，输入或选择目录
+  output: |
+    - 路径写入 frontend store（workspaceRoot）
+    - 触发 state detection（自动探测新仓库状态）
+    - agent 进程感知（通过 SSE 重连或 env 注入）
+  boundary: |
+    路径选择后触发 state detection，不负责验证路径合法性
+  behavior:
+    - "用户在路径输入框输入或使用目录选择器"
+    - "store.setWorkspaceRoot(path) 更新"
+    - "触发 /api/workspace/detect-state"
+    - "更新 UI 状态指示器（空/半/就绪）"
+    - "如果 agent 已连接，发送 reset 事件重置上下文"
+
+content:
+  behaviors:
+    - id: "B1"
+      trigger: "用户输入有效目录路径并按 Enter"
+      action: "store.setWorkspaceRoot → SSE reconnect"
+      expected_result: "状态指示器更新，显示新仓库状态"
+      error_handling: "路径无效时显示红色边框 + '目录不存在' 提示"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "开发者"
+      i_want: "能切换当前工作的仓库根"
+      so_that: "在同一窗口内管理多个项目"
+      acceptance: "切换后所有 API/agent 命令都在新目录执行"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "用户输入空目录路径"
+      given: "仓库根为空"
+      when: "用户输入 /tmp/new-project 并回车"
+      then: "state detection 返回 'empty'，显示初始化脚手架按钮"
+      evaluation: "UI 正确显示 'empty' 状态"
+    - id: "TC-2"
+      scenario: "用户输入已配置的仓库路径"
+      given: "仓库根为已有项目"
+      when: "用户输入 /root/v-test 并回车"
+      then: "state detection 返回 'ready'，显示 spec 列表"
+      evaluation: "UI 正确显示 'ready' 状态"
+
+  constraints:
+    - id: "C1"
+      name: "路径持久化"
+      rule: "切换后路径需写入 localStorage，下次启动自动恢复"
+      validation: "刷新页面后路径一致"

@@ -1,0 +1,116 @@
+---
+spec:
+  version: "0.1"
+  level: "1_project-goal"
+  name: "vibex-workbench-mvp"
+  parent: null
+  status: "proposal"
+
+meta:
+  type: "project-goal"
+  owner: "hermes"
+  created: "2026-04-24"
+  updated: "2026-04-24"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-24"
+  history:
+    - status: "proposal"
+      at: "2026-04-24T00:00:00"
+      by: "hermes"
+      trigger: "user:manual"
+      note: "基于空仓库场景定义 MVP 目标"
+
+io_contract:
+  input: |
+    用户选定一个空目录，描述产品意图（如"我想做一个笔记应用"），
+    系统从零开始完成：脚手架 → spec 编写 → 校验/生成 → 可运行项目。
+  output: |
+    一个完整可运行的项目，含：
+    - specs/L1–L5 规格文件
+    - 最小可跑骨架（目录结构、生成器、配置）
+    - spec → 代码的校验/生成闭环
+  boundary: |
+    MVP 只支持"空仓库 → 边做边长"单链路。
+    不支持：多 workspace 并行、历史 spec 迁移、图谱全量编辑。
+  behavior:
+    - "用户选定仓库根"
+    - "系统探测目录状态（空/半/就绪）"
+    - "用户确认后写入最小脚手架"
+    - "用户编写 L1–L4 spec"
+    - "系统校验 spec 语法 + 父子链"
+    - "系统生成代码骨架"
+    - "用户迭代 spec → 生成 → 验收"
+
+content:
+  mission: |
+    VibeX Workbench 是一个"空仓库脚手架 + spec 驱动开发"的桌面工作台。
+    用户指定一个空目录，描述产品意图，系统生成最小可跑骨架，
+    用户在 spec 编辑器中编写规格，系统完成校验与代码生成，形成完整闭环。
+
+  target_users:
+    - name: "独立开发者"
+      description: "想快速从想法落地为可运行项目的开发者"
+      pain_point: "开新项目时目录结构/配置/脚手架的选择耗时"
+
+  constraints:
+    - id: "C1"
+      name: "仓库根唯一性"
+      rule: "所有读写/命令统一在用户选定的仓库根下执行，不允许跨目录"
+      verification: "WORKSPACE_ROOT env 贯穿 agent/backend/frontend 全链路"
+    - id: "C2"
+      name: "显式确认门槛"
+      rule: "首次写入脚手架必须经过用户确认，不能静默污染磁盘"
+      verification: "scaffolding wizard 有确认步骤"
+    - id: "C3"
+      name: "spec 写闭环"
+      rule: "用户能读 spec 也能写 spec，保存后能触发校验"
+      verification: "spec-editor 写 API 连通 + 校验按钮可用"
+    - id: "C4"
+      name: "可验证链路"
+      rule: "make validate/generate 在 UI 可触发，失败时显示错误摘要"
+      verification: "前端有 make 按钮，错误时显示 stdout 前 500 字符"
+
+  l1_l2_lineage:
+    summary: |
+      L1 定义"空仓库脚手架 + spec 驱动开发"作为产品能力集。
+      L2 将能力集落地为具体技术架构（agent/backend/frontend/generators）。
+    what_l1_owns:
+      - "MVP 5 项能力的边界定义"
+      - "用户场景：空目录 → 边做边长"
+      - "成功标准：不依赖外部模板，纯原生落地"
+    what_l2_owns:
+      - "Go agent（nanoClaudeCode 扩展）"
+      - "SvelteKit 前端"
+      - "Python generators（gen.py 等）"
+      - "memlace（Go实现的轻量记忆系统）"
+      - "spec-templates（L0–L5 模板）"
+    traceability:
+      - l1_concern: "用户能指定仓库根"
+        in_l2: "frontend workspace-root.ts + backend WORKSPACE_ROOT env"
+      - l1_concern: "能探测目录状态"
+        in_l2: "generators/state_detector.py"
+      - l1_concern: "能生成脚手架"
+        in_l2: "generators/scaffolder.py + spec-templates"
+      - l1_concern: "能读写 spec"
+        in_l2: "frontend spec-editor + API routes + backend"
+      - l1_concern: "能跑校验/生成"
+        in_l2: "Makefile + make-run API + frontend action bar"
+
+  product_value_layers:
+    summary: |
+      三层价值：① 开发者直接价值 ② 体系自举价值 ③ 工具链价值。
+    direct_value:
+      meaning: "从空目录到可运行项目，零模板依赖，原生自举"
+    proof_value:
+      meaning: "spec 体系本身用 spec 驱动落地，证明 VibeX 理念可行"
+    experience_value:
+      meaning: "clarification 循环 + canvas 可视化 + TDD，让开发过程可追溯"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-24"
+    author: "hermes"
+    changes:
+      - "初始版本，定义 MVP 5 项最小能力"

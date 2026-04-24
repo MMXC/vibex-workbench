@@ -1,0 +1,73 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-build-panel"
+  parent: "MOD-build-panel"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-24"
+  updated: "2026-04-24"
+
+io_contract:
+  input: |
+    用户点击「校验 Spec」或「生成代码」按钮
+  output: |
+    {stdout: string, stderr: string, exit_code: number}
+    成功：绿色状态，失败：红色浮层 + 错误摘要
+  boundary: |
+    只展示结果，不做自动修复
+  behavior:
+    - "用户点击按钮"
+    - "POST /api/workspace/run-make {target: 'lint-specs'|'validate'|'generate'}"
+    - "backend 执行 make -C WORKSPACE_ROOT target"
+    - "返回 stdout/stderr 前 500 字符"
+    - "前端展示成功/失败状态"
+
+content:
+  behaviors:
+    - id: "B1"
+      trigger: "用户点击「校验 Spec」"
+      action: "POST run-make {target: 'lint-specs'}"
+      expected_result: "✅ 通过 或 ❌ 失败 + 错误摘要"
+      error_handling: "执行超时（60s）显示 '执行超时'"
+    - id: "B2"
+      trigger: "用户点击「生成代码」"
+      action: "POST run-make {target: 'generate'}"
+      expected_result: "✅ 生成成功 或 ❌ 失败 + diff 摘要"
+      error_handling: "退出码非 0 显示 stderr 前 500 字符"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "开发者"
+      i_want: "在 UI 里点击就能看到 spec 校验结果"
+      so_that: "不用切换到终端跑 make 命令"
+      acceptance: "前端按钮触发 make，错误信息直接显示在 UI"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "spec 有 YAML 错误"
+      given: "specs/ 下有语法错误文件"
+      when: "POST run-make {target: 'lint-specs'}"
+      then: "返回 exit_code=1 + stderr 含错误位置"
+      evaluation: "前端红色浮层显示 'YAML error: line N'"
+    - id: "TC-2"
+      scenario: "spec parent chain 错误"
+      given: "spec 有 parent 指向不存在的文件"
+      when: "POST run-make {target: 'validate'}"
+      then: "返回 exit_code=1 + 错误摘要"
+      evaluation: "前端显示 parent chain 错误位置"
+
+  constraints:
+    - id: "C1"
+      name: "超时保护"
+      rule: "make 执行超时 60s，强制终止进程"
+      validation: "超时后显示 '执行超时，请检查目录'"
+    - id: "C2"
+      name: "输出截断"
+      rule: "stdout/stderr 只返回前 500 字符"
+      validation: "超过 500 字符时显示 '...' 并提示查看终端"

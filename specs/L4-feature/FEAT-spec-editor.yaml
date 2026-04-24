@@ -1,0 +1,77 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-spec-editor"
+  parent: "MOD-spec-editor"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-24"
+  updated: "2026-04-24"
+
+io_contract:
+  input: |
+    用户点击 spec 文件列表项，或点击「新建 L1」
+  output: |
+    - 文件内容渲染到 CodeMirror
+    - 保存后触发 validate，结果显示在状态栏
+  boundary: |
+    MVP 只支持新建/编辑 L1 goal spec
+  behavior:
+    - "list: GET /api/workspace/specs/list → spec 列表"
+    - "read: GET /api/workspace/specs/read?path=xxx → 编辑器内容"
+    - "write: POST /api/workspace/specs/write {path, content} → 保存"
+    - "new: 加载 L1-goal-template.yaml → 新建向导"
+
+content:
+  behaviors:
+    - id: "B1"
+      trigger: "用户点击 spec 列表中的文件"
+      action: "加载文件内容到编辑器"
+      expected_result: "CodeMirror 显示 YAML 内容"
+      error_handling: "文件不存在显示 '文件不存在' 提示"
+    - id: "B2"
+      trigger: "用户修改内容并点击保存"
+      action: "POST /api/workspace/specs/write → 触发 validate"
+      expected_result: "保存成功 + 校验结果展示"
+      error_handling: "YAML 语法错误显示行号 + 错误信息"
+    - id: "B3"
+      trigger: "用户点击「新建 L1」"
+      action: "打开新建向导，填写 name/mission"
+      expected_result: "生成 L1 spec 写入 specs/L1-goal/"
+      error_handling: "name 冲突时报错"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "开发者"
+      i_want: "能读取和编辑 spec 文件"
+      so_that: "在 UI 中完成 spec 编写，不用切终端"
+      acceptance: "编辑 → 保存 → 校验 → 看到结果，全流程在 UI 内完成"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "读取已有 spec"
+      given: "specs/L1-goal/vibex-workbench-mvp.yaml 存在"
+      when: "GET /api/workspace/specs/read?path=specs/L1-goal/vibex-workbench-mvp.yaml"
+      then: "返回完整 YAML 内容"
+      evaluation: "返回内容与文件一致"
+    - id: "TC-2"
+      scenario: "保存无效 YAML"
+      given: "编辑器内容有 YAML 语法错误"
+      when: "POST /api/workspace/specs/write"
+      then: "返回 {error: 'YAML 解析失败，第 N 行...'}"
+      evaluation: "前端显示红色错误提示"
+
+  constraints:
+    - id: "C1"
+      name: "YAML 前端解析"
+      rule: "保存前做一次客户端 YAML 解析，避免语法错误"
+      validation: "无效 YAML 阻止提交，显示错误位置"
+    - id: "C2"
+      name: "写后校验"
+      rule: "保存成功后自动触发 make validate"
+      validation: "校验结果在状态栏显示"
