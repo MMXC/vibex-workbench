@@ -211,21 +211,8 @@ WAILS_BIN := $(shell which wails 2>/dev/null || echo /root/go/bin/wails)
 .PHONY: wails-hosts-setup
 wails-hosts-setup:
 	@if [ "$(IS_WINDOWS)" = "1" ]; then \
-		echo "[wails-hosts] Checking wails.localhost resolution..."; \
-		powershell -Command " \
-			$$h = 'C:\\Windows\\System32\\drivers\\etc\\hosts'; \
-			$$l = '127.0.0.1  wails.localhost'; \
-			if (-not (Select-String -Path $$h -Pattern 'wails.localhost' -Quiet)) { \
-				Write-Host '[wails-hosts] Adding wails.localhost (needs admin)...'; \
-				$$a = @(Get-Content $$h); \
-				$$a += ''; \
-				$$a += '# Added by VibeX Workbench'; \
-				$$a += $$l; \
-				Set-Content -Path $$h -Value ($$a -join \"`r`n\"); \
-				Write-Host '[wails-hosts] Done.'; \
-			} else { \
-				Write-Host '[wails-hosts] wails.localhost already in hosts.'; \
-			}"; \
+		echo "[wails-hosts] Running hosts fix script..."; \
+		powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$$(cygpath -w $(ROOT)/scripts/wails-hosts.ps1)"; \
 	else \
 		echo "[wails-hosts] Non-Windows: skipping hosts setup."; \
 	fi
