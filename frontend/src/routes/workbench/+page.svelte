@@ -23,6 +23,8 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 	import SpecViewer from '$lib/components/workbench/SpecViewer.svelte';
 	import StatusBar from '$lib/components/workbench/StatusBar.svelte';
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
+	import { openDirectoryDialog, eventsOn, eventsEmit } from '$lib/wails-runtime';
+	import { appendOutput, clearOutput } from '$lib/stores/workspace-output-store';
 
 	const SSE_URL = import.meta.env.VITE_SSE_URL || 'http://localhost:33335';
 	const useMockBackend =
@@ -50,6 +52,58 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 		rt.EventsOn('workspace:selected', (path: string) => {
 			workspaceRoot = path;
 			detectWorkspaceState(path);
+		});
+
+		// ── Menu event wiring ──────────────────────────────────────────
+		// menu:open-project → open directory dialog → set workspaceRoot → detect state
+		eventsOn('menu:open-project', async () => {
+			try {
+				const dir = await openDirectoryDialog();
+				if (!dir) return;
+				workspaceRoot = dir;
+				detectWorkspaceState(dir);
+				eventsEmit('workspace:selected', dir);
+			} catch (e) {
+				console.error('[Workbench] menu:open-project error:', e);
+			}
+		});
+
+		// menu:run-generate → POST /api/workspace/run-make { target: "generate" } → append to output
+		eventsOn('menu:run-generate', async () => {
+			clearOutput();
+			appendOutput(`[run-make] Starting generate...\n`);
+			try {
+				const res = await fetch('/api/workspace/run-make', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ target: 'generate' }),
+				});
+				const data = await res.json();
+				if (data.output) appendOutput(data.output);
+				if (!data.ok) appendOutput(`[run-make] FAILED: ${data.error ?? 'unknown error'}\n`);
+				else appendOutput(`[run-make] Done — exit code: ${data.exitCode}\n`);
+			} catch (e) {
+				appendOutput(`[run-make] Network error: ${e}\n`);
+			}
+		});
+
+		// menu:run-lint → POST /api/workspace/run-make { target: "lint-specs" } → append to output
+		eventsOn('menu:run-lint', async () => {
+			clearOutput();
+			appendOutput(`[run-make] Starting lint-specs...\n`);
+			try {
+				const res = await fetch('/api/workspace/run-make', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ target: 'lint-specs' }),
+				});
+				const data = await res.json();
+				if (data.output) appendOutput(data.output);
+				if (!data.ok) appendOutput(`[run-make] FAILED: ${data.error ?? 'unknown error'}\n`);
+				else appendOutput(`[run-make] Done — exit code: ${data.exitCode}\n`);
+			} catch (e) {
+				appendOutput(`[run-make] Network error: ${e}\n`);
+			}
 		});
 	});
 
