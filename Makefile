@@ -175,6 +175,16 @@ agent-build:
 	@cd $(ROOT)/agent/cmd/web && go build -o $(ROOT)/backend/vibex-backend .
 	@echo "[agent-build] OK → backend/vibex-backend"
 
+# ── Frontend build ─────────────────────────────────────────────
+# Only builds the SvelteKit frontend (no spec generation).
+# Use 'make build' if you need the full generate+build pipeline.
+
+.PHONY: frontend-build
+frontend-build:
+	@echo "[frontend-build] Building SvelteKit frontend..."
+	@cd $(FRONTEND_DIR) && npm run build
+	@echo "[frontend-build] OK → frontend/build/"
+
 # ── Wails Native Shell ──────────────────────────────────────
 # Required: webkit2gtk-4.1 (not 4.0) on this system → tag webkit2_41
 WAILS_TAGS := webkit2_41
@@ -186,7 +196,7 @@ IS_HEADLESS := $(shell if [ -z "$$DISPLAY" ] && [ -z "$$WAYLAND_DISPLAY" ]; then
 WAILS_BIN := $(shell which wails 2>/dev/null || echo /root/go/bin/wails)
 
 .PHONY: wails-dev
-wails-dev: agent-build
+wails-dev: agent-build frontend-build
 	@echo "[wails-dev] Starting VibeX Workbench..."
 	@if [ "$(IS_HEADLESS)" = "1" ]; then \
 		cd $(ROOT) && GOFLAGS="-tags=$(WAILS_TAGS)" xvfb-run -a $(WAILS_BIN) dev -tags "$(WAILS_TAGS)"; \
