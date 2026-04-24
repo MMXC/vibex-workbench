@@ -220,6 +220,9 @@ func buildAppMenu(ctx context.Context) *menu.Menu {
 		runtime.EventsEmit(ctx, "menu:toggle-dock")
 	})
 	viewMenu.AddSeparator()
+	viewMenu.AddText("清除缓存并刷新", nil, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(ctx, "menu:clear-cache")
+	})
 	viewMenu.AddText("开发者工具", nil, func(_ *menu.CallbackData) {
 		runtime.WindowReload(ctx)
 	})
@@ -282,6 +285,11 @@ func main() {
 				runtime.MenuSetApplicationMenu(ctx, appMenu)
 			},
 			OnDomReady: func(ctx context.Context) {
+				// 首次启动：清除 WebView2 缓存以避免旧 JS chunks 残留
+				go func() {
+					time.Sleep(500 * time.Millisecond)
+					runtime.WindowReload(ctx)
+				}()
 				// 启动时自动 spawn Go backend
 				go func() {
 					_, err := app.SpawnGoBackend(ctx)

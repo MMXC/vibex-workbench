@@ -183,6 +183,8 @@ agent-build:
 frontend-build:
 	@echo "[frontend-build] Installing dependencies..."
 	@cd $(FRONTEND_DIR) && npm install
+	@echo "[frontend-build] Cleaning old build artifacts..."
+	@rm -rf $(FRONTEND_DIR)/build
 	@echo "[frontend-build] Building SvelteKit frontend..."
 	@cd $(FRONTEND_DIR) && npm run build
 	@echo "[frontend-build] Adding cache-busting version to index.html..."
