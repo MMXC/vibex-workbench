@@ -213,11 +213,7 @@ WAILS_BIN := $(shell which wails 2>/dev/null || echo /root/go/bin/wails)
 
 .PHONY: wails-dev
 wails-dev: agent-build frontend-build
-	@echo ""
 	@echo "[wails-dev] Starting VibeX Workbench..."
-	@echo "  💡 If you see \$state errors, do a HARD REFRESH in the browser:"
-	@echo "     Windows: Ctrl+Shift+R  |  macOS: Cmd+Shift+R"
-	@echo ""
 	@if [ "$(IS_HEADLESS)" = "1" ]; then \
 		cd $(ROOT) && GOFLAGS="-tags=$(WAILS_TAGS)" xvfb-run -a $(WAILS_BIN) dev -tags "$(WAILS_TAGS)"; \
 	else \
