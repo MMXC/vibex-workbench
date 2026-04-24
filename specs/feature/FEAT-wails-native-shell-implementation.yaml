@@ -1,0 +1,386 @@
+# ============================================================
+# Level 4 — Wails Native Shell 实现规格
+# Feature Specification
+#
+# parent: MOD-wails-native-shell (L3)
+# 本规格定义：main.go、wails.json、svelte.config.js 的具体实现
+# 目标：Go agent 能从本 spec 自举写出所有文件
+# ============================================================
+
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-wails-native-shell-implementation"
+  parent: "MOD-wails-native-shell"
+  status: "proposal"
+
+meta:
+  project: "vibex-workbench"
+  feature: "wails-native-shell-implementation"
+  owner: "hermes"
+  created: "2026-04-24"
+  updated: "2026-04-24"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-24"
+  history:
+    - status: "proposal"
+      at: "2026-04-24T15:00:00"
+      by: "hermes"
+      trigger: "user:manual"
+      note: "实现规格：main.go + wails.json + svelte.config.js"
+
+# ── IO 契约 ──────────────────────────────────────────────────
+io_contract:
+  input: |
+    MOD-wails-native-shell (L3)：App struct 接口 + 5个 binding methods
+    + Wails v2.12.0 Go module（已通过 go get 安装）
+    + SvelteKit 前端源码（已有，需改 adapter）
+    + Go backend 源码（已有，不改动）
+  output: |
+    Wails dev 能启动：
+    - wails dev → 窗口打开 → WebView 显示 SvelteKit 前端
+    - wails dev 启动 Vite dev server（前端热更新）
+    - wails dev 启动 Go backend 子进程
+  boundary: |
+    本规格只生成 Wails 胶水层文件，不修改 SvelteKit 路由和 Go backend 业务逻辑。
+
+# ── 实现内容 ────────────────────────────────────────────────
+content:
+
+  files:
+    - path: "main.go"
+      type: "go-source"
+      generated_by: "本 spec 自举"
+      responsibility: "Wails 应用入口、App struct、所有 binding methods、生命周期钩子"
+      content_mode: "write"  # 全量写入，不做 patch
+      body: |
+        //go:build !web
+
+        package main
+
+        import (
+            "context"
+            "embed"
+            "fmt"
+            "net"
+            "net/http"
+            "os"
+            "os/exec"
+            "path/filepath"
+            "strconv"
+            "syscall"
+            "time"
+
+            "github.com/wailsapp/wails/v2"
+            "github.com/wailsapp/wails/v2/pkg/options"
+            "github.com/wailsapp/wails/v2/pkg/options/assetserver"
+            "github.com/wailsapp/wails/v2/pkg/runtime"
+        )
+
+        //go:embed all:frontend/dist
+        var assets embed.FS
+
+        // App — 所有 Wails binding methods 都定义在此 struct 上
+        type App struct {
+            ctx           context.Context
+            workspaceRoot string
+            backendCmd    *exec.Cmd
+            backendPort   int
+        }
+
+        // ── Binding Methods ─────────────────────────────────────────
+
+        // OpenDirectoryDialog 打开系统原生目录选择器
+        func (a *App) OpenDirectoryDialog(ctx context.Context) (string, error) {
+            dir, err := runtime.OpenDirectoryDialog(ctx, runtime.OpenDialogOptions{
+                Title:            "选择工作区目录",
+                DefaultDirectory: a.workspaceRoot,
+            })
+            if err != nil {
+                return "", fmt.Errorf("OpenDirectoryDialog failed: %w", err)
+            }
+            if dir == "" {
+                return "", nil // 用户取消
+            }
+            a.workspaceRoot = dir
+            runtime.EventsEmit(ctx, "workspace:selected", dir)
+            return dir, nil
+        }
+
+        // GetWorkspaceRoot 返回当前工作区根路径
+        func (a *App) GetWorkspaceRoot() string {
+            return a.workspaceRoot
+        }
+
+        // SetWorkspaceRoot 前端设置工作区路径（目录选择后或用户手动输入）
+        func (a *App) SetWorkspaceRoot(ctx context.Context, path string) error {
+            if path == "" {
+                return fmt.Errorf("workspace root cannot be empty")
+            }
+            a.workspaceRoot = path
+            return nil
+        }
+
+        // SpawnGoBackend 启动 Go backend 子进程
+        func (a *App) SpawnGoBackend(ctx context.Context) (map[string]any, error) {
+            if a.backendCmd != nil && a.backendCmd.Process != nil {
+                return map[string]any{
+                    "ok":   true,
+                    "port": a.backendPort,
+                    "pid":  a.backendCmd.Process.Pid,
+                }, nil
+            }
+
+            // 找 backend binary：优先 ./backend/vibex-backend，其次 $PATH
+            backendBinary := "./backend/vibex-backend"
+            if _, err := os.Stat(backendBinary); os.IsNotExist(err) {
+                // 尝试从当前可执行文件所在目录推导
+                exe, err := os.Executable()
+                if err == nil {
+                    candidate := filepath.Join(filepath.Dir(exe), "backend", "vibex-backend")
+                    if _, err := os.Stat(candidate); err == nil {
+                        backendBinary = candidate
+                    }
+                }
+            }
+
+            port := a.backendPort
+            if port == 0 {
+                port = 33335
+                // 如果默认端口被占用，动态找一个可用端口
+                if !isPortAvailable(port) {
+                    p, err := freePort()
+                    if err != nil {
+                        return nil, fmt.Errorf("failed to find available port: %w", err)
+                    }
+                    port = p
+                }
+            }
+            a.backendPort = port
+
+            cmd := exec.CommandContext(ctx, backendBinary, "-port", strconv.Itoa(port))
+            cmd.Stdout = os.Stdout
+            cmd.Stderr = os.Stderr
+            if err := cmd.Start(); err != nil {
+                return nil, fmt.Errorf("failed to start backend: %w", err)
+            }
+            a.backendCmd = cmd
+
+            // 等待 backend 真正监听
+            go func() {
+                for i := 0; i < 30; i++ {
+                    if isPortAvailable(port) {
+                        time.Sleep(500 * time.Millisecond)
+                        continue
+                    }
+                    runtime.EventsEmit(a.ctx, "backend:ready", map[string]any{
+                        "port": port,
+                        "pid":  cmd.Process.Pid,
+                    })
+                    return
+                }
+                runtime.EventsEmit(a.ctx, "backend:error", "backend failed to start within timeout")
+            }()
+
+            return map[string]any{
+                "ok":   true,
+                "port": port,
+                "pid":  cmd.Process.Pid,
+            }, nil
+        }
+
+        // KillGoBackend 终止 Go backend 子进程
+        func (a *App) KillGoBackend(ctx context.Context) error {
+            if a.backendCmd != nil && a.backendCmd.Process != nil {
+                if err := a.backendCmd.Process.Signal(syscall.SIGTERM); err != nil {
+                    return fmt.Errorf("failed to kill backend: %w", err)
+                }
+                a.backendCmd = nil
+            }
+            return nil
+        }
+
+        // RunMake 在 workspace 执行 make target
+        func (a *App) RunMake(ctx context.Context, target string, workspace string) (map[string]any, error) {
+            if workspace == "" {
+                workspace = a.workspaceRoot
+            }
+            if target == "" {
+                return nil, fmt.Errorf("target cannot be empty")
+            }
+            cmd := exec.CommandContext(ctx, "make", target)
+            cmd.Dir = workspace
+            out, err := cmd.CombinedOutput()
+            return map[string]any{
+                "ok":    err == nil,
+                "output": string(out),
+            }, err
+        }
+
+        // ── Helper Functions ───────────────────────────────────────
+
+        func isPortAvailable(port int) bool {
+            ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+            if err != nil {
+                return false
+            }
+            ln.Close()
+            return true
+        }
+
+        func freePort() (int, error) {
+            ln, err := net.Listen("tcp", ":0")
+            if err != nil {
+                return 0, err
+            }
+            defer ln.Close()
+            return ln.Addr().(*net.TCPAddr).Port, nil
+        }
+
+        // ── Wails Lifecycle ────────────────────────────────────────
+
+        func main() {
+            app := &App{}
+
+            err := wails.Run(
+                &options.App{
+                    Title:  "VibeX Workbench",
+                    Width:  1280,
+                    Height: 800,
+                    AssetServer: &assetserver.Options{
+                        Assets: assets,
+                    },
+                    BackgroundColour: options.NewRGBA(30, 30, 30, 255),
+                    Bind: []interface{}{app},
+                    OnStartup: func(ctx context.Context) {
+                        app.ctx = ctx
+                        // app startup
+                    },
+                    OnDomReady: func(ctx context.Context) {
+                        // DOM ready, frontend JS is running
+                    },
+                    OnBeforeClose: func(ctx context.Context) bool {
+                        app.KillGoBackend(ctx)
+                        return false
+                    },
+                    OnShutdown: func(ctx context.Context) {
+                        // cleanup
+                    },
+                },
+            )
+            if err != nil {
+                panic(err)
+            }
+        }
+
+    - path: "wails.json"
+      type: "json-config"
+      generated_by: "本 spec 自举"
+      responsibility: "Wails 构建配置，映射 npm scripts"
+      content_mode: "write"
+      body: |
+        {
+          "$schema": "https://wails.io/schemas/config.v2.json",
+          "name": "vibex-workbench",
+          "outputfilename": "VibeXWorkbench",
+          "frontend:install": "npm install",
+          "frontend:build": "npm run build",
+          "frontend:dev:watcher": "npm run dev",
+          "frontend:dev:serverUrl": "auto",
+          "info": {
+            "companyName": "VibeX",
+            "productName": "VibeX Workbench",
+            "productVersion": "0.1.0",
+            "copyright": "Copyright © 2026"
+          }
+        }
+
+    - path: "frontend/svelte.config.js"
+      type: "svelte-config"
+      generated_by: "本 spec 自举（替换 adapter-auto → adapter-static）"
+      responsibility: "SvelteKit 配置，输出静态文件供 embed.FS 嵌入"
+      content_mode: "patch"  # 替换 adapter 部分
+      patch_target: |
+        import adapter from '@sveltejs/adapter-auto';
+        ...
+        kit: {
+          adapter: adapter()
+        }
+      patch_replacement: |
+        import adapter from '@sveltejs/adapter-static';
+
+        /** @type {import('@sveltejs/kit').Config} */
+        const config = {
+          compilerOptions: {
+            runes: ({ filename }) => (filename.split(/[/\\]/).includes('node_modules') ? undefined : true)
+          },
+          kit: {
+            adapter: adapter({
+              fallback: 'index.html'
+            })
+          }
+        };
+
+        export default config;
+
+    - path: "frontend/package.json"
+      type: "npm-package"
+      generated_by: "本 spec 自举"
+      responsibility: "安装 adapter-static，dev script 改 vite dev"
+      content_mode: "patch"  # 添加 adapter-static devDependency + 修改 dev script
+      patch_target: |
+        "dev": "vite dev",
+      patch_replacement: |
+        "dev": "vite dev --host",
+      additions:
+        - key: "devDependencies.@sveltejs/adapter-static"
+          value: "^3.0.0"
+
+  build_workflow:
+    step_1_dev:
+      command: "wails dev"
+      what_happens: |
+        1. Wails 安装 @wailsjs/runtime 到 frontend/node_modules（如果缺失）
+        2. Wails 生成 wailsjs/go/main/App.ts（TypeScript bindings）
+        3. Wails 执行 npm run dev（frontend:dev:watcher），启动 Vite dev server
+        4. Wails 启动 Go runtime，OnStartup → app.ctx 赋值
+        5. 浏览器窗口打开，WebView 加载 http://localhost:5173（或 Vite 分配的端口）
+        6. SvelteKit /workspace 入口渲染
+      exit_criteria: |
+        - 窗口打开无报错
+        - WebView 内 /workspace 路由可见
+        - backend:ready 事件触发（JS 端 EventsOn 收到）
+    step_2_prod:
+      command: "wails build"
+      what_happens: |
+        1. Wails 执行 npm run build（frontend:build），输出到 frontend/dist/
+        2. embed.FS 嵌入 frontend/dist/ 到二进制
+        3. 编译 Go 代码，打包成单个可执行文件
+      output: "build/bin/VibeXWorkbench（或 platform 对应路径）"
+
+  exit_criteria:
+    - "wails dev 启动，窗口打开"
+    - "WebView 内 SvelteKit 前端正常渲染"
+    - "OpenDirectoryDialog binding 可用"
+    - "SpawnGoBackend 能启动 backend 子进程"
+
+  bootstrap_hint: |
+    Go agent 自举步骤：
+    1. 读取本 spec（L4）
+    2. 读取 L3（MOD-wails-native-shell）的 public_api 和 state_definitions
+    3. 按 files[] 定义逐个写入文件
+    4. 执行 npm install（安装 adapter-static）
+    5. 执行 wails dev 验证
+
+  bootstrap_tool_requirements: |
+    可用工具：bash, read_file, write_file
+    不需要额外工具。
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-24"
+    author: "hermes"
+    changes:
+      - "初始实现规格"
