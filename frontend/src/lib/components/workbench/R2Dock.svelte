@@ -1,6 +1,6 @@
 <!-- R2 底部 Dock：问题 | 输出 | 终端 | 调试 | 更多 — prototypes/vibex-ide-chrome-r2.html #dock -->
 <script lang="ts">
-	import { getOutputText, isOutputVisible } from '$lib/stores/workspace-output-store';
+	import { getOutputText, isOutputVisible } from '$lib/stores/workspace-output-store.svelte.js';
 
 	type PanelId = 'problems' | 'output' | 'terminal' | 'debug' | 'more';
 

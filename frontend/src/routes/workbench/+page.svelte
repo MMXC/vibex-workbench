@@ -24,7 +24,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 	import StatusBar from '$lib/components/workbench/StatusBar.svelte';
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
 	import { openDirectoryDialog, eventsOn, eventsEmit } from '$lib/wails-runtime';
-	import { appendOutput, clearOutput } from '$lib/stores/workspace-output-store';
+	import { appendOutput, clearOutput } from '$lib/stores/workspace-output-store.svelte.js';
 
 	const SSE_URL = import.meta.env.VITE_SSE_URL || 'http://localhost:33338';
 	const useMockBackend =
