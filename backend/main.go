@@ -334,12 +334,14 @@ func workspaceScaffoldHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // getBinaryDir returns the directory containing the backend binary (parent of backend/)
+// generators/ and specs/ are at repo root (parent of backend/), not inside backend/
 func getBinaryDir() string {
 	exe, _ := os.Executable()
 	if exe == "" {
 		return "."
 	}
-	return filepath.Dir(exe)
+	// binary is at repo/backend/vibex-backend → go up 2 levels to repo root
+	return filepath.Dir(filepath.Dir(exe))
 }
 
 func main() {
