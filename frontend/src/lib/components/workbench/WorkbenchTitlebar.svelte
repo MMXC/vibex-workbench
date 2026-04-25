@@ -38,9 +38,7 @@
 			</svg>
 		</button>
 
-		<!-- 桌面模式：显示真实窗口控件（浏览器模式下这些按钮仍保留用于占位）
-		     浏览器端：noop，无实际效果
-		     桌面端（Wails）：调用 window.runtime -->
+<!-- Window controls hidden — frameless mode uses app.html titlebar controls -->
 		<div class="window-controls" role="toolbar" aria-label="窗口">
 			<button
 				type="button"
@@ -103,9 +101,8 @@
 		font-size: 12.5px;
 		color: var(--text-primary, #e8e8ed);
 		user-select: none;
-		/* 桌面端：系统标题栏已提供窗口控件，
-		   此处 win-min/win-max/win-close 可保留作备选/辅助，
-		   在 macOS 上可通过 Accessibility 使用系统原生按钮。 */
+			/* Hide window controls — frameless window uses app.html titlebar */
+	.window-controls { display: none !important; }
 	}
 
 	.lead {

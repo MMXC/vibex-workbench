@@ -356,9 +356,10 @@ func main() {
 			Height:    800,
 			MinWidth:  800,
 			MinHeight: 600,
-			Frameless: false,
+			Frameless: true,
+			CSSDragProperty: "--wails-draggable",
+			CSSDragValue:   "drag",
 			AssetServer: &assetserver.Options{
-				Assets:  assets,
 				Handler: theAppHandler,
 			},
 			BackgroundColour: options.NewRGBA(15, 15, 15, 255),
