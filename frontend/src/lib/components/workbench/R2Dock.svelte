@@ -63,7 +63,14 @@
 	<div class="dock-body">
 		{#if panel === 'problems'}
 			<div class="panel problems">
-				<p class="muted">Problems — 占位（接入诊断 / validate 结果）</p>
+				<div class="problem-row ok">
+					<span>✓</span>
+					<p><b>make validate</b><small>63 specs indexed，parent chain valid</small></p>
+				</div>
+				<div class="problem-row warn">
+					<span>!</span>
+					<p><b>backend auto-spawn</b><small>Windows 产物路径仍需修正</small></p>
+				</div>
 			</div>
 		{:else if panel === 'output'}
 			<div class="panel output">
@@ -75,7 +82,12 @@
 			</div>
 		{:else if panel === 'terminal'}
 			<div class="panel terminal">
-				<pre class="mono mono-term">~/vibex-workbench $<span class="cursor">▌</span></pre>
+				<pre class="mono mono-term">PS C:\project\vibex-workbench&gt; make wails-dev
+[agent-build] Building Go agent...
+[frontend-build] OK → frontend/build/
+Using DevServer URL: http://localhost:34115
+ERR | Auto-spawn backend failed: ./backend/vibex-backend
+PS C:\project\vibex-workbench&gt;<span class="cursor">▌</span></pre>
 			</div>
 		{:else if panel === 'debug'}
 			<div class="panel">
@@ -95,7 +107,7 @@
 		flex-direction: column;
 		flex: 1;
 		min-height: 0;
-		background: var(--bg-panel, #131314);
+		background: #1e1e1e;
 	}
 
 	.dock-tabs {
@@ -105,8 +117,8 @@
 		height: var(--dock-tab-h, 28px);
 		padding: 0 4px;
 		gap: 1px;
-		background: var(--bg-surface, #1a1a1c);
-		border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.07));
+		background: #252526;
+		border-bottom: 1px solid #2d2d2d;
 	}
 
 	.dock-tab {
@@ -116,7 +128,7 @@
 		padding: 0 10px;
 		height: 100%;
 		font-size: 11.5px;
-		color: var(--text-muted, #555558);
+		color: #969696;
 		border: none;
 		background: transparent;
 		cursor: pointer;
@@ -124,16 +136,16 @@
 		transition:
 			color 150ms ease,
 			border-color 150ms ease;
-		font-family: var(--font-ui, 'Inter', sans-serif);
+		font-family: var(--font-ui, 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif);
 	}
 
 	.dock-tab:hover {
-		color: var(--text-secondary, #8a8a8e);
+		color: #cccccc;
 	}
 
 	.dock-tab.active {
-		color: var(--text-primary, #e8e8ed);
-		border-bottom-color: var(--brand, #5856d6);
+		color: #ffffff;
+		border-bottom-color: #007acc;
 	}
 
 	.dock-more {
@@ -146,7 +158,7 @@
 		font-size: 9px;
 		padding: 0 4px;
 		border-radius: 9px;
-		background: var(--error, #ef4444);
+		background: #c42b1c;
 		color: #fff;
 		font-weight: 700;
 		line-height: 1.4;
@@ -171,22 +183,69 @@
 
 	.muted {
 		margin: 0;
-		color: var(--text-muted, #555558);
+		color: #858585;
 	}
 
 	.mono {
 		margin: 0;
-		font-family: var(--font-mono, 'JetBrains Mono', monospace);
+		font-family: var(--font-mono, 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace);
 		font-size: 11px;
 		line-height: 1.6;
-		color: var(--text-secondary, #8a8a8e);
+		color: #cccccc;
 		white-space: pre-wrap;
 	}
 
 	.mono-term {
-		background: #0a0a0b;
-		padding: 8px;
-		border-radius: 4px;
+		background: #1e1e1e;
+		padding: 0;
+		border-radius: 0;
+	}
+
+	.problem-row {
+		display: flex;
+		align-items: flex-start;
+		gap: 9px;
+		padding: 6px 4px;
+		color: #cccccc;
+	}
+
+	.problem-row > span {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 16px;
+		height: 16px;
+		border-radius: 999px;
+		font-size: 11px;
+		font-weight: 800;
+		margin-top: 1px;
+	}
+
+	.problem-row.ok > span {
+		background: rgba(34, 197, 94, 0.16);
+		color: #89d185;
+	}
+
+	.problem-row.warn > span {
+		background: rgba(245, 158, 11, 0.16);
+		color: #d7ba7d;
+	}
+
+	.problem-row p {
+		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.problem-row b {
+		font-size: 12px;
+		font-weight: 600;
+	}
+
+	.problem-row small {
+		color: #858585;
+		font-size: 11px;
 	}
 
 	.cursor {

@@ -1,9 +1,10 @@
 <!-- R2 中央编辑器区：画布 | 构件 | Spec 文本 | Diff — region_map.center_editor.tab_kinds -->
 <script lang="ts">
+	import WorkbenchBootstrapPrototype from '$lib/components/workbench/WorkbenchBootstrapPrototype.svelte';
 	import CanvasRenderer from '$lib/components/workbench/CanvasRenderer.svelte';
 	import ArtifactPanel from '$lib/components/workbench/ArtifactPanel.svelte';
 
-	type TabId = 'canvas' | 'artifacts' | 'spec_text' | 'diff';
+	type TabId = 'bootstrap' | 'canvas' | 'artifacts' | 'spec_text' | 'diff';
 
 	let active = $state<TabId>('canvas');
 
@@ -12,6 +13,7 @@
 		{ id: 'artifacts', label: '构件' },
 		{ id: 'spec_text', label: 'Spec 文本' },
 		{ id: 'diff', label: 'Diff' },
+		{ id: 'bootstrap', label: '自举原型' },
 	];
 </script>
 
@@ -32,7 +34,11 @@
 	</div>
 
 	<div class="pane-stack">
-		{#if active === 'canvas'}
+		{#if active === 'bootstrap'}
+			<div class="pane prototype-pane">
+				<WorkbenchBootstrapPrototype />
+			</div>
+		{:else if active === 'canvas'}
 			<div class="pane canvas-pane">
 				<CanvasRenderer />
 			</div>
@@ -62,47 +68,47 @@
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
-		background: var(--bg-base, #0d0d0e);
+		background: #1e1e1e;
 	}
 
 	.tab-bar {
 		flex-shrink: 0;
-		height: var(--tab-h, 36px);
+		height: var(--tab-h, 35px);
 		display: flex;
 		align-items: flex-end;
-		background: var(--bg-panel, #131314);
-		border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.07));
+		background: #252526;
+		border-bottom: 1px solid #2d2d2d;
 		overflow-x: auto;
 	}
 
 	.editor-tab {
 		display: flex;
 		align-items: center;
-		padding: 0 14px;
-		height: 35px;
-		font-size: 13px;
-		color: var(--text-muted, #555558);
+		padding: 0 13px;
+		height: 34px;
+		font-size: 12.5px;
+		color: #969696;
 		border: none;
 		background: transparent;
 		cursor: pointer;
-		border-right: 1px solid var(--border, rgba(255, 255, 255, 0.07));
+		border-right: 1px solid #2d2d2d;
 		transition:
 			background 150ms ease,
 			color 150ms ease;
 		flex-shrink: 0;
 		position: relative;
-		font-family: var(--font-ui, 'Inter', sans-serif);
+		font-family: var(--font-ui, 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif);
 	}
 
 	.editor-tab:hover {
-		background: rgba(255, 255, 255, 0.05);
-		color: var(--text-secondary, #8a8a8e);
+		background: #2a2d2e;
+		color: #cccccc;
 	}
 
 	.editor-tab.active {
-		color: var(--text-primary, #e8e8ed);
-		background: var(--bg-base, #0d0d0e);
-		border-bottom: 1px solid var(--bg-base, #0d0d0e);
+		color: #ffffff;
+		background: #1e1e1e;
+		border-bottom: 1px solid #1e1e1e;
 		margin-bottom: -1px;
 	}
 
@@ -113,7 +119,7 @@
 		left: 0;
 		right: 0;
 		height: 1px;
-		background: var(--brand, #5856d6);
+		background: #007acc;
 	}
 
 	.pane-stack {
@@ -132,7 +138,11 @@
 	}
 
 	.canvas-pane {
-		background: var(--bg-base, #0d0d0e);
+		background: #1e1e1e;
+	}
+
+	.prototype-pane {
+		background: #0a0f17;
 	}
 
 	.artifacts-pane :global(.artifact-panel) {

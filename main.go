@@ -433,6 +433,7 @@ func main() {
 			MinWidth:  800,
 			MinHeight: 600,
 			Frameless: true,
+			Menu:      menu.NewMenu(),
 			CSSDragProperty: "--wails-draggable",
 			CSSDragValue:   "drag",
 			AssetServer: &assetserver.Options{
@@ -442,9 +443,6 @@ func main() {
 			Bind: []interface{}{app},
 			OnStartup: func(ctx context.Context) {
 				app.ctx = ctx
-				// 设置原生应用菜单
-				appMenu := buildAppMenu(ctx)
-				runtime.MenuSetApplicationMenu(ctx, appMenu)
 			},
 			OnDomReady: func(ctx context.Context) {
 				// 首次启动：清除 WebView2 缓存以避免旧 JS chunks 残留

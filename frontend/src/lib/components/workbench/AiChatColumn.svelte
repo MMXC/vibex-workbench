@@ -64,7 +64,13 @@
 </script>
 
 <div class="ai-column" bind:this={rootEl}>
-	<div class="hdr">会话</div>
+	<div class="hdr">
+		<div>
+			<span class="hdr-title">AI Agent</span>
+			<span class="hdr-sub">当前工作区 · 自举诊断</span>
+		</div>
+		<span class="hdr-dot" title="SSE / backend"></span>
+	</div>
 	<div class="thread-region">
 		<ThreadList />
 	</div>
@@ -89,18 +95,44 @@
 		height: 100%;
 		min-height: 0;
 		background: var(--wb-panel-bg, #131314);
+		border-left: 1px solid #2d2d2d;
 		overflow: hidden;
 	}
 
 	.hdr {
 		flex-shrink: 0;
-		padding: 10px 12px 8px;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+		padding: 9px 12px;
+		border-bottom: 1px solid #2d2d2d;
+		background: #252526;
+	}
+
+	.hdr-title {
+		display: block;
 		font-size: 11px;
-		font-weight: 600;
-		letter-spacing: 0.07em;
+		font-weight: 700;
+		letter-spacing: 0.08em;
 		text-transform: uppercase;
-		color: var(--wb-muted, #555558);
-		border-bottom: 1px solid var(--wb-border, rgba(255, 255, 255, 0.07));
+		color: #cccccc;
+	}
+
+	.hdr-sub {
+		display: block;
+		margin-top: 2px;
+		font-size: 10.5px;
+		color: #858585;
+		white-space: nowrap;
+	}
+
+	.hdr-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 999px;
+		background: #22c55e;
+		box-shadow: 0 0 12px rgba(34, 197, 94, 0.65);
 	}
 
 	.thread-region {
@@ -110,7 +142,7 @@
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
-		border-bottom: 1px solid var(--wb-border, rgba(255, 255, 255, 0.07));
+		border-bottom: 1px solid #2d2d2d;
 	}
 
 	.chat-region {
@@ -129,13 +161,13 @@
 		border: none;
 		cursor: row-resize;
 		touch-action: none;
-		background: var(--wb-splitter, #2a2a2a);
+		background: #1b1b1b;
 		z-index: 4;
 	}
 
 	.split-ai:hover,
 	.split-ai:active {
-		background: rgba(88, 86, 214, 0.45);
+		background: #007acc;
 	}
 
 	.composer-region {
@@ -144,7 +176,7 @@
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
-		border-top: 1px solid var(--wb-border, rgba(255, 255, 255, 0.07));
+		border-top: 1px solid #2d2d2d;
 	}
 
 	.composer-region :global(.composer) {

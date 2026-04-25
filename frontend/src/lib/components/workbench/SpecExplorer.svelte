@@ -69,6 +69,11 @@
 		<span class="hdr-title">资源管理器</span>
 		<button type="button" class="reload" title="刷新列表" onclick={() => loadList()}>↻</button>
 	</div>
+	<div class="workspace-head">
+		<span class="chevron">▾</span>
+		<span class="workspace-name">VIBEX-WORKBENCH</span>
+		<span class="workspace-actions">···</span>
+	</div>
 
 	{#if loading}
 		<p class="muted pad">加载中…</p>
@@ -76,6 +81,10 @@
 		<p class="err pad">{loadErr}</p>
 	{:else}
 		<div class="tree" role="tree">
+			<div class="tree-section">
+				<span class="chevron">▾</span>
+				<span>specs</span>
+			</div>
 			{#each paths as p (p)}
 				<button
 					type="button"
@@ -84,7 +93,7 @@
 					style:padding-left="{10 + depthIndent(p) * 12}px"
 					onclick={() => specExplorerStore.selectSpec(p)}
 				>
-					<span class="ws-icon">📄</span>
+					<span class="ws-icon">{p.endsWith('.yaml') ? '◇' : '·'}</span>
 					{#if convention}
 						{@const tid = inferSpecTypeId(p, convention)}
 						{#if tid}
@@ -104,10 +113,11 @@
 		flex-direction: column;
 		height: 100%;
 		min-height: 0;
-		background: var(--wb-panel-bg, #131314);
-		border-right: 1px solid var(--wb-border, rgba(255, 255, 255, 0.07));
+		background: #252526;
+		border-right: 1px solid #2d2d2d;
 		font-family:
-			'Inter',
+			'Segoe UI',
+			'Microsoft YaHei',
 			-apple-system,
 			sans-serif;
 		font-size: 13px;
@@ -119,7 +129,7 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 10px 12px 8px;
-		border-bottom: 1px solid var(--wb-border, rgba(255, 255, 255, 0.07));
+		border-bottom: 1px solid #2d2d2d;
 	}
 
 	.hdr-title {
@@ -127,13 +137,50 @@
 		font-weight: 600;
 		letter-spacing: 0.07em;
 		text-transform: uppercase;
-		color: var(--wb-muted, #555558);
+		color: #bbbbbb;
+	}
+
+	.workspace-head,
+	.tree-section {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		height: 24px;
+		padding: 0 8px;
+		color: #cccccc;
+		font-size: 11px;
+		font-weight: 700;
+		letter-spacing: 0.02em;
+		text-transform: uppercase;
+	}
+
+	.workspace-head {
+		border-bottom: 1px solid #2d2d2d;
+	}
+
+	.workspace-name {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.workspace-actions {
+		color: #858585;
+		font-weight: 400;
+		letter-spacing: 0.08em;
+	}
+
+	.chevron {
+		color: #858585;
+		font-size: 10px;
 	}
 
 	.reload {
 		background: none;
 		border: none;
-		color: var(--wb-muted, #555558);
+		color: #858585;
 		cursor: pointer;
 		padding: 2px 6px;
 		border-radius: 4px;
@@ -142,8 +189,8 @@
 	}
 
 	.reload:hover {
-		color: var(--wb-text-sec, #8a8a8e);
-		background: rgba(255, 255, 255, 0.05);
+		color: #cccccc;
+		background: #2a2d2e;
 	}
 
 	.pad {
@@ -151,7 +198,7 @@
 	}
 
 	.muted {
-		color: var(--wb-muted, #555558);
+		color: #858585;
 		font-size: 12px;
 	}
 
@@ -163,19 +210,19 @@
 	.tree {
 		flex: 1;
 		overflow-y: auto;
-		padding: 6px 0;
+		padding: 4px 0;
 	}
 
 	.ws-item {
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		gap: 5px;
 		width: 100%;
-		padding: 5px 12px 5px 16px;
+		padding: 3px 10px 3px 16px;
 		border: none;
 		background: none;
 		cursor: pointer;
-		color: var(--wb-text-sec, #8a8a8e);
+		color: #cccccc;
 		text-align: left;
 		font: inherit;
 		transition:
@@ -184,19 +231,22 @@
 	}
 
 	.ws-item:hover {
-		background: rgba(255, 255, 255, 0.05);
-		color: var(--wb-text, #e8e8ed);
+		background: #2a2d2e;
+		color: #ffffff;
 	}
 
 	.ws-item.active {
-		background: rgba(88, 86, 214, 0.15);
-		color: var(--wb-text, #e8e8ed);
+		background: #04395e;
+		color: #ffffff;
 	}
 
 	.ws-icon {
 		flex-shrink: 0;
+		width: 12px;
+		text-align: center;
 		font-size: 12px;
 		opacity: 0.85;
+		color: #519aba;
 	}
 
 	.type-pill {
@@ -207,8 +257,8 @@
 		line-height: 1;
 		padding: 2px 5px;
 		border-radius: 4px;
-		background: rgba(88, 86, 214, 0.22);
-		color: #c4b5fd;
+		background: rgba(0, 122, 204, 0.22);
+		color: #9cdcfe;
 		max-width: 44px;
 		overflow: hidden;
 		text-overflow: ellipsis;

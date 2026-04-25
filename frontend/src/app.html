@@ -8,74 +8,8 @@
 		%sveltekit.head%
 	</head>
 	<body style="margin:0;padding:0;overflow:hidden;">
-		<!-- Custom title bar — full WebView control, draggable region -->
-		<header
-			id="titlebar"
-			style="
-				display:flex;
-				align-items:center;
-				justify-content:space-between;
-				height:36px;
-				background:#0f0f0f;
-				border-bottom:1px solid #2a2a2a;
-				flex-shrink:0;
-				-webkit-app-region:drag;
-				user-select:none;
-			"
-		>
-			<!-- Left: app title + subtitle -->
-			<div style="display:flex;align-items:baseline;gap:12px;padding-left:12px;">
-				<span style="
-					font-size:13px;font-weight:600;color:#e0e0e0;
-					font-family:'Inter',system-ui,sans-serif;letter-spacing:0.02em;
-				">VibeX Workbench</span>
-				<span style="font-size:11px;color:#555558;letter-spacing:0.03em;">空仓库 → 边做边长</span>
-			</div>
-
-			<!-- Right: window controls — must be no-drag so clicks register -->
-			<div style="display:flex;height:100%;-webkit-app-region:no-drag;">
-				<button id="btn-minimise" title="最小化" style="
-					width:46px;height:100%;border:none;background:transparent;
-					color:#e0e0e0;cursor:pointer;display:flex;align-items:center;justify-content:center;
-					font-size:11px;line-height:1;
-					transition:background 0.1s;
-				">─</button>
-				<button id="btn-maximise" title="最大化" style="
-					width:46px;height:100%;border:none;background:transparent;
-					color:#e0e0e0;cursor:pointer;display:flex;align-items:center;justify-content:center;
-					transition:background 0.1s;
-				">□</button>
-				<button id="btn-close" title="关闭" style="
-					width:46px;height:100%;border:none;background:transparent;
-					color:#e0e0e0;cursor:pointer;display:flex;align-items:center;justify-content:center;
-					transition:background 0.1s;
-				">✕</button>
-			</div>
-		</header>
-
-		<!-- Hover styles for window buttons -->
-		<style>
-			#btn-minimise:hover { background:#333; }
-			#btn-maximise:hover { background:#333; }
-			#btn-close:hover { background:#c42b1c; color:#fff; }
-			/* Prevent text selection on drag */
-			#titlebar { -webkit-user-select:none; }
-		</style>
-
-		<!-- Main content: SvelteKit renders here, fills remaining height -->
-		<div id="main-content" style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
+		<div id="main-content" style="height:100vh;overflow:hidden;display:flex;flex-direction:column;">
 			<div style="display:contents">%sveltekit.body%</div>
 		</div>
-
-		<!-- Window control wiring -->
-		<script>
-			function initWindowControls() {
-				if (!window.wails) { setTimeout(initWindowControls, 300); return; }
-				document.getElementById('btn-minimise')?.addEventListener('click', () => window.wails.WindowMinimise());
-				document.getElementById('btn-maximise')?.addEventListener('click', () => window.wails.WindowMaximise());
-				document.getElementById('btn-close')?.addEventListener('click', () => window.wails.WindowClose());
-			}
-			initWindowControls();
-		</script>
 	</body>
 </html>

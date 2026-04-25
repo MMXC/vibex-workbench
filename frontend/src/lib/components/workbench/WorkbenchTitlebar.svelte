@@ -6,7 +6,6 @@
 	let { title = 'VibeX Workbench' }: { title?: string } = $props();
 	const menus = ['文件', '编辑', '视图', '终端', '帮助'] as const;
 
-	/** Wails 桌面：调用 window.runtime 窗口管理 */
 	async function handleMinimize() {
 		await (window as any).runtime?.WindowMinimise();
 	}
@@ -23,12 +22,22 @@
 		<a class="brand" href="/workbench" title="VibeX Workbench" aria-label="VibeX Workbench">
 			<img class="brand-logo" src="/vibex-logo.svg" alt="" width="26" height="26" />
 		</a>
+		<span class="workspace-mark">vibex-workbench</span>
+		<nav class="menu-strip" aria-label="WebView 内层菜单">
+			{#each menus as menu}
+				<button type="button">{menu}</button>
+			{/each}
+		</nav>
 	</div>
 
-	<span class="spacer" aria-hidden="true"></span>
-	<span class="center-title">{title}</span>
+	<div class="command-center" aria-label="命令中心">
+		<span class="search-icon" aria-hidden="true">⌕</span>
+		<span>{title} · self-bootstrap workspace</span>
+	</div>
 
 	<div class="trail">
+		<span class="run-pill">make validate ✓</span>
+		<span class="run-pill warn">backend path</span>
 		<button type="button" class="icon-btn" title="设置" aria-label="设置">
 			<svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true">
 				<path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
@@ -37,27 +46,13 @@
 				/>
 			</svg>
 		</button>
-
-<!-- Window controls hidden — frameless mode uses app.html titlebar controls -->
 		<div class="window-controls" role="toolbar" aria-label="窗口">
-			<button
-				type="button"
-				class="win win-min"
-				title="最小化"
-				aria-label="最小化"
-				onclick={handleMinimize}
-			>
+			<button type="button" class="win win-min" title="最小化" aria-label="最小化" onclick={handleMinimize}>
 				<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
 					<path d="M2 6h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
 				</svg>
 			</button>
-			<button
-				type="button"
-				class="win win-max"
-				title="最大化"
-				aria-label="最大化"
-				onclick={handleMaximize}
-			>
+			<button type="button" class="win win-max" title="最大化" aria-label="最大化" onclick={handleMaximize}>
 				<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
 					<rect
 						x="2"
@@ -71,13 +66,7 @@
 					/>
 				</svg>
 			</button>
-			<button
-				type="button"
-				class="win win-close"
-				title="关闭"
-				aria-label="关闭"
-				onclick={handleClose}
-			>
+			<button type="button" class="win win-close" title="关闭" aria-label="关闭" onclick={handleClose}>
 				<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
 					<path d="M2 2l8 8M10 2L2 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
 				</svg>
@@ -89,28 +78,26 @@
 <style>
 	.titlebar {
 		flex-shrink: 0;
-		height: var(--titlebar-h, 38px);
+		height: var(--titlebar-h, 34px);
 		display: flex;
-		align-items: stretch;
-		padding: 0;
-		background: var(--bg-base, #0d0d0e);
-		border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.07));
+		align-items: center;
+		padding: 0 0 0 6px;
+		background: #181818;
+		border-bottom: 1px solid #2b2b2b;
 		position: relative;
 		z-index: 100;
-		font-family: var(--font-ui, 'Inter', sans-serif);
-		font-size: 12.5px;
-		color: var(--text-primary, #e8e8ed);
+		font-family: var(--font-ui, 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif);
+		font-size: 12px;
+		color: #cccccc;
 		user-select: none;
-			/* Hide window controls — frameless window uses app.html titlebar */
-	.window-controls { display: none !important; }
+		--wails-draggable: drag;
 	}
 
 	.lead {
 		display: flex;
 		align-items: center;
 		flex-shrink: 0;
-		gap: 10px;
-		padding-left: 10px;
+		gap: 4px;
 		min-width: 0;
 	}
 
@@ -121,13 +108,15 @@
 		text-decoration: none;
 		color: inherit;
 		flex-shrink: 0;
-		padding: 4px 4px;
-		border-radius: var(--radius-sm, 3px);
+		width: 32px;
+		height: 32px;
+		border-radius: 5px;
 		transition: background 150ms ease;
+		--wails-draggable: no-drag;
 	}
 
 	.brand:hover {
-		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+		background: #252526;
 	}
 
 	.brand-logo {
@@ -135,33 +124,104 @@
 		flex-shrink: 0;
 	}
 
-	.spacer {
-		flex: 1;
-		min-width: 0;
+	.workspace-mark {
+		max-width: 210px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		color: #bdbdbd;
+		font-size: 12px;
+		font-weight: 500;
 	}
 
-	.center-title {
+	.menu-strip {
+		display: flex;
+		align-items: center;
+		height: 100%;
+		gap: 1px;
+		margin-left: 4px;
+		--wails-draggable: no-drag;
+	}
+
+	.menu-strip button {
+		height: 26px;
+		padding: 0 8px;
+		border: 0;
+		border-radius: 4px;
+		background: transparent;
+		color: #cccccc;
+		font: inherit;
+		cursor: pointer;
+	}
+
+	.menu-strip button:hover {
+		background: #2a2d2e;
+	}
+
+	.command-center {
 		position: absolute;
 		left: 50%;
 		top: 50%;
 		transform: translate(-50%, -50%);
-		font-size: 12px;
-		color: var(--text-muted, #555558);
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		width: min(42vw, 520px);
+		height: 24px;
+		padding: 0 12px;
+		box-sizing: border-box;
+		border: 1px solid #3b3b3b;
+		border-radius: 6px;
+		background: #242424;
+		color: #b9b9b9;
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+		--wails-draggable: no-drag;
+	}
+
+	.command-center span:last-child {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
 		white-space: nowrap;
-		pointer-events: none;
+	}
+
+	.search-icon {
+		color: #858585;
+		font-size: 13px;
 	}
 
 	.trail {
 		flex-shrink: 0;
 		display: flex;
-		align-items: stretch;
+		align-items: center;
+		gap: 6px;
 		margin-left: auto;
+		height: 100%;
+	}
+
+	.run-pill {
+		display: inline-flex;
+		align-items: center;
+		height: 20px;
+		padding: 0 8px;
+		border-radius: 999px;
+		background: rgba(34, 197, 94, 0.12);
+		color: #89d185;
+		border: 1px solid rgba(34, 197, 94, 0.25);
+		font-size: 11px;
+		white-space: nowrap;
+	}
+
+	.run-pill.warn {
+		background: rgba(245, 158, 11, 0.1);
+		color: #d7ba7d;
+		border-color: rgba(245, 158, 11, 0.24);
 	}
 
 	.icon-btn {
 		background: none;
 		border: none;
-		color: var(--text-muted, #555558);
+		color: #858585;
 		padding: 0 10px;
 		cursor: pointer;
 		display: flex;
@@ -170,11 +230,12 @@
 		transition:
 			background 120ms ease,
 			color 120ms ease;
+		--wails-draggable: no-drag;
 	}
 
 	.icon-btn:hover {
-		color: var(--text-secondary, #8a8a8e);
-		background: rgba(255, 255, 255, 0.06);
+		color: #cccccc;
+		background: #2a2d2e;
 	}
 
 	.ico-svg {
@@ -189,27 +250,29 @@
 		display: flex;
 		align-items: stretch;
 		height: 100%;
-		margin-right: 0;
+		--wails-draggable: no-drag;
 	}
 
 	.win {
 		box-sizing: border-box;
 		width: 46px;
-		min-height: var(--titlebar-h, 38px);
+		min-height: var(--titlebar-h, 34px);
 		padding: 0;
 		border: none;
 		background: transparent;
-		color: var(--text-secondary, #cccccc);
+		color: #cccccc;
 		cursor: pointer;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		transition: background 120ms ease, color 120ms ease;
+		transition:
+			background 120ms ease,
+			color 120ms ease;
 	}
 
 	.win:hover {
-		background: rgba(255, 255, 255, 0.08);
-		color: var(--text-primary, #e8e8ed);
+		background: #2a2d2e;
+		color: #ffffff;
 	}
 
 	.win-close:hover {
@@ -220,5 +283,19 @@
 	.win svg {
 		flex-shrink: 0;
 		opacity: 0.95;
+	}
+
+	@media (max-width: 980px) {
+		.command-center {
+			display: none;
+		}
+
+		.run-pill {
+			display: none;
+		}
+
+		.menu-strip {
+			display: none;
+		}
 	}
 </style>
