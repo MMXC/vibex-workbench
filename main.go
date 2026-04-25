@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -28,11 +29,78 @@ import (
 //go:embed all:frontend/build
 var assets embed.FS
 
+// mimeType returns the MIME type for a given file extension.
+func mimeType(path string) string {
+	switch ext := filepath.Ext(path); ext {
+	case ".js":
+		return "application/javascript"
+	case ".mjs":
+		return "application/javascript"
+	case ".css":
+		return "text/css"
+	case ".html", ".htm":
+		return "text/html; charset=utf-8"
+	case ".json":
+		return "application/json"
+	case ".svg":
+		return "image/svg+xml"
+	case ".png":
+		return "image/png"
+	case ".ico":
+		return "image/x-icon"
+	case ".woff":
+		return "font/woff"
+	case ".woff2":
+		return "font/woff2"
+	case ".ttf":
+		return "font/ttf"
+	default:
+		return "application/octet-stream"
+	}
+}
+
+// serveFile tries to serve a file from the embedded FS (prefix "frontend/build"),
+// then falls back to the disk directory. Sets correct MIME type.
+// Returns true if the file was served, false if not found.
+func serveFile(w http.ResponseWriter, r *http.Request, diskDir string) bool {
+	path := r.URL.Path
+
+	// Strip leading slash for embed lookups
+	embedPath := filepath.Join("frontend/build", path[1:])
+	if filepath.Ext(embedPath) == "" && !strings.HasSuffix(path, "/") {
+		// Try as-is first
+	}
+	f, err := assets.Open(embedPath)
+	if err == nil {
+		defer f.Close()
+		data, err := io.ReadAll(f)
+		if err == nil {
+			w.Header().Set("Content-Type", mimeType(path))
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			w.WriteHeader(http.StatusOK)
+			w.Write(data)
+			return true
+		}
+	}
+
+	// Disk fallback
+	diskPath := filepath.Join(diskDir, path)
+	data, err := os.ReadFile(diskPath)
+	if err == nil {
+		w.Header().Set("Content-Type", mimeType(path))
+		w.WriteHeader(http.StatusOK)
+		w.Write(data)
+		return true
+	}
+
+	return false
+}
+
 // indexHTML returns the embedded index.html content.
 // Used by the SPA fallback handler.
 func getIndexHTML() ([]byte, error) {
 	// Try embed first
-	f, err := assets.Open("index.html")
+	f, err := assets.Open("frontend/build/index.html")
 	if err == nil {
 		defer f.Close()
 		return io.ReadAll(f)
@@ -46,20 +114,25 @@ func getIndexHTML() ([]byte, error) {
 	return data, nil
 }
 
-// appHandler serves SPA static files with a fallback, and proxies /api/*
-// requests to the Go backend subprocess.
+// appHandler serves static files from embedded assets (with disk fallback)
+// and proxies /api/* requests to the Go backend subprocess.
+// This replaces the default Wails AssetServer behavior so that .js/.css
+// chunks are served with correct MIME types instead of falling through to
+// index.html.
 type appHandler struct {
 	backendPort int
-	spaFallback spaFallbackHandler
+	diskDir     string
 }
 
 func (h *appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+
 	// Proxy /api/* to the Go backend subprocess
-	if len(r.URL.Path) >= 4 && r.URL.Path[:4] == "/api" {
+	if strings.HasPrefix(path, "/api/") {
 		backendURL := &url.URL{
 			Scheme: "http",
 			Host:   fmt.Sprintf("localhost:%d", h.backendPort),
-			Path:   r.URL.Path,
+			Path:   path,
 		}
 		if r.URL.RawQuery != "" {
 			backendURL.RawQuery = r.URL.RawQuery
@@ -74,22 +147,25 @@ func (h *appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		proxy.ServeHTTP(w, r)
 		return
 	}
-	// All other requests: serve SPA fallback
-	h.spaFallback.ServeHTTP(w, r)
-}
 
-// spaFallbackHandler serves index.html for any GET request that the
-// embed cannot satisfy. This enables SPA client-side routing (e.g. /workbench).
-type spaFallbackHandler struct{}
+	// Try to serve a static file (.js, .css, .svg, etc.)
+	diskDir := h.diskDir
+	if diskDir == "" {
+		diskDir = "frontend/build"
+	}
+	if serveFile(w, r, diskDir) {
+		return
+	}
 
-func (h *spaFallbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	// Not found: for SPA routes, serve index.html
+	// For other missing resources, return 404
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	data, err := getIndexHTML()
 	if err != nil {
-		fmt.Printf("[spaFallback] getIndexHTML error: %v\n", err)
+		fmt.Printf("[appHandler] getIndexHTML error: %v\n", err)
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, "Internal Server Error: %v\n", err)
@@ -344,7 +420,7 @@ func isPortAvailable(port int) bool {
 // ── Wails Lifecycle ───────────────────────────────────────
 
 // global appHandler instance used by AssetServer
-var theAppHandler = &appHandler{backendPort: 33338}
+var theAppHandler = &appHandler{backendPort: 33338, diskDir: "frontend/build"}
 
 func main() {
 	app := &App{}
