@@ -171,9 +171,9 @@ skill-sync-pull:
 
 .PHONY: agent-build
 agent-build:
-	@echo "[agent-build] Building Go agent..."
-	@cd $(ROOT)/agent/cmd/web && go build -o $(ROOT)/backend/vibex-backend .
-	@echo "[agent-build] OK → backend/vibex-backend"
+	@echo "[agent-build] Building Go agent (from $(ROOT))..."
+	@cd $(ROOT)/agent/cmd/web && go build -o $(ROOT)/backend/vibex-backend.exe .
+	@echo "[agent-build] OK → $(ROOT)/backend/vibex-backend.exe"
 
 # ── Frontend build ─────────────────────────────────────────────
 # Only builds the SvelteKit frontend (no spec generation).

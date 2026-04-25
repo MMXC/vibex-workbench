@@ -44,4 +44,5 @@ generators/agent-queue/
 agent/web
 agent/cmd/web/vibex-agent-web
 backend/vibex-backend
+backend/vibex-backend.exe
 .gstack/

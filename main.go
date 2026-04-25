@@ -119,26 +119,29 @@ func (a *App) SpawnGoBackend(ctx context.Context) (map[string]any, error) {
 	}
 
 	// 找 backend binary：优先 ./backend/vibex-backend
-	// Windows 编译后是 vibex-backend.exe，os.Executable() 会返回带 .exe 的路径
+	// Windows 编译后是 vibex-backend.exe，Go 也会报告带 .exe 的路径
+	candidates := []string{
+		"./backend/vibex-backend.exe",
+		"./backend/vibex-backend",
+	}
 	backendBinary := "./backend/vibex-backend"
-	if goRuntime.GOOS == "windows" {
-		// 尝试带 .exe 后缀（Windows 编译结果）
-		if _, err := os.Stat(backendBinary + ".exe"); err == nil {
-			backendBinary = backendBinary + ".exe"
+	for _, cand := range candidates {
+		if _, err := os.Stat(cand); err == nil {
+			backendBinary = cand
+			break
 		}
 	}
 	if _, err := os.Stat(backendBinary); os.IsNotExist(err) {
 		// 尝试从当前可执行文件所在目录推导
 		exe, err := os.Executable()
 		if err == nil {
-			candidate := filepath.Join(filepath.Dir(exe), "backend", "vibex-backend")
-			if goRuntime.GOOS == "windows" {
-				if _, err := os.Stat(candidate + ".exe"); err == nil {
-					candidate = candidate + ".exe"
+			exeDir := filepath.Dir(exe)
+			for _, suffix := range []string{".exe", ""} {
+				candidate := filepath.Join(exeDir, "backend", "vibex-backend"+suffix)
+				if _, err := os.Stat(candidate); err == nil {
+					backendBinary = candidate
+					break
 				}
-			}
-			if _, err := os.Stat(candidate); err == nil {
-				backendBinary = candidate
 			}
 		}
 	}
