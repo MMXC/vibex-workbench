@@ -21,14 +21,6 @@ export default defineConfig({
 			'/api': {
 				target: `http://localhost:${BACKEND_PORT}`,
 				changeOrigin: true,
-				bypass(req) {
-					// SvelteKit server-side API routes — do NOT proxy, let SvelteKit handle
-					const p = req.url ?? '';
-					if (p.startsWith('/api/workspace/specs/')) {
-						return p; // bypass → serve via SvelteKit
-					}
-					return undefined; // proxy to Go backend
-				},
 			},
 		},
 	},
