@@ -351,14 +351,17 @@ func main() {
 
 	err := wails.Run(
 		&options.App{
-			Title:  "VibeX Workbench",
-			Width:  1280,
-			Height: 800,
+			Title:     "VibeX Workbench",
+			Width:     1280,
+			Height:    800,
+			MinWidth:  800,
+			MinHeight: 600,
+			Frameless: false,
 			AssetServer: &assetserver.Options{
 				Assets:  assets,
 				Handler: theAppHandler,
 			},
-			BackgroundColour: options.NewRGBA(30, 30, 30, 255),
+			BackgroundColour: options.NewRGBA(15, 15, 15, 255),
 			Bind: []interface{}{app},
 			OnStartup: func(ctx context.Context) {
 				app.ctx = ctx
