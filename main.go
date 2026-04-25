@@ -9,10 +9,11 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
-
 	"strconv"
 	"syscall"
 	"time"
@@ -43,6 +44,38 @@ func getIndexHTML() ([]byte, error) {
 		return nil, fmt.Errorf("embed index.html: %w; disk fallback %s: %v", err, diskPath, err)
 	}
 	return data, nil
+}
+
+// appHandler serves SPA static files with a fallback, and proxies /api/*
+// requests to the Go backend subprocess.
+type appHandler struct {
+	backendPort int
+	spaFallback spaFallbackHandler
+}
+
+func (h *appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Proxy /api/* to the Go backend subprocess
+	if len(r.URL.Path) >= 4 && r.URL.Path[:4] == "/api" {
+		backendURL := &url.URL{
+			Scheme: "http",
+			Host:   fmt.Sprintf("localhost:%d", h.backendPort),
+			Path:   r.URL.Path,
+		}
+		if r.URL.RawQuery != "" {
+			backendURL.RawQuery = r.URL.RawQuery
+		}
+		proxy := httputil.ReverseProxy{
+			Director: func(req *http.Request) {
+				req.URL = backendURL
+				req.Host = backendURL.Host
+				req.Header.Set("X-Forwarded-Host", r.Host)
+			},
+		}
+		proxy.ServeHTTP(w, r)
+		return
+	}
+	// All other requests: serve SPA fallback
+	h.spaFallback.ServeHTTP(w, r)
 }
 
 // spaFallbackHandler serves index.html for any GET request that the
@@ -310,6 +343,9 @@ func isPortAvailable(port int) bool {
 
 // ── Wails Lifecycle ───────────────────────────────────────
 
+// global appHandler instance used by AssetServer
+var theAppHandler = &appHandler{backendPort: 33338}
+
 func main() {
 	app := &App{}
 
@@ -319,8 +355,8 @@ func main() {
 			Width:  1280,
 			Height: 800,
 			AssetServer: &assetserver.Options{
-				Assets: assets,
-				Handler: &spaFallbackHandler{},
+				Assets:  assets,
+				Handler: theAppHandler,
 			},
 			BackgroundColour: options.NewRGBA(30, 30, 30, 255),
 			Bind: []interface{}{app},
@@ -341,7 +377,11 @@ func main() {
 					_, err := app.SpawnGoBackend(ctx)
 					if err != nil {
 						runtime.LogError(ctx, "Auto-spawn backend failed: "+err.Error())
+						return
 					}
+					// 通知 frontend 实际端口，同时更新 appHandler 的代理目标
+					theAppHandler.backendPort = app.backendPort
+					runtime.EventsEmit(ctx, "backend:port", app.backendPort)
 				}()
 			},
 			OnBeforeClose: func(ctx context.Context) bool {
