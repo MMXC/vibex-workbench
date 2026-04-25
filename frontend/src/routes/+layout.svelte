@@ -10,6 +10,7 @@
 
 <script>
   import { onMount } from 'svelte';
+  import '../app.css';
   let { children } = $props();
   onMount(() => {
     if ('serviceWorker' in navigator) {
@@ -18,4 +19,7 @@
   });
 </script>
 
-{@render children()}
+<div style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;">
+  {@render children()}
+</div>
+

@@ -1,4 +1,5 @@
 /* VibeX Workbench — Dark Theme */
+
 *, *::before, *::after { box-sizing: border-box; }
 
 :root {
@@ -12,12 +13,16 @@
   font-family: 'Inter', system-ui, sans-serif;
 }
 
+/* Full-window flex column: titlebar fixed top, main content fills rest */
 html, body {
   margin: 0;
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 a { color: var(--accent); text-decoration: none; }

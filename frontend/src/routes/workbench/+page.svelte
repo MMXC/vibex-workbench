@@ -246,8 +246,8 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 
 <style>
 	.workbench-root {
-		width: 100vw;
-		height: 100vh;
+		width: 100%;
+		height: 100%;
 		overflow: hidden;
 		--wb-base: #0d0d0e;
 		--wb-panel-bg: #131314;
