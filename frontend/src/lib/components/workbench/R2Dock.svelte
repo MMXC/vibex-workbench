@@ -1,6 +1,6 @@
 <!-- R2 底部 Dock：问题 | 输出 | 终端 | 调试 | 更多 — prototypes/vibex-ide-chrome-r2.html #dock -->
 <script lang="ts">
-	import { getOutputText, isOutputVisible } from '$lib/stores/workspace-output-store.svelte.js';
+	import { outputText, outputVisible } from '$lib/stores/workspace-output-store';
 
 	type PanelId = 'problems' | 'output' | 'terminal' | 'debug' | 'more';
 
@@ -25,7 +25,7 @@
 			onclick={() => (panel = 'output')}
 		>
 			输出
-			{#if isOutputVisible()}
+			{#if $outputVisible}
 				<span class="badge"></span>
 			{:else}
 				<span class="badge none">0</span>
@@ -67,8 +67,8 @@
 			</div>
 		{:else if panel === 'output'}
 			<div class="panel output">
-				{#if getOutputText()}
-					<pre class="mono">{getOutputText()}</pre>
+				{#if $outputText}
+					<pre class="mono">{$outputText}</pre>
 				{:else}
 					<pre class="mono muted">[output] 构建与日志占位</pre>
 				{/if}
