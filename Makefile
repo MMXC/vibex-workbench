@@ -172,7 +172,7 @@ skill-sync-pull:
 .PHONY: agent-build
 agent-build:
 	@echo "[agent-build] Building Go agent (from $(ROOT))..."
-	@cd $(ROOT)/agent/cmd/web && go build -o $(ROOT)/backend/vibex-backend.exe .
+	@cd $(ROOT)/agent && go build -o ../backend/vibex-backend.exe ./cmd/web
 	@echo "[agent-build] OK → $(ROOT)/backend/vibex-backend.exe"
 
 # ── Frontend build ─────────────────────────────────────────────
