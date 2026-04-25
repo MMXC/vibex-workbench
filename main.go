@@ -12,7 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	goRuntime "runtime"
+
 	"strconv"
 	"syscall"
 	"time"
