@@ -1,0 +1,80 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-ide-wails-window-options"
+  parent: "FEAT-ide-titlebar"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    L4 FEAT-ide-titlebar 对单层 WebView IDE chrome 的约束。
+  output: |
+    main.go 中 Wails App options 与 startup 行为满足 frameless + empty native menu。
+  boundary: |
+    只允许修改 main.go 中 Wails options 与原生菜单挂载逻辑。
+    不处理 backend spawn、asset server、workspace API。
+  behavior: |
+    1. 确保 Wails App 使用 Frameless true
+    2. 确保 Menu 使用空 menu.NewMenu()
+    3. 禁止默认启动时调用 MenuSetApplicationMenu
+    4. 保留 CSSDragProperty / CSSDragValue 配置
+
+content:
+  file_path: "main.go"
+  file_type: "go"
+
+  implementation_boundary:
+    allowed:
+      - "options.App 中的 Frameless/Menu/CSSDragProperty/CSSDragValue 字段"
+      - "OnStartup 中与原生菜单挂载有关的逻辑"
+    forbidden:
+      - "修改 appHandler 的静态资源代理逻辑"
+      - "修改 SpawnGoBackend 的启动流程"
+      - "引入新的窗口框架库"
+
+  generation_rules:
+    - rule: "Frameless"
+      detail: "options.App.Frameless 必须为 true"
+    - rule: "Empty native menu"
+      detail: "options.App.Menu 必须显式设置为 menu.NewMenu()，避免 Windows/Linux 菜单栏重复出现"
+    - rule: "No startup native menu"
+      detail: "OnStartup 不得默认调用 runtime.MenuSetApplicationMenu"
+    - rule: "Drag contract"
+      detail: "CSSDragProperty 使用 --wails-draggable，CSSDragValue 使用 drag"
+
+  verification:
+    commands:
+      - "go build ."
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - "运行 make wails-dev 后，不显示 Wails 原生菜单栏"
+      - "窗口顶部只显示 WebView 内 WorkbenchTitlebar"
+      - "拖动 titlebar 空白处可移动窗口"
+    failure_conditions:
+      - "出现 File/Edit/View 等原生菜单栏"
+      - "app 启动时报 options/Menu 相关编译错误"
+      - "titlebar 拖拽失效"
+
+  dependencies:
+    - file: "frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte"
+      reason: "WebView 内层 titlebar 负责可见导航和窗口控制"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-26"
+    author: "hermes"
+    changes:
+      - "新增 Wails window options 文件级边界与验证条件"
+---

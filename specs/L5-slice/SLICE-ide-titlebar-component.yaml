@@ -1,0 +1,82 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-ide-titlebar-component"
+  parent: "FEAT-ide-titlebar"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    用户点击 WebView 内层 titlebar 菜单、命令中心、状态 chip、设置或窗口按钮。
+  output: |
+    WorkbenchTitlebar.svelte 渲染唯一 IDE 顶部导航，并调用 Wails runtime 完成窗口控制。
+  boundary: |
+    只管 WorkbenchTitlebar.svelte。菜单具体弹层、command palette 和设置页可为占位。
+  behavior: |
+    1. 渲染品牌、workspace 标识、菜单、命令中心、状态 chip、窗口按钮
+    2. titlebar 空白区域可拖动窗口
+    3. 可点击区域 no-drag
+    4. 窗口按钮调用 runtime API
+
+content:
+  file_path: "frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte"
+  file_type: "svelte"
+
+  implementation_boundary:
+    allowed:
+      - "titlebar markup / style"
+      - "menu button labels and click handlers"
+      - "window control handlers"
+      - "drag/no-drag CSS"
+    forbidden:
+      - "直接访问 filesystem"
+      - "发起 spec read/write 请求"
+      - "在 titlebar 内实现完整 command palette"
+
+  generation_rules:
+    - rule: "Visible controls"
+      detail: "必须包含菜单：文件、编辑、视图、终端、帮助"
+    - rule: "Window buttons"
+      detail: "必须包含最小化、最大化/还原、关闭按钮"
+    - rule: "Wails drag"
+      detail: "根 titlebar 使用 --wails-draggable: drag；菜单、按钮、命令中心使用 no-drag"
+    - rule: "Runtime fallback"
+      detail: "非 Wails 浏览器预览中，runtime 缺失不得导致页面崩溃"
+
+  verification:
+    commands:
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - "菜单和按钮能点击，不会拖动窗口"
+      - "titlebar 空白区域可拖动 Wails 窗口"
+      - "关闭按钮 hover 为红色"
+    failure_conditions:
+      - "窗口按钮点击抛出未捕获异常"
+      - "命令中心无法点击或被拖拽区域吞掉"
+      - "titlebar 高度破坏 IDE 主布局"
+
+  dependencies:
+    - file: "main.go"
+      reason: "Wails frameless + CSSDragProperty 配置"
+    - file: "frontend/src/app.html"
+      reason: "不能存在外层 duplicate titlebar"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-26"
+    author: "hermes"
+    changes:
+      - "新增 WorkbenchTitlebar 文件级边界与验证条件"
+---

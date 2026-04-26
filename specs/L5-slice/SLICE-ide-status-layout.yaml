@@ -1,0 +1,79 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-ide-status-layout"
+  parent: "FEAT-ide-bottom-dock"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    workspaceRoot、backendStatus、workspaceState、workbenchLayoutStore dimensions。
+  output: |
+    StatusBar.svelte 与 WorkbenchLayoutResizable.svelte 共同维持 IDE 外壳底部状态和可调整布局。
+  boundary: |
+    只管状态栏显示与布局尺寸变量。不负责实际 workspace 探测、backend 启动或 store 业务逻辑。
+  behavior: |
+    1. WorkbenchLayoutResizable 提供左栏、右栏、dock 分区和拖拽调整
+    2. StatusBar 常驻最底部
+    3. StatusBar 根据 workspace/backend/spec 状态显示文本和颜色
+    4. 长路径显示短路径并保留 title 完整路径
+
+content:
+  file_path: "frontend/src/lib/components/workbench/StatusBar.svelte + frontend/src/lib/components/workbench/WorkbenchLayoutResizable.svelte"
+  file_type: "svelte"
+
+  implementation_boundary:
+    allowed:
+      - "StatusBar 展示逻辑和样式"
+      - "WorkbenchLayoutResizable 的 CSS 变量和 splitter 尺寸"
+      - "布局 resize handler 调用 workbenchLayoutStore"
+    forbidden:
+      - "在 StatusBar 中 fetch backend"
+      - "在 Layout 组件中写业务状态"
+      - "在 Layout 组件中硬编码隐藏业务 panel"
+
+  generation_rules:
+    - rule: "Status always visible"
+      detail: "StatusBar 位于 WorkbenchLayoutResizable 最底部，不随 dock tab 切换隐藏"
+    - rule: "Resizable panels"
+      detail: "左栏、右栏、dock 使用 workbenchLayoutStore preview/commit"
+    - rule: "IDE visual tokens"
+      detail: "布局根定义 VS Code/Cursor 风格暗色 token，子组件可复用"
+
+  verification:
+    commands:
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - "拖拽左栏、右栏、底部 dock 分隔条后布局保持稳定"
+      - "StatusBar 始终在最底部"
+      - "workspaceRoot 长路径被缩短展示，但 hover title 有完整路径"
+    failure_conditions:
+      - "dock 高度变化后 StatusBar 消失"
+      - "右栏 resize 导致中央编辑器负宽度"
+      - "移动端断点出现双滚动或遮挡"
+
+  dependencies:
+    - file: "frontend/src/lib/stores/workbench-layout-store.ts"
+      reason: "布局尺寸状态"
+    - file: "frontend/src/routes/workbench/+page.svelte"
+      reason: "向 StatusBar 传递 workspace/backend/spec 状态"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-26"
+    author: "hermes"
+    changes:
+      - "新增 StatusBar 与布局文件级边界和验证条件"
+---

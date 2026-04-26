@@ -1,0 +1,84 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-ide-agent-panel-component"
+  parent: "FEAT-ide-agent-panel"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    当前 thread store、message store、composer submit handler、layout dimensions。
+  output: |
+    AiChatColumn.svelte 将右侧 Agent 区域拆成 header、ThreadList、ConversationPanel、Composer。
+  boundary: |
+    只管右侧 panel 布局和 composer resize。消息渲染和提交逻辑由子组件/页面 handler 负责。
+  behavior: |
+    1. 顶部展示 AI Agent header 与 backend dot
+    2. 上方显示 ThreadList
+    3. 中间显示 ConversationPanel
+    4. 底部显示可调整高度的 Composer
+    5. 拖动 split-ai 更新 aiComposerBarPx
+
+content:
+  file_path: "frontend/src/lib/components/workbench/AiChatColumn.svelte"
+  file_type: "svelte"
+
+  implementation_boundary:
+    allowed:
+      - "右侧 panel layout"
+      - "header 文案与状态点"
+      - "composer resize handle"
+      - "ThreadList/ConversationPanel/Composer 的组合"
+    forbidden:
+      - "在 AiChatColumn 中直接调用 /api/chat"
+      - "在 AiChatColumn 中修改 threadStore 消息内容"
+      - "在 AiChatColumn 中实现 agent tool 逻辑"
+
+  generation_rules:
+    - rule: "Composer anchored"
+      detail: "Composer 必须保持在右侧 panel 底部，并可按 aiComposerBarPx 调整高度"
+    - rule: "Resize bounds"
+      detail: "resize 通过 workbenchLayoutStore 处理，不直接写 DOM style"
+    - rule: "Child ownership"
+      detail: "ThreadList、ConversationPanel、Composer 内部行为不在本 slice 修改"
+
+  verification:
+    commands:
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - "右侧 header 显示 AI Agent 与状态点"
+      - "拖拽 composer 分隔条可调整输入区高度"
+      - "窗口缩放时 ConversationPanel 和 Composer 不重叠"
+    failure_conditions:
+      - "Composer 被挤出可视区"
+      - "右侧 resize 后出现空白或滚动异常"
+
+  dependencies:
+    - file: "frontend/src/lib/components/workbench/ThreadList.svelte"
+      reason: "线程列表"
+    - file: "frontend/src/lib/components/workbench/ConversationPanel.svelte"
+      reason: "消息显示"
+    - file: "frontend/src/lib/components/workbench/Composer.svelte"
+      reason: "输入与提交"
+    - file: "frontend/src/lib/stores/workbench-layout-store.ts"
+      reason: "右侧 composer 高度状态"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-26"
+    author: "hermes"
+    changes:
+      - "新增 AiChatColumn 文件级边界与验证条件"
+---

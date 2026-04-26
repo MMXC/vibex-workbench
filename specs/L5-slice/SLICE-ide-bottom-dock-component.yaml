@@ -1,0 +1,82 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-ide-bottom-dock-component"
+  parent: "FEAT-ide-bottom-dock"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    用户点击底部 Problems/Output/Terminal/Debug/More tabs，
+    或 workspace-output-store 产生命令输出。
+  output: |
+    R2Dock.svelte 展示对应底部 panel。
+  boundary: |
+    只管底部 dock tab 与只读内容展示。不实现真实 PTY、debug adapter 或问题扫描器。
+  behavior: |
+    1. panel 初始为 problems
+    2. 点击 dock tab 更新 panel
+    3. output tab 显示 workspace-output-store 输出
+    4. terminal tab 显示当前命令上下文快照
+    5. problems tab 显示 validate/backend 摘要
+
+content:
+  file_path: "frontend/src/lib/components/workbench/R2Dock.svelte"
+  file_type: "svelte"
+
+  implementation_boundary:
+    allowed:
+      - "dock tab 列表"
+      - "problems/output/terminal/debug/more panel markup"
+      - "workspace-output-store 读取"
+      - "IDE dock 样式"
+    forbidden:
+      - "启动真实 shell 进程"
+      - "直接执行 make 命令"
+      - "写入 workspace-output-store"
+
+  generation_rules:
+    - rule: "Read-only terminal"
+      detail: "MVP terminal 是 transcript/占位，不接受用户输入"
+    - rule: "Output source"
+      detail: "Output 只能读取 workspace-output-store，不自己 fetch run-make"
+    - rule: "Problems source"
+      detail: "Problems 可先展示静态/最近诊断摘要，后续再接 validate result store"
+
+  verification:
+    commands:
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - "点击每个 dock tab 内容切换"
+      - "Output 在有 $outputText 时显示 pre 文本"
+      - "Terminal 显示 make wails-dev 上下文，不出现输入框误导"
+    failure_conditions:
+      - "点击 tab 导致页面刷新"
+      - "输出过长撑破 dock"
+      - "Terminal 被误认为可交互真实终端"
+
+  dependencies:
+    - file: "frontend/src/lib/stores/workspace-output-store.ts"
+      reason: "Output panel 的唯一数据源"
+    - file: "frontend/src/lib/components/workbench/WorkbenchLayoutResizable.svelte"
+      reason: "Dock 高度和分隔条"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-26"
+    author: "hermes"
+    changes:
+      - "新增 R2Dock 文件级边界与验证条件"
+---
