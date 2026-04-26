@@ -3,7 +3,7 @@ spec:
   version: "0.1"
   level: 5_implementation
   name: FEAT-state-detection-fix_partial-state
-  parent: FEAT-state-detection
+  parent: FEAT-state-detection-fix
   status: proposal
 
 meta:
@@ -85,6 +85,7 @@ content:
       when: "python3 state_detector.py /path/to/partial/repo --json"
       then: "返回 state === 'partial'"
       evaluation: "jq '.state' 输出为 'partial'"
+      mvp_gate_relevance: "G3 (empty->scaffold->ready chain) requires this fix — without it, partial state never unlocks spec write and make buttons"
     - id: TC-fix-2
       scenario: "frontend ready 按钮在 partial 态展示"
       given: "仓库为 partial 状态"

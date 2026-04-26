@@ -45,6 +45,7 @@ content:
       name: "Empty workspace smoke"
       command: "manual_or_scripted"
       pass_condition: "empty -> scaffold -> ready -> spec list -> validate/generate"
+      critical_note: "Requires FEAT-state-detection-fix to pass: state_detector.py must return 'partial' (not 'half') so frontend ready=true unlocks spec write and make buttons. See FEAT-state-detection-fix + FEAT-state-detection-fix_partial-state."
     - id: "G4"
       name: "Desktop runtime smoke"
       command: "make wails-dev"

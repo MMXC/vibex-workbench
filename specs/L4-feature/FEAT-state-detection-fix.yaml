@@ -1,0 +1,134 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-state-detection-fix"
+  parent: "MOD-state-detection"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "generators"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: proposal
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    state_detector.py 返回的 state 字符串。
+  output: |
+    state 只能是 "empty" | "partial" | "ready" 三者之一，
+    suggestions["partial"] 能正确返回 partial 态建议文案。
+  boundary: |
+    只修复状态名和字典 key，不改探测逻辑本身。
+    不做自动修复。
+
+behavior:
+  - "state_detector.py 不再返回 'half'"
+  - "函数 detect_state() 内部变量名不变，state 变量赋值为 'partial'"
+  - "suggestions dict 以 'partial' 为 key（不是 'half'）"
+  - "suggestions['partial'] 包含两条文案：运行脚手架 + 手动补全"
+
+content:
+  bug_background: |
+    2026-04-27 MVP 评估发现：state_detector.py 在半成品状态时返回 state="half"，
+    但 L3 MOD-state-detection.yaml、L5 FEAT-state-detection_L5.yaml、前端
+    workspace/+page.svelte 均期望 "partial"。
+    导致 partial 态时 frontend ready 判定永远为 false，
+    ✅校验 ⚙️生成 → 进入 Workbench 按钮全部不展示。
+
+  fix_scope:
+    file: generators/state_detector.py
+    lines:
+      - line: 59
+        change: state = "half" → state = "partial"
+        reason: 函数返回值修正
+      - line: 61
+        change: 不再需要访问 suggestions["half"]（之前会 KeyError）
+        reason: 统一用 "partial"
+      - line: 68
+        change: suggestions dict key "half" → "partial"
+        reason: dict key 同步修正
+
+  expected_behavior:
+    empty:
+      state: "empty"
+      signals:
+        - path: "specs/"
+          exists: false
+          reason: "无 specs 目录"
+        - path: "generators/gen.py"
+          exists: false
+          reason: "无生成器入口"
+      suggestions:
+        - "点击「初始化脚手架」开始搭建项目"
+    partial:
+      state: "partial"
+      signals:
+        - path: "specs/"
+          exists: true
+          reason: "specs 目录存在"
+        - path: "generators/gen.py"
+          exists: false
+          reason: "生成器未配置"
+      suggestions:
+        - "运行「生成脚手架」补全目录结构"
+        - "或手动创建 generators/gen.py 和 Makefile"
+    ready:
+      state: "ready"
+      signals:
+        - path: "specs/"
+          exists: true
+        - path: "generators/gen.py"
+          exists: true
+        - path: "Makefile"
+          exists: true
+          reason: "lint-specs target 存在"
+
+  downstream_impact:
+    - file: frontend/src/routes/workspace/+page.svelte
+      line: 80
+      code: let ready = $derived(state?.state === 'ready' || state?.state === 'partial');
+      impact: 无需修改（frontend 原本就期望 "partial"，只是 Python 错误返回了 "half"）
+      verification: partial 态时 ready === true
+
+  user_stories:
+    - id: "US-1"
+      as_a: "开发者"
+      i_want: "在半成品仓库状态能看到校验和生成按钮"
+      so_that: "知道下一步该做什么"
+      acceptance: "state=partial 时，校验和生成按钮可见，ready=true"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "半成品仓库返回正确状态名"
+      given: "specs/ 存在，generators/gen.py 不存在"
+      when: "python3 state_detector.py /path/to/repo --json"
+      then: jq .state 输出 "partial"（不是 "half"）
+      evaluation: "state 值为字符串 'partial'"
+    - id: "TC-2"
+      scenario: "partial suggestions 正确返回"
+      given: "同 TC-1"
+      when: "python3 state_detector.py /path/to/repo --json"
+      then: jq .suggestions 返回数组，长度 >= 1
+      evaluation: "不再因 KeyError 导致 suggestions 为空"
+    - id: "TC-3"
+      scenario: "frontend ready 判定在 partial 态为 true"
+      given: "state=partial"
+      when: "workspace/+page.svelte 渲染"
+      then: ready === true，✅校验 ⚙️生成 → 进入 Workbench 按钮展示
+      evaluation: "无代码修改（frontend 代码已正确期望 'partial'）"
+
+  constraints:
+    - id: "C1"
+      name: "状态名不变原则"
+      rule: "L3/L4/L5 spec 中定义的状态名（empty/partial/ready）是规范，Python 返回值必须与之对齐"
+      validation: "spec L3/L4/L5 和 Python state_detector.py 使用同一套状态名"
+    - id: "C2"
+      name: "不引入新状态"
+      rule: "state 只能是 empty/partial/ready，禁止增加第4种状态"
+      validation: "linter 检查 state_detector.py 不含 'half'/'quarter'/其他状态名"
