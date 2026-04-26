@@ -1,0 +1,86 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-add-child-card"
+  parent: "FEAT-spec-graph-expansion"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    当前 spec 的 level/name/path/status、已有 children 列表、L4 FEAT-spec-graph-expansion.level_rules。
+  output: |
+    SpecAddChildCard.svelte 在图谱中展示合法的 + 子 spec 卡片，并把点击事件转换为 create-child-spec intent。
+  boundary: |
+    只管 + 卡片可见性、目标层级推断、点击 intent。
+    不负责 agent 推荐文案、不负责写文件、不负责 validate。
+  behavior: |
+    1. L1 显示 + L2
+    2. L2 显示 + L3
+    3. L3 显示 + L4
+    4. L4 显示 + L5
+    5. L5 不显示可点击 + 子 spec 卡片，只显示文件级边界说明
+
+content:
+  file_path: "frontend/src/lib/components/workbench/SpecAddChildCard.svelte"
+  file_type: "svelte"
+
+  implementation_boundary:
+    allowed:
+      - "level-to-child mapping"
+      - "+ card markup and disabled state"
+      - "create-child-spec CustomEvent payload"
+      - "target directory and suggested filename preview"
+    forbidden:
+      - "直接创建 YAML 文件"
+      - "直接调用 /api/workspace/specs/write"
+      - "直接调用 agent chat endpoint"
+      - "允许 L5 继续新增子 spec"
+
+  generation_rules:
+    - rule: "One next level only"
+      detail: "每个当前层级最多展示一个下一层入口，避免 L2 同时新增 L4/L5"
+    - rule: "Path preview"
+      detail: "卡片可展示目标目录，例如 L4 的子 spec 目标为 specs/L5-slice/"
+    - rule: "Intent payload"
+      detail: "点击事件必须携带 parent_name、parent_path、target_level、target_dir、existing_children"
+    - rule: "No write"
+      detail: "本组件只发事件，不写 store 外的持久化数据"
+
+  verification:
+    commands:
+      - "make validate"
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - "选中 L1/L2/L3/L4 时分别显示 + L2/+ L3/+ L4/+ L5"
+      - "选中 L5 时不显示可点击 + 卡片"
+      - "点击 + 后右侧线程收到正确 target_level 和 parent_name"
+    failure_conditions:
+      - "L3 能新增 L5 或跨级新增"
+      - "L5 仍显示可点击新增入口"
+      - "点击 + 后立即出现未确认的新 spec 文件"
+
+  dependencies:
+    - file: "frontend/src/lib/components/workbench/SpecGraphViewer.svelte"
+      reason: "承载 + 卡片并处理 create-child-spec intent"
+    - file: "frontend/src/lib/stores/spec-explorer-store.ts"
+      reason: "提供当前 selectedSpecPath 上下文"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-26"
+    author: "hermes"
+    changes:
+      - "新增按层级展示 + 子 spec 卡片的 slice"
+---

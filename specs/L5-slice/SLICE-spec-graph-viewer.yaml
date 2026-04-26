@@ -1,0 +1,89 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-graph-viewer"
+  parent: "FEAT-spec-graph-expansion"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    selectedSpecPath、/api/workspace/specs/list 返回的 spec paths、
+    /api/workspace/specs/read 返回的 YAML 文本，以及 validator 认可的 spec.name/spec.parent 字段。
+  output: |
+    SpecGraphViewer.svelte 在中央图形区展示父 spec、当前 spec、子 spec 和 sibling 摘要卡片。
+  boundary: |
+    只管图谱关系展示和卡片选中交互。不负责写 spec、不负责 agent 草稿生成、不负责完整图布局引擎。
+  behavior: |
+    1. selectedSpecPath 变化时读取当前 spec
+    2. 从 spec.name/spec.parent 构建当前节点
+    3. 从已加载 spec index 中找 parent、children、siblings
+    4. 展示 parent/current/children 三类卡片
+    5. 点击关系卡片更新 selectedSpecPath
+
+content:
+  file_path: "frontend/src/lib/components/workbench/SpecGraphViewer.svelte"
+  file_type: "svelte"
+
+  implementation_boundary:
+    allowed:
+      - "SpecGraphViewer component markup and state"
+      - "read/list API 调用"
+      - "YAML metadata extraction for spec.name/spec.level/spec.parent/status"
+      - "parent/current/children/siblings card rendering"
+      - "selectSpec(path) navigation"
+    forbidden:
+      - "写入 spec 文件"
+      - "调用 make 命令"
+      - "直接调用 agent/LLM API"
+      - "修改 SpecExplorer 的文件树加载策略"
+
+  generation_rules:
+    - rule: "Parent field is edge source"
+      detail: "父子边只由 YAML spec.parent 与 spec.name 匹配生成，不能只靠目录或文件名推断"
+    - rule: "Graph scope"
+      detail: "MVP 只展示当前 spec 的一跳 parent、children、siblings，不做全仓库无限深图"
+    - rule: "Missing parent"
+      detail: "parent 找不到时展示 missing parent 警告卡片，并保留当前节点"
+    - rule: "Navigation"
+      detail: "点击 parent/child/sibling 卡片只更新 selectedSpecPath，不自动进入编辑模式"
+
+  verification:
+    commands:
+      - "make validate"
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - "点击 L3 spec 后能看到 L2 parent 和 L4 children"
+      - "点击 child 卡片后中央图谱切换到该 child"
+      - "parent 缺失时显示警告，不导致中心区空白"
+    failure_conditions:
+      - "图谱边与 make validate 输出的 parent chain 不一致"
+      - "读取某个 spec 失败后 selectedSpecPath 被清空"
+      - "点击卡片直接修改了 spec 文件"
+
+  dependencies:
+    - file: "frontend/src/lib/stores/spec-explorer-store.ts"
+      reason: "保存 selectedSpecPath 和 selectSpec 行为"
+    - file: "frontend/src/lib/workbench/spec-convention.ts"
+      reason: "推断层级与目录显示"
+    - file: "agent/cmd/web/workspace_handlers.go"
+      reason: "提供 specs/list 与 specs/read API"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-26"
+    author: "hermes"
+    changes:
+      - "新增 spec 父子关系图谱展示 slice"
+---

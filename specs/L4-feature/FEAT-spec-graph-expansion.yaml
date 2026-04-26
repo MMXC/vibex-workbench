@@ -1,0 +1,140 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-spec-graph-expansion"
+  parent: "MOD-spec-editor"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    用户在 SpecExplorer 中点击一个具体 spec 文件，或在中央 spec 图谱中点击新增子 spec 的 + 卡片。
+  output: |
+    - 中央图形区展示当前 spec、父 spec、子 spec 的关联卡片
+    - 根据当前 spec 层级展示允许新增的子 spec + 卡片
+    - 点击 + 卡片后，右侧 agent 线程生成推荐草稿并进入澄清
+    - 用户确认后写入 specs/ 并触发 make validate
+  boundary: |
+    本 feature 只定义 spec 图谱查看、新增子 spec 入口、agent 澄清协作。
+    不负责底层 LLM provider、完整 YAML 编辑器、真实代码生成或跨 workspace 迁移。
+  behavior:
+    - "选中 spec 后读取当前 spec metadata 和 parent chain"
+    - "中央图谱展示 parent/current/children/sibling context"
+    - "按照 L1->L2->L3->L4->L5 的层级约束显示 + 子 spec 卡片"
+    - "+ 卡片点击后把 parent spec、目标层级、相邻 specs 作为上下文发送给 agent 线程"
+    - "agent 推荐草稿必须先在对话中澄清，不直接写盘"
+    - "用户显式确认后调用 specs/write 并运行 make validate"
+
+content:
+  behaviors:
+    - id: "B1"
+      trigger: "用户点击左侧某个 spec 文件"
+      action: "加载 spec 内容和索引关系，构建 parent/current/children 图谱"
+      expected_result: "中央区显示当前 spec 卡片、父卡片、子卡片和可新增子 spec 的 + 卡片"
+      error_handling: "读取失败时展示错误卡片，不清空 selectedSpecPath"
+    - id: "B2"
+      trigger: "用户点击 + 子 spec 卡片"
+      action: "根据当前层级推断目标子层级，并打开右侧 agent 澄清线程"
+      expected_result: "线程中出现推荐创建的 spec 草稿、待澄清问题和确认动作"
+      error_handling: "当前层级不允许新增子 spec 时禁用 + 卡片并说明原因"
+    - id: "B3"
+      trigger: "用户在 agent 线程中确认草稿"
+      action: "写入目标 specs/Lx-* 路径，并运行 make validate"
+      expected_result: "新 spec 出现在图谱中，验证通过则卡片变为 proposal/ready 状态"
+      error_handling: "验证失败时保留草稿，Problems/线程中显示失败分类"
+
+  level_rules:
+    - current_level: "L1"
+      allowed_child_level: "L2"
+      target_dir: "specs/L2-skeleton/"
+    - current_level: "L2"
+      allowed_child_level: "L3"
+      target_dir: "specs/L3-module/"
+    - current_level: "L3"
+      allowed_child_level: "L4"
+      target_dir: "specs/L4-feature/"
+    - current_level: "L4"
+      allowed_child_level: "L5"
+      target_dir: "specs/L5-slice/"
+    - current_level: "L5"
+      allowed_child_level: null
+      target_dir: null
+
+  user_stories:
+    - id: "US-1"
+      as_a: "产品/工程共同评审者"
+      i_want: "点击任意 spec 后看到它与父子 spec 的关系"
+      so_that: "可以判断当前工作处在目标、模块、功能还是文件实现层"
+      acceptance: "当前 spec、父 spec、子 spec 至少以三类卡片区分展示"
+    - id: "US-2"
+      as_a: "自举工作流使用者"
+      i_want: "从图谱上的 + 卡片开始新增下一层 spec"
+      so_that: "新增 spec 的层级、parent 和目录不会靠人工记忆"
+      acceptance: "+ 卡片只展示合法下一层，并在确认前进入 agent 澄清线程"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "选中 L3 模块 spec"
+      given: "存在 MOD-spec-editor，其 parent 为 vibex-workbench-skeleton"
+      when: "用户点击 MOD-spec-editor"
+      then: "图谱展示 L2 parent、L3 current、L4 children，并显示 + L4 卡片"
+      evaluation: "+ 卡片目标目录为 specs/L4-feature/"
+    - id: "TC-2"
+      scenario: "点击 + L5 子 spec"
+      given: "当前选中 FEAT-spec-graph-expansion"
+      when: "用户点击 + L5 卡片"
+      then: "右侧 agent 线程收到 parent=FEAT-spec-graph-expansion 和 target_level=L5"
+      evaluation: "agent 草稿不会在用户确认前写入文件"
+    - id: "TC-3"
+      scenario: "L5 不允许继续新增子 spec"
+      given: "当前选中某个 L5 slice"
+      when: "用户查看图谱"
+      then: "不显示可点击新增子 spec 的 + 卡片"
+      evaluation: "界面提示 L5 是文件级实现边界"
+
+  constraints:
+    - id: "C1"
+      name: "Parent chain source of truth"
+      rule: "图谱边以 spec.parent 和 spec.name 为准，不从文件名猜父子关系"
+      validation: "make validate 通过后，图谱关系与 validator index 一致"
+    - id: "C2"
+      name: "No implicit write"
+      rule: "点击 + 卡片只能创建澄清会话，不能直接写入 specs/"
+      validation: "未确认前 git status 不出现新增 spec 文件"
+    - id: "C3"
+      name: "Layer-safe child creation"
+      rule: "新增子 spec 的 target_dir 必须由当前层级映射决定"
+      validation: "L3 只能新增 L4，L4 只能新增 L5，L5 不显示新增入口"
+
+  l4_l5_lineage:
+    summary: "该 feature 由图谱展示、+ 子 spec 入口、agent 澄清线程三个 slice 落地。"
+    which_files:
+      - file: "frontend/src/lib/components/workbench/SpecGraphViewer.svelte"
+        generated_from: "B1"
+      - file: "frontend/src/lib/components/workbench/SpecAddChildCard.svelte"
+        generated_from: "B2"
+      - file: "frontend/src/lib/components/workbench/SpecAgentClarification.svelte"
+        generated_from: "B2-B3"
+    generation_order:
+      - "SpecGraphViewer"
+      - "SpecAddChildCard"
+      - "SpecAgentClarification"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-26"
+    author: "hermes"
+    changes:
+      - "新增 spec 图谱父子卡片与 + 子 spec agent 澄清交互"
+---

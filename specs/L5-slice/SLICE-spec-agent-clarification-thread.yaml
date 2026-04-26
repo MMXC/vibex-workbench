@@ -1,0 +1,96 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-agent-clarification-thread"
+  parent: "FEAT-spec-graph-expansion"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    SpecAddChildCard 发出的 create-child-spec intent：
+    parent_name、parent_path、target_level、target_dir、existing_children、current_workspace。
+  output: |
+    右侧 agent 线程展示推荐 spec 草稿、澄清问题、确认写入动作和验证结果摘要。
+  boundary: |
+    只管从图谱 intent 到 agent 澄清线程的上下文组装和确认流程。
+    不负责 agent 模型实现、不负责完整聊天存储、不负责所有 spec 模板字段穷举。
+  behavior: |
+    1. 点击 + 后在右侧线程追加 create-child-spec 系统上下文
+    2. agent 基于 parent spec、目标层级和 sibling names 推荐草稿
+    3. agent 必须先提出必要澄清问题
+    4. 用户确认后才调用 specs/write
+    5. 写入后运行 make validate，并把结果归类展示
+
+content:
+  file_path: "frontend/src/lib/components/workbench/SpecAgentClarification.svelte"
+  file_type: "svelte"
+
+  implementation_boundary:
+    allowed:
+      - "create-child-spec intent to thread message mapping"
+      - "agent draft preview state"
+      - "confirm/cancel actions"
+      - "specs/write API call after explicit confirmation"
+      - "make validate result summary display"
+    forbidden:
+      - "未确认时写入 specs/"
+      - "绕过 agent 线程直接静默创建文件"
+      - "在前端硬编码完整 L1-L5 模板内容"
+      - "修改底层 chat streaming protocol"
+
+  generation_rules:
+    - rule: "Context package"
+      detail: "发送给 agent 的上下文必须包含 parent spec 摘要、target_level、target_dir、existing_children、requested_user_goal"
+    - rule: "Clarify before write"
+      detail: "agent 至少需要输出草稿摘要和待确认字段，用户确认前不得调用 specs/write"
+    - rule: "Filename proposal"
+      detail: "agent 推荐 filename 时必须避免与 existing_children 和目录内现有文件冲突"
+    - rule: "Validation feedback"
+      detail: "写入后运行 make validate，失败按 yaml_parse_error/parent_not_found/level_mismatch/missing_l5_boundary 分类展示"
+
+  verification:
+    commands:
+      - "make validate"
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - "点击 + L4 后右侧线程出现 parent 与 target_level 上下文"
+      - "未点确认时不会写入任何新 YAML"
+      - "确认后新 spec 写入目标目录并刷新左侧树/中央图谱"
+      - "validate 失败时线程中显示失败分类和下一步"
+    failure_conditions:
+      - "点击 + 后直接写盘"
+      - "agent 草稿缺少 parent 字段"
+      - "validate 失败只展示原始长日志，没有分类"
+      - "取消澄清后仍保留待写入副作用"
+
+  dependencies:
+    - file: "frontend/src/lib/components/workbench/AiChatColumn.svelte"
+      reason: "右侧 agent 线程承载区域"
+    - file: "frontend/src/lib/components/workbench/Composer.svelte"
+      reason: "用户补充澄清和确认动作"
+    - file: "agent/cmd/web/workspace_handlers.go"
+      reason: "specs/write 与 run-make API"
+    - file: "agent/skills/spec-first-workflow/SKILL.md"
+      reason: "agent 生成子 spec 时遵循 L1-L5 工作流"
+    - file: "agent/skills/spec-first-workflow/validation-and-failure.md"
+      reason: "验证失败分类规则"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-26"
+    author: "hermes"
+    changes:
+      - "新增 + 子 spec 到 agent 澄清线程的实现边界"
+---
