@@ -1,0 +1,85 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-new-l1-wizard"
+  parent: "MOD-spec-editor"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: proposal
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    用户点击「新建 L1 Spec」按钮，填写表单（项目名、描述、类型）。
+  output: |
+    - 生成 L1 spec 文件（如 specs/L1-goal/{projectName}.yaml）
+    - 自动打开新创建的 spec 进入编辑模式
+    - 保存后触发 state 检测（状态应变为 partial 或 ready）
+  boundary: |
+    只负责新建 L1 spec 文件（level=1_project-goal）。
+    不负责创建 L2–L5，不负责生成代码。
+
+behavior:
+  - "用户在 spec 列表页点击「+ 新建 L1」按钮"
+  - "弹出 wizard/modal，填写：projectName、description、owner"
+  - "点击「生成」→ POST /api/workspace/specs/write 创建文件"
+  - "成功后：关闭 wizard → 自动打开新文件进入编辑模式"
+  - "状态检测自动刷新（因为 specs/ 目录内容变了）"
+
+content:
+  behaviors:
+    - id: "B1"
+      trigger: "用户点击「+ 新建 L1」"
+      action: "打开 wizard modal，显示 projectName / description / owner 输入框"
+      expected_result: "modal 显示，预填 owner 为当前用户名"
+      error_handling: "N/A"
+    - id: "B2"
+      trigger: "用户填写表单并点击「生成」"
+      action: "POST /api/workspace/specs/write，path=specs/L1-goal/{projectName}.yaml，content=L1 template"
+      expected_result: "文件写入，modal 关闭，列表刷新，新文件高亮"
+      error_handling: "重名时显示「文件已存在」，不覆盖"
+    - id: "B3"
+      trigger: "用户点击 modal「取消」"
+      action: "关闭 modal，不写文件"
+      expected_result: "目录无变化"
+      error_handling: "N/A"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "开发者"
+      i_want: "点击一下就能创建符合模板的 L1 spec 文件"
+      so_that: "不用手动写 YAML 头部和基本结构"
+      acceptance: "生成的文件符合 L1-goal-template.yaml 格式，含正确的 level、parent:null、lifecycle"
+
+  constraints:
+    - id: "C1"
+      name: "L1 parent 必须为 null"
+      rule: "L1 spec 的 parent 字段必须为 null"
+      validation: "scaffold 生成时强制设为 null"
+    - id: "C2"
+      name: "文件名唯一"
+      rule: "specs/L1-goal/{projectName}.yaml 不能已存在"
+      validation: "写前检查，存在则拒绝"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "正常创建 L1"
+      given: "specs/L1-goal/ 为空"
+      when: "填写 projectName=my-app → 点击生成"
+      then: "specs/L1-goal/my-app.yaml 创建，内容含 level:1_project-goal"
+      evaluation: "文件存在且格式正确"
+    - id: "TC-2"
+      scenario: "重名拒绝"
+      given: "specs/L1-goal/vibex-workbench-mvp.yaml 已存在"
+      when: "填写 projectName=vibex-workbench-mvp → 点击生成"
+      then: "显示错误，不写文件"
+      evaluation: "文件未覆盖"

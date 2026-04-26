@@ -1,0 +1,176 @@
+---
+spec:
+  version: "0.1"
+  level: 5_implementation
+  name: FEAT-new-l1-wizard_L5
+  parent: FEAT-new-l1-wizard
+  status: proposal
+
+meta:
+  type: implementation
+  module: frontend
+  owner: hermes
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: proposal
+  updated: "2026-04-27"
+  history:
+    - status: proposal
+      at: "2026-04-27T00:00:00"
+      by: hermes
+      trigger: mvp-评估
+      note: 实现「新建 L1」wizard modal，从 spec-templates/L1-goal/ 加载模板，写入磁盘后自动打开
+
+io_contract:
+  input: |
+    用户填写 wizard 表单（projectName, description, owner）后点击「生成」。
+    POST /api/workspace/specs/write { workspaceRoot, path, content }
+  output: |
+    成功: 文件写入 → modal 关闭 → 新 spec 高亮选中
+    失败: 显示错误信息，modal 保持打开
+  boundary: |
+    只实现前端 wizard UI 和 API 调用。
+    模板内容来自 spec-templates/L1-goal/L1-goal-template.yaml（通过 fetch 加载）。
+
+content:
+  file_path: frontend/src/lib/components/workbench/SpecExplorer.svelte
+  alt_file: frontend/src/lib/components/workbench/NewL1Wizard.svelte  # 可独立组件
+
+  implementation_boundary:
+    allowed:
+      - "wizard modal 显示/隐藏"
+      - "projectName / description / owner 表单"
+      - "fetch L1-goal-template.yaml（作为模板内容）"
+      - "POST /api/workspace/specs/write"
+      - "成功 → 关闭 modal → 触发列表刷新"
+      - "失败 → 显示错误，modal 保持"
+    not_allowed:
+      - "修改 spec 读取逻辑"
+      - "修改 spec 图谱"
+      - "生成 L2–L5 spec"
+
+  template_injection: |
+    L1-goal-template.yaml 内容通过以下占位符注入用户输入：
+    - {{PROJECT_NAME}} → projectName 输入值
+    - {{DESCRIPTION}}  → description 输入值
+    - {{OWNER}}        → owner 输入值
+    - {{DATE}}         → 当前日期 YYYY-MM-DD
+
+  changes:
+    - section: state
+      add: |
+        let showNewL1Wizard = $state(false);
+        let wizardProjectName = $state('');
+        let wizardDescription = $state('');
+        let wizardOwner = $state('user');
+        let wizardLoading = $state(false);
+        let wizardError = $state('');
+
+    - section: template fetch
+      add: |
+        async function loadL1Template(): Promise<string> {
+          // 从当前 workspace 的 spec-templates 加载，或 fallback 到内置模板
+          try {
+            const res = await fetch('/api/workspace/specs/read?path=spec-templates/L1-goal/L1-goal-template.yaml');
+            if (res.ok) return await res.text();
+          } catch {}
+          // Fallback 内置最小模板（注意：YAML 块标量内不能用独立 ---）
+          const tmpl = [
+            '---',
+            'spec:',
+            '  version: "0.1"',
+            '  level: "1_project-goal"',
+            '  name: "{{PROJECT_NAME}}"',
+            '  parent: null',
+            '  status: "proposal"',
+            'meta:',
+            '  type: "project-goal"',
+            '  owner: "{{OWNER}}"',
+            '  created: "{{DATE}}"',
+            '  updated: "{{DATE}}"',
+            'io_contract:',
+            '  input: |',
+            '    {{DESCRIPTION}}',
+            '  output: |',
+            '    （待填写）',
+            '  behavior:',
+            '    - （待填写）',
+            'content:',
+            '  mission: |',
+            '    {{DESCRIPTION}}',
+            '  target_users:',
+            '    - name: "用户"',
+            '      description: "{{DESCRIPTION}}"',
+            'changelog:',
+            '  - version: "0.1"',
+            '    date: "{{DATE}}"',
+            '    author: "{{OWNER}}"',
+            '    changes:',
+            '      - "初始版本"',
+          ].join('\n');
+          return tmpl;
+
+    - section: createL1Spec handler
+      add: |
+        async function createL1Spec() {
+          if (!wizardProjectName.trim()) {
+            wizardError = '项目名不能为空';
+            return;
+          }
+          wizardLoading = true;
+          wizardError = '';
+          try {
+            let content = await loadL1Template();
+            const date = new Date().toISOString().slice(0, 10);
+            content = content
+              .replace(/\{\{PROJECT_NAME\}\}/g, wizardProjectName.trim())
+              .replace(/\{\{DESCRIPTION\}\}/g, wizardDescription.trim())
+              .replace(/\{\{OWNER\}\}/g, wizardOwner.trim())
+              .replace(/\{\{DATE\}\}/g, date);
+
+            const specPath = `L1-goal/${wizardProjectName.trim()}.yaml`;
+            const res = await fetch('/api/workspace/specs/write', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ workspaceRoot, path: specPath, content })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+              wizardError = data.error || '创建失败';
+              return;
+            }
+            // 成功：关闭 modal，重置表单，刷新列表，打开新文件
+            showNewL1Wizard = false;
+            wizardProjectName = '';
+            wizardDescription = '';
+            wizardOwner = 'user';
+            await refreshSpecList();
+            selectSpec(specPath);  // 打开新创建的文件
+          } catch (e) {
+            wizardError = e instanceof Error ? e.message : String(e);
+          } finally {
+            wizardLoading = false;
+          }
+        }
+
+  test_scenarios:
+    - id: TC-newl1-1
+      scenario: "正常创建"
+      given: "specs/L1-goal/ 为空"
+      when: "填写 projectName=my-app → 点击生成"
+      then: "POST /api/workspace/specs/write 调用，文件创建"
+      evaluation: "path=L1-goal/my-app.yaml，content 含正确替换的占位符"
+    - id: TC-newl1-2
+      scenario: "重名拒绝"
+      given: "specs/L1-goal/my-app.yaml 已存在"
+      when: "填写 projectName=my-app → 点击生成"
+      then: "wizardError='创建失败' 或后端返回错误，modal 保持"
+      evaluation: "文件未覆盖"
+    - id: TC-newl1-3
+      scenario: "空项目名"
+      given: "projectName 输入为空"
+      when: "点击生成"
+      then: "wizardError='项目名不能为空'，不调用 API"
+      evaluation: "无 API 调用"

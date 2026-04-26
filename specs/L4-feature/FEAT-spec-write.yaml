@@ -1,0 +1,96 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-spec-write"
+  parent: "MOD-spec-editor"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: proposal
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    用户在 SpecViewer 点击「编辑」按钮，或在 SpecExplorer 点击 spec 文件。
+  output: |
+    - 编辑模式：显示 CodeMirror YAML 编辑器
+    - 保存：POST /api/workspace/specs/write → {success, error}
+    - 取消：放弃修改，恢复原内容
+  boundary: |
+    只负责 spec YAML 读写和 UI 状态切换。
+    不负责 YAML 语法校验（由 make lint-specs 负责）。
+    不负责 spec 内容语义校验（由 validate_chain.py 负责）。
+
+behavior:
+  - "用户点击 spec 文件 → read → 展示内容（只读模式）"
+  - "用户点击「编辑」→ 进入编辑模式，显示 CodeMirror"
+  - "用户修改内容 → 本地保存 diff"
+  - "用户点击「保存」→ POST /api/workspace/specs/write → 成功后切回只读模式"
+  - "用户点击「取消」→ 丢弃修改，切回只读模式"
+  - "保存失败 → 显示错误信息，保持编辑模式"
+
+content:
+  behaviors:
+    - id: "B1"
+      trigger: "用户在 SpecViewer 只读视图点击「编辑」按钮"
+      action: "切换到编辑模式，显示 CodeMirror 编辑器，预填当前 YAML 内容"
+      expected_result: "编辑按钮变为「保存」和「取消」，CodeMirror 可编辑"
+      error_handling: "CodeMirror 加载失败时显示 textarea fallback"
+    - id: "B2"
+      trigger: "用户点击「保存」"
+      action: "POST /api/workspace/specs/write {path, content} → 成功后刷新只读视图"
+      expected_result: "文件写入磁盘，UI 切回只读，显示「保存成功」toast"
+      error_handling: "API 返回错误时显示错误信息，不关闭编辑器"
+    - id: "B3"
+      trigger: "用户点击「取消」"
+      action: "丢弃所有修改，关闭编辑器，恢复只读视图"
+      expected_result: "不写磁盘，原内容不变"
+      error_handling: "N/A"
+    - id: "B4"
+      trigger: "用户修改内容后刷新页面"
+      action: "未保存内容丢失，确认后再离开"
+      expected_result: "有 unsaved changes 时提示用户确认离开"
+      error_handling: "无"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "开发者"
+      i_want: "能编辑已有的 spec 文件并保存"
+      so_that: "可以修正 spec 中的错误，添加新的 user_stories 或 behaviors"
+      acceptance: "编辑 → 保存 → 重新打开，内容与保存时一致"
+    - id: "US-2"
+      as_a: "开发者"
+      i_want: "编辑前能看到原始内容，编辑中能随时取消"
+      so_that: "不会因为误操作覆盖重要内容"
+      acceptance: "点击取消后，原内容未变化"
+
+  constraints:
+    - id: "C1"
+      name: "只写 specs/ 目录"
+      rule: "禁止通过 spec write API 写入 specs/ 以外的任何路径"
+      validation: "backend workspaceSpecWriteHandler 检查 path 必须以 SPEC_ROOT/specs/ 开头"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "编辑并保存已有 spec"
+      given: "specs/L1-goal/vibex-workbench-mvp.yaml 存在"
+      when: "读取 → 编辑 content → 保存"
+      then: "文件内容更新，UI 显示保存成功"
+    - id: "TC-2"
+      scenario: "保存失败"
+      given: "API 返回错误（如权限不足）"
+      when: "点击保存"
+      then: "显示错误信息，保持编辑模式，内容不变"
+    - id: "TC-3"
+      scenario: "取消编辑"
+      given: "已修改内容但未保存"
+      when: "点击取消"
+      then: "原文件内容不变，UI 切回只读"

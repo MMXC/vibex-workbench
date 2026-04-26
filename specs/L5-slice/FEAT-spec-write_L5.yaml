@@ -1,0 +1,141 @@
+---
+spec:
+  version: "0.1"
+  level: 5_implementation
+  name: FEAT-spec-write_L5
+  parent: FEAT-spec-write
+  status: proposal
+
+meta:
+  type: implementation
+  module: frontend
+  owner: hermes
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: proposal
+  updated: "2026-04-27"
+  history:
+    - status: proposal
+      at: "2026-04-27T00:00:00"
+      by: hermes
+      trigger: mvp-评估
+      note: 为 SpecViewer 添加编辑模式，实现 POST /api/workspace/specs/write 前端调用
+
+io_contract:
+  input: |
+    用户在 SpecViewer 点击「编辑」并修改 YAML 内容后点击「保存」。
+    POST /api/workspace/specs/write { workspaceRoot, path, content }
+  output: |
+    成功: { success: true, path: "..." }
+    失败: { success: false, error: "..." }
+    前端收到成功后切换到只读模式并显示 toast。
+  boundary: |
+    只负责前端编辑 UI 和 API 调用。
+    不实现 backend 写文件逻辑（已由 workspace_handlers.go 实现）。
+
+content:
+  file_path: frontend/src/lib/components/workbench/SpecViewer.svelte
+
+  implementation_boundary:
+    allowed:
+      - "edit 按钮切换编辑状态（editing boolean）"
+      - "CodeMirror 编辑器实例化与内容填充"
+      - "POST /api/workspace/specs/write fetch 调用"
+      - "保存成功 → 切换只读模式 + toast"
+      - "保存失败 → 显示错误信息，保持编辑"
+      - "取消 → 丢弃编辑状态，恢复原始 content"
+    not_allowed:
+      - "修改 spec 列表读取逻辑（SpecExplorer.svelte 职责）"
+      - "修改 spec 图谱渲染逻辑（SpecGraph.svelte 职责）"
+      - "实现 YAML 语法校验（由 lint-specs 负责）"
+
+  changes:
+    - section: state
+      current: "loading, content, fetchErr"
+      add: |
+        editing: boolean         # 编辑模式开关
+        editContent: string      # 编辑中的内容（区分原始 content）
+        saveLoading: boolean     # 保存中状态
+        saveErr: string | null  # 保存错误信息
+        hasUnsavedChanges: boolean  # 是否有未保存修改
+
+    - section: UI
+      add: |
+        工具栏按钮：
+        - 只读模式：「编辑」按钮 → 切换到 editing=true
+        - 编辑模式：「保存」「取消」按钮 → 保存/cancel
+
+        条件渲染：
+        - {#if !editing}: 只读 <pre> + 「编辑」按钮
+        - {#if editing}: CodeMirror textarea + 「保存」「取消」
+
+    - section: save handler
+      current: 无
+      add: |
+        async function saveSpec() {
+          saveLoading = true;
+          saveErr = null;
+          try {
+            const res = await fetch('/api/workspace/specs/write', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ workspaceRoot, path, content: editContent })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+              saveErr = data.error || '保存失败';
+              return;
+            }
+            // 保存成功
+            content = editContent;
+            editing = false;
+            showToast('保存成功');
+          } catch (e) {
+            saveErr = e instanceof Error ? e.message : String(e);
+          } finally {
+            saveLoading = false;
+          }
+        }
+
+    - section: cancel handler
+      add: |
+        editing = false;
+        editContent = content;  // 恢复原始内容
+
+  code_patterns:
+    - name: "CodeMirror 实例化"
+      snippet: |
+        import { EditorView, basicSetup } from 'codemirror';
+        import { yaml } from '@codemirror/lang-yaml';
+        let editor: EditorView;
+        $effect(() => {
+          if (editing && editorEl) {
+            editor = new EditorView({
+              doc: editContent,
+              extensions: [basicSetup, yaml()],
+              parent: editorEl
+            });
+          }
+        });
+
+  test_scenarios:
+    - id: TC-write-1
+      scenario: "编辑 → 保存 → 只读模式"
+      given: "SpecViewer 加载 specs/L1-goal/vibex-workbench-mvp.yaml"
+      when: "点击编辑 → 修改 content → 点击保存"
+      then: "POST /api/workspace/specs/write 被调用，editing=false，toast 显示"
+      evaluation: "API body path 正确，content 为修改后内容"
+    - id: TC-write-2
+      scenario: "保存 API 错误"
+      given: "API 返回 500"
+      when: "点击保存"
+      then: "saveErr 显示错误信息，editing=true，文件未写入"
+      evaluation: "用户可继续修改或取消"
+    - id: TC-write-3
+      scenario: "取消编辑"
+      given: "已修改 editContent"
+      when: "点击取消"
+      then: "editing=false，editContent 恢复为原始 content"
+      evaluation: "未调用 save API"

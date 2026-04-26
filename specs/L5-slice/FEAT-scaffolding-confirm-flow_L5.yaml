@@ -1,0 +1,131 @@
+---
+spec:
+  version: "0.1"
+  level: 5_implementation
+  name: FEAT-scaffolding-confirm-flow_L5
+  parent: FEAT-scaffolding
+  status: proposal
+
+meta:
+  type: implementation
+  module: frontend
+  owner: hermes
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: proposal
+  updated: "2026-04-27"
+  history:
+    - status: proposal
+      at: "2026-04-27T00:00:00"
+      by: hermes
+      trigger: mvp-评估
+      note: 为 scaffold 流程添加 preview + confirm 两步确认，避免静默写入
+
+io_contract:
+  input: |
+    用户在 empty 状态点击「初始化脚手架」按钮。
+  output: |
+    Step 1 (Preview): 显示将要创建的文件列表（只读），含「确认」和「取消」按钮。
+    Step 2 (Confirm): 用户确认 → POST /api/workspace/scaffold → 写入文件 → 成功后关闭 drawer。
+    用户取消: 关闭 drawer，无任何写入。
+  boundary: |
+    只实现前端 preview + confirm 两步流程。
+    后端 scaffold 逻辑已在 workspace_handlers.go 实现。
+
+content:
+  file_path: frontend/src/routes/workspace/+page.svelte
+
+  implementation_boundary:
+    allowed:
+      - "scaffoldPreview: boolean 状态（false=普通按钮，true=预览模式）"
+      - "previewItems: [] 预览文件列表"
+      - "打开 preview 模式：显示将要创建的文件"
+      - "取消 preview：scaffoldPreview=false"
+      - "确认 preview：调用 scaffold() → 成功后 scaffoldPreview=false"
+    not_allowed:
+      - "修改 state_detector.py 逻辑"
+      - "修改后端 scaffold handler"
+
+  changes:
+    - section: state
+      add: |
+        let scaffoldPreview = $state(false);      // true = 预览确认模式
+        let scaffoldPreviewItems = $state<string[]>([]);  // 预览文件列表
+
+    - section: open preview
+      current: |
+        <button onclick={scaffold} disabled={loading} class="btn-primary">
+          📦 初始化脚手架
+        </button>
+      after: |
+        <!-- 非预览模式：显示预览按钮 -->
+        {#if !scaffoldPreview}
+          <button onclick={openScaffoldPreview} disabled={loading} class="btn-primary">
+            📦 初始化脚手架
+          </button>
+        {/if}
+
+        <!-- 预览模式：确认流程 -->
+        {#if scaffoldPreview}
+          <div class="scaffold-confirm-drawer">
+            <h3>即将创建以下文件：</h3>
+            <ul>
+              {#each scaffoldPreviewItems as item}
+                <li>{item}</li>
+              {/each}
+            </ul>
+            <div class="confirm-actions">
+              <button onclick={confirmScaffold} disabled={loading}>
+                ✅ 确认写入
+              </button>
+              <button onclick={() => scaffoldPreview = false} disabled={loading}>
+                取消
+              </button>
+            </div>
+          </div>
+        {/if}
+
+    - section: openScaffoldPreview handler
+      add: |
+        function openScaffoldPreview() {
+          // 预览文件列表（硬编码，与 scaffolder.py output 一致）
+          scaffoldPreviewItems = [
+            'specs/L1-goal/',
+            'specs/L2-skeleton/',
+            'generators/',
+            'generators/gen.py',
+            'generators/validate_specs.py',
+            'Makefile',
+            'README.md'
+          ];
+          scaffoldPreview = true;
+        }
+
+    - section: confirmScaffold handler
+      add: |
+        async function confirmScaffold() {
+          scaffoldPreview = false;  // 关闭预览模式
+          await scaffold();        // 调用已有 scaffold()
+        }
+
+  test_scenarios:
+    - id: TC-confirm-1
+      scenario: "点击初始化脚手架 → 打开预览 → 取消"
+      given: "workspace 为 empty 状态"
+      when: "点击「初始化脚手架」→「取消」"
+      then: "scaffoldPreview=false，目录无变化"
+      evaluation: "未调用 scaffold API"
+    - id: TC-confirm-2
+      scenario: "点击初始化脚手架 → 打开预览 → 确认"
+      given: "workspace 为 empty 状态"
+      when: "点击「初始化脚手架」→「确认写入」"
+      then: "POST /api/workspace/scaffold，目录生成骨架文件"
+      evaluation: "scaffoldPreview=false，loading=false"
+    - id: TC-confirm-3
+      scenario: "scaffold 中 loading 时点击确认"
+      given: "scaffold() 正在执行（loading=true）"
+      when: "用户快速点击「确认写入」"
+      then: "无重复调用（scaffoldPreview 已在 confirmScaffold 中设为 false）"
+      evaluation: "只发起一次 POST"
