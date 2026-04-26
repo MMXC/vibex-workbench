@@ -19,7 +19,8 @@ lifecycle:
 
 io_contract:
   input: |
-    用户在 SpecExplorer 中点击一个具体 spec 文件，或在中央 spec 图谱中点击新增子 spec 的 + 卡片。
+    用户在 SpecExplorer 中点击一个具体 spec 文件，
+    或在中央 spec 图谱/Canvas 图谱中点击新增子 spec 的 + 卡片。
   output: |
     - 中央图形区展示当前 spec、父 spec、子 spec 的关联卡片
     - 根据当前 spec 层级展示允许新增的子 spec + 卡片
@@ -28,6 +29,7 @@ io_contract:
   boundary: |
     本 feature 只定义 spec 图谱查看、新增子 spec 入口、agent 澄清协作。
     不负责底层 LLM provider、完整 YAML 编辑器、真实代码生成或跨 workspace 迁移。
+    Canvas 节点展开由 FEAT-canvas-expand 负责；新增子 spec 的层级规则、目标目录和确认写盘统一由本 feature 负责。
   behavior:
     - "选中 spec 后读取当前 spec metadata 和 parent chain"
     - "中央图谱展示 parent/current/children/sibling context"
@@ -70,6 +72,32 @@ content:
     - current_level: "L5"
       allowed_child_level: null
       target_dir: null
+
+  integration_contract:
+    canvas_expand:
+      producer: "FEAT-canvas-expand"
+      intent_name: "create-child-spec"
+      payload_required:
+        - "parent_name"
+        - "parent_path"
+        - "target_level"
+        - "target_dir"
+        - "existing_children"
+      rule: |
+        Canvas 只能根据本 feature 的 level_rules 发出唯一合法下一层 intent。
+        Canvas 不维护独立的跨级 level 选择器，也不直接写入 specs/。
+    spec_viewer:
+      producer: "SpecGraphViewer"
+      intent_name: "create-child-spec"
+      payload_required:
+        - "parent_name"
+        - "parent_path"
+        - "target_level"
+        - "target_dir"
+        - "existing_children"
+      rule: |
+        SpecViewer 图谱与 Canvas 图谱使用同一个 intent 形状，
+        让右侧 agent 澄清线程可以复用同一套草稿、确认、写盘和 validate 反馈流程。
 
   user_stories:
     - id: "US-1"
@@ -116,6 +144,10 @@ content:
       name: "Layer-safe child creation"
       rule: "新增子 spec 的 target_dir 必须由当前层级映射决定"
       validation: "L3 只能新增 L4，L4 只能新增 L5，L5 不显示新增入口"
+    - id: "C4"
+      name: "Shared graph creation contract"
+      rule: "Canvas 与 SpecViewer 都必须通过 create-child-spec intent 进入同一 agent 澄清流程"
+      validation: "不存在 Canvas 专属写盘路径或跨级 level 选择器"
 
   l4_l5_lineage:
     summary: "该 feature 由图谱展示、+ 子 spec 入口、agent 澄清线程三个 slice 落地。"
