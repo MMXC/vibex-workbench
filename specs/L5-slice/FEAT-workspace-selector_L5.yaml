@@ -1,0 +1,90 @@
+---
+spec:
+  version: "0.1"
+  level: "5_implementation"
+  name: "FEAT-workspace-selector_L5"
+  parent: "FEAT-workspace-selector"
+  status: "proposal"
+
+meta:
+  type: "implementation"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    用户在 WorkbenchTitlebar 点击「选择工作区」按钮，或在
+    WorkbenchBootstrapPrototype 检测到无 WORKSPACE_ROOT 时。
+  output: |
+    返回 { path, state, signals, suggestions }，
+    前端切换到新 workspace，更新 store，更新 status bar。
+  boundary: |
+    只读目录，不做写操作，不调用生成器。
+
+content:
+  file_path: "frontend/src/lib/components/workbench/WorkspaceSelector.svelte"
+  file_type: "svelte"
+
+  implementation_boundary:
+    allowed:
+      - "WorkspaceSelector.svelte 组件逻辑：input 绑定、click handler"
+      - "调用 GET /api/workspace/detect-state?workspaceRoot={path}"
+      - "将 path 写入 workspace_store 的 selectedWorkspace 字段"
+      - "将 state/suggestions 更新到 workspace_output_store"
+      - "on:select 事件通知父组件切换路由到 /workspace"
+    forbidden:
+      - "禁止在 WorkspaceSelector 组件内直接调用 make 命令"
+      - "禁止修改 StatusBar.svelte 的状态显示逻辑"
+      - "禁止跨 workspace 路径读文件"
+
+  generation_rules:
+    - rule: "用户输入路径验证"
+      detail: |
+        调用 GET /api/workspace/detect-state?workspaceRoot={用户输入路径}
+        - state='empty' → 显示橙色「空仓库」+「初始化脚手架」按钮
+        - state='partial' → 显示黄色「半成品」+ 具体缺失项
+        - state='ready' → 显示绿色「就绪」
+    - rule: "目录选择器触发"
+      detail: |
+        点击「浏览」按钮打开原生目录选择（input type="file" webkitdirectory）
+        选中的 path 即为 WORKSPACE_ROOT
+
+  behaviors:
+    - id: "L5-B1"
+      behavior: "用户输入路径或选择目录"
+      implementation: |
+        1. 监听 input (change) 事件
+        2. 获取 e.target.files[0]?.webkitRelativePath || path
+        3. 调用 detect-state API
+        4. 根据 state 更新 UI 状态
+    - id: "L5-B2"
+      behavior: "绑定 WORKSPACE_ROOT"
+      implementation: |
+        调用 workspace_store.setWorkspace(path)
+        更新 window.__WORKSPACE_ROOT__ 全局变量
+        通知所有子组件刷新
+
+  verification:
+    commands:
+      - "cd /root/v-test && npm --prefix frontend run build 2>&1 | grep -i error | head -5"
+      - "cd /root/v-test && python3 generators/state_detector.py /tmp 2>&1"
+      - "cd /root/v-test && curl -s 'http://localhost:33338/api/workspace/detect-state?workspaceRoot=/tmp' 2>/dev/null | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('state','?'))\""
+    manual_checks:
+      - "WorkbenchTitlebar 有「选择工作区」按钮"
+      - "点击后出现 WorkspaceSelector 抽屉/弹窗"
+      - "输入空目录后显示「空仓库」状态"
+      - "输入 v-test 目录后显示「就绪」状态"
+    failure_conditions:
+      - "前端编译报 WorkspaceSelector 组件错误"
+      - "detect-state API 返回非 empty/partial/ready 状态"
+      - "workspace_store 更新后 StatusBar 未同步"
+
+  dependencies:
+    - file: "frontend/src/lib/components/workbench/StatusBar.svelte"
+      reason: "读取 workspace_output_store 的 state 字段显示状态"
+    - file: "frontend/src/lib/stores/workspace-output-store.ts"
+      reason: "写入 detect-state 返回的 signals/suggestions"
+    - file: "agent/cmd/web/workspace_handlers.go"
+      reason: "detect-state handler 实现在此文件"

@@ -1,0 +1,106 @@
+---
+spec:
+  version: "0.1"
+  level: "5_implementation"
+  name: "FEAT-scaffolding_L5"
+  parent: "FEAT-scaffolding"
+  status: "proposal"
+
+meta:
+  type: "implementation"
+  module: "generators"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    WORKSPACE_ROOT 路径（字符串，来自 confirm 后用户确认操作）。
+    POST /api/workspace/scaffold { workspaceRoot, options: { withAgent, confirm: true } }
+  output: |
+    创建目录：specs/L1-goal/, specs/L2-skeleton/, generators/, frontend/
+    创建文件：specs/L1-goal/entry.yaml（最小 L1）
+    创建文件：Makefile（含 lint-specs / generate / validate targets）
+    返回 { success, created, errors }
+  boundary: |
+    仅在用户显式确认后执行，不自动触发。
+
+content:
+  file_path: "generators/scaffolder.py"
+  file_type: "python"
+
+  implementation_boundary:
+    allowed:
+      - "Scaffolder 类：init, run, preview, confirm 方法"
+      - "创建目录结构：specs/L1-goal/, specs/L2-skeleton/, generators/"
+      - "写入最小 Makefile（含 lint-specs, generate, validate targets）"
+      - "写入 specs/L1-goal/entry.yaml（最小 L1 入口）"
+      - "写入 generators/gen.py 占位文件"
+      - "preview() 返回待创建文件列表（不写盘）"
+      - "confirm() 执行实际创建"
+    forbidden:
+      - "禁止覆盖已存在的文件"
+      - "禁止在 confirm 之外创建文件"
+      - "禁止创建 frontend/src 等应用代码文件"
+
+  generation_rules:
+    - rule: "preview 不写盘"
+      detail: |
+        preview() 只扫描 WORKSPACE_ROOT，返回待创建文件列表
+        用于在 confirm 前向用户展示将要创建的内容
+    - rule: "confirm 幂等写盘"
+      detail: |
+        confirm() 对每个文件：
+        1. 检查目标不存在（已存在则跳过并记录）
+        2. 创建父目录
+        3. 写入文件内容
+        4. 返回 created[] + errors[]
+
+  behaviors:
+    - id: "L5-B1"
+      behavior: "预览脚手架内容"
+      implementation: |
+        Scaffolder.preview(workspace_root) -> list of {path, content_preview, reason}
+        不创建任何文件，只返回待创建清单
+    - id: "L5-B2"
+      behavior: "执行脚手架创建"
+      implementation: |
+        Scaffolder.confirm(workspace_root) -> {success, created: [...], errors: [...]}
+        按清单顺序创建目录和文件
+    - id: "L5-B3"
+      behavior: "生成最小 Makefile"
+      implementation: |
+        创建含以下 target 的 Makefile：
+        - lint-specs: python3 generators/validate_specs.py
+        - generate: python3 generators/gen.py
+        - validate: make lint-specs
+    - id: "L5-B4"
+      behavior: "生成入口 L1 spec"
+      implementation: |
+        创建 specs/L1-goal/entry.yaml，内容：
+        - spec.level: "1_goal"
+        - spec.name: "项目目标"
+        - spec.status: "draft"
+        - content.user_stories: []（空数组，待用户填写）
+
+  verification:
+    commands:
+      - "cd /root/v-test && mkdir -p /tmp/scaffold-test && python3 generators/scaffolder.py preview /tmp/scaffold-test 2>&1"
+      - "cd /root/v-test && python3 generators/scaffolder.py confirm /tmp/scaffold-test 2>&1"
+      - "ls /tmp/scaffold-test/specs/ /tmp/scaffold-test/generators/ /tmp/scaffold-test/Makefile 2>&1"
+      - "cd /root/v-test && python3 generators/state_detector.py /tmp/scaffold-test --json 2>&1"
+    manual_checks:
+      - "preview 展示待创建文件列表（不写盘）"
+      - "confirm 后目录结构完整"
+      - "Makefile 含 lint-specs / generate targets"
+      - "scaffolder.py 被 workspace_handlers.go 的 scaffold handler 调用"
+    failure_conditions:
+      - "confirm 覆盖已有文件"
+      - "scaffolder.py 执行时抛出异常"
+      - "创建后 state_detector 返回 state != 'partial'（应返回 partial，因为无 gen.py）"
+
+  dependencies:
+    - file: "generators/scaffold_generator.py"
+      reason: "scaffolder.py 调用 scaffold_generator 生成文件内容"
+    - file: "agent/cmd/web/workspace_handlers.go"
+      reason: "scaffold handler（POST /api/workspace/scaffold）实现在此文件"

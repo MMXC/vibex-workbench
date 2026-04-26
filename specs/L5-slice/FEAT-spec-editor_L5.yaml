@@ -1,0 +1,99 @@
+---
+spec:
+  version: "0.1"
+  level: "5_implementation"
+  name: "FEAT-spec-editor_L5"
+  parent: "FEAT-spec-editor"
+  status: "proposal"
+
+meta:
+  type: "implementation"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    用户在 SpecExplorer 点击一个 spec 文件节点，或在 SpecViewer 点击「编辑」按钮。
+    POST /api/workspace/specs/write { path, content } — 写入 spec YAML。
+  output: |
+    读取：GET /api/workspace/specs/read/{path} → YAML 文本
+    写入：POST /api/workspace/specs/write { path, content } → { success, error }
+    保存后：触发 make lint-specs → 显示验证结果
+  boundary: |
+    只读写 specs/ 目录下的 YAML 文件，不读写其他目录。
+
+content:
+  file_path: "frontend/src/lib/components/workbench/SpecExplorer.svelte"
+  file_type: "svelte"
+
+  implementation_boundary:
+    allowed:
+      - "SpecExplorer 组件：spec 文件列表读取"
+      - "SpecViewer 组件：spec YAML 内容展示 + 编辑"
+      - "specs_write_handler (workspace_handlers.go)：写盘 + 调用 make lint-specs"
+      - "specs_read_handler (workspace_handlers.go)：读 YAML 文件"
+      - "前端 YAML 编辑器（textarea + js-yaml 预览）"
+    forbidden:
+      - "禁止读写 specs/ 目录外的文件"
+      - "禁止在 SpecViewer 保存后不触发 lint-specs"
+      - "禁止前端直接调用 make 命令"
+
+  generation_rules:
+    - rule: "spec 列表读取"
+      detail: |
+        读取 WORKSPACE_ROOT/specs/ 目录
+        按 L1/L2/L3/L4/L5 分组显示文件树
+        调用 GET /api/workspace/specs/list 返回文件清单
+    - rule: "spec 内容读取"
+      detail: |
+        点击文件节点 → GET /api/workspace/specs/read/{relpath}
+        返回 YAML 纯文本，在 SpecViewer 中展示
+    - rule: "spec 保存（写盘 + 验证）"
+      detail: |
+        POST /api/workspace/specs/write { path: relpath, content: yaml_text }
+        1. 写入文件
+        2. 调用 make lint-specs（workspace_make.go）
+        3. 返回 { success, lint_output, lint_passed }
+
+  behaviors:
+    - id: "L5-B1"
+      behavior: "读取 spec 文件列表"
+      implementation: |
+        onMount → GET /api/workspace/specs/list → 更新 spec_tree_store
+        显示树形结构，按 L1/L2/L3/L4/L5 分组
+    - id: "L5-B2"
+      behavior: "读取 spec 内容"
+      implementation: |
+        点击节点 → GET /api/workspace/specs/read/{path}
+        展示 YAML 内容在 SpecViewer textarea
+    - id: "L5-B3"
+      behavior: "保存 spec 修改"
+      implementation: |
+        POST /api/workspace/specs/write { path, content }
+        保存成功 → 调用 make lint-specs → 更新 Output tab
+
+  verification:
+    commands:
+      - "cd /root/v-test && python3 generators/validate_specs.py 2>&1 | tail -5"
+      - "cd /root/v-test && ls specs/L1-goal/*.yaml specs/L2-skeleton/*.yaml 2>&1"
+      - "cd /root/v-test && curl -s 'http://localhost:33338/api/workspace/specs/read/specs/L1-goal/entry.yaml' 2>/dev/null | head -10"
+    manual_checks:
+      - "SpecExplorer 正确列出所有 spec 文件"
+      - "点击文件显示 YAML 内容"
+      - "修改并保存后自动触发 make lint-specs"
+      - "lint 失败时 Output tab 显示错误摘要"
+    failure_conditions:
+      - "前端读取不存在的 spec 文件不报错"
+      - "保存 YAML 后不触发 lint-specs"
+      - "specs_write_handler 读写 specs/ 外路径"
+      - "lint 输出未展示在 Output tab"
+
+  dependencies:
+    - file: "agent/cmd/web/workspace_handlers.go"
+      reason: "specs_read_handler 和 specs_write_handler 实现在此文件"
+    - file: "generators/validate_specs.py"
+      reason: "make lint-specs 实际调用 validate_specs.py"
+    - file: "frontend/src/lib/components/workbench/SpecViewer.svelte"
+      reason: "spec YAML 内容展示和编辑组件"
