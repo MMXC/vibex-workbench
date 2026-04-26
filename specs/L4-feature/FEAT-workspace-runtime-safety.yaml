@@ -1,0 +1,99 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-workspace-runtime-safety"
+  parent: "MOD-workspace-root"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "backend"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    Windows/Linux/macOS 用户选择的 workspace path，以及所有 workspace API 请求。
+  output: |
+    标准化后的 workspace root、安全的路径校验、backend/agent/make 使用同一根目录。
+  boundary: |
+    本 feature 只定义路径与 runtime 安全契约。
+    不定义目录选择 UI 细节，也不修复业务命令失败。
+  behavior:
+    - "所有 workspace API 必须显式携带或解析同一个 workspace_root"
+    - "路径规范化后必须仍位于 workspace root 下"
+    - "Windows 盘符、反斜杠、Git Bash 路径必须被标准化"
+    - "backend spawn、spec read/write、run-make 使用同一工作目录"
+    - "拒绝 ../、空路径、不存在目录、文件路径伪装目录"
+
+content:
+  path_contract:
+    accepted_inputs:
+      - "C:\\project\\demo"
+      - "C:/project/demo"
+      - "/c/project/demo"
+      - "/tmp/demo"
+    normalized_output: "absolute native path"
+    reject_patterns:
+      - "../"
+      - "..\\"
+      - ""
+      - "file path instead of directory"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "Windows 用户"
+      i_want: "选择工作区后所有命令都在同一个目录执行"
+      so_that: "不会出现 UI 显示 A 目录、backend 写入 B 目录的问题"
+      acceptance: "spec read/write/run-make 返回的 workspaceRoot 与 StatusBar 一致"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "Windows 路径标准化"
+      given: "用户输入 C:/project/demo"
+      when: "调用 detect-state、specs/list、run-make"
+      then: "三个 API 使用同一个 native absolute workspace root"
+      evaluation: "返回摘要中的 workspaceRoot 一致"
+    - id: "TC-2"
+      scenario: "路径穿越被拒绝"
+      given: "请求 path=../outside.yaml"
+      when: "调用 specs/write"
+      then: "返回 400/path_traversal"
+      evaluation: "磁盘无写入"
+
+  constraints:
+    - id: "C1"
+      name: "Single root"
+      rule: "workspaceRoot store、backend config、agent env、make cwd 必须一致"
+      validation: "任一 API 返回不同 root 即失败"
+    - id: "C2"
+      name: "No path traversal"
+      rule: "所有 spec path 参数必须保持在 WORKSPACE_ROOT/specs 下"
+      validation: "规范化后路径不以 workspace specs dir 开头则拒绝"
+
+acceptance_criteria:
+  - id: "AC-1"
+    given: "用户选择合法目录"
+    when: "调用任意 workspace API"
+    then: "backend 使用同一个规范化 workspace root"
+  - id: "AC-2"
+    given: "请求路径包含 ../"
+    when: "调用 specs/read 或 specs/write"
+    then: "请求被拒绝且不访问磁盘"
+  - id: "AC-3"
+    given: "Windows/Git Bash 混合路径"
+    when: "运行 make validate"
+    then: "命令在正确 native 目录下执行"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 workspace runtime 与 Windows 路径安全规格"

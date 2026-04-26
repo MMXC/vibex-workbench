@@ -1,0 +1,77 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-bootstrap-generator-smoke-runner"
+  parent: "FEAT-bootstrap-generator-smoke"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "generators"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    临时空目录路径、scaffold 命令或 API、预期 canonical files 列表。
+  output: |
+    smoke report：created_files、missing_files、command_results、idempotency_result。
+  boundary: |
+    只验证 scaffold/generator 最小闭环，不生成真实产品业务代码。
+
+content:
+  file_path: "generators/bootstrap_smoke.py"
+  file_type: "python"
+
+  implementation_boundary:
+    allowed:
+      - "新增 generators/bootstrap_smoke.py"
+      - "创建临时目录并调用 scaffolder"
+      - "检查 required_paths"
+      - "运行 make validate / make generate"
+      - "输出 JSON smoke report"
+    forbidden:
+      - "修改当前仓库 specs/"
+      - "删除用户目录"
+      - "联网安装依赖"
+
+  generation_rules:
+    - rule: "Temp workspace"
+      detail: "烟测必须在临时目录运行，不在当前 repo 根写入测试文件"
+    - rule: "No legacy dependency"
+      detail: "报告中若出现 project-goal/architecture/module/feature 作为必需目录则失败"
+    - rule: "Idempotency probe"
+      detail: "第二次 scaffold 前写入 sentinel spec，第二次运行后 hash 必须不变"
+
+  verification:
+    commands:
+      - "make validate"
+      - "python generators/bootstrap_smoke.py --dry-run"
+    manual_checks:
+      - "smoke report 展示 canonical 目录检查结果"
+      - "重复 scaffold 不覆盖 sentinel 文件"
+    failure_conditions:
+      - "smoke 在当前仓库根写入测试文件"
+      - "make validate 在脚手架目录失败"
+      - "重复 scaffold 覆盖用户 spec"
+
+  dependencies:
+    - file: "generators/scaffolder.py"
+      reason: "实际脚手架写入逻辑"
+    - file: "spec-templates/"
+      reason: "模板来源"
+    - file: "Makefile"
+      reason: "validate/generate target"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增脚手架生成器烟测 runner 规格"

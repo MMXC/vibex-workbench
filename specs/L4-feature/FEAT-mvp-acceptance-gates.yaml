@@ -1,0 +1,103 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-mvp-acceptance-gates"
+  parent: "MOD-build-panel"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "validation"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    用户或 agent 准备判断 vibex-workbench 是否达到 MVP 可用状态。
+  output: |
+    一个明确的 MVP 验收面板/命令结果，覆盖空仓库完整链路、spec 校验、生成器烟测和 UI 手动检查。
+  boundary: |
+    本 feature 只定义 MVP release gate，不替代各功能内部测试。
+    不要求多 workspace、历史迁移、全量图谱编辑或自动修复进入 MVP。
+  behavior:
+    - "聚合 make validate、criteria validator、空仓库烟测、Wails 手动检查"
+    - "将 critical failure 与 warning 分级展示"
+    - "只有 critical=0 才允许标记 MVP usable"
+    - "warning 可进入后续迭代，但必须记录"
+
+content:
+  gates:
+    - id: "G1"
+      name: "Spec structural gate"
+      command: "make validate"
+      pass_condition: "exit_code == 0"
+    - id: "G2"
+      name: "Criteria critical gate"
+      command: "PYTHONIOENCODING=utf-8 PYTHONUTF8=1 python generators/spec_criteria_validator.py --level L1L2L3 --critical-only"
+      pass_condition: "critical gaps == 0"
+    - id: "G3"
+      name: "Empty workspace smoke"
+      command: "manual_or_scripted"
+      pass_condition: "empty -> scaffold -> ready -> spec list -> validate/generate"
+    - id: "G4"
+      name: "Desktop runtime smoke"
+      command: "make wails-dev"
+      pass_condition: "Workbench opens, backend connected, single WebView titlebar visible"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "MVP 评审者"
+      i_want: "一眼看到当前版本是否能支撑空仓库自举"
+      so_that: "不用分别阅读所有 spec 和终端日志"
+      acceptance: "critical=0 时显示 MVP usable；存在 warning 时显示后续补强列表"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "MVP gate 全绿"
+      given: "make validate 通过，criteria critical=0，空仓库烟测通过"
+      when: "用户运行 MVP gate"
+      then: "显示 MVP usable"
+      evaluation: "状态摘要包含通过的 gate 列表"
+    - id: "TC-2"
+      scenario: "存在 critical failure"
+      given: "parent chain 断裂或 scaffold 写入失败"
+      when: "用户运行 MVP gate"
+      then: "显示 MVP blocked"
+      evaluation: "失败项归类到具体 gate，不只展示长日志"
+
+  constraints:
+    - id: "C1"
+      name: "Critical first"
+      rule: "MVP 判断只被 critical failure 阻塞"
+      validation: "warning 不影响 usable 标记"
+    - id: "C2"
+      name: "No hidden manual gate"
+      rule: "手动检查必须明示名称、步骤和预期结果"
+      validation: "manual gate 不得只写 '人工确认'"
+
+acceptance_criteria:
+  - id: "AC-1"
+    given: "所有 critical gate 通过"
+    when: "评估 MVP 状态"
+    then: "系统标记 MVP usable"
+  - id: "AC-2"
+    given: "任一 critical gate 失败"
+    when: "评估 MVP 状态"
+    then: "系统标记 MVP blocked 并展示 gate 名称和失败摘要"
+  - id: "AC-3"
+    given: "只有 warning 存在"
+    when: "评估 MVP 状态"
+    then: "系统允许 MVP usable，但保留 warning backlog"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 MVP 可用性验收门规格"

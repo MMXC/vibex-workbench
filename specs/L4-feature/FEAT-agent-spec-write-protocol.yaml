@@ -1,0 +1,100 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-agent-spec-write-protocol"
+  parent: "MOD-spec-editor"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    create-child-spec intent、用户澄清回答、agent 推荐草稿、目标 workspace。
+  output: |
+    经用户确认后的 spec YAML 写入请求，以及 validate 结果摘要。
+  boundary: |
+    本 feature 定义 agent 推荐 spec 到写盘的协议。
+    不定义底层模型 provider、不绕过用户确认、不允许 agent 静默写盘。
+  behavior:
+    - "agent 接收 parent_name、target_level、target_dir、existing_children"
+    - "agent 生成草稿摘要和需要澄清的问题"
+    - "用户确认后才生成完整 YAML 和目标文件名"
+    - "写盘后必须运行 make validate"
+    - "失败时按 validation-and-failure.md 分类"
+
+content:
+  protocol:
+    intent_name: "create-child-spec"
+    required_context:
+      - "workspace_root"
+      - "parent_name"
+      - "parent_path"
+      - "target_level"
+      - "target_dir"
+      - "existing_children"
+      - "user_goal"
+    confirmation_required: true
+    write_api: "POST /api/workspace/specs/write"
+    validation_command: "make validate"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "自举用户"
+      i_want: "agent 帮我起草下一层 spec，但写盘前必须确认"
+      so_that: "既能加速 spec-first，也不会污染仓库"
+      acceptance: "确认前无文件写入；确认后写入并展示 validate 结果"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "用户取消澄清"
+      given: "agent 已生成 L4 spec 草稿"
+      when: "用户点击取消"
+      then: "不调用 specs/write"
+      evaluation: "git status 不出现新 YAML"
+    - id: "TC-2"
+      scenario: "写盘后校验失败"
+      given: "agent 草稿 parent 写错"
+      when: "用户确认写盘"
+      then: "make validate 失败并显示 parent_not_found"
+      evaluation: "线程保留草稿，提示下一步修复"
+
+  constraints:
+    - id: "C1"
+      name: "Explicit confirmation"
+      rule: "任何 agent 推荐都不能替代用户确认"
+      validation: "未确认前 specs/write 不被调用"
+    - id: "C2"
+      name: "Canonical directory"
+      rule: "target_dir 必须来自 FEAT-spec-graph-expansion.level_rules"
+      validation: "禁止 agent 自行拼接 specs/{level}/"
+
+acceptance_criteria:
+  - id: "AC-1"
+    given: "用户未确认 agent 草稿"
+    when: "create-child-spec 流程进行中"
+    then: "系统不得写入任何 spec 文件"
+  - id: "AC-2"
+    given: "用户确认草稿"
+    when: "系统调用 specs/write"
+    then: "写入路径必须位于 target_dir 且 parent 等于 parent_name"
+  - id: "AC-3"
+    given: "写入完成"
+    when: "系统运行 make validate"
+    then: "结果按失败分类显示在 agent 线程和 Problems/Output 区域"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 agent 推荐 spec 到确认写盘的协议规格"

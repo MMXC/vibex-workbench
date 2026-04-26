@@ -1,0 +1,86 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-agent-spec-write-api-contract"
+  parent: "FEAT-agent-spec-write-protocol"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    Agent 线程中的 confirmed_spec_draft payload。
+  output: |
+    specs/write 请求、validate 命令结果、分类后的反馈消息。
+  boundary: |
+    只定义 API payload 和错误分类，不实现 LLM 推理。
+
+content:
+  file_path: "agent/cmd/web/workspace_handlers.go + frontend/src/lib/components/workbench/SpecAgentClarification.svelte"
+  file_type: "go+svelte"
+
+  implementation_boundary:
+    allowed:
+      - "confirmed spec draft payload schema"
+      - "POST /api/workspace/specs/write request assembly"
+      - "make validate invocation after write"
+      - "validation result classification"
+    forbidden:
+      - "未确认时调用 specs/write"
+      - "允许 path 包含 ../"
+      - "绕过 make validate"
+      - "把长日志直接塞进 chat，不做摘要"
+
+  payload_schema:
+    confirmed_spec_draft:
+      workspace_root: "string"
+      path: "string"
+      parent_name: "string"
+      target_level: "L2|L3|L4|L5"
+      yaml_text: "string"
+      confirmation_id: "string"
+
+  generation_rules:
+    - rule: "Path guard"
+      detail: "path 必须以 target_dir 开头，且规范化后仍位于 WORKSPACE_ROOT/specs 下"
+    - rule: "Parent guard"
+      detail: "yaml_text 中 spec.parent 必须等于 parent_name"
+    - rule: "Validation feedback"
+      detail: "make validate 失败时映射到 yaml_parse_error、parent_not_found、level_mismatch 或 missing_l5_boundary"
+
+  verification:
+    commands:
+      - "make validate"
+    manual_checks:
+      - "确认前没有任何 specs/write 请求"
+      - "确认后写入路径位于 target_dir"
+      - "validate 失败时线程显示分类和下一步"
+    failure_conditions:
+      - "path traversal 可写出 specs/ 外"
+      - "parent 与当前节点不一致仍允许写入"
+      - "validate 失败但 UI 显示成功"
+
+  dependencies:
+    - file: "specs/L4-feature/FEAT-agent-spec-write-protocol.yaml"
+      reason: "协议来源"
+    - file: "agent/skills/spec-first-workflow/validation-and-failure.md"
+      reason: "失败分类标准"
+    - file: "agent/cmd/web/workspace_handlers.go"
+      reason: "specs/write 与 run-make handler"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 agent spec 写盘 API payload 和验证反馈边界"

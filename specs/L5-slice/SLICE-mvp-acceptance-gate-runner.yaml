@@ -1,0 +1,76 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-mvp-acceptance-gate-runner"
+  parent: "FEAT-mvp-acceptance-gates"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "validation"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    make validate 输出、criteria validator 输出、空仓库烟测结果、Wails 手动检查结果。
+  output: |
+    MVP gate summary：{ usable, critical_failures, warnings, manual_checks }。
+  boundary: |
+    只负责聚合与分类，不自动修复 spec/code，不启动长期 dev server。
+
+content:
+  file_path: "generators/mvp_acceptance_gate.py"
+  file_type: "python"
+
+  implementation_boundary:
+    allowed:
+      - "新增 generators/mvp_acceptance_gate.py"
+      - "读取 make validate 和 criteria validator 的退出码/输出"
+      - "输出 JSON 和可读摘要"
+      - "在 Makefile 增加 mvp-gate target"
+    forbidden:
+      - "修改已有 spec 内容"
+      - "自动提交或推送"
+      - "启动 make wails-dev 作为阻塞步骤"
+
+  generation_rules:
+    - rule: "Non-interactive"
+      detail: "脚本必须能在 CI/agent 中无交互运行"
+    - rule: "Structured result"
+      detail: "输出 JSON 字段 usable、critical_failures、warnings、manual_checks"
+    - rule: "Manual explicit"
+      detail: "Wails runtime 检查只能列为 manual_checks，不伪装成自动通过"
+
+  verification:
+    commands:
+      - "make validate"
+      - "PYTHONIOENCODING=utf-8 PYTHONUTF8=1 python generators/spec_criteria_validator.py --level L1L2L3 --critical-only"
+    manual_checks:
+      - "运行 mvp-gate 后能看到 MVP usable / blocked 摘要"
+      - "存在 warning 时不阻塞 usable，但显示 warning backlog"
+    failure_conditions:
+      - "critical failure 被误判为 usable"
+      - "manual gate 未列出检查步骤"
+      - "输出只有长日志，没有结构化摘要"
+
+  dependencies:
+    - file: "Makefile"
+      reason: "增加 mvp-gate target"
+    - file: "generators/validate_specs.py"
+      reason: "结构校验输入"
+    - file: "generators/spec_criteria_validator.py"
+      reason: "criteria critical gate 输入"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 MVP gate runner 文件级规格"

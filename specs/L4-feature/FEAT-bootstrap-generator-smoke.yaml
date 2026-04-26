@@ -1,0 +1,101 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-bootstrap-generator-smoke"
+  parent: "MOD-scaffolding"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "generators"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    一个空目录，以及用户确认后的脚手架选项。
+  output: |
+    一个可运行 make validate / make generate 的最小项目骨架。
+  boundary: |
+    本 feature 只验证脚手架和生成器的最小可用输出。
+    不要求生成完整业务应用，不覆盖已有用户文件。
+  behavior:
+    - "在临时空目录执行 scaffold"
+    - "检查 canonical specs 目录和生成器文件存在"
+    - "运行 make validate"
+    - "运行 make generate"
+    - "确认生成过程幂等且不覆盖用户 spec"
+
+content:
+  smoke_outputs:
+    required_paths:
+      - "specs/L1-goal/"
+      - "specs/L2-skeleton/"
+      - "specs/L3-module/"
+      - "specs/L4-feature/"
+      - "specs/L5-slice/"
+      - "generators/gen.py"
+      - "generators/validate_specs.py"
+      - "spec-engine/validate_chain.py"
+      - "Makefile"
+    required_commands:
+      - "make validate"
+      - "make generate"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "独立开发者"
+      i_want: "初始化后立即能跑 validate/generate"
+      so_that: "确认新项目不是只有文件夹，而是真的进入 spec-first 闭环"
+      acceptance: "空目录 scaffold 后 make validate 和 make generate 均可执行"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "空目录脚手架烟测"
+      given: "WORKSPACE_ROOT 指向空目录"
+      when: "用户确认初始化脚手架"
+      then: "写入 required_paths，并且 make validate 通过"
+      evaluation: "无旧目录 project-goal/architecture/module/feature 依赖"
+    - id: "TC-2"
+      scenario: "重复 scaffold 不覆盖 spec"
+      given: "目录已有用户编辑过的 specs/L1-goal/entry.yaml"
+      when: "再次执行 scaffold"
+      then: "只补全缺失文件，不覆盖 entry.yaml"
+      evaluation: "文件 hash 保持不变"
+
+  constraints:
+    - id: "C1"
+      name: "Canonical dirs only"
+      rule: "新脚手架只生成 L1-goal/L2-skeleton/L3-module/L4-feature/L5-slice"
+      validation: "不依赖旧 project-goal/architecture/module/feature 目录"
+    - id: "C2"
+      name: "Idempotent scaffold"
+      rule: "已有文件默认不覆盖，除非用户显式确认覆盖单个文件"
+      validation: "重复运行后用户文件 hash 不变"
+
+acceptance_criteria:
+  - id: "AC-1"
+    given: "空目录"
+    when: "执行 scaffold"
+    then: "生成 canonical L1-L5 目录、Makefile 和最小生成器"
+  - id: "AC-2"
+    given: "scaffold 完成"
+    when: "运行 make validate"
+    then: "命令退出码为 0"
+  - id: "AC-3"
+    given: "用户已有 spec 文件"
+    when: "再次运行 scaffold"
+    then: "已有 spec 不被覆盖"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增脚手架与生成器空仓库烟测规格"
