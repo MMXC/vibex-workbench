@@ -2,7 +2,7 @@
 
 **日期**: 2026-04-20
 **Frontend**: http://localhost:5173 ✅
-**Backend SSE**: http://localhost:33335 ✅
+**Backend SSE**: http://localhost:33338 ✅（旧: 33335 Python mock 已废弃）
 **整体状态**: 5/5 通过（mock 路径）⚠️ Agent（33338）payload 未对齐，见「已知问题」P0
 
 ---
@@ -44,7 +44,7 @@
 | specs/feature/run-engine/service.frontend.yaml | ✓ |
 | specs/feature/run-engine/service.backend.yaml | ✓ |
 | POST /api/runs | ✓ — 返回 200，runId 已生成 |
-| 后端 mock run 事件（33335）| ✓ — mock 路径符合预期事件序列 |
+| 后端 mock run 事件（:33335 已废弃 → :33338）| ✓ — mock 路径符合预期事件序列 |
 | SSE 事件流 | ✓ — 8 个节点正确推送 |
 | Console 无 error | ✓ — 无错误输出 |
 
@@ -64,7 +64,7 @@
 | 节点渲染（8 nodes，mock） | ✓ — placeholder 显示 "(8 nodes)"，节点来自 SSE `run.started` + `tool.called` 事件（mock 路径） |
 | Console 无 error | ✓ |
 
-**根因修复**: `backend/sse_server.py` 的 `/api/sse/threads/<threadId>` 端点之前缺少 `send_sse_headers()` 调用，导致浏览器收到 `HTTP/0.9 invalid response` 而拒绝连接。已在 S1 修复。
+**根因修复**: `backend/sse_server.py（已移至 ~/antch-backend/）` 的 `/api/sse/threads/<threadId>` 端点之前缺少 `send_sse_headers()` 调用，导致浏览器收到 `HTTP/0.9 invalid response` 而拒绝连接。已在 S1 修复。
 
 ---
 
@@ -101,12 +101,12 @@
 ### S1 — SSE server 无法启动
 - **问题**: `BaseHTTPRequestHandler` 未直接 import，`HTTPServer` 未定义
 - **修复**: 添加 `from http.server import BaseHTTPRequestHandler, HTTPServer`
-- **验证**: `curl localhost:33335/api/health` → `{"status":"ok"}` ✅
+- **验证**: `curl localhost:33338/api/health` → `{"status":"ok"}` ✅
 
 ### S1 — SSE 端点缺少 HTTP 响应头
 - **问题**: `/api/sse/threads/<threadId>` 在发送事件前没有发送 HTTP 200 + SSE headers
 - **修复**: 在 `do_GET()` SSE 分支中添加 `self.send_sse_headers()` 调用
-- **验证**: `curl -N localhost:33335/api/sse/threads/test` 返回正确 SSE 事件流 ✅
+- **验证**: `curl -N localhost:33338/api/sse/threads/test` 返回正确 SSE 事件流 ✅
 
 ---
 
@@ -114,7 +114,7 @@
 
 ### P0 — Agent（33338）SSE payload 与前端契约未对齐
 
-报告测试基于 mock 后端（33335），但 Agent（33338）存在以下不一致：
+报告测试基于 mock 后端（33335），但 Agent（33338）存在以下不一致（对比旧 33335 mock）：
 
 **1. `tool.called` 字段名完全不匹配**
 - **Agent 发送**（`agent/cmd/web/server.go:129-131`）：`{ tool, call_id, args }`
@@ -137,7 +137,7 @@
 
 ### ⚠️ 测试环境声明
 
-本报告验证基于 mock backend（`sse_server.py` / `main.go`，端口 33335）。
+本报告验证基于 mock backend（`sse_server.py（已移至 ~/antch-backend/）` / `main.go`，端口 33335）。
 Agent（33338）行为以上述代码审查为准，未做完整 E2E 验证。
 
 **无其他已知问题。**

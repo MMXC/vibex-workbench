@@ -43,7 +43,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - CF-4: Create .env.example template with VITE_SSE_URL, frontend/.env in gitignore
   - E1-U1: SSE URL environment variable — replace all 3 hardcoded URLs with `import.meta.env.VITE_SSE_URL`
   - E1-U2: SSE exponential backoff retry — 3s→6s→12s→24s→48s, max 5 retries
-  - Backend SSE mock server (Python, port 33335) — thread-based client registry with mock run executor
+  - Backend SSE mock server (Python, port 33335) — thread-based client registry with mock run executor（**已废弃**：backend/ 已移至 `~/antch-backend/`，生产使用 Go Agent :33338）
   - Frontend SSE consumer with full event handler mapping (Thread/Run/Tool/Artifact/Canvas events)
   - Three-column workbench layout (ThreadList / Canvas / ArtifactPanel / Composer)
 

@@ -539,7 +539,7 @@ Layers: 10
 ```
 
 **调试三步法**（workflow 不执行时）：
-1. `curl http://localhost:33335/api/workflows` — 确认 workflow 加载成功
+1. `curl http://localhost:33338/api/workflows` — 确认 workflow 加载成功
 2. `cat ~/.archon/runs/<run_id>/events.jsonl` — 确认有事件写入（空 = executor 启动时崩）
 3. `cat ~/.archon/runs/<run_id>/state.json` — 查看 error 字段
 

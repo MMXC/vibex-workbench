@@ -177,7 +177,7 @@ content:
         - "Go: SpawnGoBackend() binding method"
         - "Go: OnStartup → spawn backend process"
         - "Go: OnBeforeClose → kill backend process"
-        - "wails dev 时 Vite proxy → Go backend localhost:33335"
+        - "wails dev 时 Vite proxy → Go backend localhost:33338"
       exit_criteria: "Wails app 内 /api/health 返回 200"
     phase_3:
       name: "原生目录选择器替换 /workspace 输入"

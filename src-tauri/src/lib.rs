@@ -170,7 +170,7 @@ fn find_backend_binary(exe_dir: &std::path::Path) -> Option<std::path::PathBuf> 
 
 fn find_available_port() -> u16 {
     // Simple heuristic: try common ports
-    for port in [33335, 33336, 33337, 33338, 33339] {
+    for port in [33338, 33336, 33337, 33339] {
         if is_port_available(port) {
             return port;
         }
@@ -182,7 +182,7 @@ fn find_available_port() -> u16 {
             return addr.port();
         }
     }
-    33335
+    33338
 }
 
 fn is_port_available(port: u16) -> bool {

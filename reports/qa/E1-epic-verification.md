@@ -28,7 +28,7 @@ frontend/.env.example, frontend/.gitignore
 | CF-1 | 安装 vitest / @testing-library/svelte / @playwright/test | package.json | ✅ PASS | 依赖已安装 |
 | CF-2 | 右栏 0px → 320px | WorkbenchShell.svelte:25 | ✅ PASS | `grid-template-columns: 280px 1fr 320px` |
 | CF-3 | 添加 onDestroy(() => sseConsumer.disconnect()) | +page.svelte | ✅ PASS | `onDestroy(() => { sseConsumer.disconnect(); });` |
-| CF-4 | 创建 .env.example 模板 | frontend/.env.example | ✅ PASS | `VITE_SSE_URL=http://localhost:33335` |
+| CF-4 | 创建 .env.example 模板 | frontend/.env.example | ✅ PASS | `VITE_SSE_URL=http://localhost:33338` |
 
 ---
 
@@ -38,8 +38,8 @@ frontend/.env.example, frontend/.gitignore
 
 | 检查点 | 状态 | 验证 |
 |--------|------|------|
-| `import.meta.env.VITE_SSE_URL` 在 sse.ts | ✅ | `private url: string = import.meta.env.VITE_SSE_URL \|\| 'http://localhost:33335';` |
-| `import.meta.env.VITE_SSE_URL` 在 +page.svelte | ✅ | `const SSE_URL = import.meta.env.VITE_SSE_URL \|\| 'http://localhost:33335';` |
+| `import.meta.env.VITE_SSE_URL` 在 sse.ts | ✅ | `private url: string = import.meta.env.VITE_SSE_URL \|\| 'http://localhost:33338';` |
+| `import.meta.env.VITE_SSE_URL` 在 +page.svelte | ✅ | `const SSE_URL = import.meta.env.VITE_SSE_URL \|\| 'http://localhost:33338';` |
 | .env.example 存在且包含 VITE_SSE_URL | ✅ | 已创建，模板正确 |
 | .env 已加入 gitignore | ✅ | `.env` 已添加 |
 
@@ -92,7 +92,9 @@ $ cd /root/vibex-workbench/frontend && pnpm build
 
 ```bash
 $ cat backend/sse_server.py | head -30
-# 端口: 33335
+# 端口: 33335（已废弃 → Go Agent 迁移至 :33338）
+
+> ⚠️ 以下测试基于旧 Python backend（:33335），结果仅供参考。
 # SSE 端点: GET /api/sse/threads/<threadId>
 # Run API: POST /api/runs
 ```

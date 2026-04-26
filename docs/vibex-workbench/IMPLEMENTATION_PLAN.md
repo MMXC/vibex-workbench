@@ -50,23 +50,23 @@
 
 **文件变更**：
 - `frontend/package.json` — 添加 vitest + @testing-library/svelte + playwright（合并 CF-1）
-- `frontend/.env` — 新建，设置 `VITE_SSE_URL=http://localhost:33335`
+- `frontend/.env` — 新建，设置 `VITE_SSE_URL=http://localhost:33338`
 - `frontend/.env.example` — 新建模板
 - `frontend/src/lib/sse.ts` — 构造函数默认 URL 改为 `import.meta.env.VITE_SSE_URL`
 - `frontend/src/routes/workbench/+page.svelte` — 3 处硬编码全部替换
 
 **实现步骤**：
 1. `cd /root/vibex-workbench/frontend && npm install @xyflow/svelte dexie dagre @types/dagre highlight.js vitest @testing-library/svelte @playwright/test`
-2. 创建 `frontend/.env`：`VITE_SSE_URL=http://localhost:33335`
-3. 创建 `frontend/.env.example`：`VITE_SSE_URL=http://localhost:33335`
-4. 修改 `sse.ts:110`：`private url: string = import.meta.env.VITE_SSE_URL || 'http://localhost:33335'`
+2. 创建 `frontend/.env`：`VITE_SSE_URL=http://localhost:33338`
+3. 创建 `frontend/.env.example`：`VITE_SSE_URL=http://localhost:33338`
+4. 修改 `sse.ts:110`：`private url: string = import.meta.env.VITE_SSE_URL || 'http://localhost:33338'`
 5. 修改 `+page.svelte:22,41,47`：所有硬编码 URL 替换为 `import.meta.env.VITE_SSE_URL`
 6. **SSEConsumer.disconnect()**：`+page.svelte` 添加 `import { onDestroy } from 'svelte'` + `onDestroy(() => sseConsumer.disconnect())`
 7. `frontend/.gitignore` 追加 `frontend/.env`
 
 **Verification**:
 ```bash
-grep -r "localhost:33335" frontend/src/ --include="*.ts" --include="*.svelte"  # 应返回空
+grep -r "localhost:33335" frontend/src/ --include="*.ts" --include="*.svelte"  # 应返回空（:33335 已废弃）
 grep "VITE_SSE_URL" frontend/.env                        # 应有内容
 grep "disconnect" frontend/src/routes/workbench/+page.svelte  # 应有 onDestroy
 ```

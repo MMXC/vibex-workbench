@@ -138,7 +138,7 @@ content:
       - boundary: "Tauri (Rust) ↔ Go backend (子进程)"
         rationale: "Rust 通过 Command::new 启动 Go binary，端口固定或通过 args 传递；Rust 持有 PID，退出时 kill"
       - boundary: "SvelteKit ↔ Go backend"
-        rationale: "dev 时走 Vite proxy（localhost:5173 → localhost:33335）；prod 时走 Tauri IPC invoke → Rust → HTTP to localhost:33335（Go 作为独立服务启动）或直接 Go binary 调用"
+        rationale: "dev 时走 Vite proxy（localhost:5173 → localhost:33338）；prod 时走 Tauri IPC invoke → Rust → HTTP to localhost:33338（Go 作为独立服务启动）或直接 Go binary 调用"
 
   bootstrap_hints:
     gen_py_pattern: |
@@ -167,8 +167,8 @@ content:
       deliverables:
         - "Rust: spawn_go_backend() command"
         - "Rust: on_window_close → kill Go PID"
-        - "Go backend 作为独立 HTTP 服务（现有端口 33335 或随机可用端口）"
-      exit_criteria: "Tauri app 内打开 http://localhost:33335/api/health 返回 200"
+        - "Go backend 作为独立 HTTP 服务（现有端口 33338 或随机可用端口）"
+      exit_criteria: "Tauri app 内打开 http://localhost:33338/api/health 返回 200"
     phase_3:
       name: "原生目录选择器替换 /workspace 输入"
       goal: "/workspace 入口改用 Tauri 原生 dialog，替代手动输入路径"

@@ -13,7 +13,7 @@
 
 ### 背景
 VibeX Workbench 是 AI Coding Agent 的可视化工作台，前端（SvelteKit）+ 后端（Python SSE）已完成基础框架搭建，存在以下问题：
-- SSE URL 硬编码 `http://localhost:33335`，跨环境无法工作
+- SSE URL 硬编码 `http://localhost:33335`（旧 Python backend；现已迁移至 Go Agent :33338），跨环境无法工作
 - Thread/Artifact 数据存内存，刷新页面即丢失
 - Canvas 区域只有占位文字，Orchestration 可视化完全缺失
 - 右栏宽度为 `0px`，ArtifactPanel 不可见
@@ -224,7 +224,7 @@ Phase 1 完成前后端集成落地：
 ## 验收标准（expect() 条目）
 
 ### E1 — SSE
-- `expect(import.meta.env.VITE_SSE_URL ?? 'http://localhost:33335').toBeTruthy()`
+- `expect(import.meta.env.VITE_SSE_URL ?? 'http://localhost:33338').toBeTruthy()`
 - SSE 断连后 3 次重连内成功（mock 环境下可验证重连次数）
 
 ### E2 — Thread

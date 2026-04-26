@@ -84,10 +84,10 @@
 
 ```bash
 # frontend/.env（git ignore）
-VITE_SSE_URL=http://localhost:33335
+VITE_SSE_URL=http://localhost:33338
 
 # frontend/.env.example（git track，分发模板）
-VITE_SSE_URL=http://localhost:33335
+VITE_SSE_URL=http://localhost:33338
 ```
 
 - 所有环境变量必须以 `VITE_` 开头（Vite 构建时注入）

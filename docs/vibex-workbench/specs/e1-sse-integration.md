@@ -6,11 +6,11 @@
 ## SSE URL 配置
 
 ### 当前问题
-`frontend/src/lib/sse.ts` 和 `frontend/src/routes/workbench/+page.svelte` 中 SSE URL 硬编码为 `http://localhost:33335`
+`frontend/src/lib/sse.ts` 和 `frontend/src/routes/workbench/+page.svelte` 中 SSE URL 硬编码为 `http://localhost:33338`
 
 ### 目标行为
 ```typescript
-const SSE_URL = import.meta.env.VITE_SSE_URL ?? 'http://localhost:33335';
+const SSE_URL = import.meta.env.VITE_SSE_URL ?? 'http://localhost:33338';
 ```
 
 ### 间距/颜色规范
@@ -55,7 +55,7 @@ const SSE_URL = import.meta.env.VITE_SSE_URL ?? 'http://localhost:33335';
 // F1.1
 expect(import.meta.env.VITE_SSE_URL).toBeDefined();
 // 或 fallback 正确
-const url = import.meta.env.VITE_SSE_URL ?? 'http://localhost:33335';
+const url = import.meta.env.VITE_SSE_URL ?? 'http://localhost:33338';
 expect(url).toMatch(/^https?:\/\//);
 
 // F1.2 — 重连次数验证（需 mock EventSource）

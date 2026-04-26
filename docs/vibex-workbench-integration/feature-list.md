@@ -8,7 +8,7 @@
 
 | ID | 功能名 | 描述 | 根因关联 | 工时 | Epic |
 |----|--------|------|----------|------|------|
-| F1.1 | SSE URL 环境变量化 | `VITE_SSE_URL` 环境变量替代硬编码 `http://localhost:33335` | R3 | 0.5d | E1 |
+| F1.1 | SSE URL 环境变量化 | `VITE_SSE_URL` 环境变量替代硬编码 `http://localhost:33335`（已迁移至 Go Agent :33338） | R3 | 0.5d | E1 |
 | F1.2 | SSE 重连逻辑增强 | 指数退避重连（3s → 6s → 12s），最多 5 次 | R2 | 0.5d | E1 |
 | F2.1 | Thread CRUD 持久化 | Thread 新建/删除通过 Dexie.js 持久化到 IndexedDB，刷新恢复 | — | 1d | E2 |
 | F2.2 | Thread 列表四态 | 加载骨架屏、空状态引导、新建按钮、错误态重试 | — | 0.5d | E2 |

@@ -22,7 +22,7 @@
 
 | 检查项 | 状态 | 证据 |
 |--------|------|------|
-| SSE Backend 在线 | ✅ | `curl localhost:33335/api/health` → `{"status":"ok","port":33335}` |
+| SSE Backend 在线 | ✅ | `curl localhost:33338/health` → `{"status":"ok","port":33338}` |
 | Frontend Dev Server 在线 | ✅ | `curl localhost:5173` → HTTP 200 |
 | 硬编码 URL | ❌ 已发现 | `sse.ts:110`、`+page.svelte:22,41,47` 共 4 处 |
 | SSEConsumer.disconnect() | ⚠️ 存在但未调用 | `sse.ts` 有方法，`+page.svelte` 无 `onDestroy` |
@@ -100,7 +100,7 @@ graph TB
     end
 
     subgraph Backend["Backend (Python SSE)"]
-        SSE_SERVER["sse_server.py<br/>:33335"]
+        SSE_SERVER["Go Agent<br/>:33338"]
     end
 
     WS --> TL & CA & AP & CO
@@ -413,7 +413,7 @@ erDiagram
 - **决策**：`VITE_SSE_URL` 环境变量
 - **文件**：`frontend/.env`（gitignore）+ `frontend/.env.example`（git track）
 - **注入点**：`sse.ts` SSEConsumer 构造函数默认值 + `+page.svelte` 引用
-- **禁止**：搜索全项目，确认所有 `localhost:33335` 替换为 `import.meta.env.VITE_SSE_URL`
+- **禁止**：搜索全项目，确认所有 `localhost:33335` 替换为 `import.meta.env.VITE_SSE_URL`（已迁移至 :33338）
 
 ### T4: SSEConsumer.disconnect() 生命周期绑定
 - **问题**：无 `disconnect()` 导致 SSE 连接泄露（Thread 切换时）
@@ -521,10 +521,10 @@ describe('Workbench layout', () => {
 
 ```bash
 # frontend/.env（git ignore）
-VITE_SSE_URL=http://localhost:33335
+VITE_SSE_URL=http://localhost:33338
 
 # frontend/.env.example（git track，分发模板）
-VITE_SSE_URL=http://localhost:33335
+VITE_SSE_URL=http://localhost:33338
 ```
 
 ---

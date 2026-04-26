@@ -83,7 +83,7 @@ describe('E1-U2: SSE 指数退避重连', () => {
 
   it('指数退避: 5 次 onerror 分别延迟 3s/6s/12s/24s/48s', async () => {
     const { sseConsumer } = await import('./sse');
-    sseConsumer.connect('http://localhost:33335/api/sse/threads/test');
+    sseConsumer.connect('http://localhost:33338/api/sse/threads/test');
     const instance = mockInstances[0];
     expect(instance).toBeDefined();
 
@@ -97,7 +97,7 @@ describe('E1-U2: SSE 指数退避重连', () => {
 
   it('第 6 次 onerror 后停止重连（maxRetries=5）', async () => {
     const { sseConsumer } = await import('./sse');
-    sseConsumer.connect('http://localhost:33335/api/sse/threads/test');
+    sseConsumer.connect('http://localhost:33338/api/sse/threads/test');
     const instance = mockInstances[0];
 
     // Trigger 5 errors (exhaust retries)
@@ -117,7 +117,7 @@ describe('E1-U2: SSE 指数退避重连', () => {
 
   it('disconnect() 关闭 EventSource 并重置 retryCount', async () => {
     const { sseConsumer } = await import('./sse');
-    sseConsumer.connect('http://localhost:33335/api/sse/threads/test');
+    sseConsumer.connect('http://localhost:33338/api/sse/threads/test');
     const instance = mockInstances[0];
     expect(instance).toBeDefined();
 
@@ -127,7 +127,7 @@ describe('E1-U2: SSE 指数退避重连', () => {
 
   it('disconnect() 清除 retryTimer', async () => {
     const { sseConsumer } = await import('./sse');
-    sseConsumer.connect('http://localhost:33335/api/sse/threads/test');
+    sseConsumer.connect('http://localhost:33338/api/sse/threads/test');
     const instance = mockInstances[0];
 
     // trigger error to set a retryTimer

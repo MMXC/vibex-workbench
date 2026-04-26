@@ -148,7 +148,7 @@ content:
 
             port := a.backendPort
             if port == 0 {
-                port = 33335
+                port = 33338
                 // 如果默认端口被占用，动态找一个可用端口
                 if !isPortAvailable(port) {
                     p, err := freePort()

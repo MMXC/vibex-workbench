@@ -62,7 +62,7 @@
 
 **估计工时**: Phase 1 无额外成本，Phase 2 另需 5–10 PD
 
-### R3: SSE URL 硬编码 `http://localhost:33335`（中）
+### R3: SSE URL 硬编码 `http://localhost:33335`（旧 Python backend → 已迁移至 Go Agent :33338）
 
 **描述**: `sse.ts` 和 `workbench/+page.svelte` 中 SSE URL 均硬编码。跨环境（CI/生产）无法工作。
 
@@ -108,7 +108,7 @@
 | 阶段 | 任务 | 估算 | 依赖 |
 |------|------|------|------|
 | S1 | 清理旧进程 + 重启 SSE backend | 0.5 PD | 无 |
-| S2 | 修改 SSE URL 从空字符串到 http://localhost:33335 | 0.5 PD | S1 |
+| S2 | 修改 SSE URL 从空字符串到 http://localhost:33338（原 33335 Python backend 已废弃） | 0.5 PD | S1 |
 | S3 | gstack QA 端到端验证 | 1 PD | S2 |
 | Phase 2 | Canvas 渲染层（ReactFlow/SvelteFlow） | 3–5 PD | S3 |
 | Phase 2 | Artifact IndexedDB 持久化 | 2 PD | S3 |
@@ -184,7 +184,7 @@ artifact-registry (M4)
 **现状**: mock backend 已通，SSE consumer 已就绪
 
 **实现方案**:
-1. SSE URL 环境变量化：`const SSE_URL = import.meta.env.VITE_SSE_URL || 'http://localhost:33335'`
+1. SSE URL 环境变量化：`const SSE_URL = import.meta.env.VITE_SSE_URL || 'http://localhost:33338'`
 2. `runStore` 增加 `toolInvocations` 数组追踪
 3. `message.delta` 事件追加到 `runStore.messageStream`
 4. 连接断开/重连逻辑（当前 `onerror` 已有 3s 重试）
@@ -246,7 +246,7 @@ artifact-registry (M4)
 
 ## 七、gstack QA 验证策略
 
-**前提**: `sse_server.py` 已在 port 33335 运行
+**前提**: Go Agent (`agent/cmd/web`) 已在 port 33338 运行（`sse_server.py` Python backend 已移至 `~/antch-backend/`）
 
 1. **SSE 连接验证**（/browse）
    - 启动 `frontend npm run dev`

@@ -158,7 +158,7 @@ content:
       purpose: "Rust ↔ JSON 序列化（invoke 返回值）"
     - name: "portpicker"
       type: "rust-crate"
-      purpose: "Go backend 端口分配（避免硬编码 33335）"
+      purpose: "Go backend 端口分配（:33338）"
 
   l3_l4_lineage:
     summary: "L3 定义 Rust IPC 命令接口和子进程管理；L4 展开具体实现细节（如错误处理、日志、dev/prod 区分）"

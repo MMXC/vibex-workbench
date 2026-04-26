@@ -35,7 +35,7 @@
 **文件变更**：
 - `frontend/src/lib/sse.ts` — `SSEConsumer` 构造函数取 `VITE_SSE_URL` + 新增 `disconnect()` 方法
 - `frontend/src/routes/workbench/+page.svelte` — SSE URL 改为 `import.meta.env.VITE_SSE_URL`，`onDestroy` 时调用 `sseConsumer.disconnect()`
-- `frontend/.env` — 新建，设置 `VITE_SSE_URL=http://localhost:33335`
+- `frontend/.env` — 新建，设置 `VITE_SSE_URL=http://localhost:33338`
 - `frontend/.env.example` — 新建模板
 
 **实现步骤**：
@@ -43,7 +43,7 @@
 2. 修改 `SSEConsumer.connect()` 默认 URL
 3. `SSEConsumer` 新增 `disconnect()` 方法：`this.es?.close(); this.es = null;`
 4. `+page.svelte` 添加 `import { onDestroy } from 'svelte'`，`onDestroy(() => sseConsumer.disconnect())`
-5. 搜索全项目硬编码 `localhost:33335`，全部替换为环境变量引用
+5. 搜索全项目硬编码 `localhost:33335`，全部替换为环境变量引用（已迁移至 :33338 Go Agent）
 
 **风险**：低
 
