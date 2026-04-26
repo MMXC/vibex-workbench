@@ -1,413 +1,202 @@
-# ============================================================
-# Level 2 — VibeX Workbench 骨架规格
-# Skeleton Specification
-#
-# parent: vibex-workbench-goal (L1)
-# 从 L1 派生：技术选型 + 框架 + 5个模块划分 + 生成流水线
-# ============================================================
-
+---
 spec:
-  version: "2.0"
+  version: "0.1"
   level: "2_skeleton"
   name: "vibex-workbench-skeleton"
-  parent: "vibex-workbench-goal"
-  status: "done"
+  parent: "vibex-workbench-mvp"
+  status: "proposal"
 
 meta:
-  project: "vibex-workbench"
+  type: "skeleton"
+  module: "vibex-workbench"
   owner: "hermes"
-  created: "2026-04-20"
-  updated: "2026-04-22"
+  created: "2026-04-24"
+  updated: "2026-04-24"
 
 lifecycle:
-  current: "done"
-  updated: "2026-04-21T20:00:00"
+  current: "proposal"
+  updated: "2026-04-24"
   history:
-    - status: "draft"
-      at: "2026-04-20T10:00:00"
+    - status: "proposal"
+      at: "2026-04-24T00:00:00"
       by: "hermes"
-      trigger: "agent:auto"
-      note: "从 goal spec 派生骨架，完成 5 个模块划分"
-    - status: "done"
-      at: "2026-04-21T20:00:00"
-      by: "hermes"
-      trigger: "agent:auto"
-      note: "骨架 + 自举策略 + 生成流水线完成"
+      trigger: "user:manual"
+      note: "定义技术骨架与模块划分"
+
+io_contract:
+  input: |
+    L1 goal spec（vibex-workbench-mvp）
+  output: |
+    技术骨架 spec，含：
+    - tech_stack（Go agent / SvelteKit frontend / Python generators）
+    - modules_matrix（agent / backend / frontend / generators / spec-templates）
+    - api_design（workspace API endpoints）
+    - entry_points（agent web server / frontend dev server）
+  boundary: |
+    L2 定义技术选型和模块划分，不定义模块内部实现（L3 职责）。
+  behavior:
+    - "解析 L1 mission 和 constraints"
+    - "拆解为 5 个技术模块"
+    - "定义模块间依赖关系"
+    - "输出 modules_matrix"
 
 content:
-  # ── 与 L1 Goal 的回指（避免「骨架悬空」）──────────────────
-  upstream_l1:
-    spec_path: "specs/project-goal/vibex-workbench-goal.yaml"
-    spec_name: "vibex-workbench-goal"
-    note: "本文件 spec.parent 指向 L1；产品叙事与约束以 goal 为准，此处只锁工程化解法"
-    l1_sections_realized_here:
-      - "content.mission / vision_execution / constraints —— 通过 level_mapping、modules、integration_contracts 落实为可实现边界（不抄长文）"
-      - "content.product_value_layers —— 内核/证明/体验在本仓库对应 MOD 划分与生成路径"
-    forward_pointer_from_l1:
-      path_in_goal: "content.l1_l2_lineage"
-      summary: "L1 中「谁拥有产品故事 vs 谁拥有架构拆解」的对照表"
+  tech_stack:
+    language: "Go / TypeScript / Python"
+    framework: "nanoClaudeCode (agent) / SvelteKit (frontend) / stdlib (generators)"
+    key_libraries:
+      - name: "nanoClaudeCode"
+        version: "S01-S08"
+        purpose: "Go coding agent engine"
+      - name: "memlace"
+        version: "pure stdlib"
+        purpose: "轻量记忆系统，Go 实现"
+      - name: "SvelteKit"
+        version: "latest"
+        purpose: "前端 SSR 框架"
+      - name: "sse"
+        version: "stdlib"
+        purpose: "Server-Sent Events，agent ↔ frontend 通信"
+    runtime: "Go 1.22+ / Node.js 20+ / Python 3.11+"
+    package_manager: "go mod / npm / pip"
 
-  # ── IO 契约 ────────────────────────────────────────
-  io_contract:
-    input: |
-      已确认的 L1 goal：使命与边界、约束 C1–C8、价值分层与愿景落地顺序；
-      以及 L1 中关于变更路由（goal|feature|bug）、Canvas 行为展示、自举与生成验收的语义（不由本层重复定义业务规则）。
-    output: "技术选型共识 + L1→L6 层级映射 + 五模块职责与典型技术栈 + 模块间集成契约（Event 等）+ make generate 与自举阶段策略"
-    boundary: "骨架层做技术选型与模块/集成划分，不写具体 UI 交互与单条路由算法细节（见对应 feature）"
-    behavior: |
-      从 L1 goal 推导骨架：
-      1. 对照 mission 与约束 → 收敛技术栈与仓库布局
-      2. 对照路由/可视化/治理等关切 → 映射到五个 MOD 的职责与边界（含 MOD-router、可视化与工作台壳层）
-      3. 定义模块间集成契约（事件名 + payload 边界）
-      4. 设计 make generate 流水线与生成物职责
-      5. 确定自举顺序（Phase1/2/3）与与 L1 里程碑可对齐的验收口径
-    changelog: []
+  modules_matrix:
+    - module: "agent"
+      responsibility: "Go coding agent，通过 SSE 与前端通信，执行 tool calls"
+      public_api:
+        - "POST /api/chat"
+        - "GET /api/sse/{threadId}"
+        - "GET /api/threads/{threadId}/history"
+      depends_on: []
+      generated_by: null
+    - module: "backend"
+      responsibility: "轻量 Go HTTP 层，承载 workspace API + SSE bridge"
+      public_api:
+        - "GET /api/workspace/detect-state"
+        - "POST /api/workspace/scaffold"
+        - "POST /api/workspace/run-make"
+        - "GET /api/workspace/specs/list"
+        - "GET /api/workspace/specs/read"
+        - "POST /api/workspace/specs/write"
+      depends_on: ["agent"]
+      generated_by: null
+    - module: "frontend"
+      responsibility: "SvelteKit 应用，workbench shell + spec editor + canvas"
+      public_api:
+        - "GET /"
+        - "GET /workbench"
+      depends_on: ["backend", "generators"]
+      generated_by: "generators/spec-to-sveltekit/gen.py"
+    - module: "ide-chrome"
+      responsibility: "Workbench 的 IDE 外壳，承载 titlebar、activity bar、editor tabs、AI panel、dock 和 statusbar"
+      public_api:
+        - "WorkbenchTitlebar.svelte"
+        - "ActivityBar.svelte"
+        - "SpecExplorer.svelte"
+        - "WorkbenchCenterTabs.svelte"
+        - "AiChatColumn.svelte"
+        - "R2Dock.svelte"
+        - "StatusBar.svelte"
+      depends_on: ["frontend", "backend"]
+      generated_by: "generators/spec-to-sveltekit/gen.py"
+    - module: "generators"
+      responsibility: "Python 代码生成器 + 校验脚本"
+      public_api:
+        - "generators/gen.py"
+        - "generators/validate_specs.py"
+        - "generators/spec-engine/validate_chain.py"
+        - "generators/state_detector.py"
+        - "generators/scaffolder.py"
+      depends_on: []
+      generated_by: null
+    - module: "spec-templates"
+      responsibility: "L0–L5 spec 模板，驱动 generator 骨架生成"
+      public_api:
+        - "spec-templates/L1-goal/"
+        - "spec-templates/L2-skeleton/"
+        - "spec-templates/L3-module/"
+        - "spec-templates/L4-feature/"
+        - "spec-templates/L5-slice/"
+      depends_on: []
+      generated_by: null
 
-  # ── 9层路径 → Spec 层映射 ──────────────────────────
-  level_mapping:
-    - spec_level: 1
-      path_name: "目标 (Goal)"
-      vibex_spec_level: "L1 project-goal"
-      is_root: true
-    - spec_level: 2
-      path_name: "骨架 (Skeleton)"
-      vibex_spec_level: "L2 skeleton ← 当前层"
-      is_root: false
-    - spec_level: 3
-      path_name: "组织 (Organization)"
-      vibex_spec_level: "L3 module (5个模块)"
-      is_root: false
-    - spec_level: 4
-      path_name: "功能 (Function)"
-      vibex_spec_level: "L4 feature (每个模块1个feature)"
-      is_root: false
-    - spec_level: "5a/5b"
-      path_name: "行为 (Behavior) + 皮肤 (Skin)"
-      vibex_spec_level: "L5a uiux + L5b component"
-      is_root: false
-    - spec_level: "5c"
-      path_name: "应用 (Application)"
-      vibex_spec_level: "L5c service (生成代码层)"
-      is_root: false
-    - spec_level: "5d"
-      path_name: "细节迭代 (Glue Code)"
-      vibex_spec_level: "L5d data (手写逻辑层)"
-      is_root: false
-    - spec_level: 6
-      path_name: "本地部署 (Deployment)"
-      vibex_spec_level: "deployment spec (Makefile + vsix)"
-      is_root: false
+  api_design:
+    base_url: "/api"
+    auth: "none (MVP 阶段无 Auth）"
+    key_endpoints:
+      - path: "/api/workspace/detect-state"
+        method: "GET"
+        description: "探测仓库状态：empty / partial / ready + 下一步建议"
+      - path: "/api/workspace/scaffold"
+        method: "POST"
+        description: "在仓库根生成最小脚手架"
+      - path: "/api/workspace/run-make"
+        method: "POST"
+        description: "执行 make target，返回 stdout/stderr"
+      - path: "/api/workspace/specs/list"
+        method: "GET"
+        description: "列出仓库中所有 spec 文件"
+      - path: "/api/workspace/specs/read"
+        method: "GET"
+        description: "读取单个 spec 文件内容"
+      - path: "/api/workspace/specs/write"
+        method: "POST"
+        description: "写入/创建 spec 文件"
+      - path: "/api/chat"
+        method: "POST"
+        description: "发送消息给 agent，返回 threadId"
+      - path: "/api/sse/{threadId}"
+        method: "GET"
+        description: "SSE 流，接收 agent 事件"
 
-  # ── 5个模块划分（按业务领域，不是技术层）────────────
-  modules:
-    - id: "MOD-spec-engine"
-      name: "Spec Engine"
-      description: "Spec 解析、验证、从属链检查——工作台的核心引擎"
-      path_name: "组织层 / Organization"
-      type: "core"
-      features:
-        - "spec-editor"
-      tech: "SvelteKit + CodeMirror 6"
-      deployment: "vscode-extension | pwa | tauri"
-      self_bootstrap: true
-      io_contract:
-        input: "YAML spec 文件路径或内容"
-        output: "SpecAST + Violation[] + DependencyGraph"
-        boundary: "只做解析和验证，不做 UI 展示"
+  entry_points:
+    - type: "agent-web"
+      command: "cd agent && WORKSPACE_ROOT=$(pwd) go run ./cmd/web/"
+      port: 33338
+      description: "Go agent web server"
+    - type: "frontend-dev"
+      command: "cd frontend && npm run dev"
+      port: 5173
+      description: "SvelteKit 开发服务器"
+    - type: "make"
+      command: "make lint-specs && make validate && make generate"
+      description: "本地 spec 校验与代码生成"
 
-    - id: "MOD-dsl-visualizer"
-      name: "DSL Visualizer"
-      description: "DSL 图形化层——从属关系节点图 + Mermaid 可视化 + Canvas 行为展示"
-      path_name: "组织层 / Organization"
-      type: "core"
-      features:
-        - "dsl-canvas"
-      tech: "SvelteKit + Mermaid.js + 画布节点图"
-      deployment: "vscode-extension | pwa | tauri"
-      self_bootstrap: true
-      io_contract:
-        input: "DependencyGraph + SSE 事件流"
-        output: "Mermaid 代码 + Canvas 节点序列"
-        boundary: "只做可视化，不做 spec 编辑"
+  l2_l3_lineage:
+    summary: |
+      L2 定义 5 个模块，L3 把每个模块展开为具体实现。
+      agent 模块已实现（L3 关注 tool handler 扩展）。
+      backend 模块部分实现（缺少 workspace API 实现）。
+      frontend 模块部分实现（services 层大量 NotImplemented）。
+      generators 模块部分实现（validate 已有，scaffolder/state_detector 缺失）。
+      spec-templates 模块完整。
+    which_modules_become_l3:
+      - module: "agent"
+        l3_note: "扩展 tool handlers，支持 MVP 5 项能力相关的 tool"
+      - module: "backend"
+        l3_note: "实现 workspace API endpoints"
+      - module: "frontend"
+        l3_note: "实现 spec-editor / state-detection UI / scaffolding wizard / make 按钮"
+      - module: "ide-chrome"
+        l3_note: "实现参考截图中的 IDE 外壳按钮、panel、窗口控制与状态展示"
+      - module: "generators"
+        l3_note: "实现 state_detector.py + scaffolder.py + make-run API"
+      - module: "spec-templates"
+        l3_note: "模板已就绪，无需 L3"
 
-    - id: "MOD-code-generator"
-      name: "Code Generator"
-      description: "代码生成可视化——make generate 的交互界面 + 生成预览"
-      path_name: "组织层 / Organization"
-      type: "core"
-      features:
-        - "code-gen-panel"
-      tech: "SvelteKit + Python CLI"
-      deployment: "vscode-extension | pwa | tauri"
-      self_bootstrap: false
-      io_contract:
-        input: "specs/*.yaml"
-        output: "生成的组件代码 + Diff 对比"
-        boundary: "只做代码生成，不做业务逻辑编写"
+  bootstrap_hints:
+    gen_py_pattern: |
+      gen.py 读取 L3 module specs → 解析 modules_matrix →
+      对每个 module 查找对应模板 → 渲染 Skeleton 文件
+    skeleton_principle: |
+      Skeleton = 架构骨架 + 类型定义 + 公开 API 签名，
+      不含业务逻辑（那是开发者填的）
+    idempotency: |
+      gen.py 必须幂等：只覆盖 *.Skeleton.svelte，不覆盖 *.svelte
 
-    - id: "MOD-workbench-shell"
-      name: "Workbench Shell"
-      description: "工作台外壳——对话面板 + Canvas 行为展示 + 三栏布局"
-      path_name: "组织层 / Organization"
-      type: "core"
-      features:
-        - "workbench-shell"
-      tech: "SvelteKit + TailwindCSS"
-      deployment: "vscode-extension | pwa | tauri"
-      self_bootstrap: true
-      io_contract:
-        input: "用户对话输入 + SSE 事件流"
-        output: "对话 Store 状态 + Canvas 节点渲染"
-        boundary: "只做 UI 布局和状态管理，不做 spec 逻辑"
-
-    - id: "MOD-router"
-      name: "Change Router"
-      description: "变更路由系统——三条路由路径（goal/feature/bug）+ 歧义消除循环"
-      path_name: "组织层 / Organization"
-      type: "extension"
-      features:
-        - "routing-panel"
-      tech: "SvelteKit + Svelte 5 runes"
-      deployment: "vscode-extension | pwa | tauri"
-      self_bootstrap: false
-      io_contract:
-        input: "用户的自然语言需求描述"
-        output: "路由决策（goal|feature|bug）+ 对应的 spec 目标"
-        boundary: "只做路由判断和澄清循环，不做 spec 编写"
-
-  # ── 模块集成契约（Event Bus 协议）──────────────────
-  integration_contracts:
-    # spec-editor → dsl-canvas: 打开 spec 时同步更新节点图
-    - from_module: "MOD-spec-engine"
-      to_module: "MOD-dsl-visualizer"
-      contract:
-        events:
-          - name: "spec.opened"
-            payload: "{ specId: string, parentChain: string[], childIds: string[] }"
-          - name: "spec.modified"
-            payload: "{ specId: string, changes: Record<string, any> }"
-        apis: []
-      protocol: "sse_event"
-      boundary: "spec-engine 发事件，dsl-visualizer 只接收，不反向控制"
-
-    # spec-editor → code-generator: 修改 spec 后触发重新生成
-    - from_module: "MOD-spec-engine"
-      to_module: "MOD-code-generator"
-      contract:
-        events:
-          - name: "spec.saved"
-            payload: "{ specId: string, path: string }"
-          - name: "generation.triggered"
-            payload: "{ specs: string[] }"
-        apis: []
-      protocol: "sse_event"
-      boundary: "spec-engine 发事件，code-generator 发 SSE 流给 shell"
-
-    # code-generator → workbench-shell: 显示生成进度
-    - from_module: "MOD-code-generator"
-      to_module: "MOD-workbench-shell"
-      contract:
-        events:
-          - name: "generation.started"
-            payload: "{ total: number }"
-          - name: "generation.step"
-            payload: "{ step: number, name: string, status: 'running' | 'done' | 'error' }"
-          - name: "generation.completed"
-            payload: "{ duration_ms: number, files_changed: number }"
-          - name: "generation.failed"
-            payload: "{ error: string }"
-        apis: []
-      protocol: "sse_event"
-      boundary: "code-generator 发 SSE 流，shell 消费并广播给 conversation_store + canvas_store"
-
-    # routing-panel → spec-engine: 路由到 spec 并打开
-    - from_module: "MOD-router"
-      to_module: "MOD-spec-engine"
-      contract:
-        events:
-          - name: "route.to_spec"
-            payload: "{ specId: string, changeType: 'goal' | 'feature' | 'bug' }"
-          - name: "route.to_goal"
-            payload: "{ goalDescription: string, specId: string }"
-        apis: []
-      protocol: "sse_event"
-      boundary: "router 发事件，spec-engine 打开或创建 spec"
-
-    # conversation → canvas: 对话事件广播给 Canvas（松耦合）
-    - from_module: "MOD-workbench-shell"
-      to_module: "MOD-dsl-visualizer"
-      contract:
-        events:
-          - name: "dialog.started"
-            payload: "{ threadId: string, input: string }"
-          - name: "dialog.clarification"
-            payload: "{ threadId: string, question: string, type: 'ask' | 'suggest' }"
-          - name: "route.determined"
-            payload: "{ threadId: string, route: 'goal' | 'feature' | 'bug' }"
-          - name: "spec.changed"
-            payload: "{ threadId: string, specId: string, type: 'created' | 'updated' }"
-          - name: "test.written"
-            payload: "{ threadId: string, testCaseId: string }"
-          - name: "test.passed"
-            payload: "{ threadId: string, testCaseId: string }"
-          - name: "test.failed"
-            payload: "{ threadId: string, testCaseId: string, error: string }"
-          - name: "spec.confirmed"
-            payload: "{ threadId: string, specId: string }"
-          - name: "dialog.completed"
-            payload: "{ threadId: string, output: string }"
-        apis: []
-      protocol: "event_bus"
-      boundary: "conversation_store 广播，canvas_store 订阅，两者不知道对方存在"
-
-  # ── 技术选型决策 ───────────────────────────────────
-  tech_decisions:
-    - id: "TD-001"
-      title: "前端框架选型"
-      decision: "SvelteKit"
-      alternatives_considered: ["Next.js", "Remix", "Astro"]
-      rationale: |
-        与现有 vibex-spec 项目技术栈一致，生成器 spec-to-sveltekit 已验证可用。
-        Svelte 5 Runes 提供细粒度响应式，适合复杂状态管理（5-Store 架构）。
-      impact: "spec-to-sveltekit 生成器可直接复用"
-
-    - id: "TD-002"
-      title: "YAML 编辑器选型"
-      decision: "CodeMirror 6"
-      alternatives_considered: ["Monaco Editor", "Monaco", "Ace"]
-      rationale: |
-        CodeMirror 6 体积小、集成度高、YAML 语言支持完善（codemirror-lang-yaml）。
-        Monaco 太重，不适合轻量工作台。
-      impact: "spec-editor 的核心依赖"
-
-    - id: "TD-003"
-      title: "从属关系可视化选型"
-      decision: "Mermaid.js（树状图）+ 画布节点图（Phase 2）"
-      alternatives_considered: ["D3.js", "react-flow", "cytoscape.js"]
-      rationale: |
-        Phase 1 用 Mermaid 实现快速可用。
-        Phase 2 用画布节点图实现更精细的 spec 从属图（可拖拽、可编辑节点位置）。
-      impact: "dsl-visualizer 的两种可视化模式"
-
-    - id: "TD-004"
-      title: "本地存储选型"
-      decision: "Dexie.js (IndexedDB)"
-      alternatives_considered: ["localStorage", "SQLite (WASM)", "IndexedDB direct"]
-      rationale: |
-        Dexie.js 提供简洁的 IndexedDB API，IndexedDB 支持大文件（spec 文件 + 生成产物）。
-        符合 local-first 约束。
-      impact: "所有数据持久化"
-
-    - id: "TD-005"
-      title: "部署形态选型"
-      decision: "VSCode Extension（Phase 1）→ PWA/Tauri（Phase 2）"
-      rationale: |
-        VSCode 是开发者最常用的编辑器，extension 形态便于嵌入现有工作流。
-        复用 VSCode 的 WebView API 和文件系统访问能力。
-      impact: "workbench-shell 的布局适配"
-
-    - id: "TD-006"
-      title: "Canvas 行为可视化方案"
-      decision: "松耦合 Event Bus + 只读画布"
-      rationale: |
-        对话 Store 通过 Event Bus 广播 SSE 事件，Canvas Store 订阅并渲染节点序列图。
-        两者独立开发，点击旧对话切换时在对话面板侧实现，Canvas 只读跟随。
-        未来可扩展为可编排画布（需双向绑定）。
-      impact: "dsl-canvas 的 SSE 流可视化模式"
-
-  # ── 代码生成流水线 ────────────────────────────────
-  generation_pipeline:
-    trigger: "make generate（手动）或 spec saved event（自动）"
-    steps:
-      - step: 1
-        name: "lint-specs"
-        tool: "validate-syntax"
-        description: "验证所有 spec YAML 语法 + 从属链完整性"
-        blocker: true
-        inputs: ["specs/**/*.yaml"]
-        outputs: []
-      - step: 2
-        name: "parse-parent-chain"
-        tool: "spec-engine/parser.py"
-        description: "解析每个 spec 的 parent 字段，构建从属图"
-        blocker: false
-        inputs: ["specs/**/*.yaml"]
-        outputs: ["src/lib/generated/parent-graph.json"]
-      - step: 3
-        name: "gen-frontend-types"
-        tool: "spec-to-sveltekit/gen.py"
-        description: "从 spec-data 生成 TypeScript types + Zod schemas"
-        blocker: false
-        inputs: ["specs/feature/*/*_data.yaml"]
-        outputs: ["frontend/src/lib/generated/types/"]
-      - step: 4
-        name: "gen-stores"
-        tool: "spec-to-sveltekit/gen.py"
-        description: "从 spec-uiux 的 state_management 生成 Zustand stores"
-        blocker: false
-        inputs: ["specs/feature/*/*_uiux.yaml"]
-        outputs: ["frontend/src/lib/generated/stores/"]
-      - step: 5
-        name: "gen-components"
-        tool: "spec-to-sveltekit/gen.py"
-        description: "从 spec-uiux 的 components 生成 Svelte 组件骨架"
-        blocker: false
-        inputs: ["specs/feature/*/*_uiux.yaml"]
-        outputs: ["frontend/src/lib/generated/components/"]
-      - step: 6
-        name: "gen-mermaid"
-        tool: "spec-engine/mermaid-gen.py"
-        description: "从 parent-graph.json 生成 Mermaid 从属关系图代码"
-        blocker: false
-        inputs: ["src/lib/generated/parent-graph.json"]
-        outputs: ["frontend/src/lib/generated/dependency-graph.mermaid"]
-
-  # ── 自举优先级 ────────────────────────────────────
-  # 实现顺序在此定义；「内核 / 自举证明 / 可视化体验」语义边界见 L1：vibex-workbench-goal.content.product_value_layers
-  bootstrap_order:
-    phase_1:
-      - module: "MOD-workbench-shell"
-        reason: "提供 UI 框架，其他模块需要挂载到这个框架上"
-        self_bootstrap: false
-      - module: "MOD-spec-engine"
-        reason: "其他所有模块依赖 spec 数据，必须先生成"
-        self_bootstrap: true
-      - module: "MOD-dsl-visualizer"
-        reason: "DSL 可视化依赖 spec-engine 的 parent-graph"
-        self_bootstrap: true
-    phase_2:
-      - module: "MOD-code-generator"
-        reason: "其他模块稳定后，生成器接管代码生成"
-        self_bootstrap: false
-      - module: "MOD-router"
-        reason: "最后实现路由系统，依赖所有其他模块成熟"
-        self_bootstrap: false
-
-  # ── changelog ────────────────────────────────────
-  changelog:
-    - version: "2.0"
-      date: "2026-04-20"
-      author: "hermes"
-      changes:
-        - "新增 io_contract 字段（input/output/boundary/behavior/changelog）"
-        - "TD-006: 新增 Canvas 行为可视化技术决策（松耦合 Event Bus + 只读画布）"
-        - "integration_contracts: 新增 conversation→canvas 的 SSE 事件广播协议"
-        - "每个 MOD 新增 io_contract 子字段"
-        - "自举优先级调整为：workbench-shell + spec-engine + dsl-visualizer（Phase1），router（Phase2）"
-
-derived_from:
-  - parent: "vibex-workbench-goal"
-    rationale: |
-      从 L1 mission 推导出 5 个业务模块：
-      - spec-engine: 使命的核心（解析/验证/从属链）
-      - dsl-visualizer: 使命的核心（图形化表达 + Canvas 行为展示）
-      - code-generator: 使命的核心（生成 + 落地）
-      - workbench-shell: 使命的载体（对话 + Canvas 布局）
-      - router: 使命的延伸（三条路由路径 + 歧义消除循环）
-
-linked_modules:
-  - MOD-spec-engine
-  - MOD-dsl-visualizer
-  - MOD-code-generator
-  - MOD-workbench-shell
-  - MOD-router
+changelog:
+  - version: "0.1"
+    date: "2026-04-24"
+    author: "hermes"
+    changes:
+      - "初始骨架，定义 5 模块 + API 设计"

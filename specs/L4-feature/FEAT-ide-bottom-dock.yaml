@@ -124,4 +124,3 @@ changelog:
     author: "hermes"
     changes:
       - "定义底部 dock、问题/输出/终端面板和状态栏行为"
----

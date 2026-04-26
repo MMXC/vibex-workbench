@@ -1,189 +1,189 @@
 ---
 spec:
-  version: "0.1"
-  level: "4_feature"
-  name: "FEAT-make-integration"
-  parent: "vibex-workbench-skeleton"
-  status: "proposal"
-
+  version: '0.1'
+  level: 4_feature
+  name: FEAT-make-integration
+  parent: MOD-build-panel
+  status: proposal
 meta:
-  type: "feature"
-  module: "frontend"
-  owner: "hermes"
-  created: "2026-04-26"
-  updated: "2026-04-26"
-
+  type: feature
+  module: frontend
+  owner: hermes
+  created: '2026-04-26'
+  updated: '2026-04-26'
 lifecycle:
-  current: "proposal"
-  updated: "2026-04-26"
-
+  current: proposal
+  updated: '2026-04-26'
 io_contract:
-  input: |
-    用户点击 titlebar 菜单「lint-specs」/ 「generate」按钮，
+  input: '用户点击 titlebar 菜单「lint-specs」/ 「generate」按钮，
+
     或在 R2Dock Output tab 点击「重新运行」。
-  output: |
-    - POST /api/workspace/run-make → backend 在 WORKSPACE_ROOT 执行 make target
+
+    '
+  output: '- POST /api/workspace/run-make → backend 在 WORKSPACE_ROOT 执行 make target
+
     - stdout/stderr 追加到 workspace-output-store
+
     - Output tab 自动展示实时输出
+
     - 完成后显示 exit code 摘要 + Problems tab 更新（如有阻塞项）
-  boundary: |
-    本 feature 只定义 UI 触发、API 调用、输出展示的闭环。
+
+    '
+  boundary: '本 feature 只定义 UI 触发、API 调用、输出展示的闭环。
+
     不定义 backend 实际执行 make 的 shell 逻辑（那是 backend/go 层的职责）。
+
     不定义真实 PTY 终端（那是 future L4 terminal feature 的职责）。
 
+    '
 behavior:
-  - "titlebar 菜单 / dock 按钮触发 make 命令"
-  - "POST /api/workspace/run-make → backend 在 WORKSPACE_ROOT 执行 make"
-  - "输出流式追加到 workspace-output-store"
-  - "Output tab 展示实时 stdout/stderr"
-  - "完成后 Problems tab 更新阻塞摘要"
-
+- titlebar 菜单 / dock 按钮触发 make 命令
+- POST /api/workspace/run-make → backend 在 WORKSPACE_ROOT 执行 make
+- 输出流式追加到 workspace-output-store
+- Output tab 展示实时 stdout/stderr
+- 完成后 Problems tab 更新阻塞摘要
 content:
   supported_targets:
-    - target: "lint-specs"
-      label: "lint-specs"
-      menu_label: "规格校验"
-      description: "运行 python generators/validate_specs.py — 检查 YAML 语法 + parent chain"
-      button_location: ["titlebar menu → 终端", "dock tools"]
-      output_tab: "problems"
-      triggers_auto_validate: true
-    - target: "validate"
-      label: "validate"
-      menu_label: "生成器校验"
-      description: "运行 python generators/spec-engine/validate_chain.py — 检查 spec 间一致性"
-      button_location: ["dock tools"]
-      output_tab: "problems"
-    - target: "generate"
-      label: "generate"
-      menu_label: "生成代码"
-      description: "运行 python generators/gen.py — 从 spec 生成代码骨架"
-      button_location: ["titlebar menu → 终端", "dock tools"]
-      output_tab: "output"
-
+  - target: lint-specs
+    label: lint-specs
+    menu_label: 规格校验
+    description: 运行 python generators/validate_specs.py — 检查 YAML 语法 + parent chain
+    button_location:
+    - titlebar menu → 终端
+    - dock tools
+    output_tab: problems
+    triggers_auto_validate: true
+  - target: validate
+    label: validate
+    menu_label: 生成器校验
+    description: 运行 python generators/spec-engine/validate_chain.py — 检查 spec 间一致性
+    button_location:
+    - dock tools
+    output_tab: problems
+  - target: generate
+    label: generate
+    menu_label: 生成代码
+    description: 运行 python generators/gen.py — 从 spec 生成代码骨架
+    button_location:
+    - titlebar menu → 终端
+    - dock tools
+    output_tab: output
   behaviors:
-    - id: "B1"
-      trigger: "用户在 titlebar 菜单点击「规格校验」（lint-specs）"
-      action: "eventsEmit('menu:run-lint') → +page.svelte handler → clearOutput → POST /api/workspace/run-make {target:'lint-specs'}"
-      expected_result: "Output tab 切换到 problems，追加 stdout，最终显示「Done — exit code: N」"
-      error_handling: "网络错误时 Output tab 显示「请求失败，请检查 backend 是否运行」"
-
-    - id: "B2"
-      trigger: "用户在 titlebar 菜单点击「生成代码」（generate）"
-      action: "eventsEmit('menu:run-generate') → +page.svelte handler → clearOutput → POST /api/workspace/run-make {target:'generate'}"
-      expected_result: "Output tab 切换到 output，追加 stdout，生成完成后显示摘要"
-      error_handling: "命令非零退出时 Output tab 追加红色「FAILED: exit code N」"
-
-    - id: "B3"
-      trigger: "用户点击 R2Dock Output tab 中的「重新运行」按钮"
-      action: "重新 POST 刚才执行过的 target"
-      expected_result: "重新执行并流式展示输出"
-      error_handling: "上次 target 为空时按钮 disabled"
-
-    - id: "B4"
-      trigger: "/api/workspace/run-make 返回 {ok:false, error:'...'} 或非零 exitCode"
-      action: "appendOutput('\\n[FAILED] exit code: ' + exitCode + '\\n' + error)"
-      expected_result: "Output tab 最后一行红色高亮；Problems tab 显示该错误为阻塞项"
-      error_handling: "error 字段为空时显示「命令执行失败，无详细错误」"
-
-    - id: "B5"
-      trigger: "lint-specs 或 validate 执行完成且 exitCode === 0"
-      action: "Problems tab 显示绿色通过摘要：specs indexed / parent chain valid"
-      expected_result: "StatusBar 的 run-pill 更新为绿色「make validate ✓」"
-      error_handling: "结果解析失败时 Problems tab 保持空白"
-
+  - id: B1
+    trigger: 用户在 titlebar 菜单点击「规格校验」（lint-specs）
+    action: eventsEmit('menu:run-lint') → +page.svelte handler → clearOutput → POST
+      /api/workspace/run-make {target:'lint-specs'}
+    expected_result: 'Output tab 切换到 problems，追加 stdout，最终显示「Done — exit code: N」'
+    error_handling: 网络错误时 Output tab 显示「请求失败，请检查 backend 是否运行」
+  - id: B2
+    trigger: 用户在 titlebar 菜单点击「生成代码」（generate）
+    action: eventsEmit('menu:run-generate') → +page.svelte handler → clearOutput →
+      POST /api/workspace/run-make {target:'generate'}
+    expected_result: Output tab 切换到 output，追加 stdout，生成完成后显示摘要
+    error_handling: '命令非零退出时 Output tab 追加红色「FAILED: exit code N」'
+  - id: B3
+    trigger: 用户点击 R2Dock Output tab 中的「重新运行」按钮
+    action: 重新 POST 刚才执行过的 target
+    expected_result: 重新执行并流式展示输出
+    error_handling: 上次 target 为空时按钮 disabled
+  - id: B4
+    trigger: /api/workspace/run-make 返回 {ok:false, error:'...'} 或非零 exitCode
+    action: 'appendOutput(''\n[FAILED] exit code: '' + exitCode + ''\n'' + error)'
+    expected_result: Output tab 最后一行红色高亮；Problems tab 显示该错误为阻塞项
+    error_handling: error 字段为空时显示「命令执行失败，无详细错误」
+  - id: B5
+    trigger: lint-specs 或 validate 执行完成且 exitCode === 0
+    action: Problems tab 显示绿色通过摘要：specs indexed / parent chain valid
+    expected_result: StatusBar 的 run-pill 更新为绿色「make validate ✓」
+    error_handling: 结果解析失败时 Problems tab 保持空白
   user_stories:
-    - id: "US-1"
-      as_a: "规格驱动开发者"
-      i_want: "点击按钮就能看到 spec 校验结果"
-      so_that: "不用切终端跑 make 命令"
-      acceptance: "点击 lint-specs 后，Output/Problems tab 显示校验摘要；非零退出时显示错误行号"
-
-    - id: "US-2"
-      as_a: "评审者"
-      i_want: "知道当前 specs 里有什么阻塞项"
-      so_that: "快速定位需要修哪个 spec"
-      acceptance: "Problems tab 列出每条错误：文件路径 + 行号 + 错误原因"
-
+  - id: US-1
+    as_a: 规格驱动开发者
+    i_want: 点击按钮就能看到 spec 校验结果
+    so_that: 不用切终端跑 make 命令
+    acceptance: 点击 lint-specs 后，Output/Problems tab 显示校验摘要；非零退出时显示错误行号
+  - id: US-2
+    as_a: 评审者
+    i_want: 知道当前 specs 里有什么阻塞项
+    so_that: 快速定位需要修哪个 spec
+    acceptance: Problems tab 列出每条错误：文件路径 + 行号 + 错误原因
   test_scenarios:
-    - id: "TC-1"
-      scenario: "lint-specs 执行成功"
-      given: "v-test 目录 specs/ 全部有效"
-      when: "点击「规格校验」"
-      then: "Problems tab 显示绿色「make validate ✓ · 63 specs indexed，parent chain valid」"
-      evaluation: "Output tab 无红色错误，exitCode === 0"
-
-    - id: "TC-2"
-      scenario: "lint-specs 执行失败"
-      given: "存在 YAML 语法错误的 spec"
-      when: "点击「规格校验」"
-      then: "Output tab 显示错误堆栈；Problems tab 显示该文件路径 + 行号"
-      evaluation: "错误可读，不只是堆栈"
-
-    - id: "TC-3"
-      scenario: "generate 执行"
-      given: "ready 状态，WORKSPACE_ROOT 已绑定"
-      when: "点击「生成代码」"
-      then: "Output tab 流式显示 gen.py 输出，完成后显示 exit code"
-      evaluation: "gen.py 输出实时追加，无明显延迟"
-
-    - id: "TC-4"
-      scenario: "backend 未运行"
-      given: "Go backend 进程不存在"
-      when: "点击任意 make 按钮"
-      then: "Output tab 显示「请求失败，请检查 backend 是否运行」"
-      evaluation: "不崩溃，不显示原始网络错误"
-
-    - id: "TC-5"
-      scenario: "WORKSPACE_ROOT 未绑定时点击按钮"
-      given: "workspaceRoot === null"
-      when: "用户点击「规格校验」"
-      then: "按钮 disabled 或点击后弹出「请先选择仓库目录」提示"
-      evaluation: "不会发送无意义的 /api/workspace/run-make 请求"
-
+  - id: TC-1
+    scenario: lint-specs 执行成功
+    given: v-test 目录 specs/ 全部有效
+    when: 点击「规格校验」
+    then: Problems tab 显示绿色「make validate ✓ · 63 specs indexed，parent chain valid」
+    evaluation: Output tab 无红色错误，exitCode === 0
+  - id: TC-2
+    scenario: lint-specs 执行失败
+    given: 存在 YAML 语法错误的 spec
+    when: 点击「规格校验」
+    then: Output tab 显示错误堆栈；Problems tab 显示该文件路径 + 行号
+    evaluation: 错误可读，不只是堆栈
+  - id: TC-3
+    scenario: generate 执行
+    given: ready 状态，WORKSPACE_ROOT 已绑定
+    when: 点击「生成代码」
+    then: Output tab 流式显示 gen.py 输出，完成后显示 exit code
+    evaluation: gen.py 输出实时追加，无明显延迟
+  - id: TC-4
+    scenario: backend 未运行
+    given: Go backend 进程不存在
+    when: 点击任意 make 按钮
+    then: Output tab 显示「请求失败，请检查 backend 是否运行」
+    evaluation: 不崩溃，不显示原始网络错误
+  - id: TC-5
+    scenario: WORKSPACE_ROOT 未绑定时点击按钮
+    given: workspaceRoot === null
+    when: 用户点击「规格校验」
+    then: 按钮 disabled 或点击后弹出「请先选择仓库目录」提示
+    evaluation: 不会发送无意义的 /api/workspace/run-make 请求
   constraints:
-    - id: "C1"
-      name: "WORKSPACE_ROOT 先行"
-      rule: "make 按钮在 workspaceRoot 未绑定时 disabled"
-      validation: "检测到 workspaceState === 'empty' 且 workspaceRoot === '—' 时按钮不可点击"
-    - id: "C2"
-      name: "输出不溢出"
-      rule: "workspace-output-store 追加时超过 1MB 截断，末尾追加「[output truncated]」"
-      validation: "长时间运行不会导致内存爆炸"
-    - id: "C3"
-      name: "可读错误摘要"
-      rule: "非零退出时，Output tab 末尾必须追加一行人类可读摘要（不是原始堆栈）"
-      validation: "error 字段为 YAML 解析错误时，显示「specs/xxx.yaml 第 N 行：...」格式"
-    - id: "C4"
-      name: "幂等可重跑"
-      rule: "用户可反复点击同一 target，每次清空旧输出后重新执行"
-      validation: "Output tab 每次点击按钮时先 clearOutput()"
-
+  - id: C1
+    name: WORKSPACE_ROOT 先行
+    rule: make 按钮在 workspaceRoot 未绑定时 disabled
+    validation: 检测到 workspaceState === 'empty' 且 workspaceRoot === '—' 时按钮不可点击
+  - id: C2
+    name: 输出不溢出
+    rule: workspace-output-store 追加时超过 1MB 截断，末尾追加「[output truncated]」
+    validation: 长时间运行不会导致内存爆炸
+  - id: C3
+    name: 可读错误摘要
+    rule: 非零退出时，Output tab 末尾必须追加一行人类可读摘要（不是原始堆栈）
+    validation: error 字段为 YAML 解析错误时，显示「specs/xxx.yaml 第 N 行：...」格式
+  - id: C4
+    name: 幂等可重跑
+    rule: 用户可反复点击同一 target，每次清空旧输出后重新执行
+    validation: Output tab 每次点击按钮时先 clearOutput()
   l4_l5_lineage:
-    summary: "本 feature 落地 titlebar 菜单 / dock 按钮到 /api/workspace/run-make 的完整闭环。"
+    summary: 本 feature 落地 titlebar 菜单 / dock 按钮到 /api/workspace/run-make 的完整闭环。
     which_files:
-      - file: "frontend/src/routes/workbench/+page.svelte"
-        note: "menu:run-lint / menu:run-generate 事件处理，POST /api/workspace/run-make"
-      - file: "frontend/src/lib/components/workbench/R2Dock.svelte"
-        note: "Output tab 展示 workspace-output-store 内容"
-      - file: "frontend/src/lib/components/workbench/StatusBar.svelte"
-        note: "run-pill 展示最近一次 make 结果"
-      - file: "frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte"
-        note: "「lint-specs」/ 「generate」菜单按钮触发 eventsEmit"
-      - file: "backend/agent/cmd/web/workspace_make.go"
-        note: "POST /api/workspace/run-make 的 backend 实现"
-      - file: "generators/validate_specs.py"
-        note: "lint-specs 实际执行的脚本"
-    generation_order: |
-      1. backend /api/workspace/run-make endpoint（Go 实现）
+    - file: frontend/src/routes/workbench/+page.svelte
+      note: menu:run-lint / menu:run-generate 事件处理，POST /api/workspace/run-make
+    - file: frontend/src/lib/components/workbench/R2Dock.svelte
+      note: Output tab 展示 workspace-output-store 内容
+    - file: frontend/src/lib/components/workbench/StatusBar.svelte
+      note: run-pill 展示最近一次 make 结果
+    - file: frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte
+      note: 「lint-specs」/ 「generate」菜单按钮触发 eventsEmit
+    - file: backend/agent/cmd/web/workspace_make.go
+      note: POST /api/workspace/run-make 的 backend 实现
+    - file: generators/validate_specs.py
+      note: lint-specs 实际执行的脚本
+    generation_order: '1. backend /api/workspace/run-make endpoint（Go 实现）
+
       2. frontend menu events wiring（+page.svelte）
+
       3. Output tab 展示（workspace-output-store + R2Dock）
+
       4. Problems tab 阻塞摘要（基于 run-make 结果）
+
       5. Error summary 格式化（可读错误行）
 
+      '
 changelog:
-  - version: "0.1"
-    date: "2026-04-26"
-    author: "hermes"
-    changes:
-      - "定义 make 按钮触发、API 调用、输出展示、错误摘要的完整闭环"
----
+- version: '0.1'
+  date: '2026-04-26'
+  author: hermes
+  changes:
+  - 定义 make 按钮触发、API 调用、输出展示、错误摘要的完整闭环

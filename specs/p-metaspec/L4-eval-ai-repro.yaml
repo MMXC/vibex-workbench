@@ -1,5 +1,0 @@
----
-name: vibex-ai-repro-eval
-parent: vibex-workbench-mvp
-type: L4-eval
-version: "0.1"

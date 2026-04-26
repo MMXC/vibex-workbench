@@ -1,166 +1,148 @@
 ---
 spec:
-  version: "0.1"
-  level: "4_feature"
-  name: "FEAT-canvas-expand"
-  parent: "dsl-canvas"
-  status: "proposal"
-
+  version: '0.1'
+  level: 4_feature
+  name: FEAT-canvas-expand
+  parent: MOD-spec-editor
+  status: proposal
 meta:
-  type: "feature"
-  module: "MOD-dsl-visualizer"
-  owner: "hermes"
-  created: "2026-04-26"
-  updated: "2026-04-26"
-
+  type: feature
+  module: MOD-dsl-visualizer
+  owner: hermes
+  created: '2026-04-26'
+  updated: '2026-04-26'
 io_contract:
-  input: |
-    用户在 Canvas 图谱视图中点击某个 spec 节点。
-  output: |
-    - 展开该节点的直接子节点（按 level 分组）
+  input: '用户在 Canvas 图谱视图中点击某个 spec 节点。
+
+    '
+  output: '- 展开该节点的直接子节点（按 level 分组）
+
     - 在可添加子 spec 的位置渲染 "+" 卡片
+
     - 点击 "+" 触发 FEAT-spec-graph-expansion 定义的受控新增子 spec 流程
-  boundary: |
-    MVP 只支持在图谱视图（viewMode=mermaid 或 canvas）中操作。
+
+    '
+  boundary: 'MVP 只支持在图谱视图（viewMode=mermaid 或 canvas）中操作。
+
     不做：图谱缩放拖拽、全量 DAG 渲染、多选批量操作。
+
     展开层级限制：每次点击只展开当前节点的一跳子节点（避免图谱爆炸）。
+
     子 spec 创建的层级规则、agent 澄清、写盘验证由 FEAT-spec-graph-expansion 负责。
 
-behavior: |
-  1. **点击节点 → 展开子节点**
-     - 点击 spec 节点 → 在图谱中渲染该节点的所有直接子 spec 节点
-     - 子节点按 level 分组展示（L2/L3/L4 用不同颜色 badge）
-     - 已有子节点的节点再次点击收起
-  2. **渲染 "+" 卡片**
-     - 在节点下方或侧边渲染 "+" 按钮，点击展开选择器
-     - "+" 只展示当前层级的合法下一层，不允许跨级选择
-     - 合法下一层和目标目录引用 FEAT-spec-graph-expansion.content.level_rules
-  3. **Agent 推荐内容**
-     - 用户点击 "+" 后，Canvas 只发出 create-child-spec intent
-     - agent 推荐内容、草稿预览和澄清问题由 FEAT-spec-graph-expansion 处理
-  4. **线程澄清 → 写 spec**
-     - 用户确认推荐后，在右侧线程区（AI Composer）开启澄清对话
-     - agent 在澄清中补全 spec 的 YAML 内容（io_contract / behaviors / acceptance_criteria）
-     - 用户确认后，spec 写入 FEAT-spec-graph-expansion.level_rules 指定的 target_dir
-  5. **图谱实时更新**
-     - spec 写入后，图谱自动刷新，展示新节点并连线
-
+    '
+behavior: "1. **点击节点 → 展开子节点**\n   - 点击 spec 节点 → 在图谱中渲染该节点的所有直接子 spec 节点\n   - 子节点按\
+  \ level 分组展示（L2/L3/L4 用不同颜色 badge）\n   - 已有子节点的节点再次点击收起\n2. **渲染 \"+\" 卡片**\n  \
+  \ - 在节点下方或侧边渲染 \"+\" 按钮，点击展开选择器\n   - \"+\" 只展示当前层级的合法下一层，不允许跨级选择\n   - 合法下一层和目标目录引用\
+  \ FEAT-spec-graph-expansion.content.level_rules\n3. **Agent 推荐内容**\n   - 用户点击 \"\
+  +\" 后，Canvas 只发出 create-child-spec intent\n   - agent 推荐内容、草稿预览和澄清问题由 FEAT-spec-graph-expansion\
+  \ 处理\n4. **线程澄清 → 写 spec**\n   - 用户确认推荐后，在右侧线程区（AI Composer）开启澄清对话\n   - agent 在澄清中补全\
+  \ spec 的 YAML 内容（io_contract / behaviors / acceptance_criteria）\n   - 用户确认后，spec\
+  \ 写入 FEAT-spec-graph-expansion.level_rules 指定的 target_dir\n5. **图谱实时更新**\n   - spec\
+  \ 写入后，图谱自动刷新，展示新节点并连线\n"
 content:
   behaviors:
-    - id: "B1"
-      trigger: "用户在图谱中点击 spec 节点"
-      action: "展开该节点的所有直接子节点，按 level 分组 badge"
-      expected_result: "子节点以动画方式出现，连线从父节点画出"
-      error_handling: "无子节点时显示「暂无子 spec」空态；若当前层级允许新增子 spec，仍展示 + 卡片"
-
-    - id: "B2"
-      trigger: "用户点击已展开节点的收起区域"
-      action: "收起子节点，连线消失"
-      expected_result: "图谱恢复点击前状态，无卡顿"
-
-    - id: "B3"
-      trigger: "用户点击节点旁边的 + 按钮"
-      action: "根据 FEAT-spec-graph-expansion.level_rules 推断唯一 target_level 并发出 create-child-spec intent"
-      expected_result: "右侧线程收到 parent_name、parent_path、target_level、target_dir、existing_children"
-      error_handling: "已达最大层级时隐藏 + 按钮"
-
-    - id: "B4"
-      trigger: "右侧线程收到 create-child-spec intent"
-      action: "agent 根据父 spec 内容 + target_level + 用户意图生成推荐（name + 一句话）"
-      expected_result: "推荐卡片在选择器位置展示，可编辑确认"
-      error_handling: "agent 超时显示「推荐失败，请手动填写」"
-
-    - id: "B5"
-      trigger: "用户确认推荐卡片"
-      action: "开启右侧线程澄清对话，agent 生成完整 spec YAML"
-      expected_result: "线程区展示对话流，spec 内容可预览"
-      error_handling: "用户可中途放弃，已输入内容不保存"
-
-    - id: "B6"
-      trigger: "用户在澄清对话中点击「确认写盘」"
-      action: "spec YAML 写入 target_dir/{name}.yaml，并触发 make validate"
-      expected_result: "写盘成功 toast，图谱刷新展示新节点 + 连线"
-      error_handling: "文件名冲突时提示「spec 已存在」，不覆盖"
-
-    - id: "B7"
-      trigger: "spec 写盘后"
-      action: "图谱 canvas 自动 refresh，新节点高亮 2s 后恢复正常"
-      expected_result: "新节点可见且可交互"
-
+  - id: B1
+    trigger: 用户在图谱中点击 spec 节点
+    action: 展开该节点的所有直接子节点，按 level 分组 badge
+    expected_result: 子节点以动画方式出现，连线从父节点画出
+    error_handling: 无子节点时显示「暂无子 spec」空态；若当前层级允许新增子 spec，仍展示 + 卡片
+  - id: B2
+    trigger: 用户点击已展开节点的收起区域
+    action: 收起子节点，连线消失
+    expected_result: 图谱恢复点击前状态，无卡顿
+  - id: B3
+    trigger: 用户点击节点旁边的 + 按钮
+    action: 根据 FEAT-spec-graph-expansion.level_rules 推断唯一 target_level 并发出 create-child-spec
+      intent
+    expected_result: 右侧线程收到 parent_name、parent_path、target_level、target_dir、existing_children
+    error_handling: 已达最大层级时隐藏 + 按钮
+  - id: B4
+    trigger: 右侧线程收到 create-child-spec intent
+    action: agent 根据父 spec 内容 + target_level + 用户意图生成推荐（name + 一句话）
+    expected_result: 推荐卡片在选择器位置展示，可编辑确认
+    error_handling: agent 超时显示「推荐失败，请手动填写」
+  - id: B5
+    trigger: 用户确认推荐卡片
+    action: 开启右侧线程澄清对话，agent 生成完整 spec YAML
+    expected_result: 线程区展示对话流，spec 内容可预览
+    error_handling: 用户可中途放弃，已输入内容不保存
+  - id: B6
+    trigger: 用户在澄清对话中点击「确认写盘」
+    action: spec YAML 写入 target_dir/{name}.yaml，并触发 make validate
+    expected_result: 写盘成功 toast，图谱刷新展示新节点 + 连线
+    error_handling: 文件名冲突时提示「spec 已存在」，不覆盖
+  - id: B7
+    trigger: spec 写盘后
+    action: 图谱 canvas 自动 refresh，新节点高亮 2s 后恢复正常
+    expected_result: 新节点可见且可交互
   user_stories:
-    - id: "US-1"
-      as_a: "开发者"
-      i_want: "在图谱中看到当前 spec 的子节点，并一键添加新的子 spec"
-      so_that: "不需要记住 spec 目录结构，直接在可视化界面上操作"
-      acceptance: "点击 → 展开 → 选 level → agent 推荐 → 确认写盘，全流程在 UI 内完成"
-
-    - id: "US-2"
-      as_a: "开发者"
-      i_want: "agent 能根据父 spec 自动推荐子 spec 的名称和描述"
-      so_that: "不需要从零思考 spec 结构，agent 给出方向后我再细化"
-      acceptance: "推荐卡片展示 name + 描述，可编辑再确认"
-
+  - id: US-1
+    as_a: 开发者
+    i_want: 在图谱中看到当前 spec 的子节点，并一键添加新的子 spec
+    so_that: 不需要记住 spec 目录结构，直接在可视化界面上操作
+    acceptance: 点击 → 展开 → 选 level → agent 推荐 → 确认写盘，全流程在 UI 内完成
+  - id: US-2
+    as_a: 开发者
+    i_want: agent 能根据父 spec 自动推荐子 spec 的名称和描述
+    so_that: 不需要从零思考 spec 结构，agent 给出方向后我再细化
+    acceptance: 推荐卡片展示 name + 描述，可编辑再确认
   test_scenarios:
-    - id: "TC-1"
-      scenario: "点击无子节点的 spec 节点"
-      given: "某个 L2 spec 没有任何子 spec"
-      when: "点击该节点"
-      then: "展开区域显示「暂无子 spec」，并在当前层级允许时展示唯一合法 + 卡片"
-      evaluation: "toast 提示正确，无 JS 报错"
-
-    - id: "TC-2"
-      scenario: "点击有子节点的 spec 节点"
-      given: "某个 L3 spec 有 2 个 L4 子 spec"
-      when: "点击该节点"
-      then: "2 个子节点以动画方式展开，按 L4 badge 着色"
-      evaluation: "子节点可见且连线正确"
-
-    - id: "TC-3"
-      scenario: "agent 推荐 + 用户放弃澄清"
-      given: "用户选择了 L4，agent 给出了推荐"
-      when: "用户关闭了澄清对话（未点确认）"
-      then: "spec 未写盘，无副作用"
-      evaluation: "图谱不变，无残留数据"
-
-    - id: "TC-4"
-      scenario: "spec 文件名冲突"
-      given: "specs/L4-feature/ 中已存在同名文件"
-      when: "用户确认写盘"
-      then: "提示「spec 已存在」，不覆盖文件"
-      evaluation: "现有 spec 未被修改"
-
+  - id: TC-1
+    scenario: 点击无子节点的 spec 节点
+    given: 某个 L2 spec 没有任何子 spec
+    when: 点击该节点
+    then: 展开区域显示「暂无子 spec」，并在当前层级允许时展示唯一合法 + 卡片
+    evaluation: toast 提示正确，无 JS 报错
+  - id: TC-2
+    scenario: 点击有子节点的 spec 节点
+    given: 某个 L3 spec 有 2 个 L4 子 spec
+    when: 点击该节点
+    then: 2 个子节点以动画方式展开，按 L4 badge 着色
+    evaluation: 子节点可见且连线正确
+  - id: TC-3
+    scenario: agent 推荐 + 用户放弃澄清
+    given: 用户选择了 L4，agent 给出了推荐
+    when: 用户关闭了澄清对话（未点确认）
+    then: spec 未写盘，无副作用
+    evaluation: 图谱不变，无残留数据
+  - id: TC-4
+    scenario: spec 文件名冲突
+    given: specs/L4-feature/ 中已存在同名文件
+    when: 用户确认写盘
+    then: 提示「spec 已存在」，不覆盖文件
+    evaluation: 现有 spec 未被修改
   constraints:
-    - id: "C1"
-      name: "只写目标仓库"
-      rule: "spec 写盘路径必须以 WORKSPACE_ROOT 为前缀，不允许路径穿越"
-      validation: "路径中不包含 ../ 且在 workspaceRoot 子树下"
+  - id: C1
+    name: 只写目标仓库
+    rule: spec 写盘路径必须以 WORKSPACE_ROOT 为前缀，不允许路径穿越
+    validation: 路径中不包含 ../ 且在 workspaceRoot 子树下
+  - id: C2
+    name: agent 推荐不可替代用户确认
+    rule: agent 推荐必须经过用户确认（clarify）后才能写盘
+    validation: 写盘操作前必须有用户的显式确认动作
+  - id: C2a
+    name: 新增子 spec 委托受控工作流
+    rule: Canvas 只发出 create-child-spec intent；层级规则、目标目录、写盘验证以 FEAT-spec-graph-expansion
+      为准
+    validation: Canvas 不维护独立 L2/L3/L4/L5 任意选择器
+  - id: C3
+    name: 图谱不影响 spec 内容
+    rule: 图谱交互（展开/收起）不修改任何 spec 文件
+    validation: 展开前后，磁盘上的 spec 文件 MD5 一致
+  - id: C4
+    name: 线程对话不影响主流程
+    rule: 澄清线程可独立关闭/开启，不阻塞图谱操作
+    validation: 打开线程后，点击图谱其他节点仍可正常响应
+  file_path: frontend/src/lib/components/workbench/GoalSpecCanvas.svelte
+  file_type: svelte
+  implementation_notes: '展开逻辑依赖 DependencyGraph 已有数据，增加 children[] 字段即可。
 
-    - id: "C2"
-      name: "agent 推荐不可替代用户确认"
-      rule: "agent 推荐必须经过用户确认（clarify）后才能写盘"
-      validation: "写盘操作前必须有用户的显式确认动作"
-
-    - id: "C2a"
-      name: "新增子 spec 委托受控工作流"
-      rule: "Canvas 只发出 create-child-spec intent；层级规则、目标目录、写盘验证以 FEAT-spec-graph-expansion 为准"
-      validation: "Canvas 不维护独立 L2/L3/L4/L5 任意选择器"
-
-    - id: "C3"
-      name: "图谱不影响 spec 内容"
-      rule: "图谱交互（展开/收起）不修改任何 spec 文件"
-      validation: "展开前后，磁盘上的 spec 文件 MD5 一致"
-
-    - id: "C4"
-      name: "线程对话不影响主流程"
-      rule: "澄清线程可独立关闭/开启，不阻塞图谱操作"
-      validation: "打开线程后，点击图谱其他节点仍可正常响应"
-
-  file_path: "frontend/src/lib/components/workbench/GoalSpecCanvas.svelte"
-  file_type: "svelte"
-
-  implementation_notes: |
-    展开逻辑依赖 DependencyGraph 已有数据，增加 children[] 字段即可。
     + 卡片实现：在 canvas overlay 层渲染，绝对定位在节点附近，但 target_level/target_dir 来自 FEAT-spec-graph-expansion.level_rules。
-    agent 推荐调用 spec-first-workflow skill（已在 skill 目录），并复用 FEAT-spec-graph-expansion 的澄清/确认/验证规则。
+
+    agent 推荐调用 spec-first-workflow skill（已在 skill 目录），并复用 FEAT-spec-graph-expansion
+    的澄清/确认/验证规则。
+
     线程澄清复用现有的 AI Composer（右侧栏），无需新建 Canvas 专属组件。
-    图谱刷新：写盘成功后 emit SSE canvas.refresh 事件。
+
+    图谱刷新：写盘成功后 emit SSE canvas.refresh 事件。'
