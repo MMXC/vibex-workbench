@@ -59,7 +59,18 @@ nohup ./vibex-agent-web > /tmp/agent.log 2>&1 &
 - Health 正常但 chat pending: key 是假的（需要真实 key）
 - Skills 加载为 0: SKILLS_DIR 路径不对，检查 /root/.hermes/skills 是否存在
 
-## 工程结构
+## Agent vs Direct 写文件决策
+
+spawn Go agent 写 L5 spec 时发现：context 紧张（31K token 读完 spec 就耗尽）导致 agent 读了很多但写不出任何文件。**决策原则**：
+
+| 任务类型 | 推荐方式 | 原因 |
+|---------|---------|------|
+| 写结构化文件（spec/代码/配置）| **直接 write_file** | 结构已知，输入明确，直接写最快 |
+| 复杂推理 + 多步工具调用 | spawn agent | 需要 LLM 推理和状态管理 |
+| 需要先读很多上下文再写 | 读完→直接写 | 避免 agent 冷启动时 token 耗尽 |
+| 调试/探索性任务 | spawn agent | 可能有多次迭代 |
+
+**实战经验**：Go agent 在「冷启动 + 长 prompt + 写文件」场景下不可靠——token 被 reading 阶段耗尽，writing 阶段饿死。解法：主 agent 读完所有输入，**直接写文件**，不 spawn 子 agent 写。
 
 agent/
   cmd/web/
