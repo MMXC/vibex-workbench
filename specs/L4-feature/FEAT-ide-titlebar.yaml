@@ -1,0 +1,121 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-ide-titlebar"
+  parent: "MOD-ide-chrome"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    用户在 IDE 顶部内层 titlebar 上点击菜单、命令中心、状态 chip、设置或窗口控制按钮。
+  output: |
+    - 菜单按钮触发对应 workbench event
+    - 命令中心展示当前 workspace / self-bootstrap 状态
+    - 状态 chip 展示 validate/backend 当前摘要
+    - 窗口按钮调用 Wails runtime
+  boundary: |
+    只负责 WebView 内层 titlebar。不得再在 app.html 或原生菜单层渲染重复标题栏。
+  behavior:
+    - "titlebar 区域声明 --wails-draggable: drag"
+    - "菜单、命令中心、窗口按钮声明 --wails-draggable: no-drag"
+    - "minimize/maximize/close 调用 Wails runtime window API"
+    - "native application menu 默认使用空 menu，避免双层导航"
+
+content:
+  behaviors:
+    - id: "B1"
+      trigger: "用户点击「文件」菜单"
+      action: "打开 WebView 内菜单或触发 menu:file 事件"
+      expected_result: "出现打开项目、新建项目、保存等入口；不会出现额外原生菜单栏"
+      error_handling: "菜单事件未接入时保持按钮 hover 状态，不阻塞页面"
+    - id: "B2"
+      trigger: "用户点击命令中心"
+      action: "聚焦命令/搜索入口（MVP 可先展示只读状态）"
+      expected_result: "命令中心不拖动窗口；后续可接 Command Palette"
+      error_handling: "未实现 command palette 时不抛异常"
+    - id: "B3"
+      trigger: "用户点击最小化按钮"
+      action: "调用 runtime.WindowMinimise()"
+      expected_result: "Wails 窗口最小化"
+      error_handling: "runtime 不存在时仅记录 console error，不影响 Web 预览"
+    - id: "B4"
+      trigger: "用户点击最大化按钮"
+      action: "调用 runtime.WindowToggleMaximise()"
+      expected_result: "Wails 窗口在最大化/还原之间切换"
+      error_handling: "runtime 不存在时降级为空操作"
+    - id: "B5"
+      trigger: "用户点击关闭按钮"
+      action: "调用 runtime.Quit()"
+      expected_result: "应用关闭前触发 backend cleanup"
+      error_handling: "关闭失败时保留窗口并显示错误日志"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "桌面端用户"
+      i_want: "只看到一层顶部导航"
+      so_that: "界面像 IDE，而不是原生菜单 + Web 标题栏双层堆叠"
+      acceptance: "启动 Wails 后，只显示 WorkbenchTitlebar，app.html 外壳和原生菜单均不可见"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "Wails frameless 启动"
+      given: "main.go 设置 Frameless=true 且 Menu=menu.NewMenu()"
+      when: "运行 make wails-dev"
+      then: "窗口顶部只有 WebView 内层 titlebar"
+      evaluation: "看不到 app.html 的 '空仓库 → 边做边长' 外层标题栏"
+    - id: "TC-2"
+      scenario: "titlebar 拖动"
+      given: "鼠标按住 titlebar 空白区域"
+      when: "拖动窗口"
+      then: "窗口跟随移动"
+      evaluation: "菜单和按钮区域不触发拖动，空白区域可拖动"
+    - id: "TC-3"
+      scenario: "窗口按钮可点击"
+      given: "用户在 Wails 桌面窗口内"
+      when: "点击最小化/最大化/关闭"
+      then: "调用对应 Wails window runtime"
+      evaluation: "无 JavaScript 错误，窗口状态正确变化"
+
+  constraints:
+    - id: "C1"
+      name: "单层导航"
+      rule: "app.html 不得渲染任何全局 titlebar；原生 menu 默认为空"
+      validation: "搜索 app.html 不存在 '空仓库 → 边做边长' 和窗口按钮"
+    - id: "C2"
+      name: "拖拽可用"
+      rule: "titlebar 根节点必须设置 --wails-draggable: drag"
+      validation: "Wails frameless 模式下可拖动窗口"
+
+  l4_l5_lineage:
+    summary: "该 feature 由 WorkbenchTitlebar.svelte 与 main.go Wails options 落地。"
+    which_files:
+      - file: "frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte"
+        generated_from: "B1-B5"
+      - file: "frontend/src/app.html"
+        generated_from: "C1"
+      - file: "main.go"
+        generated_from: "C1"
+    generation_order:
+      - "main.go Wails options"
+      - "app.html shell cleanup"
+      - "WorkbenchTitlebar component"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-26"
+    author: "hermes"
+    changes:
+      - "定义 IDE 内层顶部导航、窗口按钮和单层壳约束"
+---

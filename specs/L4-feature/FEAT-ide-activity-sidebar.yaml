@@ -1,0 +1,120 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-ide-activity-sidebar"
+  parent: "MOD-ide-chrome"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    用户点击左侧 activity bar 图标，或点击资源管理器中的 spec 文件。
+  output: |
+    - 左侧 panel 在 explorer/search/git/extensions 间切换
+    - explorer panel 展示 workspace/spec 文件树
+    - 点击 spec 文件后更新 selectedSpecPath，中央区切到 SpecViewer
+  boundary: |
+    本 feature 只负责左侧导航和文件树交互，不负责 spec 内容解析与编辑保存。
+  behavior:
+    - "ActivityBar 更新 specExplorerStore.leftActivity"
+    - "SpecExplorer 调用 /api/workspace/specs/list"
+    - "SpecExplorer 根据 spec-directory-convention 展示层级 badge"
+    - "点击文件写入 selectedSpecPath"
+
+content:
+  behaviors:
+    - id: "B1"
+      trigger: "用户点击资源管理器图标"
+      action: "setLeftActivity('explorer')"
+      expected_result: "左侧显示 workspace/spec 文件树"
+      error_handling: "spec 列表加载失败时显示错误文本"
+    - id: "B2"
+      trigger: "用户点击搜索图标"
+      action: "setLeftActivity('search')"
+      expected_result: "左侧显示搜索占位或后续搜索 panel"
+      error_handling: "未实现搜索时显示占位说明"
+    - id: "B3"
+      trigger: "用户点击 Git 图标"
+      action: "setLeftActivity('git')"
+      expected_result: "左侧显示源代码管理占位；badge 可显示未提交数量"
+      error_handling: "git 状态不可用时显示占位"
+    - id: "B4"
+      trigger: "用户点击扩展图标"
+      action: "setLeftActivity('extensions')"
+      expected_result: "左侧显示扩展与自定义占位"
+      error_handling: "未接扩展系统时显示说明"
+    - id: "B5"
+      trigger: "用户点击 SpecExplorer 中的 YAML 文件"
+      action: "specExplorerStore.selectSpec(path)"
+      expected_result: "中央主区加载该 spec 的图谱或文本视图"
+      error_handling: "文件读取失败时中央区显示错误"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "规格驱动开发者"
+      i_want: "像 IDE 一样从左侧找到项目 specs"
+      so_that: "能从项目结构进入目标、模块、功能和切片"
+      acceptance: "左侧 explorer 能列出 specs 下 YAML，并能选中打开"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "打开资源管理器并选择 L1 spec"
+      given: "specs/L1-goal/vibex-workbench-mvp.yaml 存在"
+      when: "点击左侧 explorer 图标，再点击该 YAML"
+      then: "selectedSpecPath 指向该文件，中央区打开 SpecViewer"
+      evaluation: "文件树选中态与中央内容一致"
+    - id: "TC-2"
+      scenario: "左侧 activity 切换"
+      given: "当前在 explorer"
+      when: "点击 search/git/extensions"
+      then: "左侧 panel 依次切换为对应占位"
+      evaluation: "不会丢失当前 selectedSpecPath"
+    - id: "TC-3"
+      scenario: "spec 列表接口失败"
+      given: "/api/workspace/specs/list 返回非 2xx"
+      when: "SpecExplorer 加载"
+      then: "左侧显示错误信息"
+      evaluation: "页面不崩溃，用户可点击刷新"
+
+  constraints:
+    - id: "C1"
+      name: "IDE 左栏密度"
+      rule: "activity bar 宽度固定 48px，panel 宽度由 WorkbenchLayoutResizable 控制"
+      validation: "窗口缩放时左栏不挤压中央编辑器"
+    - id: "C2"
+      name: "spec 路径归一"
+      rule: "选中的 spec path 使用 specs/... 相对路径，不使用绝对路径"
+      validation: "调用 /api/workspace/specs/read 时只传相对路径"
+
+  l4_l5_lineage:
+    summary: "该 feature 由 ActivityBar 和 SpecExplorer 落地。"
+    which_files:
+      - file: "frontend/src/lib/components/workbench/ActivityBar.svelte"
+        generated_from: "B1-B4"
+      - file: "frontend/src/lib/components/workbench/SpecExplorer.svelte"
+        generated_from: "B1,B5"
+      - file: "frontend/src/lib/stores/spec-explorer-store.ts"
+        generated_from: "panelSelection state"
+    generation_order:
+      - "store"
+      - "ActivityBar"
+      - "SpecExplorer"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-26"
+    author: "hermes"
+    changes:
+      - "定义 activity bar 与 spec explorer panel 行为"
+---

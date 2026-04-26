@@ -1,0 +1,138 @@
+---
+spec:
+  version: "0.1"
+  level: "3_module"
+  name: "MOD-ide-chrome"
+  parent: "vibex-workbench-skeleton"
+  status: "proposal"
+
+meta:
+  type: "module"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    用户打开 VibeX Workbench 桌面应用或 /workbench 路由。
+    当前目标是把参考截图中的 Cursor/VS Code 式 IDE 外壳作为产品主框架。
+  output: |
+    一个单层 WebView IDE chrome：
+    - 顶部内层 titlebar/command center/window controls
+    - 左侧 activity bar + explorer panel
+    - 中央 editor tabs / canvas / spec viewer
+    - 右侧 AI Agent panel
+    - 底部 dock + terminal/problems/output
+    - 底部 status bar
+  boundary: |
+    本模块只定义 IDE 外壳与 panel 编排，不定义具体 agent 推理能力、
+    spec 解析算法或生成器业务逻辑。
+  behavior:
+    - "启动 Wails frameless window，避免显示重复原生/HTML 顶层壳"
+    - "在 WebView 内渲染唯一可见的 IDE 顶部导航"
+    - "将按钮操作映射到 workspace、spec、make、agent 相关事件"
+    - "所有 panel 与按钮状态可从 spec 与 runtime 状态追溯"
+
+content:
+  public_api:
+    - function: "WorkbenchTitlebar"
+      signature: "Svelte component"
+      description: "内层 IDE 顶部导航，含菜单、命令中心、窗口按钮、运行状态 chip"
+      side_effects: "调用 Wails window runtime；触发菜单事件"
+    - function: "ActivityBar"
+      signature: "Svelte component"
+      description: "左侧 activity bar，切换 explorer/search/git/extensions 等一级视图"
+      side_effects: "写入 specExplorerStore.leftActivity"
+    - function: "SpecExplorer"
+      signature: "Svelte component"
+      description: "左侧 workspace/spec 文件树，加载 spec 列表并选择文件"
+      side_effects: "调用 /api/workspace/specs/list；写入 selectedSpecPath"
+    - function: "WorkbenchCenterTabs"
+      signature: "Svelte component"
+      description: "中央编辑器标签区，在 canvas/artifacts/spec/diff/bootstrap 原型之间切换"
+      side_effects: "局部 UI 状态切换"
+    - function: "AiChatColumn"
+      signature: "Svelte component"
+      description: "右侧 AI Agent panel，承载线程、对话、Composer"
+      side_effects: "提交消息到 /api/chat 或 mock run"
+    - function: "R2Dock"
+      signature: "Svelte component"
+      description: "底部 dock，承载 problems/output/terminal/debug/more"
+      side_effects: "展示 workspace-output-store 输出"
+
+  state_definitions:
+    - state: "ideChromeReady"
+      description: "IDE 外壳单层渲染完成，没有 app.html 外层 titlebar，也没有原生菜单重复显示"
+      allowed_transitions:
+        - from: "booting"
+          to: "ideChromeReady"
+          trigger: "SvelteKit mounted /workbench"
+    - state: "panelSelection"
+      description: "当前左侧 activity、中心 tab、底部 dock tab 的组合状态"
+      allowed_transitions:
+        - from: "panelSelection"
+          to: "panelSelection"
+          trigger: "用户点击任意 panel/tab 按钮"
+    - state: "windowControlAction"
+      description: "最小化、最大化、关闭等 WebView 内窗口按钮动作"
+      allowed_transitions:
+        - from: "ideChromeReady"
+          to: "ideChromeReady"
+          trigger: "window runtime action completed"
+
+  internal_structure: |
+    IDE chrome 是 /workbench 页面的框架层。WorkbenchLayoutResizable 负责整体分区；
+    WorkbenchTitlebar、ActivityBar、SpecExplorer、WorkbenchCenterTabs、AiChatColumn、
+    R2Dock、StatusBar 分别承载一个明确 panel。app.html 不再渲染额外 titlebar。
+
+  dependencies:
+    - name: "Wails runtime"
+      type: "external"
+      purpose: "窗口控制、目录选择、事件桥"
+    - name: "specExplorerStore"
+      type: "internal"
+      purpose: "左侧 activity、选中 spec、中心视图状态"
+    - name: "workbenchLayoutStore"
+      type: "internal"
+      purpose: "侧栏、右栏、底部 dock 尺寸"
+    - name: "workspace-output-store"
+      type: "internal"
+      purpose: "run-make 输出在底部 dock 中展示"
+
+  l3_l4_lineage:
+    summary: "L3 定义 IDE chrome 模块边界，L4 逐个定义按钮与 panel 行为。"
+    which_features:
+      - feature: "FEAT-ide-titlebar"
+        uses_api:
+          - "WorkbenchTitlebar"
+      - feature: "FEAT-ide-activity-sidebar"
+        uses_api:
+          - "ActivityBar"
+          - "SpecExplorer"
+      - feature: "FEAT-ide-editor-tabs"
+        uses_api:
+          - "WorkbenchCenterTabs"
+          - "SpecViewer"
+      - feature: "FEAT-ide-agent-panel"
+        uses_api:
+          - "AiChatColumn"
+          - "ThreadList"
+          - "ConversationPanel"
+          - "Composer"
+      - feature: "FEAT-ide-bottom-dock"
+        uses_api:
+          - "R2Dock"
+          - "StatusBar"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-26"
+    author: "hermes"
+    changes:
+      - "新增 IDE chrome 模块，覆盖原型外壳的按钮与 panel 边界"
+---

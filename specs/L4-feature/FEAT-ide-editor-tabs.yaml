@@ -1,0 +1,123 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-ide-editor-tabs"
+  parent: "MOD-ide-chrome"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    用户在中央编辑器区点击 canvas/artifacts/spec_text/diff/bootstrap tabs，
+    或从左侧 explorer 选择某个 spec 文件。
+  output: |
+    - 中央区显示对应编辑器面板
+    - 选中 spec 时显示 SpecViewer 的图谱/文本切换
+    - 自举原型 tab 展示当前产品边界与阻塞项
+  boundary: |
+    本 feature 只定义中央 editor shell 的 tab 与占位/视图切换。
+    不负责 CanvasRenderer 内部布局算法或 YAML 编辑器完整能力。
+  behavior:
+    - "WorkbenchCenterTabs 维护 active tab"
+    - "Canvas tab 渲染 CanvasRenderer"
+    - "Artifacts tab 渲染 ArtifactPanel"
+    - "Spec 文本 tab 指引用户从左侧选择 YAML"
+    - "Bootstrap tab 渲染 WorkbenchBootstrapPrototype"
+    - "选中 spec path 后 /workbench 主区切换为 SpecViewer"
+
+content:
+  behaviors:
+    - id: "B1"
+      trigger: "用户点击「画布」tab"
+      action: "active='canvas'"
+      expected_result: "中央区显示 CanvasRenderer"
+      error_handling: "Canvas 无数据时显示空态或占位"
+    - id: "B2"
+      trigger: "用户点击「构件」tab"
+      action: "active='artifacts'"
+      expected_result: "中央区显示 ArtifactPanel"
+      error_handling: "无 artifact 时显示空列表"
+    - id: "B3"
+      trigger: "用户点击「Spec 文本」tab"
+      action: "active='spec_text'"
+      expected_result: "中央区提示从左侧资源管理器选择 YAML"
+      error_handling: "无 selectedSpecPath 时不请求 read API"
+    - id: "B4"
+      trigger: "用户点击「Diff」tab"
+      action: "active='diff'"
+      expected_result: "中央区显示变更对比占位"
+      error_handling: "无 diff 数据时显示占位"
+    - id: "B5"
+      trigger: "用户点击「自举原型」tab"
+      action: "active='bootstrap'"
+      expected_result: "中央区展示从空仓库到 MVP 的当前链路与阻塞项"
+      error_handling: "原型数据为静态快照，不依赖 backend"
+    - id: "B6"
+      trigger: "左侧选中 spec 文件"
+      action: "selectedSpecPath != null"
+      expected_result: "中央区渲染 SpecViewer，而非默认 WorkbenchCenterTabs"
+      error_handling: "读取失败时 SpecViewer 展示错误信息"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "产品/工程共同评审者"
+      i_want: "在同一个 IDE 中切换画布、spec、构件和自举说明"
+      so_that: "能边看产品边界，边检查 spec 和生成物"
+      acceptance: "所有中心 tabs 都能切换且不会破坏选中的 spec 状态"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "切换所有中心 tab"
+      given: "用户位于 /workbench 且未选中 spec"
+      when: "依次点击画布、构件、Spec 文本、Diff、自举原型"
+      then: "中央内容依次变化"
+      evaluation: "无控制台异常，tab active 样式正确"
+    - id: "TC-2"
+      scenario: "选中 spec 后进入 SpecViewer"
+      given: "左侧 explorer 列表已加载"
+      when: "点击任一 YAML 文件"
+      then: "中央区显示 SpecViewer 的图谱/文本 tab"
+      evaluation: "可点击返回画布恢复 WorkbenchCenterTabs"
+
+  constraints:
+    - id: "C1"
+      name: "中心区不溢出"
+      rule: "pane-stack 使用 absolute inset + overflow hidden，内部自行滚动"
+      validation: "窗口缩小时不会撑破右栏或底部 dock"
+    - id: "C2"
+      name: "自举原型非默认业务功能"
+      rule: "自举原型作为 tab 存在，但默认进入主工作视图"
+      validation: "active 初始值为 canvas"
+
+  l4_l5_lineage:
+    summary: "该 feature 由 WorkbenchCenterTabs、SpecViewer、WorkbenchBootstrapPrototype 落地。"
+    which_files:
+      - file: "frontend/src/lib/components/workbench/WorkbenchCenterTabs.svelte"
+        generated_from: "B1-B5"
+      - file: "frontend/src/lib/components/workbench/SpecViewer.svelte"
+        generated_from: "B6"
+      - file: "frontend/src/lib/components/workbench/WorkbenchBootstrapPrototype.svelte"
+        generated_from: "B5"
+    generation_order:
+      - "WorkbenchCenterTabs"
+      - "SpecViewer integration"
+      - "Bootstrap prototype tab"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-26"
+    author: "hermes"
+    changes:
+      - "定义中央编辑器 tabs 与自举原型 tab 行为"
+---

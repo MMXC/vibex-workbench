@@ -87,6 +87,18 @@ content:
         - "GET /workbench"
       depends_on: ["backend", "generators"]
       generated_by: "generators/spec-to-sveltekit/gen.py"
+    - module: "ide-chrome"
+      responsibility: "Workbench 的 IDE 外壳，承载 titlebar、activity bar、editor tabs、AI panel、dock 和 statusbar"
+      public_api:
+        - "WorkbenchTitlebar.svelte"
+        - "ActivityBar.svelte"
+        - "SpecExplorer.svelte"
+        - "WorkbenchCenterTabs.svelte"
+        - "AiChatColumn.svelte"
+        - "R2Dock.svelte"
+        - "StatusBar.svelte"
+      depends_on: ["frontend", "backend"]
+      generated_by: "generators/spec-to-sveltekit/gen.py"
     - module: "generators"
       responsibility: "Python 代码生成器 + 校验脚本"
       public_api:
@@ -165,6 +177,8 @@ content:
         l3_note: "实现 workspace API endpoints"
       - module: "frontend"
         l3_note: "实现 spec-editor / state-detection UI / scaffolding wizard / make 按钮"
+      - module: "ide-chrome"
+        l3_note: "实现参考截图中的 IDE 外壳按钮、panel、窗口控制与状态展示"
       - module: "generators"
         l3_note: "实现 state_detector.py + scaffolder.py + make-run API"
       - module: "spec-templates"

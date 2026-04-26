@@ -1,0 +1,126 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-ide-agent-panel"
+  parent: "MOD-ide-chrome"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    用户在右侧 AI Agent panel 中选择线程、查看消息、输入 prompt 或拖入 artifact。
+  output: |
+    - ThreadList 展示会话列表和当前线程
+    - ConversationPanel 展示当前线程消息
+    - Composer 提交用户输入到 agent 或 mock backend
+    - RunStatusBar 展示当前 run/tool 状态
+  boundary: |
+    本 feature 只负责右侧 panel 的信息架构与用户输入入口，
+    不定义 agent 推理、tool 选择和代码修改策略。
+  behavior:
+    - "AiChatColumn 垂直分区：线程列表、对话、composer"
+    - "Composer 支持 text/image/file/url mode"
+    - "Composer Ctrl+Enter 提交"
+    - "Composer 支持 artifact 拖拽注入 @artifactId"
+    - "submit 后通过 /api/chat 或 mock /api/runs 启动会话"
+
+content:
+  behaviors:
+    - id: "B1"
+      trigger: "用户点击某个 thread"
+      action: "threadStore.setCurrentThread(threadId)"
+      expected_result: "ConversationPanel 展示该线程消息"
+      error_handling: "线程不存在时保持当前线程并提示"
+    - id: "B2"
+      trigger: "用户在 Composer 输入文本并 Ctrl+Enter"
+      action: "调用 handleSubmit(content, mode)"
+      expected_result: "创建或复用当前线程，并发送 /api/chat"
+      error_handling: "网络失败时 console error，输入内容不应丢失"
+    - id: "B3"
+      trigger: "用户切换 text/image/file/url mode"
+      action: "更新 Composer mode"
+      expected_result: "提交时携带对应 mode"
+      error_handling: "未实现的 mode 暂按 text 处理"
+    - id: "B4"
+      trigger: "用户拖拽 artifact 到 Composer"
+      action: "注入 @{artifactId}"
+      expected_result: "输入框出现 artifact 引用"
+      error_handling: "无 artifactId 时忽略 drop"
+    - id: "B5"
+      trigger: "runStore 中 active run 状态变化"
+      action: "显示 RunStatusBar"
+      expected_result: "running/completed/failed 三态颜色区分"
+      error_handling: "无 active run 时隐藏状态条"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "使用 VibeX 的开发者"
+      i_want: "在右侧保留 AI Agent 对话与输入"
+      so_that: "左侧/中心看 spec 和图谱时，仍能持续与 agent 协作"
+      acceptance: "右侧 panel 可调整宽度，Composer 始终固定在底部区域"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "无当前线程时发送第一条消息"
+      given: "currentThread 为空"
+      when: "用户输入目标并提交"
+      then: "创建新 thread，连接 SSE，并发送 chat 请求"
+      evaluation: "ThreadList 出现新 thread，ConversationPanel 接收 SSE 消息"
+    - id: "TC-2"
+      scenario: "Composer 拖入 artifact"
+      given: "存在 artifactId=abc123"
+      when: "拖拽到 Composer"
+      then: "textarea 追加 @{abc123}"
+      evaluation: "提交内容包含 artifact 引用"
+    - id: "TC-3"
+      scenario: "run 状态变化"
+      given: "runStore.active_run_id 指向 executing run"
+      when: "tool invocation 数增加"
+      then: "RunStatusBar 显示运行中与 tool 数量"
+      evaluation: "completed 后 5 秒自动隐藏"
+
+  constraints:
+    - id: "C1"
+      name: "右侧固定 Composer"
+      rule: "Composer 区域高度由 workbenchLayoutStore.aiComposerBarPx 控制，可拖拽调整"
+      validation: "窗口高度变化时 Composer 不被挤出视口"
+    - id: "C2"
+      name: "消息唯一来源"
+      rule: "用户消息以 SSE 回显为唯一来源，避免本地提前插入导致重复"
+      validation: "提交同一消息后 ThreadList/ConversationPanel 不出现重复 user bubble"
+
+  l4_l5_lineage:
+    summary: "该 feature 由 AiChatColumn、ThreadList、ConversationPanel、Composer 落地。"
+    which_files:
+      - file: "frontend/src/lib/components/workbench/AiChatColumn.svelte"
+        generated_from: "panel layout"
+      - file: "frontend/src/lib/components/workbench/ThreadList.svelte"
+        generated_from: "B1"
+      - file: "frontend/src/lib/components/workbench/ConversationPanel.svelte"
+        generated_from: "B1"
+      - file: "frontend/src/lib/components/workbench/Composer.svelte"
+        generated_from: "B2-B5"
+    generation_order:
+      - "Thread store"
+      - "AiChatColumn layout"
+      - "Composer submission"
+      - "SSE bridge"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-26"
+    author: "hermes"
+    changes:
+      - "定义右侧 AI Agent panel 的按钮、输入与运行状态行为"
+---

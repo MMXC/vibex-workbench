@@ -1,0 +1,127 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-ide-bottom-dock"
+  parent: "MOD-ide-chrome"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    用户点击底部 dock 的 Problems / Output / Terminal / Debug / More tab，
+    或通过菜单/按钮触发 make validate / generate 等命令。
+  output: |
+    - Problems 显示校验和阻塞摘要
+    - Output 显示 workspace-output-store 的命令输出
+    - Terminal 显示当前命令行上下文或占位
+    - Debug/More 显示可扩展占位
+    - StatusBar 显示 workspace/backend/spec 状态
+  boundary: |
+    本 feature 只负责底部信息面板与状态展示，不负责真实终端 PTY 实现。
+  behavior:
+    - "R2Dock 维护当前 bottom panel"
+    - "Output tab 读取 workspace-output-store"
+    - "Problems tab 展示 validate/backend 阻塞摘要"
+    - "Terminal tab 展示当前 wails-dev 命令上下文"
+    - "StatusBar 展示 workspaceRoot、backendStatus、workspaceState"
+
+content:
+  behaviors:
+    - id: "B1"
+      trigger: "用户点击 Problems tab"
+      action: "panel='problems'"
+      expected_result: "显示 make validate 结果和当前阻塞项"
+      error_handling: "无诊断时显示空状态"
+    - id: "B2"
+      trigger: "用户点击 Output tab"
+      action: "panel='output'"
+      expected_result: "显示 run-make / generate / lint 输出"
+      error_handling: "无输出时显示 '[output] 构建与日志占位'"
+    - id: "B3"
+      trigger: "用户点击 Terminal tab"
+      action: "panel='terminal'"
+      expected_result: "显示命令行上下文和最近阻塞日志"
+      error_handling: "真实 PTY 未实现时显示只读 transcript"
+    - id: "B4"
+      trigger: "用户点击 Debug tab"
+      action: "panel='debug'"
+      expected_result: "显示暂无调试会话占位"
+      error_handling: "无调试 adapter 时不报错"
+    - id: "B5"
+      trigger: "workspace/backend 状态变化"
+      action: "StatusBar props 更新"
+      expected_result: "底部状态栏颜色和文本变化"
+      error_handling: "状态未知时回退 empty/connecting"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "正在自举项目的用户"
+      i_want: "在底部看到 validate/generate/backend 的结果"
+      so_that: "不用离开 Workbench 就能判断下一步该修哪里"
+      acceptance: "触发 make 命令后，Output 或 Problems 能展示结果摘要"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "菜单触发 make generate 后查看 output"
+      given: "用户点击内层菜单或命令入口触发 generate"
+      when: "workspace-output-store 收到 stdout"
+      then: "Output tab 展示命令输出"
+      evaluation: "输出不会溢出 dock，高度可通过分隔条调整"
+    - id: "TC-2"
+      scenario: "validate 通过"
+      given: "make validate 返回 exit code 0"
+      when: "用户打开 Problems tab"
+      then: "显示绿色通过摘要"
+      evaluation: "摘要包含 specs indexed / parent chain valid"
+    - id: "TC-3"
+      scenario: "backend auto-spawn 失败"
+      given: "Wails runtime 收到 backend:error"
+      when: "用户打开 Problems 或 Terminal"
+      then: "显示 backend path 阻塞项"
+      evaluation: "状态栏 backendStatus 变为 error"
+
+  constraints:
+    - id: "C1"
+      name: "Dock 可调整"
+      rule: "底部 dock 高度由 workbenchLayoutStore.bottomDockPx 控制"
+      validation: "拖拽横向分隔条后高度保持"
+    - id: "C2"
+      name: "状态栏常驻"
+      rule: "StatusBar 固定在最底部，不随 dock tab 切换隐藏"
+      validation: "任何 tab 下底部均可看到 workspace/backend 状态"
+
+  l4_l5_lineage:
+    summary: "该 feature 由 R2Dock、StatusBar、workspace-output-store 落地。"
+    which_files:
+      - file: "frontend/src/lib/components/workbench/R2Dock.svelte"
+        generated_from: "B1-B4"
+      - file: "frontend/src/lib/components/workbench/StatusBar.svelte"
+        generated_from: "B5"
+      - file: "frontend/src/lib/stores/workspace-output-store.ts"
+        generated_from: "B2"
+      - file: "frontend/src/lib/components/workbench/WorkbenchLayoutResizable.svelte"
+        generated_from: "C1"
+    generation_order:
+      - "workspace-output-store"
+      - "R2Dock tabs"
+      - "StatusBar"
+      - "Resizable dock integration"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-26"
+    author: "hermes"
+    changes:
+      - "定义底部 dock、问题/输出/终端面板和状态栏行为"
+---
