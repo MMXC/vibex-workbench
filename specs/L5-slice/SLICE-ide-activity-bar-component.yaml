@@ -1,78 +1,87 @@
----
 spec:
-  version: "0.1"
-  level: "5_slice"
-  name: "SLICE-ide-activity-bar-component"
-  parent: "FEAT-ide-activity-sidebar"
-  status: "proposal"
-
+  version: '0.1'
+  level: 5_slice
+  name: SLICE-ide-activity-bar-component
+  parent: FEAT-ide-activity-sidebar
+  status: proposal
 meta:
-  type: "slice"
-  module: "frontend"
-  owner: "hermes"
-  created: "2026-04-26"
-  updated: "2026-04-26"
-
+  type: slice
+  module: frontend
+  owner: hermes
+  created: '2026-04-26'
+  updated: '2026-04-26'
 lifecycle:
-  current: "proposal"
-  updated: "2026-04-26"
-
+  current: proposal
+  updated: '2026-04-26'
 io_contract:
-  input: |
-    用户点击左侧 ActivityBar 中的 explorer/search/git/extensions/account/settings 图标。
-  output: |
-    ActivityBar.svelte 更新 leftActivity 或展示静态图标状态。
-  boundary: |
-    只管 ActivityBar.svelte。左侧 panel 内容由 SpecExplorer 或占位组件负责。
-  behavior: |
-    1. explorer/search/git/extensions 图标切换 leftActivity
-    2. active 图标显示左侧蓝色指示条
-    3. git 图标可显示静态 badge
-    4. account/settings 位于底部，MVP 可无点击行为
+  input: '用户点击左侧 ActivityBar 中的 explorer/search/git/extensions/account/settings 图标。
 
+    '
+  output: 'ActivityBar.svelte 更新 leftActivity 或展示静态图标状态。
+
+    '
+  boundary: '只管 ActivityBar.svelte。左侧 panel 内容由 SpecExplorer 或占位组件负责。
+
+    '
+  behavior_summary: 共 4 个行为步骤，详见 content.behaviors
 content:
-  file_path: "frontend/src/lib/components/workbench/ActivityBar.svelte"
-  file_type: "svelte"
-
+  file_path: frontend/src/lib/components/workbench/ActivityBar.svelte
+  file_type: svelte
   implementation_boundary:
     allowed:
-      - "ActivityBar icon markup"
-      - "active class and badge style"
-      - "specExplorerStore.setLeftActivity 调用"
+    - ActivityBar icon markup
+    - active class and badge style
+    - specExplorerStore.setLeftActivity 调用
     forbidden:
-      - "在 ActivityBar 中直接加载 spec 文件"
-      - "在 ActivityBar 中执行 git 命令"
-      - "在 ActivityBar 中维护复杂 panel 状态"
-
+    - 在 ActivityBar 中直接加载 spec 文件
+    - 在 ActivityBar 中执行 git 命令
+    - 在 ActivityBar 中维护复杂 panel 状态
   generation_rules:
-    - rule: "Fixed width"
-      detail: "activity bar 宽度固定为 48px"
-    - rule: "Top and bottom groups"
-      detail: "主要视图图标在顶部，账户/设置在底部"
-    - rule: "Store-owned state"
-      detail: "active 状态来自 specExplorerStore.leftActivity"
-
+  - rule: Fixed width
+    detail: activity bar 宽度固定为 48px
+  - rule: Top and bottom groups
+    detail: 主要视图图标在顶部，账户/设置在底部
+  - rule: Store-owned state
+    detail: active 状态来自 specExplorerStore.leftActivity
   verification:
     commands:
-      - "npm --prefix frontend run build"
+    - npm --prefix frontend run build
     manual_checks:
-      - "点击 explorer/search/git/extensions 后左侧 panel 切换"
-      - "active 图标出现蓝色左边线"
-      - "底部 account/settings 不影响主 panel 状态"
+    - 点击 explorer/search/git/extensions 后左侧 panel 切换
+    - active 图标出现蓝色左边线
+    - 底部 account/settings 不影响主 panel 状态
     failure_conditions:
-      - "点击图标不更新 leftActivity"
-      - "activity bar 宽度变化导致左侧 panel 抖动"
-
+    - 点击图标不更新 leftActivity
+    - activity bar 宽度变化导致左侧 panel 抖动
   dependencies:
-    - file: "frontend/src/lib/stores/spec-explorer-store.ts"
-      reason: "保存 leftActivity"
-    - file: "frontend/src/lib/components/workbench/SpecExplorer.svelte"
-      reason: "explorer panel 内容"
-
+  - file: frontend/src/lib/stores/spec-explorer-store.ts
+    reason: 保存 leftActivity
+  - file: frontend/src/lib/components/workbench/SpecExplorer.svelte
+    reason: explorer panel 内容
+  behaviors:
+  - id: B1
+    trigger: 步骤1
+    action: explorer/search/git/extensions 图标切换 leftActivity
+    expected_result: 视图/状态正确切换
+    error_handling: 出错时显示 toast 提示，不阻塞其他交互
+  - id: B2
+    trigger: 步骤2
+    action: active 图标显示左侧蓝色指示条
+    expected_result: 正确执行，无异常
+    error_handling: 出错时显示 toast 提示，不阻塞其他交互
+  - id: B3
+    trigger: 步骤3
+    action: git 图标可显示静态 badge
+    expected_result: 正确执行，无异常
+    error_handling: 出错时显示 toast 提示，不阻塞其他交互
+  - id: B4
+    trigger: 步骤4
+    action: account/settings 位于底部，MVP 可无点击行为
+    expected_result: MVP 期间无响应或降级处理
+    error_handling: 出错时显示 toast 提示，不阻塞其他交互
 changelog:
-  - version: "0.1"
-    date: "2026-04-26"
-    author: "hermes"
-    changes:
-      - "新增 ActivityBar 文件级边界与验证条件"
----
+- version: '0.1'
+  date: '2026-04-26'
+  author: hermes
+  changes:
+  - 新增 ActivityBar 文件级边界与验证条件

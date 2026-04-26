@@ -1,84 +1,97 @@
----
 spec:
-  version: "0.1"
-  level: "5_slice"
-  name: "SLICE-ide-center-tabs-component"
-  parent: "FEAT-ide-editor-tabs"
-  status: "proposal"
-
+  version: '0.1'
+  level: 5_slice
+  name: SLICE-ide-center-tabs-component
+  parent: FEAT-ide-editor-tabs
+  status: proposal
 meta:
-  type: "slice"
-  module: "frontend"
-  owner: "hermes"
-  created: "2026-04-26"
-  updated: "2026-04-26"
-
+  type: slice
+  module: frontend
+  owner: hermes
+  created: '2026-04-26'
+  updated: '2026-04-26'
 lifecycle:
-  current: "proposal"
-  updated: "2026-04-26"
-
+  current: proposal
+  updated: '2026-04-26'
 io_contract:
-  input: |
-    用户点击中央 editor tabs：canvas、artifacts、spec_text、diff、bootstrap。
-  output: |
-    WorkbenchCenterTabs.svelte 渲染对应中心 pane。
-  boundary: |
-    只管 tab 壳和组件挂载。Canvas、ArtifactPanel、SpecViewer 内部逻辑不在本 slice。
-  behavior: |
-    1. active 初始为 canvas
-    2. 点击 tab 更新 active
-    3. canvas 渲染 CanvasRenderer
-    4. artifacts 渲染 ArtifactPanel
-    5. bootstrap 渲染 WorkbenchBootstrapPrototype
+  input: '用户点击中央 editor tabs：canvas、artifacts、spec_text、diff、bootstrap。
 
+    '
+  output: 'WorkbenchCenterTabs.svelte 渲染对应中心 pane。
+
+    '
+  boundary: '只管 tab 壳和组件挂载。Canvas、ArtifactPanel、SpecViewer 内部逻辑不在本 slice。
+
+    '
+  behavior_summary: 共 5 个行为步骤，详见 content.behaviors
 content:
-  file_path: "frontend/src/lib/components/workbench/WorkbenchCenterTabs.svelte"
-  file_type: "svelte"
-
+  file_path: frontend/src/lib/components/workbench/WorkbenchCenterTabs.svelte
+  file_type: svelte
   implementation_boundary:
     allowed:
-      - "TabId 类型"
-      - "tabs 数组"
-      - "active 状态"
-      - "pane component mounting"
-      - "IDE tab 样式"
+    - TabId 类型
+    - tabs 数组
+    - active 状态
+    - pane component mounting
+    - IDE tab 样式
     forbidden:
-      - "修改 CanvasRenderer 内部"
-      - "修改 ArtifactPanel 内部"
-      - "在 center tabs 中读取 spec 文件内容"
-
+    - 修改 CanvasRenderer 内部
+    - 修改 ArtifactPanel 内部
+    - 在 center tabs 中读取 spec 文件内容
   generation_rules:
-    - rule: "Default tab"
-      detail: "默认 active 必须为 canvas，不应默认进入自举原型说明页"
-    - rule: "Bootstrap tab"
-      detail: "自举原型作为可选 tab，用于评审产品边界"
-    - rule: "Pane isolation"
-      detail: "每个 pane 独立滚动/布局，不撑破 WorkbenchLayoutResizable"
-
+  - rule: Default tab
+    detail: 默认 active 必须为 canvas，不应默认进入自举原型说明页
+  - rule: Bootstrap tab
+    detail: 自举原型作为可选 tab，用于评审产品边界
+  - rule: Pane isolation
+    detail: 每个 pane 独立滚动/布局，不撑破 WorkbenchLayoutResizable
   verification:
     commands:
-      - "npm --prefix frontend run build"
+    - npm --prefix frontend run build
     manual_checks:
-      - "进入 /workbench 默认显示画布 tab"
-      - "点击每个 tab 内容切换"
-      - "自举原型 tab 可展示当前 MVP 链路"
+    - 进入 /workbench 默认显示画布 tab
+    - 点击每个 tab 内容切换
+    - 自举原型 tab 可展示当前 MVP 链路
     failure_conditions:
-      - "默认进入自举原型 tab"
-      - "切换 tab 后中心区空白且无提示"
-      - "pane 内容撑破底部 dock 或右侧 panel"
-
+    - 默认进入自举原型 tab
+    - 切换 tab 后中心区空白且无提示
+    - pane 内容撑破底部 dock 或右侧 panel
   dependencies:
-    - file: "frontend/src/lib/components/workbench/CanvasRenderer.svelte"
-      reason: "canvas tab"
-    - file: "frontend/src/lib/components/workbench/ArtifactPanel.svelte"
-      reason: "artifacts tab"
-    - file: "frontend/src/lib/components/workbench/WorkbenchBootstrapPrototype.svelte"
-      reason: "bootstrap tab"
-
+  - file: frontend/src/lib/components/workbench/CanvasRenderer.svelte
+    reason: canvas tab
+  - file: frontend/src/lib/components/workbench/ArtifactPanel.svelte
+    reason: artifacts tab
+  - file: frontend/src/lib/components/workbench/WorkbenchBootstrapPrototype.svelte
+    reason: bootstrap tab
+  behaviors:
+  - id: B1
+    trigger: 步骤1
+    action: active 初始为 canvas
+    expected_result: 正确执行，无异常
+    error_handling: 出错时显示 toast 提示，不阻塞其他交互
+  - id: B2
+    trigger: 步骤2
+    action: 点击 tab 更新 active
+    expected_result: 视图/状态正确切换
+    error_handling: 出错时显示 toast 提示，不阻塞其他交互
+  - id: B3
+    trigger: 步骤3
+    action: canvas 渲染 CanvasRenderer
+    expected_result: Canvas 图谱正确渲染
+    error_handling: 出错时显示 toast 提示，不阻塞其他交互
+  - id: B4
+    trigger: 步骤4
+    action: artifacts 渲染 ArtifactPanel
+    expected_result: 内容正确渲染
+    error_handling: 出错时显示 toast 提示，不阻塞其他交互
+  - id: B5
+    trigger: 步骤5
+    action: bootstrap 渲染 WorkbenchBootstrapPrototype
+    expected_result: 内容正确渲染
+    error_handling: 出错时显示 toast 提示，不阻塞其他交互
 changelog:
-  - version: "0.1"
-    date: "2026-04-26"
-    author: "hermes"
-    changes:
-      - "新增 WorkbenchCenterTabs 文件级边界与验证条件"
----
+- version: '0.1'
+  date: '2026-04-26'
+  author: hermes
+  changes:
+  - 新增 WorkbenchCenterTabs 文件级边界与验证条件

@@ -1,99 +1,118 @@
----
 spec:
-  version: "0.1"
-  level: "5_implementation"
-  name: "FEAT-state-detection_L5"
-  parent: "FEAT-state-detection"
-  status: "proposal"
-
+  version: '0.1'
+  level: 5_implementation
+  name: FEAT-state-detection_L5
+  parent: FEAT-state-detection
+  status: proposal
 meta:
-  type: "implementation"
-  module: "generators"
-  owner: "hermes"
-  created: "2026-04-26"
-  updated: "2026-04-26"
-
+  type: implementation
+  module: generators
+  owner: hermes
+  created: '2026-04-26'
+  updated: '2026-04-26'
 io_contract:
-  input: |
-    WORKSPACE_ROOT 路径（字符串），通过 GET /api/workspace/detect-state 接收。
-  output: |
-    JSON: {state: "empty"|"partial"|"ready", signals: [...], suggestions: [...], workspaceRoot: "..."}
-  boundary: |
-    只读目录，不写任何文件，不做自动修复。
+  input: 'WORKSPACE_ROOT 路径（字符串），通过 GET /api/workspace/detect-state 接收。
 
+    '
+  output: 'JSON: {state: "empty"|"partial"|"ready", signals: [...], suggestions: [...], workspaceRoot: "..."}
+
+    '
+  boundary: '只读目录，不写任何文件，不做自动修复。
+
+    '
 content:
-  file_path: "generators/state_detector.py"
-  file_type: "python"
-
+  file_path: generators/state_detector.py
+  file_type: python
   implementation_boundary:
     allowed:
-      - "detect_state(workspace_root: str) 函数逻辑"
-      - "检查 specs/ 目录存在性"
-      - "检查 generators/gen.py 存在性"
-      - "检查 Makefile 是否含 lint-specs / validate"
-      - "返回 state + signals + suggestions"
+    - 'detect_state(workspace_root: str) 函数逻辑'
+    - 检查 specs/ 目录存在性
+    - 检查 generators/gen.py 存在性
+    - 检查 Makefile 是否含 lint-specs / validate
+    - 返回 state + signals + suggestions
     forbidden:
-      - "禁止创建目录或文件"
-      - "禁止调用生成器"
-      - "禁止修改 workspace 任意内容"
-      - "禁止网络请求"
-
+    - 禁止创建目录或文件
+    - 禁止调用生成器
+    - 禁止修改 workspace 任意内容
+    - 禁止网络请求
   generation_rules:
-    - rule: "empty 判定"
-      detail: |
-        specs/ 不存在 AND generators/gen.py 不存在
-        signals: ["specs/ 目录不存在", "generators/gen.py 不存在"]
-        suggestions: ["点击初始化脚手架"]
-    - rule: "partial 判定"
-      detail: |
-        specs/ 存在 AND generators/gen.py 不存在
-        signals: ["specs/ 存在", "generators/gen.py 缺失"]
-        suggestions: ["运行生成脚手架", "运行 make generate"]
-    - rule: "ready 判定"
-      detail: |
-        specs/ 存在 AND generators/gen.py 存在 AND Makefile 含 lint-specs
-        signals: ["所有信号满足"]
-        suggestions: ["打开 spec 编辑器", "运行 make validate"]
+  - rule: empty 判定
+    detail: 'specs/ 不存在 AND generators/gen.py 不存在
 
+      signals: ["specs/ 目录不存在", "generators/gen.py 不存在"]
+
+      suggestions: ["点击初始化脚手架"]
+
+      '
+  - rule: partial 判定
+    detail: 'specs/ 存在 AND generators/gen.py 不存在
+
+      signals: ["specs/ 存在", "generators/gen.py 缺失"]
+
+      suggestions: ["运行生成脚手架", "运行 make generate"]
+
+      '
+  - rule: ready 判定
+    detail: 'specs/ 存在 AND generators/gen.py 存在 AND Makefile 含 lint-specs
+
+      signals: ["所有信号满足"]
+
+      suggestions: ["打开 spec 编辑器", "运行 make validate"]
+
+      '
   behaviors:
-    - id: "L5-B1"
-      behavior: "检测 specs/ 目录"
-      implementation: |
-        os.path.isdir(os.path.join(workspace_root, 'specs'))
-    - id: "L5-B2"
-      behavior: "检测 generators/gen.py"
-      implementation: |
-        os.path.isfile(os.path.join(workspace_root, 'generators', 'gen.py'))
-    - id: "L5-B3"
-      behavior: "检测 Makefile lint target"
-      implementation: |
-        'lint-specs' in open(os.path.join(workspace_root, 'Makefile')).read()
-    - id: "L5-B4"
-      behavior: "综合判断状态"
-      implementation: |
-        if no_specs and no_gen: return 'empty'
-        elif has_specs and no_gen: return 'partial'
-        elif has_specs and has_gen and has_lint: return 'ready'
-        else: return 'partial'
+  - id: L5-B1
+    behavior: 检测 specs/ 目录
+    implementation: 'os.path.isdir(os.path.join(workspace_root, ''specs''))
 
+      '
+  - id: L5-B2
+    behavior: 检测 generators/gen.py
+    implementation: 'os.path.isfile(os.path.join(workspace_root, ''generators'', ''gen.py''))
+
+      '
+  - id: L5-B3
+    behavior: 检测 Makefile lint target
+    implementation: '''lint-specs'' in open(os.path.join(workspace_root, ''Makefile'')).read()
+
+      '
+  - id: L5-B4
+    behavior: 综合判断状态
+    implementation: 'if no_specs and no_gen: return ''empty''
+
+      elif has_specs and no_gen: return ''partial''
+
+      elif has_specs and has_gen and has_lint: return ''ready''
+
+      else: return ''partial''
+
+      '
   verification:
     commands:
-      - "cd /root/v-test && python3 generators/state_detector.py /tmp 2>&1"
-      - "cd /root/v-test && python3 generators/state_detector.py . 2>&1"
-      - "cd /root/v-test && python3 generators/state_detector.py . --json 2>&1"
-      - "cd /root/v-test && python3 -c \"from generators.state_detector import detect_state; print(detect_state('/tmp'))\""
+    - cd /root/v-test && python3 generators/state_detector.py /tmp 2>&1
+    - cd /root/v-test && python3 generators/state_detector.py . 2>&1
+    - cd /root/v-test && python3 generators/state_detector.py . --json 2>&1
+    - cd /root/v-test && python3 -c "from generators.state_detector import detect_state; print(detect_state('/tmp'))"
     manual_checks:
-      - "空目录返回 state='empty'"
-      - "有 specs 无 gen.py 返回 state='partial'"
-      - "v-test 目录返回 state='ready'"
-      - "结果包含 suggestions 字段"
+    - 空目录返回 state='empty'
+    - 有 specs 无 gen.py 返回 state='partial'
+    - v-test 目录返回 state='ready'
+    - 结果包含 suggestions 字段
     failure_conditions:
-      - "state 不在 empty/partial/ready 三者之一"
-      - "缺少 signals 或 suggestions 字段"
-      - "对不存在目录崩溃（未捕获 OSError）"
-
+    - state 不在 empty/partial/ready 三者之一
+    - 缺少 signals 或 suggestions 字段
+    - 对不存在目录崩溃（未捕获 OSError）
   dependencies:
-    - file: "Makefile"
-      reason: "读取 lint-specs target 是否存在"
-    - file: "specs/"
-      reason: "检查目录是否存在"
+  - file: Makefile
+    reason: 读取 lint-specs target 是否存在
+  - file: specs/
+    reason: 检查目录是否存在
+lifecycle:
+  current: proposal
+  updated: '2026-04-26'
+changelog:
+- version: '0.1'
+  date: '2026-04-26'
+  author: hermes
+  changes:
+  - 初始版本，含 behaviors + verification + constraints

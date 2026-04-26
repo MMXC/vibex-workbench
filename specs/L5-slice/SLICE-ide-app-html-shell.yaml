@@ -1,76 +1,85 @@
----
 spec:
-  version: "0.1"
-  level: "5_slice"
-  name: "SLICE-ide-app-html-shell"
-  parent: "FEAT-ide-titlebar"
-  status: "proposal"
-
+  version: '0.1'
+  level: 5_slice
+  name: SLICE-ide-app-html-shell
+  parent: FEAT-ide-titlebar
+  status: proposal
 meta:
-  type: "slice"
-  module: "frontend"
-  owner: "hermes"
-  created: "2026-04-26"
-  updated: "2026-04-26"
-
+  type: slice
+  module: frontend
+  owner: hermes
+  created: '2026-04-26'
+  updated: '2026-04-26'
 lifecycle:
-  current: "proposal"
-  updated: "2026-04-26"
-
+  current: proposal
+  updated: '2026-04-26'
 io_contract:
-  input: |
-    L4 FEAT-ide-titlebar 的单层导航约束。
-  output: |
-    frontend/src/app.html 只提供 SvelteKit 挂载容器，不渲染任何全局 titlebar。
-  boundary: |
-    只管 app.html 的 HTML 壳。不得把业务 UI、窗口按钮或菜单写入 app.html。
-  behavior: |
-    1. SvelteKit head/body 正常注入
-    2. body 占满视口且隐藏外层 overflow
-    3. main-content 承载应用内容，高度 100vh
-    4. 不包含任何全局 window control wiring
+  input: 'L4 FEAT-ide-titlebar 的单层导航约束。
 
+    '
+  output: 'frontend/src/app.html 只提供 SvelteKit 挂载容器，不渲染任何全局 titlebar。
+
+    '
+  boundary: '只管 app.html 的 HTML 壳。不得把业务 UI、窗口按钮或菜单写入 app.html。
+
+    '
+  behavior_summary: 共 4 个行为步骤，详见 content.behaviors
 content:
-  file_path: "frontend/src/app.html"
-  file_type: "html"
-
+  file_path: frontend/src/app.html
+  file_type: html
   implementation_boundary:
     allowed:
-      - "body 样式"
-      - "#main-content 挂载容器"
-      - "%sveltekit.head% / %sveltekit.body% 的位置"
+    - body 样式
+    - '#main-content 挂载容器'
+    - '%sveltekit.head% / %sveltekit.body% 的位置'
     forbidden:
-      - "任何 header#titlebar"
-      - "任何包含 VibeX Workbench / 空仓库 → 边做边长 的外层标题"
-      - "任何 window.wails / window.runtime 的按钮 wiring"
-
+    - 任何 header#titlebar
+    - 任何包含 VibeX Workbench / 空仓库 → 边做边长 的外层标题
+    - 任何 window.wails / window.runtime 的按钮 wiring
   generation_rules:
-    - rule: "Single mount"
-      detail: "app.html 只允许一个 #main-content 承载 SvelteKit body"
-    - rule: "No duplicate shell"
-      detail: "禁止 app.html 渲染顶层品牌栏、菜单栏、窗口按钮"
-    - rule: "Viewport ownership"
-      detail: "#main-content 使用 height:100vh，具体布局由 /workbench 内部组件负责"
-
+  - rule: Single mount
+    detail: 'app.html 只允许一个 #main-content 承载 SvelteKit body'
+  - rule: No duplicate shell
+    detail: 禁止 app.html 渲染顶层品牌栏、菜单栏、窗口按钮
+  - rule: Viewport ownership
+    detail: '#main-content 使用 height:100vh，具体布局由 /workbench 内部组件负责'
   verification:
     commands:
-      - "npm --prefix frontend run build"
+    - npm --prefix frontend run build
     automated_checks:
-      - "rg \"空仓库|btn-minimise|btn-maximise|btn-close|header.*titlebar\" frontend/src/app.html 不应命中"
+    - rg "空仓库|btn-minimise|btn-maximise|btn-close|header.*titlebar" frontend/src/app.html 不应命中
     manual_checks:
-      - "打开 Wails 应用后，不再看到 app.html 外层标题栏"
+    - 打开 Wails 应用后，不再看到 app.html 外层标题栏
     failure_conditions:
-      - "页面顶部出现两层 titlebar"
-      - "app.html 中出现窗口控制按钮"
-
+    - 页面顶部出现两层 titlebar
+    - app.html 中出现窗口控制按钮
   dependencies:
-    - file: "frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte"
-      reason: "唯一可见 titlebar"
-
+  - file: frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte
+    reason: 唯一可见 titlebar
+  behaviors:
+  - id: B1
+    trigger: 步骤1
+    action: SvelteKit head/body 正常注入
+    expected_result: 正确执行，无异常
+    error_handling: 出错时显示 toast 提示，不阻塞其他交互
+  - id: B2
+    trigger: 步骤2
+    action: body 占满视口且隐藏外层 overflow
+    expected_result: 正确执行，无异常
+    error_handling: 出错时显示 toast 提示，不阻塞其他交互
+  - id: B3
+    trigger: 步骤3
+    action: main-content 承载应用内容，高度 100vh
+    expected_result: 正确执行，无异常
+    error_handling: 出错时显示 toast 提示，不阻塞其他交互
+  - id: B4
+    trigger: 步骤4
+    action: 不包含任何全局 window control wiring
+    expected_result: 正确执行，无异常
+    error_handling: 出错时显示 toast 提示，不阻塞其他交互
 changelog:
-  - version: "0.1"
-    date: "2026-04-26"
-    author: "hermes"
-    changes:
-      - "新增 app.html 壳层边界与验证条件"
----
+- version: '0.1'
+  date: '2026-04-26'
+  author: hermes
+  changes:
+  - 新增 app.html 壳层边界与验证条件
