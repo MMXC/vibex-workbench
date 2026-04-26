@@ -1,0 +1,88 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-memplace-implementation-memory-adapter"
+  parent: "FEAT-agent-implementation-memory"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    journal checkpoint summary and spec metadata。
+  output: |
+    memplace/memlace memory record，用于按 spec、file、failure category 检索。
+  boundary: |
+    只负责 memory 写入/检索适配，不把 memory 当事实源。
+
+content:
+  file_path: "agent/internal/specjournal/memory_adapter.go"
+  file_type: "go"
+
+  implementation_boundary:
+    allowed:
+      - "将 checkpoint 摘要写入 memplace/memlace"
+      - "按 spec name、file path、failure category 建索引"
+      - "按 target spec 检索相关 memory hits"
+      - "返回 memory_only/stale_memory 标记"
+    forbidden:
+      - "写入完整 journal 内容"
+      - "写入 secret/env value"
+      - "memory 覆盖 journal/spec 判断"
+
+  memory_record_schema:
+    spec_name: "string"
+    spec_path: "string"
+    journal_path: "string"
+    files_touched: "array"
+    failure_category: "string|null"
+    validation_summary: "string"
+    next_action: "string"
+    confidence: "high|medium|low"
+    source_hash: "string"
+
+  generation_rules:
+    - rule: "Compact"
+      detail: "单条 memory 摘要只保存可检索事实，不保存完整日志"
+    - rule: "Verify on read"
+      detail: "读取 memory 后必须用 journal_path/source_hash 验证是否 stale"
+    - rule: "Alias support"
+      detail: "实现中兼容产品称呼 memplace 和代码称呼 memlace"
+
+  verification:
+    commands:
+      - "make validate"
+      - "go test ./agent/..."
+    manual_checks:
+      - "写 checkpoint 后能按 spec name 检索摘要"
+      - "journal hash 变化后 memory 标记 stale_memory"
+      - "memory record 不包含 secret"
+    failure_conditions:
+      - "memory 中保存完整 journal"
+      - "memory stale 但仍被高置信注入"
+      - "无法按 failure_category 检索"
+
+  dependencies:
+    - file: "specs/L4-feature/FEAT-agent-implementation-memory.yaml"
+      reason: "memory role contract"
+    - file: "agent/internal/common/config.go"
+      reason: "memlace/memplace 配置来源"
+    - file: "specs/L5-slice/SLICE-agent-checkpoint-writer.yaml"
+      reason: "checkpoint summary source"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 memplace/memlace implementation memory adapter L5"

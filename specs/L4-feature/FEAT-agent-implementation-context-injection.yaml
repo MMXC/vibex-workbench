@@ -1,0 +1,98 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-agent-implementation-context-injection"
+  parent: "MOD-spec-editor"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    当前要实现的 spec、parent spec、direct child/sibling specs、implementation journal、memplace/memlace 摘要。
+  output: |
+    一段短上下文注入摘要，供 agent 在实现前读取，避免重复搜索和重复失败。
+  boundary: |
+    只定义实现前上下文组装和压缩规则。
+    不允许把完整日志无筛选塞入上下文，不允许用过期 journal 覆盖当前 spec。
+  behavior:
+    - "根据 target spec name 查找 journal"
+    - "读取 parent、direct child、sibling 的相关 journal 摘要"
+    - "从 memplace/memlace 检索高相关历史摘要"
+    - "压缩为 bounded context block"
+    - "标记 stale_journal、known_failures、must_not_repeat"
+
+content:
+  injection_policy:
+    max_items:
+      current_spec_checkpoints: 5
+      related_spec_checkpoints: 3
+      memory_hits: 5
+    priority_order:
+      - "current spec"
+      - "current L5 parent"
+      - "direct child L5"
+      - "sibling L5 with shared files"
+      - "memplace/memlace high confidence hits"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "workbench agent"
+      i_want: "实现前自动看到上次尝试的失败和决策"
+      so_that: "不重复读错文件或重跑无效方案"
+      acceptance: "agent prompt 中包含简短 implementation context block"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "同一 L5 二次实现"
+      given: "该 L5 有 journal，记录上次 build_error"
+      when: "agent 重新开始实现"
+      then: "注入摘要包含 build_error、涉及文件、避免重复动作"
+      evaluation: "摘要不超过配置的 max_items"
+    - id: "TC-2"
+      scenario: "memplace 命中但 journal 不存在"
+      given: "memplace 有相关摘要，但仓库无 journal 文件"
+      when: "agent 组装上下文"
+      then: "摘要标记 memory_only，并降低置信度"
+      evaluation: "agent 不把 memory_only 当事实源"
+
+  constraints:
+    - id: "C1"
+      name: "Bounded injection"
+      rule: "注入摘要必须有数量和长度上限"
+      validation: "不会把完整 journal 直接注入"
+    - id: "C2"
+      name: "Spec wins"
+      rule: "当前 spec 与注入摘要冲突时，当前 spec 优先"
+      validation: "摘要中必须显示 stale_journal 或 memory_only"
+
+acceptance_criteria:
+  - id: "AC-1"
+    given: "目标 spec 存在 journal"
+    when: "agent 开始实现"
+    then: "上下文摘要包含最近 checkpoint、失败分类和下一步建议"
+  - id: "AC-2"
+    given: "memplace 命中但无 journal"
+    when: "注入上下文"
+    then: "摘要标记 memory_only 且不作为事实源"
+  - id: "AC-3"
+    given: "注入摘要超过限制"
+    when: "生成 agent prompt"
+    then: "系统按 priority_order 截断"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 agent 实现上下文注入规格"

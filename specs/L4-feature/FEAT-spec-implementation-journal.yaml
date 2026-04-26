@@ -1,0 +1,92 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-spec-implementation-journal"
+  parent: "MOD-spec-editor"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    agent 正在实现某个 L4/L5 spec，期间发生文件阅读、决策、编辑、验证、失败或人工确认。
+  output: |
+    写入或追加 spec 绑定的 implementation journal，作为可审计事实源。
+  boundary: |
+    Journal 只记录实现事实，不改变 spec 的产品契约。
+    当前 spec 与 journal 冲突时，以当前 spec 为准，并标记 stale_journal。
+  behavior:
+    - "实现开始时创建或打开 specs/journal/<spec-name>.implementation.yaml"
+    - "每次关键动作追加 checkpoint"
+    - "每次失败记录 failure_category 和 avoided_next_time"
+    - "每次验证记录 command、exit_code、summary"
+    - "实现结束时写入 final_summary 和 open_risks"
+
+content:
+  journal_policy:
+    source_of_truth: "specs/journal/*.implementation.yaml"
+    relation_to_spec: "事实记录，不是需求来源"
+    append_only_default: true
+    stale_rule: "若 journal 中的假设与当前 spec 冲突，标记 stale_journal，不删除历史"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "workbench agent"
+      i_want: "记录实现某个 spec 时做过的尝试和失败"
+      so_that: "后续 agent 不重复走同一条弯路"
+      acceptance: "同一 spec 下次实现前能读取上次失败和验证摘要"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "失败后记录 checkpoint"
+      given: "agent 运行 npm build 失败"
+      when: "agent 结束该尝试"
+      then: "journal 追加 failure checkpoint，包含命令、摘要、失败分类和下一步建议"
+      evaluation: "下一次 context injection 能读到该失败"
+    - id: "TC-2"
+      scenario: "spec 更新导致日志过期"
+      given: "journal 记录的 file_path 已不在 L5 边界内"
+      when: "agent 读取 journal"
+      then: "标记 stale_journal"
+      evaluation: "注入摘要中提示以当前 spec 为准"
+
+  constraints:
+    - id: "C1"
+      name: "Journal is fact, not contract"
+      rule: "journal 不得覆盖 spec 的 implementation_boundary 或 acceptance criteria"
+      validation: "冲突时必须标记 stale_journal"
+    - id: "C2"
+      name: "No secrets"
+      rule: "journal 不记录 token、环境变量值、完整私有路径以外的敏感数据"
+      validation: "checkpoint writer 过滤常见 secret key"
+
+acceptance_criteria:
+  - id: "AC-1"
+    given: "agent 开始实现某个 spec"
+    when: "该 spec 没有 journal"
+    then: "系统创建对应 implementation journal"
+  - id: "AC-2"
+    given: "agent 遇到失败"
+    when: "追加 checkpoint"
+    then: "checkpoint 包含 failure_category、evidence 和 next_action"
+  - id: "AC-3"
+    given: "journal 与当前 spec 冲突"
+    when: "agent 读取 journal"
+    then: "系统标记 stale_journal 并以当前 spec 为准"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 spec 绑定实现日志事实源规格"

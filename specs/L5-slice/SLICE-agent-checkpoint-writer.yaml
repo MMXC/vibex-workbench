@@ -1,0 +1,77 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-agent-checkpoint-writer"
+  parent: "FEAT-spec-implementation-journal"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    agent step event：read/edit/decision/failure/verification/final_summary。
+  output: |
+    append-only checkpoint 写入目标 spec 的 implementation journal。
+  boundary: |
+    只负责写 checkpoint，不负责上下文注入和 UI 展示。
+
+content:
+  file_path: "agent/internal/specjournal/checkpoint_writer.go"
+  file_type: "go"
+
+  implementation_boundary:
+    allowed:
+      - "新增 checkpoint writer service"
+      - "根据 spec name 解析 journal path"
+      - "追加 checkpoint"
+      - "执行 secret filter"
+      - "写入后触发 memory adapter"
+    forbidden:
+      - "覆盖整个 journal"
+      - "绕过 workspace path guard"
+      - "写入 specs/ 外路径"
+
+  generation_rules:
+    - rule: "Write events"
+      detail: "至少支持 decision、failure、verification、final_summary 四类 event"
+    - rule: "Failure category"
+      detail: "failure event 必须带 validation-and-failure.md 中定义的类别或 unknown"
+    - rule: "Atomic write"
+      detail: "写 journal 使用临时文件 + rename，避免中断导致 YAML 损坏"
+
+  verification:
+    commands:
+      - "make validate"
+      - "go test ./agent/..."
+    manual_checks:
+      - "一次失败会追加 checkpoint，不覆盖旧记录"
+      - "写入后 memplace/memlace adapter 收到摘要事件"
+    failure_conditions:
+      - "checkpoint 写坏 YAML"
+      - "checkpoint 丢失 failure category"
+      - "writer 允许 path traversal"
+
+  dependencies:
+    - file: "specs/L5-slice/SLICE-implementation-journal-schema.yaml"
+      reason: "checkpoint schema"
+    - file: "specs/L5-slice/SLICE-workspace-path-safety-contract.yaml"
+      reason: "workspace path guard"
+    - file: "agent/skills/spec-first-workflow/validation-and-failure.md"
+      reason: "failure category vocabulary"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 agent checkpoint writer L5"

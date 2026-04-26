@@ -1,0 +1,90 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-implementation-journal-schema"
+  parent: "FEAT-spec-implementation-journal"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    一个 target spec name 和该 spec 实现过程中的 checkpoints。
+  output: |
+    specs/journal/<spec-name>.implementation.yaml，包含可验证实现事实。
+  boundary: |
+    只定义 journal YAML schema，不定义写入时机和 UI 展示。
+
+content:
+  file_path: "specs/journal/<spec-name>.implementation.yaml"
+  file_type: "yaml"
+
+  implementation_boundary:
+    allowed:
+      - "定义 journal YAML schema"
+      - "定义 checkpoint required fields"
+      - "定义 stale_journal 标记规则"
+    forbidden:
+      - "把 journal 当 spec parent chain 的一部分"
+      - "在 journal 中修改 spec status"
+      - "记录 secret 或完整 env value"
+
+  schema:
+    journal:
+      spec_name: "string"
+      spec_path: "string"
+      current_spec_hash: "string"
+      checkpoints: "array"
+      decisions: "array"
+      failures: "array"
+      verification: "array"
+      open_risks: "array"
+      final_summary: "string"
+    checkpoint_required_fields:
+      - "id"
+      - "timestamp"
+      - "agent"
+      - "action"
+      - "files"
+      - "result"
+      - "next_action"
+
+  generation_rules:
+    - rule: "Sidecar only"
+      detail: "journal 放在 specs/journal/，不参与 L1-L5 parent chain"
+    - rule: "Append by default"
+      detail: "除非压缩归档，否则新增记录追加到 checkpoints"
+    - rule: "Spec hash"
+      detail: "每次写入记录 current_spec_hash，用于检测 stale_journal"
+
+  verification:
+    commands:
+      - "make validate"
+    manual_checks:
+      - "journal 文件没有 spec.name 字段，不被当作正式 spec 索引"
+      - "checkpoint 包含 required fields"
+    failure_conditions:
+      - "journal 被 validator 当成 L1-L5 spec"
+      - "缺少 timestamp/agent/action/result"
+      - "journal 中出现 token 或 secret"
+
+  dependencies:
+    - file: "specs/L4-feature/FEAT-spec-implementation-journal.yaml"
+      reason: "journal feature contract"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 implementation journal YAML schema"

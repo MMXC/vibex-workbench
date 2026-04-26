@@ -1,0 +1,95 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-agent-implementation-memory"
+  parent: "MOD-spec-editor"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    implementation journal checkpoint、spec name、files touched、failure categories、validation summaries。
+  output: |
+    写入 memplace/memlace 的压缩记忆摘要，用于后续检索和上下文注入。
+  boundary: |
+    memplace/memlace 是检索缓存和长期记忆索引，不是事实源。
+    事实源始终是当前 spec 与 specs/journal/*.implementation.yaml。
+  behavior:
+    - "checkpoint 写入 journal 后生成短摘要"
+    - "摘要写入 memplace/memlace，按 spec name、file path、failure category 建索引"
+    - "读取时先查 memplace/memlace，再回读 journal 验证事实"
+    - "冲突时刷新 memory 并标记 stale_memory"
+
+content:
+  memory_role:
+    source_of_truth: false
+    cache_for: "implementation context injection"
+    canonical_fact_source:
+      - "current spec YAML"
+      - "specs/journal/*.implementation.yaml"
+    aliases:
+      - "memplace"
+      - "memlace"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "workbench agent"
+      i_want: "通过记忆快速找到某个 spec 上次实现卡在哪里"
+      so_that: "减少重复搜索和重复失败"
+      acceptance: "按 spec name 查询能返回最近失败、触碰文件和验证摘要"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "checkpoint 同步到 memory"
+      given: "agent 写入一个 build_error checkpoint"
+      when: "memory adapter 运行"
+      then: "memplace/memlace 中出现包含 spec、files、failure_category 的摘要"
+      evaluation: "摘要不包含 secret"
+    - id: "TC-2"
+      scenario: "memory 与 journal 冲突"
+      given: "memory 摘要指向旧文件，journal 已更新"
+      when: "agent 读取 memory"
+      then: "标记 stale_memory 并以 journal 为准"
+      evaluation: "memory 被刷新或降低置信度"
+
+  constraints:
+    - id: "C1"
+      name: "Memory is cache"
+      rule: "memplace/memlace 不作为最终事实源"
+      validation: "读取 memory 后必须回读 journal 或 spec 验证"
+    - id: "C2"
+      name: "Secret hygiene"
+      rule: "memory 摘要不得包含 token、secret、完整 env value"
+      validation: "写入前执行 secret pattern filter"
+
+acceptance_criteria:
+  - id: "AC-1"
+    given: "journal 追加 checkpoint"
+    when: "memory adapter 同步"
+    then: "memplace/memlace 写入压缩摘要"
+  - id: "AC-2"
+    given: "memory 摘要与 journal 冲突"
+    when: "agent 准备注入上下文"
+    then: "系统标记 stale_memory 并以 journal 为准"
+  - id: "AC-3"
+    given: "memory 摘要含疑似 secret"
+    when: "写入 memory"
+    then: "系统拒绝或脱敏该字段"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 agent implementation memory 与 memplace/memlace 分工规格"

@@ -1,0 +1,75 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-implementation-journal-viewer"
+  parent: "FEAT-agent-implementation-context-injection"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    selectedSpecPath 和该 spec 的 implementation journal summary。
+  output: |
+    SpecViewer/Graph 卡片旁展示实现历史、最近失败、当前风险和上次验证结果。
+  boundary: |
+    只展示 journal 摘要，不编辑 journal，不替代 agent context injection。
+
+content:
+  file_path: "frontend/src/lib/components/workbench/ImplementationJournalPanel.svelte"
+  file_type: "svelte"
+
+  implementation_boundary:
+    allowed:
+      - "新增 ImplementationJournalPanel.svelte"
+      - "读取 journal summary API"
+      - "展示 recent failures / decisions / verification"
+      - "从 SpecGraphViewer 打开 journal panel"
+    forbidden:
+      - "前端直接写 journal 文件"
+      - "展示完整长日志作为默认视图"
+      - "把 stale_journal 当作当前事实"
+
+  generation_rules:
+    - rule: "Summary first"
+      detail: "默认只展示最近 5 条 checkpoint 摘要"
+    - rule: "Risk highlight"
+      detail: "stale_journal、known_failures、open_risks 必须高亮"
+    - rule: "No edit"
+      detail: "MVP 只读展示 journal，编辑由 agent checkpoint writer 负责"
+
+  verification:
+    commands:
+      - "make validate"
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - "选中有 journal 的 spec 时能看到最近失败"
+      - "stale_journal 显示警告"
+      - "无 journal 时展示空态，不报错"
+    failure_conditions:
+      - "面板读取失败导致 SpecViewer 空白"
+      - "前端可直接编辑 journal"
+      - "完整日志默认撑破布局"
+
+  dependencies:
+    - file: "frontend/src/lib/components/workbench/SpecGraphViewer.svelte"
+      reason: "journal panel entry"
+    - file: "agent/internal/specjournal/context_reader.go"
+      reason: "summary API source"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增实现日志前端只读展示 L5"

@@ -1,0 +1,86 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-agent-context-injection-reader"
+  parent: "FEAT-agent-implementation-context-injection"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    target spec name/path、spec index、journal files、memplace/memlace search result。
+  output: |
+    bounded implementation_context block for agent prompt。
+  boundary: |
+    只负责读取和压缩上下文，不执行代码修改，不写 journal。
+
+content:
+  file_path: "agent/internal/specjournal/context_reader.go"
+  file_type: "go"
+
+  implementation_boundary:
+    allowed:
+      - "读取 target spec 和 journal"
+      - "读取 parent/direct child/sibling journal"
+      - "调用 memplace/memlace search"
+      - "生成 bounded context block"
+    forbidden:
+      - "把完整 journal 原样注入"
+      - "让 memory_only 覆盖 journal/spec"
+      - "读取 workspace 外文件"
+
+  context_block_schema:
+    target_spec: "string"
+    current_spec_hash: "string"
+    recent_checkpoints: "array"
+    known_failures: "array"
+    decisions: "array"
+    stale_journal: "boolean"
+    memory_hits: "array"
+    must_not_repeat: "array"
+
+  generation_rules:
+    - rule: "Bounded length"
+      detail: "默认摘要不超过 1200 tokens 或等价字符预算"
+    - rule: "Priority"
+      detail: "current spec journal 优先于 related journals，related journals 优先于 memory hits"
+    - rule: "Staleness"
+      detail: "journal spec hash 与当前 spec hash 不一致时标记 stale_journal"
+
+  verification:
+    commands:
+      - "make validate"
+      - "go test ./agent/..."
+    manual_checks:
+      - "同一 spec 二次实现时摘要包含上次失败"
+      - "memory_only 命中不会被标记为事实源"
+    failure_conditions:
+      - "注入摘要过长"
+      - "过期 journal 未标记 stale_journal"
+      - "读取 workspace 外 journal"
+
+  dependencies:
+    - file: "specs/L4-feature/FEAT-agent-implementation-context-injection.yaml"
+      reason: "context injection policy"
+    - file: "specs/L5-slice/SLICE-implementation-journal-schema.yaml"
+      reason: "journal schema"
+    - file: "specs/L5-slice/SLICE-memplace-implementation-memory-adapter.yaml"
+      reason: "memory hits source"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 agent 实现上下文读取与压缩 L5"
