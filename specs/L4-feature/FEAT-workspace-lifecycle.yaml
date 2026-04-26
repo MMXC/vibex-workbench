@@ -1,9 +1,240 @@
-name: FEAT-workspace-lifecycle
-title: Workspace 生命周期 — 最小闭环能力
-level: L4
-status: ready
-owner: hermes
-created: 2026-04-25
-updated: 2026-04-25
-tags: [workspace, scaffold, lifecycle, mvp]
-parent: MOD-workspace-root
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-workspace-lifecycle"
+  parent: "vibex-workbench-skeleton"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-26"
+  updated: "2026-04-26"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-26"
+
+io_contract:
+  input: |
+    用户打开 VibeX Workbench → 选定一个 WORKSPACE_ROOT →
+    系统探测状态 → 空仓库引导脚手架 → 半成品/就绪后开放 spec 读写 → make 校验/生成
+  output: |
+    五条能力串联成一条可闭合的链路：
+    1. WORKSPACE_ROOT 绑定 → 所有 API/agent 统一用该根路径
+    2. 状态探测 → UI 显示 empty/partial/ready + 下一步建议
+    3. 脚手架生成（需确认）→ 目录+specs+生成器+Makefile
+    4. Spec 读写 → 列表/读取/写入 L1 spec + 保存触发校验
+    5. make 按钮 → lint-specs / validate / generate → Output tab 展示结果
+  boundary: |
+    本 feature 定义五条能力的编排顺序与状态机转换，
+    不定义各能力的内部实现（那是 FEAT-workspace-selector / FEAT-state-detection /
+    FEAT-scaffolding / FEAT-spec-editor / FEAT-make-integration 的职责）。
+
+behavior:
+  - "WORKSPACE_ROOT 选定 → 自动触发状态探测"
+  - "empty 状态 → 展示脚手架引导，用户确认后写入骨架"
+  - "partial 状态 → 展示缺什么，可选运行脚手架补全"
+  - "ready 状态 → 解锁 spec 列表读写 + make 按钮"
+  - "任意状态 → 可切换 WORKSPACE_ROOT 重新走整条链路"
+
+content:
+  state_machine:
+    initial: "unknown"
+    transitions:
+      - from: "unknown"
+        to: "empty"
+        trigger: "WORKSPACE_ROOT 已绑定，detect-state 返回 empty"
+        action: "展示脚手架引导，不开放 spec 编辑和 make 按钮"
+      - from: "unknown"
+        to: "partial"
+        trigger: "WORKSPACE_ROOT 已绑定，detect-state 返回 partial"
+        action: "展示缺什么，开放 spec 列表（只读）"
+      - from: "unknown"
+        to: "ready"
+        trigger: "WORKSPACE_ROOT 已绑定，detect-state 返回 ready"
+        action: "全功能解锁：spec 读写 + make 按钮"
+      - from: "empty"
+        to: "partial"
+        trigger: "scaffold 完成"
+        action: "重新探测状态"
+      - from: "partial"
+        to: "ready"
+        trigger: "脚手架补全或用户手动补齐缺失文件"
+        action: "重新探测状态"
+      - from: "ready"
+        to: "empty"
+        trigger: "用户切换到新目录"
+        action: "重新绑定 WORKSPACE_ROOT，重新探测"
+
+  lifecycle_flow:
+    step_1:
+      name: "绑定 WORKSPACE_ROOT"
+      owner: "FEAT-workspace-selector"
+      trigger: "用户在 WorkspaceSelector 输入/选择目录"
+      effect: "workspaceRoot store 更新 → 所有 backend 请求携带 workspace_root"
+    step_2:
+      name: "状态探测"
+      owner: "FEAT-state-detection"
+      trigger: "workspaceRoot 变化"
+      effect: "GET /api/workspace/detect-state → UI 显示 empty/partial/ready + 建议文案"
+    step_3a:
+      name: "脚手架生成（仅 empty 状态）"
+      owner: "FEAT-scaffolding"
+      trigger: "用户点击「初始化脚手架」"
+      effect: "展示预览 → 用户确认 → POST /api/workspace/scaffold → 写入骨架 → 重新探测"
+    step_3b:
+      name: "Spec 读写（partial/ready 状态）"
+      owner: "FEAT-spec-editor"
+      trigger: "用户在 spec 列表点击文件 / 编辑保存 / 新建"
+      effect: "GET /api/workspace/specs/read → 编辑 → POST /api/workspace/specs/write → 触发校验"
+    step_4:
+      name: "make 按钮（ready 状态）"
+      owner: "FEAT-make-integration"
+      trigger: "用户点击「lint-specs」或「generate」按钮"
+      effect: "POST /api/workspace/run-make → Output tab 展示 stdout/stderr"
+
+  behaviors:
+    - id: "B1"
+      trigger: "WORKSPACE_ROOT 首次绑定"
+      action: "store.setWorkspaceRoot → 自动调用 detect-state → UI 显示对应状态卡片"
+      expected_result: "空仓库显示引导卡，半成品显示缺什么卡片，就绪显示操作面板"
+      error_handling: "detect-state 超时 5s 时显示「检测超时，请手动检查目录」"
+
+    - id: "B2"
+      trigger: "empty 状态下用户点击「初始化脚手架」"
+      action: "FEAT-scaffolding wizard 打开 → 展示文件预览 → 用户点击确认 → POST scaffold"
+      expected_result: "骨架写入后重新探测，状态切换到 partial 或 ready"
+      error_handling: "写入失败显示「无法创建文件，请检查目录权限」"
+
+    - id: "B3"
+      trigger: "partial 状态下用户切换 WORKSPACE_ROOT"
+      action: "重新走 step_1 → step_2"
+      expected_result: "新目录状态正确显示"
+      error_handling: "新目录检测失败时保持 partial，不清空已有内容"
+
+    - id: "B4"
+      trigger: "ready 状态下 spec 保存"
+      action: "POST /api/workspace/specs/write → 自动触发 lint-specs → Output tab 显示结果"
+      expected_result: "保存成功，Output tab 显示校验结果摘要"
+      error_handling: "YAML 语法错误阻止保存，显示行号错误"
+
+    - id: "B5"
+      trigger: "ready 状态下用户点击「generate」"
+      action: "POST /api/workspace/run-make {target:'generate'} → Output tab stream stdout"
+      expected_result: "生成完成，Output tab 显示「Done — exit code: N」"
+      error_handling: "命令失败时 Output tab 显示红色错误摘要"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "开发者"
+      i_want: "打开 VibeX Workbench 后能在一个界面内完成「选目录→看状态→搭骨架→写 spec→跑校验」"
+      so_that: "不用在 IDE、终端、文件管理器之间来回切换"
+      acceptance: |
+        1. 打开 → 输入空目录路径 → 显示「空仓库」+「初始化脚手架」按钮
+        2. 点初始化 → 预览骨架 → 确认 → 目录出现 specs/ + generators/ + Makefile
+        3. 重新探测 → 显示「就绪」
+        4. 在 spec 列表新建 L1 goal spec → 保存 → Output tab 显示校验通过
+        5. 点击「generate」→ Output tab 显示生成结果
+
+    - id: "US-2"
+      as_a: "评审者"
+      i_want: "看到当前项目的状态摘要和下一步建议"
+      so_that: "不进入项目也能判断「现在缺什么」"
+      acceptance: "StatusBar 显示空/半/就绪状态，Problems tab 显示当前阻塞项"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "空目录完整生命周期"
+      given: "WORKSPACE_ROOT = /tmp/brand-new-project（空目录）"
+      when: "用户绑定该目录"
+      then: |
+        1. 状态显示「空仓库」
+        2. 出现「初始化脚手架」按钮
+        3. 用户点击并确认
+        4. 骨架写入
+        5. 状态切换到「就绪」
+        6. spec 列表可打开
+        7. make lint-specs 可运行
+      evaluation: "所有 7 个步骤自动顺序完成，UI 状态正确切换"
+
+    - id: "TC-2"
+      scenario: "已有项目打开即就绪"
+      given: "WORKSPACE_ROOT = /root/v-test"
+      when: "用户绑定该目录"
+      then: |
+        1. 状态显示「就绪」
+        2. spec 列表立即加载
+        3. make 按钮可用
+      evaluation: "跳过脚手架步骤，直接进入可用状态"
+
+    - id: "TC-3"
+      scenario: "切换目录重置上下文"
+      given: "当前在 ready 状态，正在编辑某 spec"
+      when: "用户切换到另一个空目录"
+      then: "状态重置为 empty，未保存的编辑内容应提示用户保存"
+      evaluation: "切换时用户有保存提示，不会静默丢失编辑内容"
+
+    - id: "TC-4"
+      scenario: "scaffold 幂等保护"
+      given: "partial 状态（已有 specs/ 但无 gen.py）"
+      when: "再次运行 scaffold"
+      then: "specs/ 目录不覆盖，只补全缺失的 gen.py 和 Makefile"
+      evaluation: "已有 spec 文件内容保持不变"
+
+  constraints:
+    - id: "C1"
+      name: "WORKSPACE_ROOT 全链路统一"
+      rule: "选定后所有 API 请求（detect-state / scaffold / specs/* / run-make）均以该目录为根"
+      validation: "backend 每个 endpoint 从请求头或 body 读取 workspace_root，不使用硬编码路径"
+    - id: "C2"
+      name: "状态探测先于操作"
+      rule: "scaffold / spec-write / make 按钮均需在状态已探测后才能触发"
+      validation: "未探测状态时按钮 disabled，不发送请求"
+    - id: "C3"
+      name: "scaffold 确认门槛"
+      rule: "写入前必须展示预览并得到用户显式确认（不可静默覆盖）"
+      validation: "预览中显示将要创建的所有文件列表"
+    - id: "C4"
+      name: "五条能力缺一不可作为产品边界"
+      rule: "当前 MVP 版本不包含：多 workspace 并行、历史版本回溯、spec 自动生成、agent 自主执行"
+      validation: "上述功能无对应 spec，代码中无相关实现"
+
+  l4_l5_lineage:
+    summary: "本 feature 是五条最小能力的编排层，下游由 5 个独立 L4 feature 落地。"
+    which_features:
+      - feature: "FEAT-workspace-selector"
+        owns: "step_1（B1 触发）"
+      - feature: "FEAT-state-detection"
+        owns: "step_2（状态机流转）"
+      - feature: "FEAT-scaffolding"
+        owns: "step_3a（B2 scaffold 写入）"
+      - feature: "FEAT-spec-editor"
+        owns: "step_3b（B4 spec 读写保存）"
+      - feature: "FEAT-make-integration"
+        owns: "step_4（B5 make 按钮）"
+    which_files:
+      - file: "frontend/src/routes/workbench/+page.svelte"
+        note: "编排：workspaceRoot 绑定 → detectWorkspaceState → 条件渲染"
+      - file: "frontend/src/lib/components/workbench/StatusBar.svelte"
+        note: "展示 workspaceState 和 backendStatus"
+      - file: "frontend/src/lib/components/workbench/WorkspaceSelector.svelte"
+        note: "WORKSPACE_ROOT 输入/选择"
+      - file: "frontend/src/lib/components/workbench/SpecExplorer.svelte"
+        note: "spec 列表 + 选中触发 spec 编辑"
+    generation_order: |
+      1. FEAT-state-detection（状态探测，L4 最先实现）
+      2. FEAT-workspace-selector（路径选择）
+      3. FEAT-scaffolding（脚手架生成）
+      4. FEAT-spec-editor（spec 读写）
+      5. FEAT-make-integration（make 按钮）
+      6. FEAT-workspace-lifecycle（整体编排）
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-26"
+    author: "hermes"
+    changes:
+      - "补全存根；定义五条能力的编排顺序、状态机、验收标准与测试场景"

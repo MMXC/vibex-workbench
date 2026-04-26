@@ -11,7 +11,7 @@ meta:
   module: "generators"
   owner: "hermes"
   created: "2026-04-24"
-  updated: "2026-04-24"
+  updated: "2026-04-26"
 
 io_contract:
   input: |
@@ -20,12 +20,13 @@ io_contract:
     JSON: {state: "empty"|"partial"|"ready", signals: [], suggestions: []}
   boundary: |
     只读探测，不做写操作，不做自动修复
-  behavior:
-    - "检查 WORKSPACE_ROOT/specs/ 是否存在"
-    - "检查 WORKSPACE_ROOT/generators/gen.py 是否存在"
-    - "检查 WORKSPACE_ROOT/Makefile 是否含 lint-specs"
-    - "检查 WORKSPACE_ROOT/frontend/package.json 是否存在"
-    - "综合判断状态"
+
+behavior:
+  - "检查 WORKSPACE_ROOT/specs/ 是否存在"
+  - "检查 WORKSPACE_ROOT/generators/gen.py 是否存在"
+  - "检查 WORKSPACE_ROOT/Makefile 是否含 lint-specs"
+  - "检查 WORKSPACE_ROOT/frontend/package.json 是否存在"
+  - "综合判断状态"
 
 content:
   behaviors:
@@ -33,7 +34,22 @@ content:
       trigger: "前端切换 WORKSPACE_ROOT 时自动调用"
       action: "GET /api/workspace/detect-state"
       expected_result: "返回 {state, signals, suggestions}"
-      error_handling: "API 超时显示 '检测超时，请手动配置'"
+      error_handling: "API 超时 5s 显示「检测超时，请手动配置」"
+    - id: "B2"
+      trigger: "探测返回 state === 'empty'"
+      action: "StatusBar 显示橙色「空仓库」+ Problems tab 显示引导文案"
+      expected_result: "用户看到「点击初始化脚手架」建议"
+      error_handling: "无 signals 时默认 empty"
+    - id: "B3"
+      trigger: "探测返回 state === 'partial'"
+      action: "StatusBar 显示黄色「半成品」+ Problems tab 列出缺什么"
+      expected_result: "用户看到具体缺失项（如「generators/gen.py 缺失」）"
+      error_handling: "无具体信号时显示「项目不完整」"
+    - id: "B4"
+      trigger: "探测返回 state === 'ready'"
+      action: "StatusBar 显示绿色「就绪」+ 解锁 spec 列表读写和 make 按钮"
+      expected_result: "Problems tab 显示绿色通过摘要"
+      error_handling: "ready 但仍有错误信号时降级为 partial"
 
   user_stories:
     - id: "US-1"
@@ -61,3 +77,31 @@ content:
       when: "GET /api/workspace/detect-state"
       then: "返回 {state: 'ready', suggestions: ['打开 spec 编辑器']}"
       evaluation: "返回 state='ready'"
+    - id: "TC-4"
+      scenario: "检测超时"
+      given: "backend 响应缓慢"
+      when: "GET /api/workspace/detect-state 超时 5s"
+      then: "返回默认值 {state: 'empty', suggestions: ['检测超时，请手动配置']}"
+      evaluation: "不崩溃，UI 显示超时提示"
+
+  constraints:
+    - id: "C1"
+      name: "只读探测"
+      rule: "detect-state 只读目录，不写任何文件"
+      validation: "调用前后目标目录内容一致"
+    - id: "C2"
+      name: "状态覆盖互斥"
+      rule: "state 只能是 'empty' | 'partial' | 'ready' 三者之一"
+      validation: "API 不会返回其他状态值"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-24"
+    author: "hermes"
+    changes:
+      - "初始版本"
+  - version: "0.2"
+    date: "2026-04-26"
+    author: "hermes"
+    changes:
+      - "补全 B2/B3/B4；增加 TC2/TC3/TC4 和 C1/C2 约束"
