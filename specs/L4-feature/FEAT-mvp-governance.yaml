@@ -1,0 +1,127 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-mvp-governance"
+  parent: "vibex-workbench-skeleton"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "coordination"
+  owner: "coord"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: proposal
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    spec 实现状态变更事件：
+    - agent 完成一个 P0/P1/P2 spec 的代码实现
+    - 用户在评审中接受了某个 spec 的实现
+    - 代码评审发现 spec 与实现不符
+  output: |
+    implementation_phases 表中对应 spec 的 status 字段更新，
+    spec_status 表同步更新，
+    更新记录写入 changelog。
+  boundary: |
+    本 feature 只维护 L1 中的 implementation_phases 和 spec_status 表。
+    不修改 spec 的 content/behavior/io_contract 等实质内容。
+    不做自动检测——由 owner 手动触发。
+
+behavior:
+  - "coord agent 每完成一个 spec 实现后更新对应行"
+  - "用户验收通过后 coord agent 将 spec 状态改为 done"
+  - "发现 spec 与实现不符时将 spec 状态改为 proposal 并记录 note"
+  - "每次变更追加到 L1 changelog"
+
+content:
+  owner_assignment:
+    table: |
+      | spec 层级 | owner |
+      | L1 vibex-workbench-mvp（implementation_phases 表本身） | coord |
+      | P0 specs | coord |
+      | P1 specs | coord |
+      | P2 specs | coord |
+      | IDE chrome L4（L5 slice） | 各 agent 独立演进，coord 不追踪 |
+      | bootstrap spec（L4/L5） | 各实现 agent，coord 只记录 done/not-done |
+
+    rationale: |
+      P0–P2 是 MVP 链路的主动脉，必须由 coord 统一维护进度。
+      IDE chrome specs 是独立演进分支，spec 状态仅供参考，不强制追踪。
+
+  update_triggers:
+    - trigger: "P0/P1/P2 spec 代码实现完成"
+      action: "coord 更新 spec_status[spec_name].status = 'implementing'"
+      actor: "完成实现的 agent，或 coord 自己"
+    - trigger: "用户验收通过（用户明确说可以）"
+      action: "coord 更新 spec_status[spec_name].status = 'done'，追加 changelog"
+      actor: "coord"
+    - trigger: "spec 实现后发现与 spec 不符"
+      action: "coord 将 status 改回 'proposal'，note 记录不符项"
+      actor: "coord"
+    - trigger: "新增 spec（其他 agent 创建）"
+      action: "coord 将新 spec 加入 spec_status 表，status=proposal"
+      actor: "coord"
+
+  update_rules:
+    - rule: "状态只能是 proposal / implementing / done 三者之一"
+      enforcement: "spec 文件内 status 字段同步更新"
+    - rule: "变更后必须追加到 L1 changelog"
+      format: "- date, author, spec_name, old_status -> new_status, note"
+    - rule: "不能让 spec 状态落后于实际实现超过 1 个工作会话"
+      enforcement: "coord 在每次心跳或任务收尾时检查 spec_status"
+    - rule: "spec_status 表必须与 implementation_phases 表同步"
+      enforcement: "新增 spec 同时加入两个表；删除 spec 同时从两个表移除"
+
+  coordination_protocol:
+    summary: "coord 是 implementation_phases 表的唯一 owner，所有状态变更必须经由 coord。"
+    exceptions: |
+      IDE chrome specs 可由实现 agent 自行更新 spec_status（但 coord 不追踪）。
+      emergency bypass: 用户可直接在 L1 文件中编辑，coord 后续同步。
+    conflict_resolution: |
+      如果两个 agent 同时更新同一 spec 状态，以时间戳更晚的为准，
+      coord 在下次心跳时做合并并记录到 changelog。
+
+  tools:
+    - name: "手动编辑"
+      description: "coord 直接编辑 specs/L1-goal/vibex-workbench-mvp.yaml"
+      when: "任何状态变更"
+    - name: "team-tasks 任务关闭"
+      description: "coord 关闭 team-tasks 中对应任务时，同步更新 spec_status"
+      when: "P0/P1/P2 spec 实现任务完成"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "coord agent"
+      i_want: "有一个明确的规则告诉我什么时候该更新 implementation_phases 表"
+      so_that: "不会漏更新，也不会重复更新"
+      acceptance: "任何 P0 spec 从 proposal->done，coord 都已更新 L1 表"
+    - id: "US-2"
+      as_a: "项目成员"
+      i_want: "打开 L1 spec 就能看到当前 MVP 实现进度"
+      so_that: "不用问任何人就知道哪些 spec 已完成"
+      acceptance: "spec_status 所有 done 项与实际代码状态一致"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "P0 spec 从 proposal -> implementing -> done"
+      given: "FEAT-state-detection-fix 实现完成"
+      when: "coord 更新 L1 spec_status"
+      then: "FEAT-state-detection-fix.status='done'，L1 changelog 有记录"
+      evaluation: "git diff 显示 spec_status 中对应行变化"
+    - id: "TC-2"
+      scenario: "新 spec 加入 spec_status"
+      given: "agent 新增了 L4 spec"
+      when: "下一个 coord 心跳"
+      then: "spec_status 表新增该 spec 行，status=proposal"
+      evaluation: "该 spec 在 implementation_phases 表中能找到对应位置"
+    - id: "TC-3"
+      scenario: "coord 忘记更新"
+      given: "P0 spec 代码已合并，但 L1 status 仍为 proposal"
+      when: "用户询问 MVP 进度"
+      then: "用户能发现不一致，要求 coord 更新"
+      evaluation: "L1 是 source of truth，不一致时以代码为准"

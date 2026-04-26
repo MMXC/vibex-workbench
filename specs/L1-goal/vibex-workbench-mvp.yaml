@@ -238,6 +238,7 @@ content:
     FEAT-mvp-acceptance-gates: {status: proposal}
     FEAT-workspace-runtime-safety: {status: proposal}
     FEAT-bootstrap-generator-smoke: {status: proposal}
+    FEAT-mvp-governance: {status: proposal, owner: coord, note: "implementation_phases 表治理规则，由 coord 维护"}
 
     # IDE chrome L4（独立演进）
     FEAT-ide-titlebar: {status: proposal}
