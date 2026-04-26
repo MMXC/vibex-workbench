@@ -108,6 +108,152 @@ content:
     experience_value:
       meaning: "clarification 循环 + canvas 可视化 + TDD，让开发过程可追溯"
 
+  # ============================================================
+  # implementation_phases — 全 spec 树实现路线图
+  # ============================================================
+  # 状态值:
+  #   proposal   : spec 就绪，代码未开始
+  #   implementing: 代码实现中
+  #   done       : 代码实现完成并验证
+  # ============================================================
+  implementation_phases:
+    phase_0_critical:
+      label: "P0 — MVP 链路打通"
+      goal: "修复 5 个阻断 bug，实现最小可闭合 MVP 链路"
+      specs:
+        - spec: FEAT-state-detection-fix
+          status: proposal
+          file: generators/state_detector.py
+          fix: "半成品状态返回 'partial' 而非 'half'"
+          depends_on: []
+          unblocks:
+            - FEAT-workspace-lifecycle (状态机流转)
+            - FEAT-mvp-acceptance-gates (G3)
+        - spec: FEAT-spec-write
+          status: proposal
+          file: "frontend/src/lib/components/workbench/SpecViewer.svelte"
+          fix: "添加编辑按钮 + CodeMirror + POST /api/workspace/specs/write"
+          depends_on: []
+          unblocks:
+            - FEAT-agent-spec-write-protocol
+        - spec: FEAT-scaffolding-confirm-flow_L5
+          status: proposal
+          file: frontend/src/routes/workspace/+page.svelte
+          fix: "scaffold 按钮加 preview + confirm 两步确认"
+          depends_on: []
+          unblocks: []
+        - spec: FEAT-scaffolding-path-fix_L5
+          status: proposal
+          file: agent/cmd/web/workspace_handlers.go
+          fix: "scaffolder 路径从 os.Args[0] 改为 WORKSPACE_ROOT 相对路径"
+          depends_on: []
+          unblocks: []
+        - spec: FEAT-new-l1-wizard
+          status: proposal
+          file: "frontend/src/lib/components/workbench/SpecExplorer.svelte"
+          fix: "新建 L1 向导 modal，POST /api/workspace/specs/write"
+          depends_on: []
+          unblocks: []
+    phase_1_mvp_quality:
+      label: "P1 — MVP 质量门"
+      goal: "验收 gate + workspace 安全契约 + bootstrap 烟测"
+      specs:
+        - spec: SLICE-mvp-acceptance-gate-runner
+          status: proposal
+          file: generators/mvp_acceptance_gate.py
+          fix: "make validate / criteria validator / G3 smoke 聚合 runner"
+          depends_on:
+            - FEAT-state-detection-fix
+        - spec: SLICE-workspace-path-safety-contract
+          status: proposal
+          file: "agent/cmd/web/workspace_handlers.go + agent/internal/common/config.go"
+          fix: "workspace path normalize + guard，不允许跨目录"
+          depends_on:
+            - FEAT-scaffolding-path-fix_L5
+        - spec: SLICE-bootstrap-generator-smoke-runner
+          status: proposal
+          file: generators/bootstrap_smoke.py
+          fix: "临时目录 scaffold smoke 测试"
+          depends_on:
+            - FEAT-scaffolding-confirm-flow_L5
+            - FEAT-scaffolding-path-fix_L5
+    phase_2_agent_assist:
+      label: "P2 — Agent 辅助 spec 写"
+      goal: "agent 推荐草稿 → 用户确认 → 写盘 → validate"
+      specs:
+        - spec: FEAT-agent-spec-write-protocol
+          status: proposal
+          file: "agent/ + frontend/"
+          fix: "agent create-child-spec intent → 草稿确认 → POST specs/write → make validate"
+          depends_on:
+            - FEAT-spec-write
+        - spec: SLICE-agent-spec-write-api-contract
+          status: proposal
+          file: "agent/cmd/web/workspace_handlers.go + SpecAgentClarification.svelte"
+          fix: "confirmed spec draft payload + error classification"
+          depends_on:
+            - FEAT-agent-spec-write-protocol
+
+  # ============================================================
+  # spec_status — 各 spec 实现状态一览（手工维护）
+  # ============================================================
+  # 格式: spec_name: {status, phase, note}
+  # ============================================================
+  spec_status:
+    # L1–L2 骨架（已完成 spec）
+    vibex-workbench-mvp: {status: proposal, note: "spec 完成"}
+    vibex-workbench-skeleton: {status: proposal, note: "spec 完成"}
+
+    # L3 模块（spec 就绪）
+    MOD-state-detection: {status: proposal}
+    MOD-scaffolding: {status: proposal}
+    MOD-spec-editor: {status: proposal}
+    MOD-workspace-root: {status: proposal}
+    MOD-build-panel: {status: proposal}
+    MOD-ide-chrome: {status: proposal}
+
+    # L4 Feature — P0
+    FEAT-state-detection-fix: {status: proposal, phase: P0, blockers: []}
+    FEAT-spec-write: {status: proposal, phase: P0, blockers: []}
+    FEAT-scaffolding-confirm-flow_L5: {status: proposal, phase: P0, note: "L5 spec"}
+    FEAT-scaffolding-path-fix_L5: {status: proposal, phase: P0, note: "L5 spec"}
+    FEAT-new-l1-wizard: {status: proposal, phase: P0}
+
+    # L4 Feature — P1
+    SLICE-mvp-acceptance-gate-runner: {status: proposal, phase: P1}
+    SLICE-workspace-path-safety-contract: {status: proposal, phase: P1}
+    SLICE-bootstrap-generator-smoke-runner: {status: proposal, phase: P1}
+
+    # L4 Feature — P2
+    FEAT-agent-spec-write-protocol: {status: proposal, phase: P2}
+    SLICE-agent-spec-write-api-contract: {status: proposal, phase: P2}
+
+    # L4 Feature — 其余（无代码实现依赖，可并行）
+    FEAT-state-detection: {status: proposal}
+    FEAT-workspace-selector: {status: proposal}
+    FEAT-scaffolding: {status: proposal}
+    FEAT-spec-editor: {status: proposal}
+    FEAT-make-integration: {status: proposal}
+    FEAT-workspace-lifecycle: {status: proposal}
+    FEAT-mvp-acceptance-gates: {status: proposal}
+    FEAT-workspace-runtime-safety: {status: proposal}
+    FEAT-bootstrap-generator-smoke: {status: proposal}
+
+    # IDE chrome L4（独立演进）
+    FEAT-ide-titlebar: {status: proposal}
+    FEAT-ide-activity-sidebar: {status: proposal}
+    FEAT-ide-editor-tabs: {status: proposal}
+    FEAT-ide-agent-panel: {status: proposal}
+    FEAT-ide-bottom-dock: {status: proposal}
+    FEAT-canvas-expand: {status: proposal}
+    FEAT-spec-graph-expansion: {status: proposal}
+    FEAT-build-panel: {status: proposal}
+
+    # L5 slice（其余实现 slice）
+    FEAT-state-detection-fix_partial-state: {status: proposal, phase: P0}
+    FEAT-spec-write_L5: {status: proposal, phase: P0}
+    FEAT-new-l1-wizard_L5: {status: proposal, phase: P0}
+
 changelog:
   - version: "0.1"
     date: "2026-04-24"
