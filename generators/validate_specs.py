@@ -9,11 +9,27 @@ from pathlib import Path
 
 SPEC_DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("specs")
 
-LEVEL_ORDER = {"1_project_goal": 1, "2_architecture": 2, "3_module": 3, "4_feature": 4, "5a_uiux": 5, "5b_service": 5, "5c_data": 5, "5d_test": 5}
+LEVEL_ORDER = {
+    "1_project_goal": 1,
+    "1_project-goal": 1,
+    "2_architecture": 2,
+    "2_skeleton": 2,
+    "3_module": 3,
+    "4_feature": 4,
+    "5_implementation": 5,
+    "5_slice": 5,
+    "5a_uiux": 5,
+    "5b_service": 5,
+    "5c_data": 5,
+    "5d_test": 5,
+}
 LEVEL_PARENT = {
     "2_architecture": "1_project_goal",
-    "3_module": "2_architecture",
+    "2_skeleton": "1_project_goal",
+    "3_module": "2_skeleton",
     "4_feature": "3_module",
+    "5_implementation": "4_feature",
+    "5_slice": "4_feature",
     "5a_uiux": "4_feature",
     "5b_service": "4_feature",
     "5c_data": "4_feature",
@@ -24,43 +40,61 @@ errors = []
 warnings = []
 specs = {}
 
+def first_existing(candidates: list[Path]) -> Path:
+    """Return the first existing path, or the first candidate as a useful error target."""
+    for path in candidates:
+        if path.exists():
+            return path
+    return candidates[0]
+
 def get_spec_path(level: str, name: str) -> Path:
     """Resolve spec file path from level and name.
     Checks multiple candidate directories to support both legacy
     (specs/module/) and new (specs/L3-module/) layouts.
     """
     name_base = name.replace("-", "_").replace(" ", "_")
+    hyphen_name = name_base.replace("_", "-")
 
-    if level == "1_project_goal":
-        return SPEC_DIR / "project-goal" / f"{name}.yaml"
-    elif level == "2_architecture":
-        arch_path = SPEC_DIR / "architecture" / f"{name}.yaml"
-        if arch_path.exists():
-            return arch_path
-        return SPEC_DIR / "architecture" / "architecture.yaml"
+    if level in ("1_project_goal", "1_project-goal"):
+        return first_existing([
+            SPEC_DIR / "L1-goal" / f"{name}.yaml",
+            SPEC_DIR / "L1-goal" / f"{hyphen_name}.yaml",
+            SPEC_DIR / "project-goal" / f"{name}.yaml",
+            SPEC_DIR / "project-goal" / f"{hyphen_name}.yaml",
+        ])
+    elif level in ("2_architecture", "2_skeleton"):
+        return first_existing([
+            SPEC_DIR / "L2-skeleton" / f"{name}.yaml",
+            SPEC_DIR / "L2-skeleton" / f"{hyphen_name}.yaml",
+            SPEC_DIR / "architecture" / f"{name}.yaml",
+            SPEC_DIR / "architecture" / f"{hyphen_name}.yaml",
+            SPEC_DIR / "architecture" / "architecture.yaml",
+        ])
     elif level == "3_module":
-        if name.startswith("MOD-"):
-            # Try new layout: specs/L3-module/MOD-xxx.yaml
-            p = SPEC_DIR / "L3-module" / f"{name}.yaml"
-            if p.exists():
-                return p
-            # Try legacy layout: specs/module/MOD-xxx_module.yaml
-            p = SPEC_DIR / "module" / f"{name}_module.yaml"
-            if p.exists():
-                return p
-            return p  # return legacy path as default
-        return SPEC_DIR / "module" / f"{name}_module.yaml"
+        return first_existing([
+            SPEC_DIR / "L3-module" / f"{name}.yaml",
+            SPEC_DIR / "L3-module" / f"{hyphen_name}.yaml",
+            SPEC_DIR / "module" / f"{name}_module.yaml",
+            SPEC_DIR / "module" / f"{name_base}_module.yaml",
+        ])
     elif level.startswith("4_") or level == "4_feature":
         if name.startswith("MOD-"):
-            p = SPEC_DIR / "L3-module" / f"{name}.yaml"
-            if p.exists():
-                return p
-            return SPEC_DIR / "module" / f"{name}_module.yaml"
-        return SPEC_DIR / "feature" / name / f"{name}_feature.yaml"
+            return get_spec_path("3_module", name)
+        return first_existing([
+            SPEC_DIR / "L4-feature" / f"{name}.yaml",
+            SPEC_DIR / "L4-feature" / f"{hyphen_name}.yaml",
+            SPEC_DIR / "feature" / name / f"{name}_feature.yaml",
+            SPEC_DIR / "feature" / hyphen_name / f"{hyphen_name}_feature.yaml",
+        ])
     elif level.startswith("5_"):
         feat = name.split("_")[0]
         fname = name
-        return SPEC_DIR / "feature" / feat / fname
+        return first_existing([
+            SPEC_DIR / "L5-slice" / f"{name}.yaml",
+            SPEC_DIR / "L5-slice" / f"{hyphen_name}.yaml",
+            SPEC_DIR / "feature" / feat / fname,
+            SPEC_DIR / "feature" / feat / f"{fname}.yaml",
+        ])
     return Path(name + ".yaml")
 
 def validate_file(path: Path) -> dict | None:
@@ -108,7 +142,9 @@ def resolve_parent_path(child_level: str, parent_name: str) -> Path | None:
         candidates = (
             get_spec_path("3_module", parent_name),
             get_spec_path("4_feature", parent_name),
+            get_spec_path("2_skeleton", parent_name),
             get_spec_path("2_architecture", parent_name),
+            get_spec_path("1_project-goal", parent_name),
             SPEC_DIR / "project-goal" / f"{parent_name}.yaml",
         )
         for p in candidates:
@@ -131,13 +167,13 @@ def check_parent_chain(spec: dict):
     if "p-metaspec" in str(path):
         return
 
-    if level not in LEVEL_PARENT and level != "1_project_goal":
+    if level not in LEVEL_PARENT and level not in ("1_project_goal", "1_project-goal"):
         return
 
     if level == "meta_template":
         return
 
-    if level == "1_project_goal":
+    if level in ("1_project_goal", "1_project-goal"):
         if parent is not None:
             errors.append(f"{spec['path']}: L1 must not have parent; got: {parent}")
         return

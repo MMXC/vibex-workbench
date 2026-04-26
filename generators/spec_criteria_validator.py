@@ -198,7 +198,7 @@ def check_parent_chain_alignment(spec_name: str, content: dict) -> list[Gap]:
     parent = content.get("spec", {}).get("parent")
     level = content.get("spec", {}).get("level", "")
 
-    if not parent or level == "1_project_goal":
+    if not parent or level in ("1_project_goal", "1_project-goal"):
         return gaps
 
     # meta_template 级别不做 parent chain 检查
@@ -207,7 +207,7 @@ def check_parent_chain_alignment(spec_name: str, content: dict) -> list[Gap]:
 
     # 推断 parent 路径（复用 validate_specs 的逻辑）
     # _is_level_in 处理 5a_uiux / 5b_service 等变体
-    if _is_level_in(level, ["3_module", "4_feature", "5", "2_skeleton", "meta_template"]):
+    if _is_level_in(level, ["3_module", "4_feature", "5", "2_skeleton", "2_architecture", "meta_template"]):
         parent_candidates = _resolve_parent_candidates(level, parent)
         if not any(p.exists() for p in parent_candidates):
             gaps.append(Gap(
@@ -229,6 +229,14 @@ def _find_feature_spec(parent: str, subtypes: list[str]) -> Path | None:
     subtypes: 候选文件名后缀 (e.g. ['_feature.yaml', '-feature.yaml'])
     先用原名，再用 underscore 变体。
     """
+    direct_candidates = [
+        SPEC_DIR / "L4-feature" / f"{parent}.yaml",
+        SPEC_DIR / "L4-feature" / f"{parent.replace('_', '-')}.yaml",
+    ]
+    for path in direct_candidates:
+        if path.exists():
+            return path
+
     # 尝试原名（支持 workbench-shell）
     for st in subtypes:
         path = SPEC_DIR / "feature" / parent / f"{parent}{st}"
@@ -262,23 +270,34 @@ def _resolve_parent_candidates(level: str, parent: str) -> list[Path]:
     """
     candidates = []
     safe = parent.replace("-", "_")
+    hyphen = safe.replace("_", "-")
 
     if level == "3_module":
         # L3 parent: architecture spec 或 module spec
         candidates = [
+            SPEC_DIR / "L2-skeleton" / f"{parent}.yaml",
+            SPEC_DIR / "L2-skeleton" / f"{hyphen}.yaml",
             SPEC_DIR / "architecture" / f"{parent}.yaml",
             SPEC_DIR / "architecture" / f"{safe}.yaml",
+            SPEC_DIR / "L3-module" / f"{parent}.yaml",
+            SPEC_DIR / "L3-module" / f"{hyphen}.yaml",
             SPEC_DIR / "module" / f"{parent}_module.yaml",
             SPEC_DIR / "module" / f"{safe}_module.yaml",
+            SPEC_DIR / "L1-goal" / f"{parent}.yaml",
+            SPEC_DIR / "L1-goal" / f"{hyphen}.yaml",
             SPEC_DIR / "project-goal" / f"{parent}.yaml",
             SPEC_DIR / "project-goal" / f"{safe}.yaml",
         ]
 
-    elif level == "2_skeleton":
+    elif level in ("2_skeleton", "2_architecture"):
         # L2 architecture → project-goal 或 architecture 目录
         candidates = [
+            SPEC_DIR / "L1-goal" / f"{parent}.yaml",
+            SPEC_DIR / "L1-goal" / f"{hyphen}.yaml",
             SPEC_DIR / "project-goal" / f"{parent}.yaml",
             SPEC_DIR / "project-goal" / f"{safe}.yaml",
+            SPEC_DIR / "L2-skeleton" / f"{parent}.yaml",
+            SPEC_DIR / "L2-skeleton" / f"{hyphen}.yaml",
             SPEC_DIR / "architecture" / f"{parent}.yaml",
             SPEC_DIR / "architecture" / f"{safe}.yaml",
         ]
@@ -286,8 +305,12 @@ def _resolve_parent_candidates(level: str, parent: str) -> list[Path]:
     elif level == "4_feature":
         # L4 feature: parent 是 MOD-* (module) 或另一 L4 feature
         candidates = [
+            SPEC_DIR / "L3-module" / f"{parent}.yaml",
+            SPEC_DIR / "L3-module" / f"{hyphen}.yaml",
             SPEC_DIR / "module" / f"{parent}_module.yaml",
             SPEC_DIR / "module" / f"{safe}_module.yaml",
+            SPEC_DIR / "L2-skeleton" / f"{parent}.yaml",
+            SPEC_DIR / "L2-skeleton" / f"{hyphen}.yaml",
         ]
         # 找 feature spec（支持 workbench-shell、canvas_renderer 等）
         feat_spec = _find_feature_spec(parent, ["_feature.yaml", "-feature.yaml"])
@@ -299,6 +322,10 @@ def _resolve_parent_candidates(level: str, parent: str) -> list[Path]:
 
     elif _is_level_in(level, ["5"]):
         # L5 subtype: parent 指向同名 L4 feature（workbench-shell → workbench-shell_feature.yaml）
+        candidates.extend([
+            SPEC_DIR / "L4-feature" / f"{parent}.yaml",
+            SPEC_DIR / "L4-feature" / f"{hyphen}.yaml",
+        ])
         feat_spec = _find_feature_spec(parent, ["_feature.yaml", "-feature.yaml"])
         if feat_spec:
             candidates.append(feat_spec)
@@ -307,6 +334,7 @@ def _resolve_parent_candidates(level: str, parent: str) -> list[Path]:
             candidates.append(feat_spec_safe)
         # 也接受 MOD-* parent
         if parent.startswith("MOD-"):
+            candidates.append(SPEC_DIR / "L3-module" / f"{parent}.yaml")
             candidates.append(SPEC_DIR / "module" / f"{parent}_module.yaml")
 
     return [p for p in candidates if p]
