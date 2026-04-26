@@ -7,7 +7,20 @@ import sys
 import yaml
 from pathlib import Path
 
-SPEC_DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("specs")
+_scan_root_arg = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("specs")
+# SPEC_DIR is always the specs/ root — used for parent path resolution.
+# For scanning, we use _scan_root_arg (allows targeting subdirs like specs/L5-slice/).
+SPEC_DIR = _scan_root_arg
+# If scanning a subdirectory (e.g. specs/L5-slice/), resolve SPEC_DIR to specs/ root
+# so that parent lookups (e.g. L4 in specs/L4-feature/) are relative to the root.
+if SPEC_DIR.name in ("L1-goal", "L2-skeleton", "L3-module", "L4-feature", "L5-slice",
+                     "architecture", "module", "feature", "project-goal"):
+    SPEC_DIR = SPEC_DIR.parent
+# Fallback: if SPEC_DIR doesn't look like specs/ root, try to find it
+if not (SPEC_DIR / "L1-goal").exists() and not (SPEC_DIR / "L2-skeleton").exists():
+    candidate = SPEC_DIR.parent
+    if (candidate / "L1-goal").exists() or (candidate / "L2-skeleton").exists():
+        SPEC_DIR = candidate
 
 LEVEL_ORDER = {
     "1_project_goal": 1,
@@ -191,7 +204,7 @@ def check_parent_chain(spec: dict):
         return
 
 def main():
-    yaml_files = list(SPEC_DIR.rglob("*.yaml"))
+    yaml_files = list(_scan_root_arg.rglob("*.yaml"))
     yaml_files = [f for f in yaml_files if "node_modules" not in str(f)]
 
     for path in yaml_files:
