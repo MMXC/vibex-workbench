@@ -25,6 +25,105 @@ related_skills:
 
 # Spec-First Workflow
 
+## Agent 自举调用协议
+
+本节解决「agent 怎么知道要加载这个 skill」的问题。skill 自身必须包含被调用的完整上下文。
+
+### 触发决策树（agent 必读）
+
+```
+收到用户消息
+  ↓
+是以下信号之一？
+  ├── 新功能/需求（"需要XXX功能"、"我想加YYY"）
+  ├── Bug报告（"修复ZZZ"、"不工作"、"报错"）
+  ├── 空仓库初始化（WORKSPACE_DIR 刚设定，specs/为空）
+  └── 不确定（「这个项目怎么做」「我要做什么」）
+  ↓ YES
+加载 spec-first-workflow skill
+  ↓
+执行 Step 1-7（见下方流程）
+  ↓
+  输出：已完成的需求落地报告
+
+  ↓ NO（纯命令/工具调用/只读查询）
+直接执行，不加载本 skill
+```
+
+**快速判断规则（agent 必须记住）：**
+
+| 用户说 | 触发 spec-first？ |
+|--------|----------------|
+| "我需要..."、"我想加..."、"新增..." | ✅ 是 |
+| "在空目录做XXX" | ✅ 是（空仓库初始化路径） |
+| "帮我改一下bug..." | ✅ 是（先建 issue spec） |
+| "跑一下lint"、"看看日志" | ❌ 否（工具执行） |
+| "解释这个代码" | ❌ 否（只读分析） |
+| "我要做一个XXX项目" | ✅ 是（自举场景） |
+
+### 调用格式模板
+
+agent 加载 skill 后，按以下格式执行（在 thinking/日志中记录）：
+
+```
+[spec-first] loaded: spec-first-workflow v1
+[spec-first] Step 1: 需求分类 = {NEW_FEATURE | BUG | OPTIMIZE | UNKNOWN}
+[spec-first] Step 2: session_search({关键词}) → {找到N条 | 无}
+[spec-first] Step 2: search_files specs/ → {找到 | 无 → 需自举}
+[spec-first] Step 3: 行动 = {写proposal spec | 追加issue | 更新notes}
+[spec-first] Step 4: 确认方式 = {clarify | memlace | 跳过（简单变更）}
+[spec-first] Step 5: 实现路径 = {generator | 手动 | 派发给agent}
+[spec-first] Step 6: 验证命令 = {validate_specs.py | make lint}
+[spec-first] Step 7: 状态更新 → {phase: verified}
+```
+
+### 自举闭环（skill 自己怎么被生成）
+
+当 agent 在空仓库用 spec-first 落地项目时，本 skill 自身也是被生成的对象之一：
+
+```
+空仓库初始化
+  → 缺少 SPEC-FIRST-WORKFLOW skill
+  → agent 自动生成一份基础版 skill（见下方模板）
+  → 后续对话中 agent 加载这份 skill
+  → skill 驱动更多 spec 生成
+  → 更多 spec 生成更多 skill
+  → 自举完成
+```
+
+**自举生成的 skill 最小模板**（agent 在空仓库执行时用此模板生成）：
+
+```markdown
+---
+name: {project-name}-workflow
+description: {项目名} 工作流 — {一句话描述}. 适用于 {场景}.
+category: {project-name}
+triggers:
+- {关键词1}
+- {关键词2}
+---
+
+# {项目名} Workflow
+
+## 适用场景
+{描述什么情况用这个skill}
+
+## 核心流程
+1. {步骤1}
+2. {步骤2}
+...
+
+## 验证
+{验证命令或标准}
+```
+
+---
+
+## 旧版：Spec-First Workflow（主内容）
+
+> 以下为 spec-first 核心流程，供 agent 在加载本 skill 后执行。
+> 触发条件、调用格式、自举模板见上方「Agent 自举调用协议」章节。
+
 ## TL;DR
 
 ```
@@ -118,7 +217,16 @@ related_skills:
 | 优化/重构 | 找到对应 module/feature spec，更新 `implementation_notes` |
 | 未知领域 | 先 session_search 历史，再 search_files 扫 specs/ |
 
-**禁止行为**：收到需求后直接写代码，不查 spec。
+## 检查点（强制暂停，等用户回复后再继续）
+
+| 检查点 | 触发条件 | 期望回复 |
+|--------|----------|----------|
+| **CP1: 需求分类确认** | Step 1 完成时 | `ok` = 确认类型 / `n` = 纠正分类 |
+| **CP2: Spec 提案确认** | Step 3 写完 proposal spec 后 | `ok` = 开始澄清 / `edit` = 改 spec |
+| **CP3: 实现路径确认** | Step 5 开始前 | `ok` = 开始实现 / `agent` = 改派 agent |
+| **CP4: 验证结果确认** | Step 6 出结果后 | `done` = 完成 / `iterate` = 回 Step 3 |
+
+**agent 执行时**：每到检查点，先输出 `>>> [CP{N}] 暂停: {描述} <<<` 再停，等 `ok` 再继续。
 
 ### Step 2: 找相关 Spec
 
@@ -191,13 +299,35 @@ issues:
 
 **Generator 路径**（推荐）：
 ```bash
-# 运行 spec 驱动的生成器
-python3 generators/gen.py --spec specs/feature/{name}/{name}_feature.yaml
-# 然后验证
-python3 generators/spec_self_corrector.py --spec specs/feature/{name}/{name}_feature.yaml
+# 1. 验证 spec 语法
+python3 generators/validate_specs.py specs/{path}
+
+# 2. 运行生成器
+python3 generators/gen.py --spec specs/{path}
+
+# 3. 自检验证
+python3 generators/spec_self_corrector.py --spec specs/{path}
 ```
 
 **手动路径**（spec 确认但无对应 generator）：
+```bash
+# 编辑代码后，在 specs/ 同级目录验证
+python3 generators/validate_specs.py --dir specs
+```
+
+**空仓库初始化路径**（WORKSPACE_DIR 刚设定，specs/ 为空）：
+```bash
+# 1. 检测状态
+python3 generators/state_detector.py "$WORKSPACE_DIR" --json
+
+# 2. 生成脚手架（先确认）
+python3 generators/scaffolder.py "$WORKSPACE_DIR" --dry-run
+# 确认后：
+python3 generators/scaffolder.py "$WORKSPACE_DIR" --confirm
+
+# 3. 初始化完成后写第一份 spec
+# → 进入 Step 3 建 L2 spec
+```
 - 直接修改代码
 - 每改一处，在 spec 对应条目加 `implementation_notes` 记录
 
