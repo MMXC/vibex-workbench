@@ -797,7 +797,8 @@ preview:
 | `goal_diagram` | Mermaid flowchart | 读取 L1 content，生成 `mission → target_users → constraints` 关系图 |
 | `architecture_diagram` | Mermaid flowchart | 读取 L2 modules_matrix，生成模块依赖图 |
 | `module_structure` | 结构描述 + API 列表 | 读取 L3 public_api + state_definitions，整理成树状文本 |
-| `behavior_preview` | 行为描述 + 界面截图（可选） | 读取 L4 behaviors，生成文字描述流程；调用 AI 生成界面截图 |
+| `behavior_preview` | 文字流程描述 | 读取 L4 behaviors，翻译为用户视角操作步骤列表 |
+| `html_prototype` | 可交互 HTML 原型 | 读取 L4 behaviors + design_tokens，生成单文件 HTML 原型，保存到 `prototypes/<name>-prototype.html`；预览卡片含"打开预览"链接 + "应用"按钮 |
 | `skeleton_preview` | 代码骨架文本预览 | 读取 L5 file_path + code_template，只读展示不写盘 |
 
 **Step P3 · 展示预览给人类**
@@ -809,13 +810,32 @@ preview:
 - 用户满意 → 继续后续流程
 - 用户不满意 → 询问具体修改方向，回到 Step P1 重新生成
 
-### L4 behavior_preview 特别说明
+### L4 html_prototype 特别说明（最常用）
 
-behavior_preview 是最常用的预览类型：
-1. 读取 `content.behaviors[]`，将每个 behavior 翻译为"用户视角的操作流程"
-2. 用 Mermaid sequence diagram 或文字步骤列表呈现
-3. 如果 spec 中有 `design_tokens` 或 UI 组件描述，用 image_generate 生成界面示意截图
-4. 截图作为辅助参考（不是必须的）
+当 `artifact_type` 为 `html_prototype` 时：
+
+1. **读取 spec 数据**：behaviors[]、design_tokens（如有）、io_contract
+2. **生成 HTML 原型**：
+   - 单文件，CSS+HTML+JS 内联，存 `prototypes/<spec-name>-prototype.html`
+   - 使用 spec 中的 design_tokens 色值（无则用 oklch 合理默认色）
+   - 交互响应必须完整（hover/click/focus/keyboard）
+3. **预览卡片 UI**：
+   - 缩略图区（用浏览器截图或简单 SVG 示意）
+   - "打开预览" 链接（`_blank` 新标签页打开 HTML 原型）
+   - "应用" 按钮（将原型的设计决策注入 spec：design_tokens / 组件结构 / 颜色方案）
+4. **"应用"按钮逻辑**：
+   - 读取 HTML 原型中的 CSS 变量和关键设计决策
+   - 写入 spec 的 `design_tokens:` 和 `content.components[]` 字段
+   - 不修改 behaviors，behaviors 已在 spec 中定义
+5. **文件顶部落地注释**（必须）：
+   ```html
+   <!--
+     spec: <l4-spec-name>.yaml
+     version: "0.1"
+     generated: YYYY-MM-DD
+     preview_mode: html_prototype
+   -->
+   ```
 
 ### 与 spec-first-workflow 的协作
 
@@ -826,21 +846,25 @@ behavior_preview 是最常用的预览类型：
 
 ### 示例输入/输出
 
-**输入**：spec 中有 `preview: { level: L4, artifact_type: behavior_preview, confirmation_point: "这个流程对吗？" }`
+**输入**：spec 中有 `preview: { level: L4, artifact_type: html_prototype, confirmation_point: "这个原型对吗？" }`
 
 **输出**：
 ```
-[Preview · L4 Behavior]
+[Preview · L4 HTML Prototype]
 
-用户操作流程：
-1. 用户点击「新建 Spec」按钮
-2. 弹出 L1 类型选择向导
-3. 用户填写 name + description
-4. 点击「确认」→ spec 写入 specs/L1-goal/
-5. 界面刷新，新 spec 出现在列表顶部
+已生成可交互原型：prototypes/feat-my-feature-prototype.html
+预览卡片：
+  [缩略图区]
+  🔗 打开预览（_blank 新标签页）
+  ✅ 应用（将 design_tokens / 组件结构注入 spec）
 
-confirmation_point: 这个流程对吗？
+confirmation_point: 这个原型对吗？
 ```
+
+**"应用"后注入 spec 的字段**：
+- `design_tokens.colors.*` — 原型中的 CSS 颜色变量
+- `design_tokens.typography.*` — 字体家族和字重
+- `content.components[]` — 原型中的 UI 组件定义
 
 ---
 

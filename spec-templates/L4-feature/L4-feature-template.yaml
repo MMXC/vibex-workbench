@@ -37,12 +37,13 @@ io_contract:
 # 预览：人类在确认 spec 之前能看到完成后的产物形态
 preview:
   level: L4
-  artifact_type: behavior_preview  # behavior_preview | interface_screenshot | mermaid
+  artifact_type: html_prototype  # behavior_preview | interface_screenshot | mermaid
   trigger: confirm_button  # draft_change | confirm_button | spec_select
   confirmation_point: "{确认问题，如：这个功能行为是你想要的吗？}"
   content: |
-    {描述预览产物包含什么，如：用户操作 → 系统响应 → 界面变化的文字描述}
-    {建议配合 AI 生成界面截图}
+    预览产物为 HTML 原型文件（存 projects/<workspace>/prototypes/<name>-prototype.html）。
+    预览卡片展示：① 原型缩略图 ② "打开预览" 链接（跳转新标签页）③ "应用" 按钮（将原型关键决策注入 spec）。
+    不依赖 AI 截图，原型本身即预览。
 
 # ── mixins ─────────────────────────────────────
 # mixins:
