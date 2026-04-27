@@ -1,4 +1,4 @@
-.PHONY: help generate lint-specs build dev test drift clean init validate mvp-gate \
+.PHONY: help generate lint-specs build dev test drift clean init validate mvp-gate bootstrap-smoke \
 	skill-sync-status skill-sync-push skill-sync-pull
 
 # Repo root from this Makefile path (avoids Git Bash pwd + Windows Python -> C:\c\... mangling)
@@ -56,8 +56,12 @@ validate: lint-specs
 mvp-gate:
 	@echo "[mvp-gate] Running MVP acceptance gate..."
 	@cd "$(ROOT)" && $(PYTHON) generators/mvp_acceptance_gate.py --workspace-root "$(ROOT)"
-	@echo "[mvp-gate] Done."
 
+bootstrap-smoke:
+	@echo "[bootstrap-smoke] Running scaffold smoke test in temp directory..."
+	@cd "$(ROOT)" && $(PYTHON) generators/bootstrap_smoke.py --workspace-root "$(ROOT)"
+
+SPEC_DIR ?= specs
 gen-graph:
 	@echo "[gen-graph] Writing dependency graph..."
 	@cd "$(ROOT)" && $(PYTHON) spec-engine/mermaid_gen.py specs \

@@ -266,6 +266,7 @@ changelog:
       - "P0-4: FEAT-scaffolding-path-fix 已实现，路径改为WORKSPACE_ROOT推导"
       - "P0-5: FEAT-new-l1-wizard 已实现，NewL1Wizard modal"
       - "P1-1: SLICE-mvp-acceptance-gate-runner 已实现，mvp_acceptance_gate.py"
+      - "P1-2: SLICE-workspace-path-safety-contract 已实现，path safety helpers"
   - version: "0.1"
     date: "2026-04-24"
     author: "hermes"
