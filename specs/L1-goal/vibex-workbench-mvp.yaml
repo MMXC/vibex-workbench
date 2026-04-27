@@ -262,6 +262,7 @@ changelog:
     changes:
       - "P0-1: FEAT-state-detection-fix 已实现，half→partial (3处)"
       - "P0-2: FEAT-spec-write 已实现，SpecViewer 编辑按钮+textarea"
+      - "P0-3: FEAT-scaffolding-confirm-flow 已实现，preview+confirm两步确认"
   - version: "0.1"
     date: "2026-04-24"
     author: "hermes"
