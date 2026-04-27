@@ -6,6 +6,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import WorkspaceSelector from '$lib/components/workbench/WorkspaceSelector.svelte';
+  import NewL1Wizard from '$lib/components/workbench/NewL1Wizard.svelte';
 
   let workspaceRoot = $state('');
   let state = $state<{state: string, signals: any[], suggestions: string[]} | null>(null);
@@ -13,6 +14,7 @@
   let error = $state('');
   let scaffoldPreview = $state(false);          // true = 预览确认模式
   let scaffoldPreviewItems = $state<string[]>([]);  // 预览文件列表
+  let wizardOpen = $state(false);              // true = 新建 L1 向导
 
   async function detectState() {
     if (!workspaceRoot) return;
@@ -69,6 +71,21 @@
   async function confirmScaffold() {
     scaffoldPreview = false;  // 关闭预览模式
     await scaffold();         // 调用已有 scaffold()
+  }
+
+  function openWizard() {
+    wizardOpen = true;
+  }
+
+  function closeWizard() {
+    wizardOpen = false;
+  }
+
+  async function handleWizardCreated(path: string) {
+    wizardOpen = false;
+    // 刷新状态（specs/ 目录内容变了）
+    await detectState();
+    // TODO: 可选导航到 /workbench 打开新文件
   }
 
   async function runMake(target: string) {
@@ -165,6 +182,9 @@
             <button onclick={openScaffoldPreview} disabled={loading} class="btn-primary">
               📦 初始化脚手架
             </button>
+            <button onclick={openWizard} disabled={loading} class="btn-secondary">
+              📄 新建 L1 Spec
+            </button>
           {/if}
 
           {#if scaffoldPreview}
@@ -205,6 +225,14 @@
       <p class="hint">输入路径后点击「检测」查看项目状态</p>
     {/if}
   </div>
+
+  {#if wizardOpen}
+    <NewL1Wizard
+      {workspaceRoot}
+      onCreated={handleWizardCreated}
+      onCancel={closeWizard}
+    />
+  {/if}
 </main>
 
 <style>
