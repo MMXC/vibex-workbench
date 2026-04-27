@@ -46,6 +46,17 @@ io_contract:
     3. 确认 spec 完整（Darwin 迭代达标）
     4. 进入 L2 skeleton 阶段
 
+# ── preview ──────────────────────────────────────────────
+# 预览：人类在确认 L1 spec 之前能看到产品目标的方向图
+preview:
+  level: L1
+  artifact_type: goal_diagram  # goal_diagram | mermaid
+  trigger: confirm_button
+  confirmation_point: "{确认问题，如：这个产品方向对吗？}"
+  content: |
+    {描述预览产物，如：用户意图 → 核心价值 → 目标用户的关系图（Mermaid）}
+    {建议用 mermaid flowchart 展示 input → output 的流向}
+
 # ── content ─────────────────────────────────────
 content:
   mission: |

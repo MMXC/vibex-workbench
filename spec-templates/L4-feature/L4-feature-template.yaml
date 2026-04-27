@@ -33,6 +33,17 @@ io_contract:
     3. 产生输出（output）
     4. 触发副作用
 
+# ── preview ──────────────────────────────────────────────
+# 预览：人类在确认 spec 之前能看到完成后的产物形态
+preview:
+  level: L4
+  artifact_type: behavior_preview  # behavior_preview | interface_screenshot | mermaid
+  trigger: confirm_button  # draft_change | confirm_button | spec_select
+  confirmation_point: "{确认问题，如：这个功能行为是你想要的吗？}"
+  content: |
+    {描述预览产物包含什么，如：用户操作 → 系统响应 → 界面变化的文字描述}
+    {建议配合 AI 生成界面截图}
+
 # ── mixins ─────────────────────────────────────
 # mixins:
 #   - "L4-workbench_mixin-security"    # 安全横切 concern
