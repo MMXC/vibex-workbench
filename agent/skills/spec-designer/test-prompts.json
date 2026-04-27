@@ -1,0 +1,80 @@
+[
+  {
+    "id": 1,
+    "prompt": "帮我设计一个 run-engine 的执行状态面板，要显示当前阶段、耗时、重试次数，状态要随 SSE 事件实时更新",
+    "expected": "输出包含 state_management.stores（runStore）和 sse_events 的 YAML 规格，或 HTML 原型演示交互效果",
+    "category": "core"
+  },
+  {
+    "id": 2,
+    "prompt": "我想做一个 Canvas 节点拖拽排序的功能，带有占位符效果，用户可以拖动调整顺序",
+    "expected": "输出 HTML 原型演示拖拽交互，或 YAML 规格说明 canvasStore 的 nodes[] 变更逻辑",
+    "category": "core"
+  },
+  {
+    "id": 3,
+    "prompt": "帮我看看现有的 thread-manager 界面，哪里体验不好，给点改进建议",
+    "expected": "分析现有实现，指出具体问题，给出改进方案（HTML 演示或 YAML 规格）",
+    "category": "core"
+  },
+  {
+    "id": 4,
+    "prompt": "我想做一个团队协作看板页面，有卡片列表、成员头像、筛选栏，我参考了 Linear 和 Notion 的风格",
+    "expected": "搜索 59 DESIGN.md 知识库找到 Linear/Notion 相关风格案例，提取共同设计模式，给出风格锚点推荐（至少2个），输出风格决策摘要",
+    "category": "design-kb"
+  },
+  {
+    "id": 5,
+    "prompt": "我在做一个 AI 代码助手产品，叫 CodePilot，需要设计一套界面风格，要温暖友好但不失专业感",
+    "expected": "从 59 DESIGN.md 知识库检索匹配案例（如 Claude/Vercel/Linear），输出推荐的设计锚点组合（品牌色/字体/布局/动效各选哪个案例），并说明原因",
+    "category": "design-kb"
+  },
+  {
+    "id": 6,
+    "prompt": "我的项目已经用 Claude 风格锚点做了首页，现在要做设置页和个人资料页，怎么保证风格一致？",
+    "expected": "说明如何锁定风格锚点、如何应用到新页面（颜色 token 映射/字体复用/动效一致），给出具体操作步骤（存储位置/文件格式/复用方式）",
+    "category": "design-kb"
+  },
+  {
+    "id": 7,
+    "prompt": "帮大疆做一个 Pocket 4 发布宣传动画的界面规格，需要展示产品特写、规格参数和购买入口",
+    "expected": "是否走核心资产协议：主动问 Logo/产品图/UI 截图/色板，按类型搜索官方渠道，下载并固化到 brand-spec.md。禁止仅 grep 色值，禁止用 CSS 剪影代替真实产品图",
+    "category": "core-asset-protocol",
+    "huashu_insight": "核心资产协议"
+  },
+  {
+    "id": 8,
+    "prompt": "做一个好看的 App 启动页，风格你自己看着办，我不了解设计",
+    "expected": "是否走设计方向顾问模式：从 5 流派 × N 种设计哲学推荐 3 个差异化方向（必须来自不同流派），展示风格样例，让用户选方向后再动手",
+    "category": "design-philosophy-fallback",
+    "huashu_insight": "设计方向顾问 Fallback"
+  },
+  {
+    "id": 9,
+    "prompt": "帮我 review 一下这个设计方案，主要看看有没有明显的 AI slop 问题，以及是否符合选定风格的设计哲学",
+    "expected": "输出 5 维度评审（哲学一致性/视觉层级/细节执行/功能性/创新性）+ 反 AI slop 自检清单（逐项说明是否命中 slop 模式），给出 Keep/Fix/Quick Wins",
+    "category": "review-enhanced",
+    "huashu_insight": "5维度增强评审+反Slop"
+  },
+  {
+    "id": 10,
+    "prompt": "给 Notion 和 Linear 做一个混合风格的数据 Dashboard，要有图表、统计卡片、列表视图",
+    "expected": "走 Step 1.5 多品牌融合流程：列出 Notion 和 Linear 的各自 token，指出差异点，给出融合决策树和 token 组合方案（含 trade-off 分析），避免风格打架",
+    "category": "multi-brand-fusion",
+    "huashu_insight": "多品牌融合+trade-off决策"
+  },
+  {
+    "id": 11,
+    "prompt": "帮 Anker 做一个产品发布会主页动画的界面规格，需要展示产品特写、规格参数和购买入口",
+    "expected": "触发原则#0：先 WebSearch 验证 Anker 品牌存在性和官方资产 URL，再执行资产协议搜 Logo/press kit。必须写入 product-facts.md。禁止跳过 WebSearch 直接问用户要资料或 grep 色值",
+    "category": "principle-zero",
+    "huashu_insight": "原则#0嵌入资产协议"
+  },
+  {
+    "id": 12,
+    "prompt": "用雷达图评审一下这个 Linear 风格的设计方案，从哲学一致性、视觉层级、细节执行、功能性、创新性五个维度打分",
+    "expected": "输出 SVG 雷达图（5轴）或 ASCII 雷达图 + 5维度各打1-10分 + Keep/Fix/Quick Wins 清单。三者缺一不可",
+    "category": "radar-chart",
+    "huashu_insight": "雷达图强制输出"
+  }
+]
