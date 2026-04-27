@@ -1,0 +1,93 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-command-output-problems-panel"
+  parent: "MOD-build-panel"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    make validate/generate/smoke/run target 的 stdout、stderr、exit_code、duration、timeout。
+  output: |
+    Problems/Output 区域展示命令状态、错误摘要、完整日志入口和下一步建议。
+  boundary: |
+    只负责命令结果展示和问题摘要。
+    不解释所有编译器错误、不自动修改文件、不替代 agent 修复。
+  behavior:
+    - "命令开始时在 Output 区新增 running entry"
+    - "命令结束后展示 success/failure/timeout/cancelled"
+    - "stderr/stdout 摘要进入 Problems"
+    - "完整日志可展开或复制"
+    - "失败结果写入 agent workspace awareness 的 last_make_result"
+
+content:
+  command_states:
+    - "running"
+    - "success"
+    - "failure"
+    - "timeout"
+    - "cancelled"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "workbench 用户"
+      i_want: "点击 validate 后能在底部看到完整结果"
+      so_that: "知道失败、超时还是成功，并能继续修复"
+      acceptance: "Output 显示命令、exit_code、duration 和摘要"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "validate 成功"
+      given: "make validate exit_code=0"
+      when: "命令完成"
+      then: "Output 显示 success，Problems 清除该命令旧错误"
+      evaluation: "last_make_result.status=success"
+    - id: "TC-2"
+      scenario: "validate 超时"
+      given: "make validate 超过 timeout"
+      when: "backend 返回 timeout"
+      then: "Output 显示 timeout，不伪装成普通 failure"
+      evaluation: "agent awareness 可读取 timeout 状态"
+
+  constraints:
+    - id: "C1"
+      name: "No silent command"
+      rule: "用户触发的 make 命令必须进入 Output/Problems"
+      validation: "run-make 返回后 UI 有可见 entry"
+    - id: "C2"
+      name: "Preserve full log"
+      rule: "UI 可截断摘要，但必须保留完整日志入口"
+      validation: "500 字符摘要之外仍可查看完整 stdout/stderr"
+
+acceptance_criteria:
+  - id: "AC-1"
+    given: "用户运行 make validate"
+    when: "命令开始"
+    then: "Output 区显示 running 状态"
+  - id: "AC-2"
+    given: "命令失败"
+    when: "backend 返回 stderr 和 exit_code"
+    then: "Problems 区显示错误摘要且 Output 保留完整日志入口"
+  - id: "AC-3"
+    given: "命令超时"
+    when: "backend 返回 timeout"
+    then: "UI 明确显示 timeout 并写入 last_make_result"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 make 命令结果到 Problems/Output 的闭环规格"

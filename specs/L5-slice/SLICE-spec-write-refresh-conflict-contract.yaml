@@ -1,0 +1,89 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-write-refresh-conflict-contract"
+  parent: "FEAT-spec-write-refresh-and-conflict"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "backend"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    specs/read response and specs/write request with base_hash or mtime。
+  output: |
+    write success/conflict response and refresh hints for frontend graph/list/current file。
+  boundary: |
+    只实现 spec 写入版本保护和刷新契约，不实现 Git merge。
+
+content:
+  file_path: "agent/vibex/domain/spec/handlers.go"
+  file_type: "go"
+
+  implementation_boundary:
+    allowed:
+      - "spec read response 增加 base_hash/mtime"
+      - "spec write request 校验 base_hash/mtime"
+      - "冲突时返回 409/spec_write_conflict"
+      - "写入成功返回 refresh hints"
+    forbidden:
+      - "静默覆盖变化后的文件"
+      - "允许 workspace 外路径"
+      - "在 backend 自动合并 YAML"
+
+  api_contract:
+    read_response_additions:
+      base_hash: "sha256 of current file content"
+      mtime: "file modification time"
+    write_request_additions:
+      base_hash: "optional but preferred"
+      mtime: "fallback when hash unavailable"
+    conflict_response:
+      status: 409
+      code: "spec_write_conflict"
+      fields:
+        - "current_hash"
+        - "current_mtime"
+        - "message"
+
+  generation_rules:
+    - rule: "Hash first"
+      detail: "优先使用 base_hash 判断并发修改"
+    - rule: "No overwrite"
+      detail: "hash 不匹配时不写磁盘"
+    - rule: "Refresh hint"
+      detail: "写入成功返回 affected_path 和 refresh=list|graph|current"
+
+  verification:
+    commands:
+      - "make validate"
+      - "go test ./agent/..."
+    manual_checks:
+      - "旧 base_hash 写入返回 409"
+      - "成功写入后前端刷新 list/graph/current"
+    failure_conditions:
+      - "并发写覆盖成功"
+      - "冲突时本地草稿丢失"
+      - "refresh hints 缺失"
+
+  dependencies:
+    - file: "specs/L4-feature/FEAT-spec-write-refresh-and-conflict.yaml"
+      reason: "refresh and conflict feature contract"
+    - file: "specs/L5-slice/SLICE-agent-spec-write-api-contract.yaml"
+      reason: "agent confirmed draft write path"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 spec write 并发冲突和刷新 API L5"

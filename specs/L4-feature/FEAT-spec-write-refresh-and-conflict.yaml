@@ -1,0 +1,94 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-spec-write-refresh-and-conflict"
+  parent: "MOD-spec-editor"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    spec read response 的 base_hash/mtime、用户编辑内容、agent confirmed spec draft。
+  output: |
+    安全写入结果、冲突提示、spec list/graph/current view 刷新。
+  boundary: |
+    扩展已有 FEAT-spec-write 的保存后同步和并发保护。
+    不定义 spec YAML 语义校验，不处理 Git merge。
+  behavior:
+    - "read spec 时返回 base_hash 或 mtime"
+    - "write spec 时提交 base_hash 或 mtime"
+    - "后端发现文件已变化则返回 conflict"
+    - "写入成功后刷新 spec list、graph、current raw 和 parent/child edges"
+    - "agent 写盘也使用同一冲突协议"
+
+content:
+  conflict_policy:
+    detection: "base_hash preferred, mtime fallback"
+    conflict_status: "409/spec_write_conflict"
+    allowed_resolution:
+      - "reload remote content"
+      - "copy local draft"
+      - "manual merge in editor"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "用户和 agent 同时编辑 spec 的用户"
+      i_want: "保存时知道文件已经被别人改过"
+      so_that: "不会静默覆盖重要 spec"
+      acceptance: "后写请求收到 conflict 并保留本地草稿"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "保存后刷新图谱"
+      given: "用户修改 parent 字段并保存"
+      when: "write 成功"
+      then: "SpecExplorer 和 graph 使用新 parent/child 关系"
+      evaluation: "无需手动刷新页面"
+    - id: "TC-2"
+      scenario: "并发写冲突"
+      given: "用户读取 spec 后 agent 已写入同一文件"
+      when: "用户保存旧 base_hash 内容"
+      then: "返回 409，保留用户草稿并提示 reload/merge"
+      evaluation: "磁盘内容不被旧草稿覆盖"
+
+  constraints:
+    - id: "C1"
+      name: "No silent overwrite"
+      rule: "write 请求必须带 base_hash 或 mtime"
+      validation: "缺失版本字段时返回 400 或 legacy warning"
+    - id: "C2"
+      name: "Refresh after write"
+      rule: "写入成功后必须刷新列表、当前文件和图谱边"
+      validation: "UI 不显示旧 parent/children"
+
+acceptance_criteria:
+  - id: "AC-1"
+    given: "spec 写入成功"
+    when: "API 返回 success"
+    then: "SpecExplorer、SpecViewer、SpecGraph 同步刷新"
+  - id: "AC-2"
+    given: "文件在读取后被其他 actor 修改"
+    when: "用户保存旧 base_hash"
+    then: "API 返回 conflict 且不覆盖磁盘"
+  - id: "AC-3"
+    given: "agent confirmed draft 写入 spec"
+    when: "目标文件已变化"
+    then: "agent 线程显示冲突并要求用户确认下一步"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 spec 写入刷新与并发冲突闭环规格"

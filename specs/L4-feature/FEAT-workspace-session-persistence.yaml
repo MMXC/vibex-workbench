@@ -1,0 +1,92 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-workspace-session-persistence"
+  parent: "MOD-workspace-root"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    用户选择 workspace root、打开 spec、切换 view mode、运行状态探测。
+  output: |
+    App 重启后恢复上次 workspace root、最近选中 spec、center view、last workspace state。
+  boundary: |
+    只负责单 workspace session 的持久化和恢复。
+    不负责多 workspace 并行、不持久化仓库外文件、不替代 workspace path safety。
+  behavior:
+    - "workspace root 选择成功后持久化 normalized root"
+    - "selected spec 和 center view 变化后持久化最近状态"
+    - "App 启动时读取 session 并重新 detect-state"
+    - "session root 不存在或不安全时清空并回到选择页"
+
+content:
+  session_fields:
+    - "workspace_root"
+    - "selected_spec_path"
+    - "center_view"
+    - "last_workspace_state"
+    - "last_detected_at"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "workbench 用户"
+      i_want: "重启后回到上次打开的 workspace 和 spec"
+      so_that: "不用每次重新选择目录并定位文件"
+      acceptance: "重启后自动恢复 root，并重新探测状态"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "恢复上次 workspace"
+      given: "用户选择过合法 workspace root"
+      when: "关闭并重新打开 App"
+      then: "系统恢复 root 并触发 detect-state"
+      evaluation: "状态栏显示恢复的 workspace root"
+    - id: "TC-2"
+      scenario: "上次 workspace 不存在"
+      given: "session 中保存的 root 已被删除"
+      when: "App 启动"
+      then: "系统清空 session 并提示重新选择"
+      evaluation: "不会调用 specs/list 或 run-make"
+
+  constraints:
+    - id: "C1"
+      name: "Single workspace only"
+      rule: "MVP 只恢复一个最近 workspace，不维护 workspace 列表"
+      validation: "session store 只有 currentWorkspace"
+    - id: "C2"
+      name: "Validate on restore"
+      rule: "恢复 session 后必须重新执行 path guard 和 detect-state"
+      validation: "不直接信任持久化的 last state"
+
+acceptance_criteria:
+  - id: "AC-1"
+    given: "存在合法 session"
+    when: "App 启动"
+    then: "恢复 workspace root 并重新探测状态"
+  - id: "AC-2"
+    given: "session root 不存在或不安全"
+    when: "App 启动"
+    then: "清空 session 并回到 workspace 选择态"
+  - id: "AC-3"
+    given: "用户切换 selected spec"
+    when: "App 关闭后重启"
+    then: "恢复最近 selected spec 或显示该 spec 已不存在"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 workspace session 持久化闭环规格"

@@ -1,0 +1,84 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-agent-workspace-context-provider"
+  parent: "FEAT-agent-workspace-awareness"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    workspace state detector result、selected spec、last make result、implementation context summary。
+  output: |
+    workspace awareness block injected into agent thread/task prompt。
+  boundary: |
+    只提供上下文 block 和建议，不执行 scaffold/write/make。
+
+content:
+  file_path: "agent/internal/workspace/context_provider.go"
+  file_type: "go"
+
+  implementation_boundary:
+    allowed:
+      - "读取 detect-state 结果"
+      - "读取 selected spec 和 last command result"
+      - "合并 implementation context summary"
+      - "生成 empty/partial/ready recommendation"
+    forbidden:
+      - "直接写入 scaffold 或 spec"
+      - "在没有用户确认时执行命令"
+      - "注入过期状态且不标记 stale_state"
+
+  context_schema:
+    workspace_root: "string"
+    workspace_state: "empty|partial|ready|unknown"
+    stale_state: "boolean"
+    spec_count: "number"
+    missing_required_paths: "array"
+    selected_spec: "string|null"
+    last_make_result: "object|null"
+    recommendation: "string"
+
+  generation_rules:
+    - rule: "Freshness"
+      detail: "状态超过 TTL 时重新 detect-state 或 stale_state=true"
+    - rule: "No side effects"
+      detail: "provider 不写文件、不执行 make，只返回上下文"
+    - rule: "Confirm before action"
+      detail: "recommendation 必须引导用户确认后再 scaffold/write"
+
+  verification:
+    commands:
+      - "make validate"
+      - "go test ./agent/..."
+    manual_checks:
+      - "empty workspace agent prompt 包含初始化建议"
+      - "partial workspace prompt 包含缺失路径"
+      - "ready workspace prompt 包含 selected spec"
+    failure_conditions:
+      - "agent 在 empty 态直接写盘"
+      - "状态过期但未标记 stale_state"
+
+  dependencies:
+    - file: "specs/L4-feature/FEAT-agent-workspace-awareness.yaml"
+      reason: "workspace awareness feature contract"
+    - file: "specs/L5-slice/SLICE-agent-context-injection-reader.yaml"
+      reason: "implementation context summary source"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 agent workspace context provider L5"

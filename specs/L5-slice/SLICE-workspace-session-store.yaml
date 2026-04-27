@@ -1,0 +1,72 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-workspace-session-store"
+  parent: "FEAT-workspace-session-persistence"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    workspace root、selected spec、center view、state detector result。
+  output: |
+    local persisted session and restored workspace state on app boot。
+  boundary: |
+    只实现单 workspace session store，不实现 workspace history。
+
+content:
+  file_path: "frontend/src/lib/stores/workspace-session-store.ts"
+  file_type: "typescript"
+
+  implementation_boundary:
+    allowed:
+      - "新增 workspace session store"
+      - "持久化 current workspace session"
+      - "启动时恢复并触发 detect-state"
+      - "处理 root 不存在或不安全的空态"
+    forbidden:
+      - "保存多个 workspace 列表"
+      - "绕过 backend path guard"
+      - "把 last_workspace_state 当最新事实"
+
+  generation_rules:
+    - rule: "Restore validates"
+      detail: "恢复 root 后必须调用 detect-state，不能直接信任缓存状态"
+    - rule: "Minimal session"
+      detail: "只保存 root、selected spec、center view、last state、timestamp"
+    - rule: "Clear invalid"
+      detail: "root 不存在或被 path guard 拒绝时清空 session"
+
+  verification:
+    commands:
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - "重启后恢复上次 workspace"
+      - "删除 workspace 后重启会回到选择页"
+    failure_conditions:
+      - "恢复后未重新 detect-state"
+      - "session 中保存 workspace 外路径仍被使用"
+
+  dependencies:
+    - file: "specs/L4-feature/FEAT-workspace-session-persistence.yaml"
+      reason: "session persistence feature contract"
+    - file: "specs/L5-slice/SLICE-workspace-path-safety-contract.yaml"
+      reason: "path safety validation"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 workspace session store L5"

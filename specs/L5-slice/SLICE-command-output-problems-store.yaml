@@ -1,0 +1,86 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-command-output-problems-store"
+  parent: "FEAT-command-output-problems-panel"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    run-make API lifecycle event and final command result。
+  output: |
+    Output/Problems store entry with command status、summary、full log reference。
+  boundary: |
+    只实现前端结果存储和展示数据模型，不实现 backend command runner。
+
+content:
+  file_path: "frontend/src/lib/stores/command-output-store.ts"
+  file_type: "typescript"
+
+  implementation_boundary:
+    allowed:
+      - "新增 command output store"
+      - "保存 running/success/failure/timeout 状态"
+      - "生成 problems summary"
+      - "暴露 last_make_result 给 agent context"
+    forbidden:
+      - "只保存 500 字符而丢弃完整日志"
+      - "把 timeout 当普通 failure"
+      - "自动修改失败文件"
+
+  entry_schema:
+    id: "string"
+    target: "string"
+    status: "running|success|failure|timeout|cancelled"
+    exit_code: "number|null"
+    duration_ms: "number|null"
+    stdout: "string"
+    stderr: "string"
+    summary: "string"
+    started_at: "string"
+    finished_at: "string|null"
+
+  generation_rules:
+    - rule: "Visible lifecycle"
+      detail: "命令开始即创建 running entry，完成后更新"
+    - rule: "Summary plus full log"
+      detail: "Problems 展示摘要，Output 保留完整 stdout/stderr"
+    - rule: "Agent readable"
+      detail: "最近结果可被 workspace context provider 读取"
+
+  verification:
+    commands:
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - "运行 validate 时底部 Output 显示 running"
+      - "失败后 Problems 显示 stderr 摘要"
+      - "超时显示 timeout"
+    failure_conditions:
+      - "命令执行后 UI 无任何记录"
+      - "完整日志丢失"
+      - "last_make_result 未更新"
+
+  dependencies:
+    - file: "specs/L4-feature/FEAT-command-output-problems-panel.yaml"
+      reason: "command output feature contract"
+    - file: "specs/L5-slice/FEAT-make-integration_L5.yaml"
+      reason: "run make API source"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 command output/problems store L5"

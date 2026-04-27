@@ -1,0 +1,83 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-scaffold-preview-recovery-panel"
+  parent: "FEAT-scaffold-preview-recovery"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-27"
+  updated: "2026-04-27"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-27"
+
+io_contract:
+  input: |
+    scaffold preview response and scaffold execution result。
+  output: |
+    drawer panel showing create/skip/conflict items and recovery actions。
+  boundary: |
+    只实现 UI panel 与 preview/result 展示，不实现模板生成器。
+
+content:
+  file_path: "frontend/src/lib/components/workspace/ScaffoldPreviewRecoveryPanel.svelte"
+  file_type: "svelte"
+
+  implementation_boundary:
+    allowed:
+      - "展示 preview items"
+      - "显示 create/skip/conflict 分类"
+      - "确认前展示 confirmed_preview_id"
+      - "失败后展示 retry/inspect/fix-permission 建议"
+    forbidden:
+      - "确认前写入磁盘"
+      - "默认覆盖已有文件"
+      - "把失败状态误设为 ready"
+
+  preview_schema:
+    confirmed_preview_id: "string"
+    items:
+      - path: "string"
+        action: "create|skip|conflict"
+        reason: "string"
+        template_source: "string"
+        summary: "string"
+
+  generation_rules:
+    - rule: "Action grouping"
+      detail: "按 create、skip、conflict 分组展示"
+    - rule: "Confirm preview id"
+      detail: "确认 scaffold 时提交 preview id，避免确认过期预览"
+    - rule: "Recovery first"
+      detail: "失败后显示恢复建议并提供重新 detect-state"
+
+  verification:
+    commands:
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - "空目录 preview 显示将创建文件"
+      - "已有文件显示 skip/conflict"
+      - "失败后不会误显示 ready"
+    failure_conditions:
+      - "preview 只列目录不列文件"
+      - "用户无法看出哪些文件被跳过"
+      - "失败后没有恢复建议"
+
+  dependencies:
+    - file: "specs/L4-feature/FEAT-scaffold-preview-recovery.yaml"
+      reason: "preview and recovery feature contract"
+    - file: "specs/L5-slice/FEAT-scaffolding_L5.yaml"
+      reason: "existing scaffolding implementation boundary"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "新增 scaffold preview recovery panel L5"
