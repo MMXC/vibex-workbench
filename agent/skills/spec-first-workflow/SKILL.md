@@ -126,6 +126,34 @@ Common categories:
 
 For classification and response rules, read [validation-and-failure.md](validation-and-failure.md).
 
+## Spec Write Protocol (create-child-spec)
+
+When drafting a new child spec (L2-L5), the agent MUST follow the confirmation-first protocol:
+
+**Before user confirmation:**
+- Generate draft summary and clarifying questions
+- Present draft to user via ClarificationPanel
+- Do NOT call `POST /api/workspace/specs/write`
+- Do NOT write any file to `specs/`
+
+**After user confirmation:**
+- Assemble confirmed payload: `{workspace_root, path, parent_name, target_level, yaml_text, confirmation_id}`
+- Call `POST /api/workspace/specs/write`
+- Call `make validate` and classify result
+- Display validation result category and next action
+
+**Path rules:**
+- Spec file paths must be under `specs/{L2-skeleton|L3-module|L4-feature|L5-slice}/`
+- Do not allow `..` path traversal
+- `spec.parent` in yaml_text must match the parent_name in the payload
+
+**Validation feedback categories:**
+- `yaml_parse_error` — YAML syntax issue
+- `parent_not_found` — spec.parent not in parent chain
+- `level_mismatch` — level field conflicts with path
+- `missing_l5_boundary` — L5 missing required fields
+- See [validation-and-failure.md](validation-and-failure.md) for full reference
+
 ## Implementation Rules
 
 - Do not modify code directly from L4 unless the user explicitly asks for a quick prototype.
