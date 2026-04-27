@@ -131,6 +131,7 @@ For classification and response rules, read [validation-and-failure.md](validati
 When drafting a new child spec (L2-L5), the agent MUST follow the confirmation-first protocol:
 
 **Before user confirmation:**
+- If the draft spec contains a `preview:` field → call `skill_load spec-designer` to enter preview mode and generate the preview artifact before presenting to the user
 - Generate draft summary and clarifying questions
 - Present draft to user via ClarificationPanel
 - Do NOT call `POST /api/workspace/specs/write`
