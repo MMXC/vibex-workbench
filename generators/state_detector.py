@@ -18,7 +18,7 @@ import json
 
 
 def detect_state(workspace_root: str) -> dict:
-    """返回仓库状态对象（empty | half | ready）。"""
+    """返回仓库状态对象（empty | partial | ready）。"""
     workspace_root = os.path.abspath(workspace_root)
     signals = []
 
@@ -58,14 +58,14 @@ def detect_state(workspace_root: str) -> dict:
     if specs_exists and gen_exists and makefile_has_lint:
         state = "ready"
     elif specs_exists or gen_exists:
-        state = "half"
+        state = "partial"
     else:
         state = "empty"
 
     # 生成建议
     suggestions = {
         "empty": ["点击「初始化脚手架」开始搭建项目"],
-        "half": ["运行「生成脚手架」补全目录结构", "或手动创建 generators/gen.py 和 Makefile"],
+        "partial": ["运行「生成脚手架」补全目录结构", "或手动创建 generators/gen.py 和 Makefile"],
         "ready": ["在 spec 编辑器中打开或新建规格文件", "运行「校验」检查 spec 质量"],
     }[state]
 
@@ -98,7 +98,7 @@ def main():
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
         # 人类可读输出
-        icons = {"empty": "⬜", "half": "🟨", "ready": "🟩", "error": "❌"}
+        icons = {"empty": "⬜", "partial": "🟨", "ready": "🟩", "error": "❌"}
         icon = icons.get(result["state"], "?")
         print(f"{icon} State: {result['state']}")
         print(f"   目录: {result['workspace_root']}")
