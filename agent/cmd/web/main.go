@@ -67,6 +67,7 @@ func main() {
 	http.HandleFunc("/api/workspace/detect-state", withCORS(workspaceDetectStateHandler))
 	http.HandleFunc("/api/workspace/scaffold", withCORS(workspaceScaffoldHandler))
 	http.HandleFunc("/api/workspace/run-make", withCORS(workspaceRunMakeHandler))
+	http.HandleFunc("/api/agent/spec-write", withCORS(handleAgentSpecWriteProtocol))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
