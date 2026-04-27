@@ -26,7 +26,7 @@ type workspaceDetectStateRequest struct {
 
 // workspaceDetectStateHandler GET/POST /api/workspace/detect-state
 // Body: { "workspaceRoot": "/path/to/workspace" }
-// Response: { "state": "empty"|"half"|"ready", "workspaceRoot": "...", "signals": [...], "suggestions": [...] }
+// Response: { "state": "empty"|"partial"|"ready", "workspaceRoot": "...", "signals": [...], "suggestions": [...] }
 func workspaceDetectStateHandler(w http.ResponseWriter, r *http.Request) {
 	wsRoot := cfg.WorkspaceDir
 
@@ -58,11 +58,15 @@ func workspaceDetectStateHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	result := map[string]interface{}{"workspaceRoot": resolveRoot}
-	// 调用 state_detector.py — 基于 backend binary 位置推导 generators 路径
-	// backend binary 在 backend/vibex-backend 或 backend/vibex-backend.exe
-	// generators 在同级的 ../generators/
-	scriptPath := filepath.Join(filepath.Dir(os.Args[0]), "..", "generators", "state_detector.py")
-	scriptPath, _ = filepath.Abs(scriptPath) // 规范化路径
+	// 优先用 WORKSPACE_ROOT，次选 cwd
+	var scriptPath string
+	if resolveRoot != "" {
+		scriptPath = filepath.Join(resolveRoot, "generators", "state_detector.py")
+	} else {
+		cwd, _ := os.Getwd()
+		scriptPath = filepath.Join(cwd, "generators", "state_detector.py")
+	}
+	scriptPath, _ = filepath.Abs(scriptPath)
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
 		result["state"] = "error"
 		result["error"] = fmt.Sprintf("state_detector.py not found at %s", scriptPath)
@@ -136,8 +140,14 @@ func workspaceScaffoldHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 调用 scaffolder.py — 基于 backend binary 位置推导 generators 路径
-	scriptPath := filepath.Join(filepath.Dir(os.Args[0]), "..", "generators", "scaffolder.py")
+	// 优先用 wsRoot（已从 req.WorkspaceRoot / cfg / env 解析），次选 cwd
+	var scriptPath string
+	if wsRoot != "" {
+		scriptPath = filepath.Join(wsRoot, "generators", "scaffolder.py")
+	} else {
+		cwd, _ := os.Getwd()
+		scriptPath = filepath.Join(cwd, "generators", "scaffolder.py")
+	}
 	scriptPath, _ = filepath.Abs(scriptPath)
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
 		http.Error(w, fmt.Sprintf("scaffolder.py not found at %s", scriptPath), http.StatusInternalServerError)
