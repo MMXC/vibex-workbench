@@ -220,13 +220,13 @@ content:
     FEAT-new-l1-wizard: {status: proposal, phase: P0}
 
     # L4 Feature — P1
-    SLICE-mvp-acceptance-gate-runner: {status: proposal, phase: P1}
-    SLICE-workspace-path-safety-contract: {status: proposal, phase: P1}
-    SLICE-bootstrap-generator-smoke-runner: {status: proposal, phase: P1}
+    SLICE-mvp-acceptance-gate-runner: {status: done, phase: P1, note: "已实现，mvp_acceptance_gate.py + make mvp-gate"}
+    SLICE-workspace-path-safety-contract: {status: done, phase: P1, note: "已实现，normalizeWorkspaceRoot+isSpecPathSafe+target allowlist"}
+    SLICE-bootstrap-generator-smoke-runner: {status: done, phase: P1, note: "已实现，bootstrap_smoke.py+make bootstrap-smoke；修复scaffolder缺L2-skeleton目录"}
 
     # L4 Feature — P2
-    FEAT-agent-spec-write-protocol: {status: proposal, phase: P2}
-    SLICE-agent-spec-write-api-contract: {status: proposal, phase: P2}
+    FEAT-agent-spec-write-protocol: {status: done, phase: P2, note: "已实现，spec-first-workflow SKILL.md 新增 create-child-spec 确认写盘协议"}
+    SLICE-agent-spec-write-api-contract: {status: done, phase: P2, note: "已实现，confirmedSpecDraft payload+parentGuard+validation分类+/api/agent/spec-write"}
 
     # L4 Feature — 其余（无代码实现依赖，可并行）
     FEAT-state-detection: {status: proposal}
@@ -265,8 +265,11 @@ changelog:
       - "P0-3: FEAT-scaffolding-confirm-flow 已实现，preview+confirm两步确认"
       - "P0-4: FEAT-scaffolding-path-fix 已实现，路径改为WORKSPACE_ROOT推导"
       - "P0-5: FEAT-new-l1-wizard 已实现，NewL1Wizard modal"
-      - "P1-1: SLICE-mvp-acceptance-gate-runner 已实现，mvp_acceptance_gate.py"
-      - "P1-2: SLICE-workspace-path-safety-contract 已实现，path safety helpers"
+      - "P1-1: SLICE-mvp-acceptance-gate-runner 已实现，mvp_acceptance_gate.py + make mvp-gate"
+      - "P1-2: SLICE-workspace-path-safety-contract 已实现，normalizeWorkspaceRoot+isSpecPathSafe+target allowlist"
+      - "P1-3: SLICE-bootstrap-generator-smoke-runner 已实现，bootstrap_smoke.py+make bootstrap-smoke"
+      - "P1-4: SLICE-agent-spec-write-api-contract 已实现，confirmedSpecDraft payload+parentGuard+/api/agent/spec-write"
+      - "P2-1: FEAT-agent-spec-write-protocol 已实现，spec-first-workflow SKILL.md create-child-spec 协议"
   - version: "0.1"
     date: "2026-04-24"
     author: "hermes"
