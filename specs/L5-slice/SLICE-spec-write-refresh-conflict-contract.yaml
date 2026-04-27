@@ -26,7 +26,7 @@ io_contract:
     只实现 spec 写入版本保护和刷新契约，不实现 Git merge。
 
 content:
-  file_path: "agent/vibex/domain/spec/handlers.go"
+  file_path: agent/cmd/web/workspace_handlers.go
   file_type: "go"
 
   implementation_boundary:

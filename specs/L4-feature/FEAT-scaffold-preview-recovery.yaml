@@ -95,6 +95,14 @@ acceptance_criteria:
 changelog:
   - version: "0.1"
     date: "2026-04-27"
-    author: "hermes"
+    author: hermes
     changes:
       - "新增 scaffold preview 与失败恢复闭环规格"
+
+dependencies:
+  - file: specs/L5-slice/SLICE-scaffold-preview-endpoint.yaml
+    reason: "backend GET /api/workspace/scaffold/preview endpoint（刚补充的 L5 slice）"
+  - file: specs/L5-slice/SLICE-scaffold-preview-recovery-panel.yaml
+    reason: UI panel，实现 preview drawer 和 recovery 展示
+  - file: specs/L4-feature/FEAT-command-output-problems-panel.yaml
+    reason: "dependency_order: scaffold 完成后写入 last_scaffold_result，供 Problems panel 展示"

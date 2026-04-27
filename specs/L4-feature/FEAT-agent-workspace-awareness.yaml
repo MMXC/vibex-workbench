@@ -97,6 +97,14 @@ acceptance_criteria:
 changelog:
   - version: "0.1"
     date: "2026-04-27"
-    author: "hermes"
+    author: hermes
     changes:
       - "新增 agent workspace awareness 闭环规格"
+
+dependencies:
+  - file: specs/L5-slice/SLICE-agent-workspace-context-provider.yaml
+    reason: 实现 awareness block 的注入逻辑
+  - file: specs/L4-feature/FEAT-command-output-problems-panel.yaml
+    reason: "dependency_order: last_validate_result 和 last_make_result 来自 problems store；先实现 SLICE-command-output-problems-store 后本 feature 才能完整注入"
+  - file: specs/L4-feature/FEAT-workspace-session-persistence.yaml
+    reason: workspace_root 来自 session，恢复后触发 detect-state

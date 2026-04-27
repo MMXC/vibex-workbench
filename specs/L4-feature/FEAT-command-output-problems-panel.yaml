@@ -88,6 +88,12 @@ acceptance_criteria:
 changelog:
   - version: "0.1"
     date: "2026-04-27"
-    author: "hermes"
+    author: hermes
     changes:
       - "新增 make 命令结果到 Problems/Output 的闭环规格"
+
+dependencies:
+  - file: specs/L5-slice/SLICE-command-output-problems-store.yaml
+    reason: 实现 problems store 数据结构和 Output 区域状态管理
+  - file: specs/L4-feature/FEAT-agent-workspace-awareness.yaml
+    reason: "dependency_order: problems store 是 agent awareness 的数据源；先实现本 feature，awareness 才能注入 last_validate_result/last_make_result"
