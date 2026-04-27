@@ -17,6 +17,90 @@ import (
 	"time"
 )
 
+// ── path safety helpers ─────────────────────────────────────────────
+
+// pathError codes for structured error responses
+const (
+	errWorkspaceRootMissing     = "workspace_root_missing"
+	errWorkspaceRootNotDir      = "workspace_root_not_directory"
+	errPathTraversal            = "path_traversal"
+	errInvalidMakeTarget        = "invalid_make_target"
+)
+
+// allowedMakeTargets is the allowlist for run-make security
+var allowedMakeTargets = map[string]bool{
+	"lint-specs": true,
+	"validate":    true,
+	"generate":    true,
+	"mvp-gate":    true,
+}
+
+// normalizeWorkspaceRoot resolves a workspace root path to absolute form,
+// handling Windows drive letters and Git Bash /c/ paths.
+func normalizeWorkspaceRoot(wsRoot string) (string, string) {
+	// "" or "." → empty string
+	if wsRoot == "" || wsRoot == "." {
+		return "", errWorkspaceRootMissing
+	}
+
+	// Clean the path first to resolve . and ..
+	clean := filepath.Clean(wsRoot)
+
+	// Handle Windows-style /c/ or /d/ paths from Git Bash
+	if len(clean) >= 3 && clean[0] == '/' && clean[2] == '/' && clean[1] >= 'a' && clean[1] <= 'z' {
+		clean = string(clean[1]-'a'+'A') + ":" + clean[2:]
+		clean = filepath.Clean(clean)
+	}
+
+	abs, err := filepath.Abs(clean)
+	if err != nil {
+		return "", errWorkspaceRootNotDir
+	}
+
+	// Must be a directory
+	info, err := os.Stat(abs)
+	if err != nil || !info.IsDir() {
+		return "", errWorkspaceRootNotDir
+	}
+
+	return abs, ""
+}
+
+// isSpecPathSafe checks that a relative spec path doesn't escape the workspace.
+// Returns ("", nil) if safe, or ("error_code", error_message) if unsafe.
+func isSpecPathSafe(relPath, wsRoot string) (string, string) {
+	if relPath == "" {
+		return errPathTraversal, "spec path is empty"
+	}
+
+	// Must start with "specs/" or be a known safe prefix
+	safePrefixes := []string{"specs/", "generators/", "Makefile", "README.md"}
+	isSafe := false
+	for _, prefix := range safePrefixes {
+		if strings.HasPrefix(relPath, prefix) {
+			isSafe = true
+			break
+		}
+	}
+	if !isSafe {
+		return errPathTraversal, fmt.Sprintf("spec path must start with one of: %v", safePrefixes)
+	}
+
+	// Clean and check traversal
+	clean := filepath.Clean(relPath)
+	abs := filepath.Join(wsRoot, clean)
+	absClean := filepath.Clean(abs)
+	if !strings.HasPrefix(absClean, wsRoot) {
+		return errPathTraversal, "path traversal detected"
+	}
+	return "", ""
+}
+
+// isTargetAllowed checks if a make target is in the security allowlist.
+func isTargetAllowed(target string) bool {
+	return allowedMakeTargets[target]
+}
+
 // ── detect-state ──────────────────────────────────────────────────
 
 // workspaceDetectStateRequest is the POST body for /api/workspace/detect-state.
@@ -226,27 +310,23 @@ func workspaceSpecWriteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Path == "" {
-		http.Error(w, "path required", http.StatusBadRequest)
+	// Normalize workspace root
+	wsRootNorm, errCode := normalizeWorkspaceRoot(req.WorkspaceRoot)
+	if errCode != "" {
+		http.Error(w, errCode+": workspace root", http.StatusBadRequest)
 		return
 	}
 
-	wsRoot := req.WorkspaceRoot
-	if wsRoot == "" {
-		wsRoot = cfg.WorkspaceDir
-	}
-	if wsRoot == "" {
-		wsRoot = os.Getenv("WORKSPACE_ROOT")
-	}
-	if wsRoot == "" {
-		http.Error(w, "workspaceRoot required", http.StatusBadRequest)
+	// Security: spec path guard
+	if errCode2, msg := isSpecPathSafe(req.Path, wsRootNorm); errCode2 != "" {
+		http.Error(w, errCode2+": "+msg, http.StatusForbidden)
 		return
 	}
 
-	// Path traversal protection
+	// Path traversal protection (defense in depth)
 	cleanPath := filepath.Clean(req.Path)
-	absPath := filepath.Join(wsRoot, cleanPath)
-	if !strings.HasPrefix(absPath, wsRoot) {
+	absPath := filepath.Join(wsRootNorm, cleanPath)
+	if !strings.HasPrefix(filepath.Clean(absPath), wsRootNorm) {
 		http.Error(w, "forbidden: path traversal detected", http.StatusForbidden)
 		return
 	}
@@ -300,12 +380,25 @@ func workspaceRunMakeHandler(w http.ResponseWriter, r *http.Request) {
 		target = "lint-specs"
 	}
 
+	// Security: target allowlist
+	if !isTargetAllowed(target) {
+		http.Error(w, fmt.Sprintf("%s: %q not in allowlist", errInvalidMakeTarget, target), http.StatusForbidden)
+		return
+	}
+
+	// Normalize workspace root
+	wsRootNorm, errCode := normalizeWorkspaceRoot(wsRoot)
+	if errCode != "" {
+		http.Error(w, errCode+": workspace root", http.StatusBadRequest)
+		return
+	}
+
 	// 120s timeout per spec
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "make", target)
-	cmd.Dir = wsRoot
+	cmd.Dir = wsRootNorm
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
