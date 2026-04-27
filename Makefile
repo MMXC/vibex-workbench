@@ -1,4 +1,4 @@
-.PHONY: help generate lint-specs build dev test drift clean init validate \
+.PHONY: help generate lint-specs build dev test drift clean init validate mvp-gate \
 	skill-sync-status skill-sync-push skill-sync-pull
 
 # Repo root from this Makefile path (avoids Git Bash pwd + Windows Python -> C:\c\... mangling)
@@ -52,6 +52,11 @@ validate: lint-specs
 	@echo "[validate] Parent chain + level consistency..."
 	@cd "$(ROOT)" && $(PYTHON) spec-engine/validate_chain.py specs
 	@echo "[validate] OK."
+
+mvp-gate:
+	@echo "[mvp-gate] Running MVP acceptance gate..."
+	@cd "$(ROOT)" && $(PYTHON) generators/mvp_acceptance_gate.py --workspace-root "$(ROOT)"
+	@echo "[mvp-gate] Done."
 
 gen-graph:
 	@echo "[gen-graph] Writing dependency graph..."
