@@ -162,3 +162,7 @@ Skills are loaded from `SKILLS_DIR` (`~/.hermes/skills/`).
 Each skill is a directory with `SKILL.md` (and optional `scripts/`, `references/`).
 
 The agent can `skill_load` skills at runtime based on context.
+
+**Repo tracking**: Agent-specific skills live in `agent/skills/` (git-tracked).
+Generic skills live in `vibex-workbench/skills/`.
+To persist a skill change: `cp -r ~/.hermes/skills/<name>/ agent/skills/ && git commit`.
