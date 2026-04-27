@@ -213,7 +213,7 @@ content:
     MOD-ide-chrome: {status: proposal}
 
     # L4 Feature — P0
-    FEAT-state-detection-fix: {status: proposal, phase: P0, blockers: []}
+    FEAT-state-detection-fix: {status: done, phase: P0, note: "已实现，state half→partial (3处)"}
     FEAT-spec-write: {status: proposal, phase: P0, blockers: []}
     FEAT-scaffolding-confirm-flow_L5: {status: proposal, phase: P0, note: "L5 spec"}
     FEAT-scaffolding-path-fix_L5: {status: proposal, phase: P0, note: "L5 spec"}
@@ -256,6 +256,11 @@ content:
     FEAT-new-l1-wizard_L5: {status: proposal, phase: P0}
 
 changelog:
+  - version: "0.2"
+    date: "2026-04-27"
+    author: "hermes"
+    changes:
+      - "P0-1: FEAT-state-detection-fix 已实现，half→partial (3处)"
   - version: "0.1"
     date: "2026-04-24"
     author: "hermes"
