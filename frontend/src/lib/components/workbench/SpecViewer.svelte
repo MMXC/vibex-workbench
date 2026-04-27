@@ -29,6 +29,14 @@
 	let parentGuessPath = $state<string | null>(null);
 	let siblingFeaturePath = $state<string | null>(null);
 
+	// ── edit mode state ───────────────────────────────────────────
+	let editMode = $state(false);
+	let editContent = $state('');
+	let editOriginal = $state('');
+	let saveError = $state<string | null>(null);
+	let saveSuccess = $state(false);
+	let saving = $state(false);
+
 	$effect(() => {
 		return specExplorerStore.subscribe(s => {
 			selectedPath = s.selectedSpecPath;
@@ -142,6 +150,58 @@
 		siblingFeaturePath =
 			sib && normalizeSpecPath(sib) !== norm ? sib : null;
 	});
+	// ── edit mode ───────────────────────────────────────────────
+	function startEdit() {
+		editContent = raw;
+		editOriginal = raw;
+		saveError = null;
+		saveSuccess = false;
+		editMode = true;
+	}
+	function cancelEdit() {
+		editMode = false;
+		editContent = '';
+		saveError = null;
+		saveSuccess = false;
+	}
+	async function saveEdit() {
+		if (!selectedPath || saving) return;
+		saving = true;
+		saveError = null;
+		saveSuccess = false;
+		try {
+			const normPath = selectedPath.replace(/\\/g, '/');
+			const specsIdx = normPath.indexOf('specs/');
+			const wsRoot = specsIdx >= 0 ? normPath.slice(0, specsIdx) : '';
+			const relPath = specsIdx >= 0 ? normPath.slice(specsIdx) : normPath;
+			const res = await fetch('/api/workspace/specs/write', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ workspaceRoot: wsRoot, path: relPath, content: editContent }),
+			});
+			if (!res.ok) {
+				const err = await res.text();
+				saveError = err || `HTTP ${res.status}`;
+			} else {
+				saveSuccess = true;
+				editOriginal = editContent;
+				raw = editContent;
+				editMode = false;
+			}
+		} catch (e) {
+			saveError = e instanceof Error ? e.message : String(e);
+		} finally {
+			saving = false;
+		}
+	}
+	$effect(() => {
+		if (!editMode) return;
+		const onBeforeunload = (e: BeforeUnloadEvent) => {
+			if (editContent !== editOriginal) { e.preventDefault(); e.returnValue = ''; }
+		};
+		window.addEventListener('beforeunload', onBeforeunload);
+		return () => window.removeEventListener('beforeunload', onBeforeunload);
+	});
 </script>
 
 <div class="spec-viewer">
@@ -211,9 +271,30 @@
 						title={siblingFeaturePath}
 						onclick={() => specExplorerStore.selectSpec(siblingFeaturePath)}
 					>
-						同目录主 feature
-					</button>
+					同目录主 feature
+			</button>
+		</div>
+		{#if editMode}
+			<div class="edit-toolbar">
+				<button type="button" class="btn-save" onclick={saveEdit} disabled={saving}>
+					{saving ? '保存中…' : '💾 保存'}
+				</button>
+				<button type="button" class="btn-cancel" onclick={cancelEdit} disabled={saving}>
+					取消
+				</button>
+				<span class="edit-hint">编辑 {selectedPath}</span>
+				{#if saveError}
+					<span class="edit-error">❌ {saveError}</span>
 				{/if}
+				{#if saveSuccess}
+					<span class="edit-success">✅ 已保存</span>
+				{/if}
+			</div>
+		{:else}
+			<div class="view-toolbar">
+				<button type="button" class="btn-edit" onclick={startEdit}>
+					✏️ 编辑
+				</button>
 			</div>
 		{/if}
 
@@ -222,6 +303,14 @@
 				<p class="muted pad">加载 {selectedPath}…</p>
 			{:else if fetchErr}
 				<p class="err pad">{fetchErr}</p>
+			{:else if editMode}
+				<textarea
+					class="edit-area"
+					bind:value={editContent}
+					spellcheck={false}
+					autocomplete="off"
+					autocorrect="off"
+				></textarea>
 			{:else if centerView === 'text'}
 				<pre class="spec-text">{raw}</pre>
 			{:else if isGoalFile}
@@ -444,4 +533,85 @@
 	.err {
 		color: #f87171;
 	}
+
+	/* ── edit mode ── */
+	.view-toolbar {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		padding: 4px 12px;
+		background: rgba(0, 0, 0, 0.2);
+		border-bottom: 1px solid var(--wb-border, rgba(255, 255, 255, 0.07));
+		gap: 8px;
+	}
+	.btn-edit {
+		padding: 4px 14px;
+		border: 1px solid rgba(88, 86, 214, 0.35);
+		background: rgba(88, 86, 214, 0.12);
+		color: #c4b5fd;
+		border-radius: 5px;
+		font-size: 12px;
+		cursor: pointer;
+		font-family: inherit;
+	}
+	.btn-edit:hover {
+		background: rgba(88, 86, 214, 0.22);
+		color: var(--wb-text, #e8e8ed);
+	}
+	.edit-toolbar {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 4px 12px;
+		background: rgba(88, 86, 214, 0.1);
+		border-bottom: 1px solid rgba(88, 86, 214, 0.3);
+	}
+	.btn-save {
+		padding: 4px 14px;
+		background: rgba(88, 86, 214, 0.6);
+		border: 1px solid rgba(88, 86, 214, 0.8);
+		color: #fff;
+		border-radius: 5px;
+		font-size: 12px;
+		cursor: pointer;
+		font-family: inherit;
+	}
+	.btn-save:hover:not(:disabled) { background: rgba(88, 86, 214, 0.8); }
+	.btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+	.btn-cancel {
+		padding: 4px 12px;
+		background: transparent;
+		border: 1px solid var(--wb-border, rgba(255, 255, 255, 0.1));
+		color: var(--wb-muted, #555558);
+		border-radius: 5px;
+		font-size: 12px;
+		cursor: pointer;
+		font-family: inherit;
+	}
+	.btn-cancel:hover { color: var(--wb-text, #e8e8ed); border-color: rgba(255,255,255,0.2); }
+	.edit-hint {
+		font-size: 11px;
+		color: var(--wb-muted, #555558);
+		flex: 1;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.edit-error { font-size: 11px; color: #f87171; }
+	.edit-success { font-size: 11px; color: #6ee7b7; }
+	.edit-area {
+		flex: 1;
+		margin: 0;
+		padding: 16px 24px;
+		background: #0d0d0e;
+		color: #e8e8ed;
+		border: none;
+		resize: none;
+		font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+		font-size: 12px;
+		line-height: 1.7;
+		tab-size: 2;
+	}
+	.edit-area:focus { outline: none; }
 </style>
