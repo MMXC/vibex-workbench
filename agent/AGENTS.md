@@ -73,10 +73,6 @@ agent/
 - `make_validate` — run `make validate` in vibex-workbench
 - `bug_report` — create bug-changelog entry
 - `spec_result_track` — mark result confirmed/pending, emit SSE
-- `workspace_awareness` — get workspace state snapshot (root/state/spec_count/recommendations)
-- `workspace_detect_state` — run state_detector.py and return structured state
-- `workspace_scaffold` — scaffold new VibeX project with confirmation
-- `spec_write` — write/edit spec YAML file with validation
 - `tdd_design` — generate TDD test cases from spec's io_contract (go/python/typescript)
 - `tdd_run` — execute tests, return RED/GREEN status + update Canvas
 - `tdd_iterate` — run tests + show next behavior step from spec
@@ -166,7 +162,3 @@ Skills are loaded from `SKILLS_DIR` (`~/.hermes/skills/`).
 Each skill is a directory with `SKILL.md` (and optional `scripts/`, `references/`).
 
 The agent can `skill_load` skills at runtime based on context.
-
-**Repo tracking**: Agent-specific skills live in `agent/skills/` (git-tracked).
-Generic skills live in `vibex-workbench/skills/`.
-To persist a skill change: `cp -r ~/.hermes/skills/<name>/ agent/skills/ && git commit`.

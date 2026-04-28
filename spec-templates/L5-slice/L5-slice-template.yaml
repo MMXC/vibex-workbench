@@ -38,17 +38,6 @@ content:
 
   file_type: "{svelte|typescript|go|python|bash}"
 
-# ── preview ──────────────────────────────────────────────
-# 预览：人类在确认 L5 spec 之前能看到将要生成的代码骨架
-preview:
-  level: L5
-  artifact_type: skeleton_preview  # skeleton_preview | mermaid
-  trigger: confirm_button  # draft_change | confirm_button | spec_select
-  confirmation_point: "{确认问题，如：这个文件边界和 allowed/forbidden 清单对吗？}"
-  content: |
-    {描述骨架预览包含什么，如：file_path、implementation_boundary.allowed 前三条、implementation_boundary.forbidden}
-    {预览只读不写，不执行 make generate}
-
   generation_rules:
     - rule: "模板选择"
       detail: "{如何选择对应模板}"

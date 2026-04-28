@@ -5,8 +5,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,90 +17,6 @@ import (
 	"time"
 )
 
-// ── path safety helpers ─────────────────────────────────────────────
-
-// pathError codes for structured error responses
-const (
-	errWorkspaceRootMissing     = "workspace_root_missing"
-	errWorkspaceRootNotDir      = "workspace_root_not_directory"
-	errPathTraversal            = "path_traversal"
-	errInvalidMakeTarget        = "invalid_make_target"
-)
-
-// allowedMakeTargets is the allowlist for run-make security
-var allowedMakeTargets = map[string]bool{
-	"lint-specs": true,
-	"validate":    true,
-	"generate":    true,
-	"mvp-gate":    true,
-}
-
-// normalizeWorkspaceRoot resolves a workspace root path to absolute form,
-// handling Windows drive letters and Git Bash /c/ paths.
-func normalizeWorkspaceRoot(wsRoot string) (string, string) {
-	// "" or "." → empty string
-	if wsRoot == "" || wsRoot == "." {
-		return "", errWorkspaceRootMissing
-	}
-
-	// Clean the path first to resolve . and ..
-	clean := filepath.Clean(wsRoot)
-
-	// Handle Windows-style /c/ or /d/ paths from Git Bash
-	if len(clean) >= 3 && clean[0] == '/' && clean[2] == '/' && clean[1] >= 'a' && clean[1] <= 'z' {
-		clean = string(clean[1]-'a'+'A') + ":" + clean[2:]
-		clean = filepath.Clean(clean)
-	}
-
-	abs, err := filepath.Abs(clean)
-	if err != nil {
-		return "", errWorkspaceRootNotDir
-	}
-
-	// Must be a directory
-	info, err := os.Stat(abs)
-	if err != nil || !info.IsDir() {
-		return "", errWorkspaceRootNotDir
-	}
-
-	return abs, ""
-}
-
-// isSpecPathSafe checks that a relative spec path doesn't escape the workspace.
-// Returns ("", nil) if safe, or ("error_code", error_message) if unsafe.
-func isSpecPathSafe(relPath, wsRoot string) (string, string) {
-	if relPath == "" {
-		return errPathTraversal, "spec path is empty"
-	}
-
-	// Must start with "specs/" or be a known safe prefix
-	safePrefixes := []string{"specs/", "generators/", "Makefile", "README.md"}
-	isSafe := false
-	for _, prefix := range safePrefixes {
-		if strings.HasPrefix(relPath, prefix) {
-			isSafe = true
-			break
-		}
-	}
-	if !isSafe {
-		return errPathTraversal, fmt.Sprintf("spec path must start with one of: %v", safePrefixes)
-	}
-
-	// Clean and check traversal
-	clean := filepath.Clean(relPath)
-	abs := filepath.Join(wsRoot, clean)
-	absClean := filepath.Clean(abs)
-	if !strings.HasPrefix(absClean, wsRoot) {
-		return errPathTraversal, "path traversal detected"
-	}
-	return "", ""
-}
-
-// isTargetAllowed checks if a make target is in the security allowlist.
-func isTargetAllowed(target string) bool {
-	return allowedMakeTargets[target]
-}
-
 // ── detect-state ──────────────────────────────────────────────────
 
 // workspaceDetectStateRequest is the POST body for /api/workspace/detect-state.
@@ -112,7 +26,7 @@ type workspaceDetectStateRequest struct {
 
 // workspaceDetectStateHandler GET/POST /api/workspace/detect-state
 // Body: { "workspaceRoot": "/path/to/workspace" }
-// Response: { "state": "empty"|"partial"|"ready", "workspaceRoot": "...", "signals": [...], "suggestions": [...] }
+// Response: { "state": "empty"|"half"|"ready", "workspaceRoot": "...", "signals": [...], "suggestions": [...] }
 func workspaceDetectStateHandler(w http.ResponseWriter, r *http.Request) {
 	wsRoot := cfg.WorkspaceDir
 
@@ -144,15 +58,11 @@ func workspaceDetectStateHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	result := map[string]interface{}{"workspaceRoot": resolveRoot}
-	// 优先用 WORKSPACE_ROOT，次选 cwd
-	var scriptPath string
-	if resolveRoot != "" {
-		scriptPath = filepath.Join(resolveRoot, "generators", "state_detector.py")
-	} else {
-		cwd, _ := os.Getwd()
-		scriptPath = filepath.Join(cwd, "generators", "state_detector.py")
-	}
-	scriptPath, _ = filepath.Abs(scriptPath)
+	// 调用 state_detector.py — 基于 backend binary 位置推导 generators 路径
+	// backend binary 在 backend/vibex-backend 或 backend/vibex-backend.exe
+	// generators 在同级的 ../generators/
+	scriptPath := filepath.Join(filepath.Dir(os.Args[0]), "..", "generators", "state_detector.py")
+	scriptPath, _ = filepath.Abs(scriptPath) // 规范化路径
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
 		result["state"] = "error"
 		result["error"] = fmt.Sprintf("state_detector.py not found at %s", scriptPath)
@@ -226,14 +136,8 @@ func workspaceScaffoldHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 优先用 wsRoot（已从 req.WorkspaceRoot / cfg / env 解析），次选 cwd
-	var scriptPath string
-	if wsRoot != "" {
-		scriptPath = filepath.Join(wsRoot, "generators", "scaffolder.py")
-	} else {
-		cwd, _ := os.Getwd()
-		scriptPath = filepath.Join(cwd, "generators", "scaffolder.py")
-	}
+	// 调用 scaffolder.py — 基于 backend binary 位置推导 generators 路径
+	scriptPath := filepath.Join(filepath.Dir(os.Args[0]), "..", "generators", "scaffolder.py")
 	scriptPath, _ = filepath.Abs(scriptPath)
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
 		http.Error(w, fmt.Sprintf("scaffolder.py not found at %s", scriptPath), http.StatusInternalServerError)
@@ -312,23 +216,27 @@ func workspaceSpecWriteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Normalize workspace root
-	wsRootNorm, errCode := normalizeWorkspaceRoot(req.WorkspaceRoot)
-	if errCode != "" {
-		http.Error(w, errCode+": workspace root", http.StatusBadRequest)
+	if req.Path == "" {
+		http.Error(w, "path required", http.StatusBadRequest)
 		return
 	}
 
-	// Security: spec path guard
-	if errCode2, msg := isSpecPathSafe(req.Path, wsRootNorm); errCode2 != "" {
-		http.Error(w, errCode2+": "+msg, http.StatusForbidden)
+	wsRoot := req.WorkspaceRoot
+	if wsRoot == "" {
+		wsRoot = cfg.WorkspaceDir
+	}
+	if wsRoot == "" {
+		wsRoot = os.Getenv("WORKSPACE_ROOT")
+	}
+	if wsRoot == "" {
+		http.Error(w, "workspaceRoot required", http.StatusBadRequest)
 		return
 	}
 
-	// Path traversal protection (defense in depth)
+	// Path traversal protection
 	cleanPath := filepath.Clean(req.Path)
-	absPath := filepath.Join(wsRootNorm, cleanPath)
-	if !strings.HasPrefix(filepath.Clean(absPath), wsRootNorm) {
+	absPath := filepath.Join(wsRoot, cleanPath)
+	if !strings.HasPrefix(absPath, wsRoot) {
 		http.Error(w, "forbidden: path traversal detected", http.StatusForbidden)
 		return
 	}
@@ -382,25 +290,12 @@ func workspaceRunMakeHandler(w http.ResponseWriter, r *http.Request) {
 		target = "lint-specs"
 	}
 
-	// Security: target allowlist
-	if !isTargetAllowed(target) {
-		http.Error(w, fmt.Sprintf("%s: %q not in allowlist", errInvalidMakeTarget, target), http.StatusForbidden)
-		return
-	}
-
-	// Normalize workspace root
-	wsRootNorm, errCode := normalizeWorkspaceRoot(wsRoot)
-	if errCode != "" {
-		http.Error(w, errCode+": workspace root", http.StatusBadRequest)
-		return
-	}
-
 	// 120s timeout per spec
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "make", target)
-	cmd.Dir = wsRootNorm
+	cmd.Dir = wsRoot
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -511,89 +406,4 @@ func workspaceSpecsConventionHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(convention)
-}
-
-// scaffoldPreviewHandler GET /api/workspace/scaffold/preview
-// Returns a preview of what scaffold would create, with a UUID confirmation token.
-// The token is stored in .vibex/scaffold_preview_token.json for confirm-time validation.
-// This is a dry-run: it does NOT write any files.
-func scaffoldPreviewHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	wsRoot := r.URL.Query().Get("workspaceRoot")
-	if wsRoot == "" {
-		wsRoot = cfg.WorkspaceDir
-	}
-	if wsRoot == "" {
-		http.Error(w, "workspaceRoot required", http.StatusBadRequest)
-		return
-	}
-
-	// Check current state first
-	detector := filepath.Join(cfg.WorkspaceDir, "generators", "state_detector.py")
-	cmd := exec.Command("python3", detector, wsRoot, "--json")
-	cmd.Dir = cfg.WorkspaceDir
-	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
-	cmd.Stdout, cmd.Stderr = stdout, stderr
-	cmd.Run()
-
-	var currentState string = "unknown"
-	if m := map[string]interface{}{}; json.Unmarshal(stdout.Bytes(), &m) == nil {
-		if s, ok := m["state"].(string); ok {
-			currentState = s
-		}
-	}
-
-	// Always-ok files that scaffold would create
-	previewFiles := []map[string]string{
-		{"path": "specs/.gitkeep", "description": "spec 文件目录"},
-		{"path": "generators/.gitkeep", "description": "生成器目录"},
-		{"path": "spec-templates/.gitkeep", "description": "spec 模板目录"},
-		{"path": "Makefile", "description": "构建入口（make validate / make generate）"},
-		{"path": "frontend/package.json", "description": "前端依赖配置"},
-		{"path": ".vibex/scaffold_preview_token.json", "description": "脚手架预览确认 token（确认后写入）"},
-	}
-
-	// If state is empty, also preview the minimal L1 spec
-	suggestions := []string{}
-	if currentState == "empty" {
-		suggestions = append(suggestions, "当前目录为空，建议执行脚手架初始化")
-		previewFiles = append(previewFiles,
-			map[string]string{"path": "specs/L1-goal/PLACEHOLDER.yaml", "description": "首个 L1 目标规格（占位）"},
-		)
-	} else if currentState == "partial" {
-		suggestions = append(suggestions, "目录已有部分结构，可直接运行 make validate")
-	} else if currentState == "ready" {
-		suggestions = append(suggestions, "脚手架已就绪，无需重新初始化")
-	}
-
-	// Generate UUID token and store
-	b := make([]byte, 16)
-	rand.Read(b)
-	token := hex.EncodeToString(b)
-	tokenFile := filepath.Join(wsRoot, ".vibex", "scaffold_preview_token.json")
-	os.MkdirAll(filepath.Dir(tokenFile), 0755)
-	tokenData := map[string]interface{}{
-		"token":         token,
-		"workspace":   wsRoot,
-		"created_at":   time.Now().Format(time.RFC3339),
-		"preview_files": previewFiles,
-		"current_state": currentState,
-	}
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"preview_token":  token,
-		"current_state":  currentState,
-		"preview_files":  previewFiles,
-		"suggestions":    suggestions,
-		"workspace_root": wsRoot,
-	})
-
-	// Store token server-side (for confirm-time validation)
-	tokenData["token"] = token
-	if data, err := json.Marshal(tokenData); err == nil {
-		os.WriteFile(tokenFile, data, 0644)
-	}
 }

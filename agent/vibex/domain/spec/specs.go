@@ -137,16 +137,6 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 			),
 			Handler: MakeSpecWriteHandler(workspaceDir, bc, setStepType),
 		},
-		{
-			Name:        "workspace_awareness",
-			Description: "Get a structured snapshot of the current workspace: " +
-				"workspace_root, state (empty/partial/ready), spec_count, detection signals, " +
-				"and next-step recommendations based on current state. " +
-				"Also reads last_validate_result and last_make_result from .vibex/last_problems.json. " +
-				"Use this at the start of every agent turn to understand what you're working with.",
-			Parameters:  objectSchema(),
-			Handler:     MakeWorkspaceAwarenessHandler(workspaceDir, setStepType),
-		},
 	}
 }
 

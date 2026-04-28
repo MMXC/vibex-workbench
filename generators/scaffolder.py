@@ -118,7 +118,7 @@ def scaffold(workspace_root: str, template_variant: str = "default",
 
     try:
         # 创建目录
-        for d in ["specs/L1-goal", "specs/L2-skeleton", "generators"]:
+        for d in ["specs/L1-goal", "generators"]:
             p = root / d
             p.mkdir(parents=True, exist_ok=True)
             created.append(str(p.relative_to(root)))

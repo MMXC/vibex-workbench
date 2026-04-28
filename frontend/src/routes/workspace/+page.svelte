@@ -6,15 +6,11 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import WorkspaceSelector from '$lib/components/workbench/WorkspaceSelector.svelte';
-  import NewL1Wizard from '$lib/components/workbench/NewL1Wizard.svelte';
 
   let workspaceRoot = $state('');
   let state = $state<{state: string, signals: any[], suggestions: string[]} | null>(null);
   let loading = $state(false);
   let error = $state('');
-  let scaffoldPreview = $state(false);          // true = 预览确认模式
-  let scaffoldPreviewItems = $state<string[]>([]);  // 预览文件列表
-  let wizardOpen = $state(false);              // true = 新建 L1 向导
 
   async function detectState() {
     if (!workspaceRoot) return;
@@ -53,39 +49,6 @@
     } finally {
       loading = false;
     }
-  }
-
-  function openScaffoldPreview() {
-    scaffoldPreviewItems = [
-      'specs/L1-goal/',
-      'specs/L2-skeleton/',
-      'generators/',
-      'generators/gen.py',
-      'generators/validate_specs.py',
-      'Makefile',
-      'README.md'
-    ];
-    scaffoldPreview = true;
-  }
-
-  async function confirmScaffold() {
-    scaffoldPreview = false;  // 关闭预览模式
-    await scaffold();         // 调用已有 scaffold()
-  }
-
-  function openWizard() {
-    wizardOpen = true;
-  }
-
-  function closeWizard() {
-    wizardOpen = false;
-  }
-
-  async function handleWizardCreated(path: string) {
-    wizardOpen = false;
-    // 刷新状态（specs/ 目录内容变了）
-    await detectState();
-    // TODO: 可选导航到 /workbench 打开新文件
   }
 
   async function runMake(target: string) {
@@ -178,33 +141,9 @@
 
       {#if state.state === 'empty'}
         <div class="action-row">
-          {#if !scaffoldPreview}
-            <button onclick={openScaffoldPreview} disabled={loading} class="btn-primary">
-              📦 初始化脚手架
-            </button>
-            <button onclick={openWizard} disabled={loading} class="btn-secondary">
-              📄 新建 L1 Spec
-            </button>
-          {/if}
-
-          {#if scaffoldPreview}
-            <div class="scaffold-confirm-drawer">
-              <h3>即将创建以下文件：</h3>
-              <ul>
-                {#each scaffoldPreviewItems as item}
-                  <li><code>{item}</code></li>
-                {/each}
-              </ul>
-              <div class="confirm-actions">
-                <button onclick={confirmScaffold} disabled={loading} class="btn-confirm">
-                  ✅ 确认写入
-                </button>
-                <button onclick={() => { scaffoldPreview = false; }} disabled={loading} class="btn-cancel-scaffold">
-                  取消
-                </button>
-              </div>
-            </div>
-          {/if}
+          <button onclick={scaffold} disabled={loading} class="btn-primary">
+            📦 初始化脚手架
+          </button>
         </div>
       {/if}
 
@@ -225,14 +164,6 @@
       <p class="hint">输入路径后点击「检测」查看项目状态</p>
     {/if}
   </div>
-
-  {#if wizardOpen}
-    <NewL1Wizard
-      {workspaceRoot}
-      onCreated={handleWizardCreated}
-      onCancel={closeWizard}
-    />
-  {/if}
 </main>
 
 <style>
@@ -414,56 +345,4 @@
     text-align: center;
     margin: 8px 0 0;
   }
-
-  /* ── scaffold confirm drawer ── */
-  .scaffold-confirm-drawer {
-    background: #1e1e2e;
-    border: 1px solid #cba6f7;
-    border-radius: 8px;
-    padding: 16px;
-    margin-top: 10px;
-  }
-  .scaffold-confirm-drawer h3 {
-    margin: 0 0 12px;
-    font-size: 13px;
-    color: #cdd6f4;
-    font-weight: 600;
-  }
-  .scaffold-confirm-drawer ul {
-    margin: 0 0 14px 20px;
-    padding: 0;
-    font-size: 12px;
-    color: #a6adc8;
-  }
-  .scaffold-confirm-drawer ul li {
-    margin-bottom: 4px;
-  }
-  .confirm-actions {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .btn-confirm {
-    padding: 7px 14px;
-    background: #a6e3a1;
-    border: none;
-    border-radius: 6px;
-    color: #11111b;
-    font-weight: 600;
-    cursor: pointer;
-    font-size: 13px;
-  }
-  .btn-confirm:hover:not(:disabled) { background: #94d2bd; }
-  .btn-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-cancel-scaffold {
-    padding: 7px 14px;
-    background: transparent;
-    border: 1px solid #45475a;
-    border-radius: 6px;
-    color: #a6adc8;
-    cursor: pointer;
-    font-size: 13px;
-  }
-  .btn-cancel-scaffold:hover:not(:disabled) { background: #313244; color: #cdd6f4; }
-  .btn-cancel-scaffold:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

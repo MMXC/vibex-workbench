@@ -37,7 +37,7 @@ io_contract:
     只负责 spec YAML 读写和 UI 状态切换。
     不负责 YAML 语法校验（由 make validate 负责）。
     不负责 spec 内容语义校验。
-    Monaco Editor 走本地打包，不走 CDN，由 vite-plugin-monaco-editor 打包进 bundle。
+    Monaco Editor 走本地打包，不走 CDN。由 Vite `?worker` 静态导入打包进 bundle。
 
 behavior:
   - "用户点击 spec 文件 → read → 展示内容（只读模式）"

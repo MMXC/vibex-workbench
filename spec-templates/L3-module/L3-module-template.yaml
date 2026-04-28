@@ -34,17 +34,6 @@ io_contract:
     3. 定义内部状态机
     4. 输出 L3 spec
 
-# ── preview ──────────────────────────────────────────────
-# 预览：人类在确认 spec 之前能看到模块的结构形态
-preview:
-  level: L3
-  artifact_type: module_structure  # module_structure | mermaid
-  trigger: confirm_button  # draft_change | confirm_button | spec_select
-  confirmation_point: "{确认问题，如：这个模块边界和公开 API 对吗？}"
-  content: |
-    {描述预览产物包含什么，如：模块名、public_api 列表、state 转换关系描述}
-
-
 content:
   public_api:
     - function: "{exported_function}"

@@ -43,17 +43,6 @@ io_contract:
     3. 定义模块间依赖关系
     4. 输出 modules_matrix
 
-# ── preview ──────────────────────────────────────────────
-# 预览：人类在确认 L2 spec 之前能看到架构骨架的全景图
-preview:
-  level: L2
-  artifact_type: architecture_diagram  # architecture_diagram | mermaid
-  trigger: confirm_button
-  confirmation_point: "{确认问题，如：这个模块划分和依赖关系对吗？}"
-  content: |
-    {描述预览产物，如：modules_matrix 的 Mermaid C4 图或 flowchart}
-    {建议用 mermaid flowchart 展示模块间依赖关系}
-
 # ── content ─────────────────────────────────────
 content:
   tech_stack:
