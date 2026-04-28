@@ -768,6 +768,136 @@ func MakeSpecWriteHandler(workspaceDir string, bc Broadcaster, setStepType func(
 	}
 }
 
+// workspaceAwareness returns a structured awareness block for the agent.
+// Returns: workspace_root, state, spec_count, missing paths, recommendations, last results.
+func workspaceAwareness(workspaceDir string) string {
+	var b strings.Builder
+
+	// 1. Workspace root
+	b.WriteString("## Workspace Awareness\n\n")
+	b.WriteString(fmt.Sprintf("**workspace_root:** %s\n\n", workspaceDir))
+
+	// 2. State detection
+	script := filepath.Join(workspaceDir, "generators", "state_detector.py")
+	state := "unknown"
+	signals := []string{}
+	if _, err := os.Stat(script); err == nil {
+		cmd := exec.Command("python3", script, workspaceDir, "--json")
+		cmd.Dir = workspaceDir
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			var result map[string]interface{}
+			if json.Unmarshal(out, &result) == nil {
+				if s, ok := result["state"].(string); ok {
+					state = s
+				}
+				if sigs, ok := result["signals"].([]interface{}); ok {
+					for _, s := range sigs {
+						if m, ok := s.(map[string]interface{}); ok {
+							path, _ := m["path"].(string)
+							exists, _ := m["exists"].(bool)
+							check := "❌"
+							if exists {
+								check = "✅"
+							}
+							signals = append(signals, fmt.Sprintf("%s %s", check, path))
+						}
+					}
+				}
+			}
+		}
+	}
+
+	icons := map[string]string{
+		"empty":   "⬜ EMPTY",
+		"partial": "🟨 PARTIAL",
+		"ready":   "🟩 READY",
+		"unknown": "❓ UNKNOWN",
+	}
+	b.WriteString(fmt.Sprintf("**workspace_state:** %s — %s\n\n", state, icons[state]))
+
+	// 3. Spec count
+	specsDir := filepath.Join(workspaceDir, "specs")
+	specCount := 0
+	if entries, err := os.ReadDir(specsDir); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".yaml") {
+				specCount++
+			}
+			if entry.IsDir() {
+				if sub, err := os.ReadDir(filepath.Join(specsDir, entry.Name())); err == nil {
+					for _, s := range sub {
+						if !s.IsDir() && strings.HasSuffix(s.Name(), ".yaml") {
+							specCount++
+						}
+					}
+				}
+			}
+		}
+	}
+	b.WriteString(fmt.Sprintf("**spec_count:** %d\n\n", specCount))
+
+	// 4. Signal details
+	if len(signals) > 0 {
+		b.WriteString("**detection_signals:**\n")
+		for _, s := range signals {
+			b.WriteString(fmt.Sprintf("- %s\n", s))
+		}
+		b.WriteString("\n")
+	}
+
+	// 5. Recommendations based on state
+	b.WriteString("**recommendations:**\n")
+	switch state {
+	case "empty":
+		b.WriteString("- Use `workspace_scaffold` to initialize the project skeleton\n")
+		b.WriteString("- Or use `spec_designer` to create a goal spec first\n")
+		b.WriteString("- ⚠️ Do NOT directly write files without scaffolding first\n")
+	case "partial":
+		b.WriteString("- Run `make validate` to identify which specs are broken\n")
+		b.WriteString("- Run `make generate` to complete scaffolding\n")
+		b.WriteString("- Consider using `spec_designer` to add goal specs\n")
+	case "ready":
+		b.WriteString("- Run `make validate` to check spec integrity\n")
+		b.WriteString("- Use `spec_designer` or `spec_feature` to expand the spec tree\n")
+		b.WriteString("- Run `make generate` to sync spec changes to code\n")
+	default:
+		b.WriteString("- Use `workspace_detect_state` for details\n")
+	}
+	b.WriteString("\n")
+
+	// 6. Check for recent problems (last validate/make results)
+	problemsFile := filepath.Join(workspaceDir, ".vibex", "last_problems.json")
+	if data, err := os.ReadFile(problemsFile); err == nil {
+		var problems map[string]interface{}
+		if json.Unmarshal(data, &problems) == nil {
+			if lastValidate, ok := problems["last_validate"].(string); ok && lastValidate != "" {
+				b.WriteString(fmt.Sprintf("**last_validate_result:** %s\n", lastValidate))
+			}
+			if lastMake, ok := problems["last_make"].(string); ok && lastMake != "" {
+				b.WriteString(fmt.Sprintf("**last_make_result:** %s\n", lastMake))
+			}
+		}
+	}
+
+	return b.String()
+}
+
+// WorkspaceAwarenessContext is the exported entry point used by server.go
+// for auto-injection into every agent turn.
+func WorkspaceAwarenessContext(workspaceDir string) string {
+	return workspaceAwareness(workspaceDir)
+}
+
+func MakeWorkspaceAwarenessHandler(workspaceDir string, setStepType func(threadID, stepType string)) rt.Handler {
+	return func(arguments string) string {
+		if setStepType != nil {
+			setStepType("", "spec-apply")
+		}
+		return workspaceAwareness(workspaceDir)
+	}
+}
+
 func escapeYAML(s string) string {
 	s = strings.ReplaceAll(s, "\\", "\\\\")
 	s = strings.ReplaceAll(s, "\"", "\\\"")

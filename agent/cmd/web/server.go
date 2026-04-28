@@ -21,6 +21,7 @@ import (
 	"vibex/agent/agents/subagent"
 	"vibex/agent/internal/common"
 	"vibex/agent/vibex/domain"
+	vibexspec "vibex/agent/vibex/domain/spec"
 	"vibex/generators/memlace"
 
 	"github.com/openai/openai-go/v3/responses"
@@ -94,12 +95,21 @@ func runToolLoop(
 			}
 		}
 
-		reqInput := append([]responses.ResponseInputItemUnionParam{}, inputItems...)
-		if notes := strings.TrimSpace(rtools.FormatBackgroundNotifications(bgMgr.DrainNotifications())); notes != "" {
-			reqInput = append(reqInput, responses.ResponseInputItemParamOfMessage(notes, responses.EasyInputMessageRoleDeveloper))
+	reqInput := append([]responses.ResponseInputItemUnionParam{}, inputItems...)
+	if notes := strings.TrimSpace(rtools.FormatBackgroundNotifications(bgMgr.DrainNotifications())); notes != "" {
+		reqInput = append(reqInput, responses.ResponseInputItemParamOfMessage(notes, responses.EasyInputMessageRoleDeveloper))
+	}
+	// Inject workspace awareness at the start of every turn
+	if wsRoot := strings.TrimSpace(cfg.WorkspaceDir); wsRoot != "" {
+		wsAwareness := vibexspec.WorkspaceAwarenessContext(wsRoot)
+		if wsAwareness != "" {
+			reqInput = append(reqInput, responses.ResponseInputItemParamOfMessage(
+				"## Workspace Awareness (auto-injected, do not skip)\n"+wsAwareness,
+				responses.EasyInputMessageRoleDeveloper))
 		}
-		reqInput = append(reqInput, responses.ResponseInputItemParamOfMessage(
-			"Use todo_set to track progress. Use skill_load to activate skills.", responses.EasyInputMessageRoleDeveloper))
+	}
+	reqInput = append(reqInput, responses.ResponseInputItemParamOfMessage(
+		"Use todo_set to track progress. Use skill_load to activate skills.", responses.EasyInputMessageRoleDeveloper))
 		if skillRegistry != nil {
 			reqInput = append(reqInput, responses.ResponseInputItemParamOfMessage(skillRegistry.NamesContextMessage(), responses.EasyInputMessageRoleDeveloper))
 			if ctx := strings.TrimSpace(skillState.ContextMessage(skillRegistry)); ctx != "" {

@@ -66,6 +66,7 @@ func main() {
 	http.HandleFunc("/api/workspace/specs/convention", withCORS(workspaceSpecsConventionHandler))
 	http.HandleFunc("/api/workspace/detect-state", withCORS(workspaceDetectStateHandler))
 	http.HandleFunc("/api/workspace/scaffold", withCORS(workspaceScaffoldHandler))
+	http.HandleFunc("/api/workspace/scaffold/preview", withCORS(scaffoldPreviewHandler))
 	http.HandleFunc("/api/workspace/run-make", withCORS(workspaceRunMakeHandler))
 	http.HandleFunc("/api/agent/spec-write", withCORS(handleAgentSpecWriteProtocol))
 

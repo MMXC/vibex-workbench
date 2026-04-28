@@ -5,6 +5,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -509,4 +511,89 @@ func workspaceSpecsConventionHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(convention)
+}
+
+// scaffoldPreviewHandler GET /api/workspace/scaffold/preview
+// Returns a preview of what scaffold would create, with a UUID confirmation token.
+// The token is stored in .vibex/scaffold_preview_token.json for confirm-time validation.
+// This is a dry-run: it does NOT write any files.
+func scaffoldPreviewHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	wsRoot := r.URL.Query().Get("workspaceRoot")
+	if wsRoot == "" {
+		wsRoot = cfg.WorkspaceDir
+	}
+	if wsRoot == "" {
+		http.Error(w, "workspaceRoot required", http.StatusBadRequest)
+		return
+	}
+
+	// Check current state first
+	detector := filepath.Join(cfg.WorkspaceDir, "generators", "state_detector.py")
+	cmd := exec.Command("python3", detector, wsRoot, "--json")
+	cmd.Dir = cfg.WorkspaceDir
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	cmd.Stdout, cmd.Stderr = stdout, stderr
+	cmd.Run()
+
+	var currentState string = "unknown"
+	if m := map[string]interface{}{}; json.Unmarshal(stdout.Bytes(), &m) == nil {
+		if s, ok := m["state"].(string); ok {
+			currentState = s
+		}
+	}
+
+	// Always-ok files that scaffold would create
+	previewFiles := []map[string]string{
+		{"path": "specs/.gitkeep", "description": "spec 文件目录"},
+		{"path": "generators/.gitkeep", "description": "生成器目录"},
+		{"path": "spec-templates/.gitkeep", "description": "spec 模板目录"},
+		{"path": "Makefile", "description": "构建入口（make validate / make generate）"},
+		{"path": "frontend/package.json", "description": "前端依赖配置"},
+		{"path": ".vibex/scaffold_preview_token.json", "description": "脚手架预览确认 token（确认后写入）"},
+	}
+
+	// If state is empty, also preview the minimal L1 spec
+	suggestions := []string{}
+	if currentState == "empty" {
+		suggestions = append(suggestions, "当前目录为空，建议执行脚手架初始化")
+		previewFiles = append(previewFiles,
+			map[string]string{"path": "specs/L1-goal/PLACEHOLDER.yaml", "description": "首个 L1 目标规格（占位）"},
+		)
+	} else if currentState == "partial" {
+		suggestions = append(suggestions, "目录已有部分结构，可直接运行 make validate")
+	} else if currentState == "ready" {
+		suggestions = append(suggestions, "脚手架已就绪，无需重新初始化")
+	}
+
+	// Generate UUID token and store
+	b := make([]byte, 16)
+	rand.Read(b)
+	token := hex.EncodeToString(b)
+	tokenFile := filepath.Join(wsRoot, ".vibex", "scaffold_preview_token.json")
+	os.MkdirAll(filepath.Dir(tokenFile), 0755)
+	tokenData := map[string]interface{}{
+		"token":         token,
+		"workspace":   wsRoot,
+		"created_at":   time.Now().Format(time.RFC3339),
+		"preview_files": previewFiles,
+		"current_state": currentState,
+	}
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"preview_token":  token,
+		"current_state":  currentState,
+		"preview_files":  previewFiles,
+		"suggestions":    suggestions,
+		"workspace_root": wsRoot,
+	})
+
+	// Store token server-side (for confirm-time validation)
+	tokenData["token"] = token
+	if data, err := json.Marshal(tokenData); err == nil {
+		os.WriteFile(tokenFile, data, 0644)
+	}
 }
