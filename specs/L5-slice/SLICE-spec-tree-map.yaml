@@ -1,0 +1,148 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-tree-map"
+  parent: "FEAT-spec-governance-viewer"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-28"
+  updated: "2026-04-28"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-28"
+
+io_contract:
+  input: |
+    GET /api/workspace/specs/tree 的 JSON 响应，
+    selectedSpecPath（当前选中节点路径），
+    用户在树视图中的交互事件（click/expand/search）。
+  output: |
+    SpecTreeMap.svelte 组件：可折叠层级树 + 搜索过滤 + 覆盖率 badge + 节点选中高亮
+  boundary: |
+    只实现前端树组件渲染。不涉及 API 调用实现（Go agent 负责）、
+    不涉及 spec 编辑（SpecDetailPanel 负责）。
+  behavior_summary: |
+    树初始化时 GET /specs/tree → 渲染 L1→L2→L3→L4 结构（默认 L4 不展开）→
+    点击展开加载 L5 → 点击节点 → 更新 selectedSpecPath → SpecDetailPanel 响应。
+
+content:
+  file_path: "frontend/src/lib/components/workbench/SpecTreeMap.svelte"
+  file_type: svelte
+  implementation_boundary:
+    allowed:
+    - spec 树数据结构的渲染（折叠/展开/选中）
+    - 搜索过滤（按 name 模糊匹配）
+    - 层级过滤（显示/隐藏 L1/L2/L3/L4/L5）
+    - L5 覆盖率 badge（显示 L5xN）
+    - 懒加载：L4 默认折叠，点击时请求 /api/workspace/specs/children
+    - 拖拽缩放（zoom in/out）
+    forbidden:
+    - 直接读写 spec YAML 文件
+    - 调用 git 命令
+    - 调用 validate
+
+  tree_data_structure: |
+    树节点形状（从 /specs/tree API 获取）：
+    interface SpecNode {
+      name: string;        // "vibex-workbench-mvp"
+      label: string;       // 显示名 "vibex-workbench-mvp"
+      level: "L1"|"L2"|"L3"|"L4"|"L5";
+      status: "proposal"|"in_progress"|"ready"|"completed";
+      spec_path: string;   // 相对 WORKSPACE_ROOT 的路径
+      l5_count?: number;   // L4 节点的 L5 子节点数
+      l5_total?: number;   // L4 节点是否有 L5（0/有）
+      children?: SpecNode[];
+      expanded?: boolean;
+    }
+
+  rendering_rules:
+    - rule: "Level colors"
+      detail: |
+        L1: 左边框紫色 #cba6f7
+        L2: 左边框蓝色 #89b4fa
+        L3: 左边框红色 #f38ba8
+        L4: 左边框绿色 #a6e3a1
+        L5: 左边框黄色 #f9e2af
+    - rule: "Expand icon"
+      detail: "L4/L5 无子节点时显示 · 而不是展开箭头"
+    - rule: "L5 badge"
+      detail: "L4 节点右侧显示 L5xN（N=0时红色 ⚠，N>0时绿色 ✓）"
+    - rule: "Selected state"
+      detail: "选中节点背景高亮 + 左侧竖线加粗"
+    - rule: "Search match"
+      detail: "匹配节点高亮 + 父路径全部展开以显示匹配项"
+
+  component_api:
+    props:
+      - name: "selectedSpecPath"
+        type: "string | null"
+        description: "当前选中 spec 路径"
+      - name: "onSelect"
+        type: "(node: SpecNode) => void"
+        description: "节点选中回调"
+    events:
+      - "nodeSelect: SpecNode"
+      - "nodeExpand: SpecNode"
+      - "search: string"
+
+  verification:
+    commands:
+    - npm --prefix frontend run build
+    manual_checks:
+    - 100+ spec 节点时初始渲染 < 2s
+    - 搜索 'ide' 过滤正确
+    - L5 badge 显示准确（L4 无 L5 显示红色 ⚠）
+    - 展开/折叠状态在重新加载后保持
+    failure_conditions:
+    - 大仓库渲染卡顿（需虚拟化列表）
+    - 搜索时匹配节点不在可视区域
+
+  dependencies:
+    - file: "frontend/src/lib/stores/spec-explorer-store.ts"
+      reason: "selectedSpecPath 状态 + selectSpec action"
+    - file: "agent/cmd/web/workspace_handlers.go"
+      reason: "/api/workspace/specs/tree API"
+
+  behaviors:
+    - id: "B1"
+      trigger: "SpecTreeMap 挂载"
+      action: "GET /api/workspace/specs/tree → 解析 → 渲染初始树（L4 默认折叠）"
+      expected_result: "L1/L2/L3 完全展示，L4 折叠"
+      error_handling: "API 失败时显示错误状态 + 重试按钮"
+
+    - id: "B2"
+      trigger: "用户点击节点展开箭头"
+      action: "展开该节点 → 如果是 L4 且未加载 L5 → GET /specs/children"
+      expected_result: "L5 子节点出现在 L4 下方"
+      error_handling: "加载失败时节点保持折叠 + 显示警告"
+
+    - id: "B3"
+      trigger: "用户点击节点（不是展开箭头）"
+      action: "onSelect(node) → 更新 selectedSpecPath"
+      expected_result: "该节点高亮，SpecDetailPanel 加载"
+      error_handling: "N/A — 无副作用"
+
+    - id: "B4"
+      trigger: "用户在搜索框输入"
+      action: "filter 树节点（name 包含搜索词）→ 父路径展开 → 匹配节点高亮"
+      expected_result: "非匹配节点折叠/隐藏"
+      error_handling: "搜索词为空时恢复原始展开状态"
+
+    - id: "B5"
+      trigger: "用户右键节点"
+      action: "显示上下文菜单：复制路径 | 在终端打开 | 新建子节点"
+      expected_result: "菜单项正确显示"
+      error_handling: "复制路径失败时显示 toast"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-28"
+    author: "hermes"
+    changes:
+      - "新增 SpecTreeMap 组件：层级树 + 搜索 + L5 覆盖率 badge"

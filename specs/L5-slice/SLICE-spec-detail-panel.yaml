@@ -1,0 +1,153 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-detail-panel"
+  parent: "FEAT-spec-governance-viewer"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-28"
+  updated: "2026-04-28"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-28"
+
+io_contract:
+  input: |
+    selectedSpecPath（当前选中节点路径），
+    MonacoEditor 组件（FEAT-spec-write 已集成），
+    validate 结果。
+  output: |
+    SpecDetailPanel.svelte：元信息侧栏 + Monaco Editor + Validate Bar
+  boundary: |
+    Monaco Editor 集成由 FEAT-spec-write 定义，本 slice 只负责布局和交互协议。
+    Validate Bar 触发 validate 结果展示，不实现验证逻辑（Go agent 负责）。
+  behavior_summary: |
+    selectedSpecPath 变化 → 加载 spec 内容 → Monaco 显示 →
+    元信息栏展示 name/level/status/parent/children →
+    用户编辑 → Ctrl+S → 保存 → 自动 validate → Validate Bar 显示结果。
+
+content:
+  file_path: "frontend/src/lib/components/workbench/SpecDetailPanel.svelte"
+  file_type: svelte
+  implementation_boundary:
+    allowed:
+    - SpecDetailPanel 布局（header + editor + footer validate bar）
+    - 元信息侧栏（name/level/status/parent/children chips）
+    - Validate Bar（按钮 + 状态 + 错误列表）
+    - Monaco Editor 集成（复用 MonacoEditor.svelte）
+    - Ctrl+S 保存快捷键
+    - History 按钮（触发 SpecHistoryPanel）
+    forbidden:
+    - Monaco Editor 内部实现（FEAT-spec-write 负责）
+    - validate 逻辑实现（Go agent 负责）
+    - git 操作
+
+  layout_structure: |
+    SpecDetailPanel
+    ├─ HeaderBar
+    │   ├─ LevelBadge (L1/L2/L3/L4/L5)
+    │   ├─ StatusChip (proposal/in_progress/ready/completed)
+    │   ├─ SpecName (可编辑)
+    │   ├─ ParentChip → 点击跳转 parent
+    │   ├─ ChildrenChips[] → 点击跳转 child
+    │   └─ [History] [Validate] buttons
+    ├─ MonacoEditor (flex-grow)
+    └─ ValidateBar (fixed bottom, 48px)
+        ├─ [Validate] button
+        ├─ StatusBadge (pass/fail/warning/idle)
+        ├─ ErrorSummary ("3 errors, 1 warning")
+        └─ ErrorList (clickable, scrollable)
+
+  component_api:
+    props:
+      - name: "specPath"
+        type: "string"
+        description: "当前加载的 spec 相对路径"
+      - name: "specContent"
+        type: "string"
+        description: "spec YAML 完整内容"
+    events:
+      - "save: { path: string, content: string }"
+      - "validate: { path: string }"
+      - "openHistory: { path: string }"
+
+  behaviors:
+    - id: "B1"
+      trigger: "specPath 变化"
+      action: "GET /api/workspace/specs/read?path=xxx → 设置 Monaco value → 更新元信息栏"
+      expected_result: "Monaco 显示 spec 内容，元信息栏显示 metadata"
+      error_handling: "读取失败时显示错误，不清空 Monaco 当前内容"
+
+    - id: "B2"
+      trigger: "用户 Ctrl+S"
+      action: "POST /api/workspace/specs/write {path, content} → 成功后触发 validate"
+      expected_result: "文件保存，Validate Bar 显示结果"
+      error_handling: "保存失败时 toast 提示，Monaco 内容保留"
+
+    - id: "B3"
+      trigger: "用户点击 Validate 按钮"
+      action: "POST /api/spec/validate {path} → 展示结果"
+      expected_result: "Validate Bar 显示 pass/fail + 错误列表"
+      error_handling: "validate 超时显示提示"
+
+    - id: "B4"
+      trigger: "用户点击错误列表中的某项"
+      action: "Monaco 滚动到错误行 + 高亮"
+      expected_result: "光标跳转到错误行"
+      error_handling: "行号无效时忽略"
+
+    - id: "B5"
+      trigger: "用户点击 History 按钮"
+      action: "emit openHistory 事件 → 父组件控制 SpecHistoryPanel 展开"
+      expected_result: "SpecHistoryPanel 在 DetailPanel 下方展开"
+      error_handling: "N/A"
+
+    - id: "B6"
+      trigger: "用户在 spec 内容区修改 name 字段"
+      action: "更新 HeaderBar 中的 SpecName 显示"
+      expected_result: "name 变化后元信息栏实时更新"
+      error_handling: "YAML 解析失败时忽略 name 提取"
+
+  validation_result_display:
+    pass: |
+      绿色背景条 + "✓ Valid" + 绿色徽章 + 耗时（如 "0.3s"）
+    fail: |
+      红色背景条 + "✗ Invalid" + 红色徽章 + 错误数（如 "3 errors"）
+      下方展开错误列表：
+        [error] line 42: duplicate key 'name'
+        [error] line 15: missing required field 'parent'
+        [error] line 8: spec.level must be one of L1-L5
+    warning: |
+      黄色背景条 + "⚠ Warning" + 警告数
+    running: |
+      灰色背景 + 旋转图标 + "Validating..."
+
+  verification:
+    commands:
+    - npm --prefix frontend run build
+    manual_checks:
+    - Ctrl+S 保存后 Monaco 光标位置保持
+    - validate 错误列表可点击跳转
+    - 切换 spec 时 Monaco 内容正确切换（无残留）
+    failure_conditions:
+    - Monaco 编辑器在窗口 resize 后布局错乱
+    - 大量错误时错误列表溢出视口
+
+  dependencies:
+    - file: "frontend/src/lib/components/workbench/MonacoEditor.svelte"
+      reason: "FEAT-spec-write 已集成的 Monaco 组件"
+    - file: "frontend/src/lib/components/workbench/SpecHistoryPanel.svelte"
+      reason: "History 按钮触发"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-28"
+    author: "hermes"
+    changes:
+      - "新增 SpecDetailPanel：元信息栏 + Monaco 集成 + Validate Bar"

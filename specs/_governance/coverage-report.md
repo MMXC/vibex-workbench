@@ -1,7 +1,7 @@
 # VibeX Workbench Spec Coverage Report
 
-> Generated: 2026-04-28T18:35:15Z
-> Total specs: 78 (L1:1 L2:1 L3:6 L4:31 L5:29)
+> Generated: 2026-04-28T19:18:54Z
+> Total specs: 81 (L1:1 L2:1 L3:6 L4:31 L5:32)
 
 ## Coverage Summary
 
@@ -11,7 +11,7 @@
 | L2 (skeleton) | 1 | OK |
 | L3 (module) | 6 | OK |
 | L4 (feature) | 31 | 19/31 have L5 slices |
-| L5 (slice) | 29 | implementation units |
+| L5 (slice) | 32 | implementation units |
 
 ## L3 -> L4 Coverage
 
@@ -42,7 +42,9 @@
 
 ## Consistency Issues
 
-No consistency issues found.
+- `SLICE-spec-detail-panel`: parent `FEAT-spec-governance-viewer` not found
+- `SLICE-spec-tree-map`: parent `FEAT-spec-governance-viewer` not found
+- `SLICE-spec-history-rollback`: parent `FEAT-spec-governance-viewer` not found
 
 ## Methodology
 

@@ -1,0 +1,383 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-spec-governance-viewer"
+  parent: "MOD-spec-editor"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-28"
+  updated: "2026-04-28"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-28"
+
+io_contract:
+  input: |
+    用户点击 SpecExplorer 工具栏的「图谱」图标，或在 SpecViewer 中点击「查看图谱」。
+    输入：WORKSPACE_ROOT/specs/ 下所有 spec YAML 文件 + git history。
+  output: |
+    - SpecTreeMap：全仓库 spec 层级树（可折叠/展开）
+    - SpecDetailPanel：选中 spec 的完整 YAML 编辑器（Monaco）+ 元信息侧栏
+    - SpecHistoryPanel：选中 spec 的 git commit 历史 + diff 视图 + rollback
+    - SpecValidateBar：选中 spec 的 validate 结果 + 重新验证按钮
+    - SpecCoverageBadge：每个 L4 节点显示 L5 覆盖率
+  boundary: |
+    本 feature 定义 spec 全景视图的交互协议：树导航 + 编辑 + 回滚 + 验证。
+    不定义 git 操作实现（走 git 命令），不定义 Monaco 编辑器组件（FEAT-spec-write 已定义）。
+  behavior:
+    - "点击 SpecExplorer 图谱图标 → 打开 SpecTreeMap 模式"
+    - "点击树节点 → SpecDetailPanel 加载该 spec"
+    - "编辑 Monaco → Ctrl+S 保存 → 触发 validate"
+    - "点击 History → SpecHistoryPanel 展示 git log"
+    - "点击历史 commit → SpecDiffView 展示该版本 vs 当前"
+    - "点击 Rollback → 确认对话框 → git checkout 该版本 → 保存 → validate"
+    - "树节点旁显示覆盖率 badge：FEAT-xxx (L5x3)"
+
+content:
+  alignment_with_concept: |
+    "真正意义的层级 spec 钻取修改调整实现回滚验证"：
+    
+    钻取（Drill-down）：
+      L1 → 展开 → L2 节点列表 → 展开 → L3 节点列表 → ... → L5
+      每层节点可折叠/展开，点击节点进入详情编辑。
+      SpecTreeMap 支持拖拽缩放，不是一次性展示所有节点。
+    
+    修改（Edit）：
+      Monaco Editor（FEAT-spec-write 已集成）作为核心编辑区。
+      左侧树导航，右侧编辑，互不遮挡。
+    
+    调整（Adjust）：
+      在 SpecTreeMap 中拖拽节点可调整顺序（仅视觉，不改 parent chain）。
+      实际上 parent chain 由 spec YAML 的 parent 字段决定，不支持随意重排。
+    
+    回滚（Rollback）：
+      每个 spec 文件的 git history 即版本历史。
+      点击任意历史 commit 可预览 diff，确认后 rollback。
+      Rollback = git checkout 该 commit 的版本 → 覆盖当前文件 → 保存。
+      回滚后自动触发 validate，确保 spec 树一致性。
+    
+    验证（Verify）：
+      选中 spec → 点击「Validate」→ 跑 make validate SPEC_DIR=该spec →
+      结果展示：pass / fail / warning，失败时显示具体错误行。
+
+  component_design:
+    SpecTreeMap:
+      description: "全仓库 spec 层级树（左侧面板，默认宽度 280px）"
+      structure: |
+        [工具栏: 搜索 | 筛选(L1/L2/L3/L4/L5) | 展开全部 | 折叠全部]
+        [搜索框: filter by name]
+        ├─ L1: vibex-workbench-mvp [status chip]
+        │  └─ L2: vibex-workbench-skeleton [chip]
+        │     └─ L3: MOD-spec-editor [chip]
+        │        ├─ FEAT-spec-editor [⚠ L5x0]        ← 覆盖率警告
+        │        ├─ FEAT-spec-write [⚠ L5x0]
+        │        ├─ FEAT-spec-graph-expansion [OK L5x3]
+        │        └─ FEAT-spec-code-bidirectional [OK L5x2]
+        │     └─ L3: MOD-ide-chrome [chip]
+        │        └─ FEAT-ide-agent-panel [OK L5x1]
+      interactions:
+        - click_node: "选中节点 → SpecDetailPanel 加载"
+        - expand_node: "展开子节点（lazy load L4/L5 子节点）"
+        - right_click: "右键菜单：新建子节点 | 复制路径 | 在终端打开"
+        - drag: "拖拽缩放树视图"
+      colors:
+        L1: "border-left: 3px solid #cba6f7"    # 紫色
+        L2: "border-left: 3px solid #89b4fa"    # 蓝色
+        L3: "border-left: 3px solid #f38ba8"    # 红色
+        L4: "border-left: 3px solid #a6e3a1"    # 绿色
+        L5: "border-left: 3px solid #f9e2af"     # 黄色
+        status_proposal: "bg: #313244"           # 灰色
+        status_in_progress: "bg: #1e3a5f"        # 深蓝
+        status_ready: "bg: #1e4a3f"              # 深绿
+        status_completed: "bg: #2e3a1a"          # 深绿亮
+
+    SpecDetailPanel:
+      description: "选中 spec 的详情编辑区（右侧主区域）"
+      sections:
+        - header: "节点信息栏"
+          content: "name / level / status chip / parent / last_modified"
+        - header: "Monaco Editor"
+          content: "完整 YAML 内容（FEAT-spec-write 已集成 Monaco）"
+          height: "flex-grow"
+        - header: "Validate Bar"
+          content: "[Validate] 按钮 + 结果徽章 + 错误摘要"
+        - header: "History"
+          content: "[History] 按钮 → 展开 SpecHistoryPanel"
+        - header: "Coverage"
+          content: "如果当前是 L4：显示 L5 覆盖率 badge + 缺失 L5 列表"
+
+    SpecHistoryPanel:
+      description: "spec 文件的 git 历史（SpecDetailPanel 下方展开面板）"
+      structure: |
+        [x] close
+        commit abc1234 (HEAD)
+        commit def5678 (2 hours ago)
+        commit ghi9012 (yesterday)
+        [Load more...]
+        
+        [Selected commit preview]
+        DiffView:
+          old: "... (commit def5678)"
+          new: "... (current)"
+      interactions:
+        - click_commit: "选中该 commit → 展示 diff"
+        - click_rollback: "弹出确认: 'Rollback 到 {commit_msg}？' → 确认 → git checkout"
+        - keyboard: "Escape 关闭 HistoryPanel"
+
+    SpecDiffView:
+      description: "git diff 展示区（inline unified diff）"
+      colors:
+        removed_line: "background: #3d1f1f"      # 红色背景
+        added_line: "background: #1f3d1f"         # 绿色背景
+        unchanged: "background: transparent"
+      features:
+        - "unified diff 格式"
+        - "行号显示"
+        - "hover 行显示所属 section"
+
+    SpecValidateBar:
+      description: "spec 验证状态栏（SpecDetailPanel 底部固定）"
+      states:
+        - idle: "Validate 按钮可点击"
+        - running: "旋转图标 + 'Validating...' + spinner"
+        - pass: "绿色徽章 ✓ Valid" + 耗时
+        - fail: "红色徽章 ✗ Invalid + 错误数 + 摘要"
+        - warning: "黄色徽章 ⚠ Warning + 警告数"
+      errors:
+        - click_error: "滚动到错误行高亮"
+        - copy_errors: "一键复制所有错误"
+
+  behaviors:
+    - id: "B1"
+      trigger: "用户点击 SpecExplorer 图谱图标"
+      action: "切换到 SpecTreeMap 模式，右侧打开 SpecDetailPanel"
+      expected_result: "左侧显示完整 spec 树，右侧默认加载 L1"
+      error_handling: "specs/ 不存在时显示引导：'请先运行脚手架'"
+
+    - id: "B2"
+      trigger: "用户在 SpecTreeMap 中点击任意节点"
+      action: "SpecDetailPanel 加载该 spec YAML（GET /api/workspace/specs/read）"
+      expected_result: "Monaco Editor 显示 spec 内容，元信息栏更新"
+      error_handling: "读取失败时显示错误 toast，不清空当前内容"
+
+    - id: "B3"
+      trigger: "用户在 Monaco 中编辑并 Ctrl+S"
+      action: "POST /api/workspace/specs/write → 保存 → 自动触发 validate"
+      expected_result: "SpecValidateBar 显示验证结果"
+      error_handling: "网络失败时保留编辑内容，显示错误 toast"
+
+    - id: "B4"
+      trigger: "用户在 SpecDetailPanel 点击 History 按钮"
+      action: "GET /api/workspace/specs/history?path=xxx → 展示 SpecHistoryPanel"
+      expected_result: "下方展开 git log 列表，最新 commit 在上"
+      error_handling: "文件无 git 历史时显示：'首次创建，无历史记录'"
+
+    - id: "B5"
+      trigger: "用户在 SpecHistoryPanel 点击某个 commit"
+      action: "GET /api/workspace/specs/diff?path=xxx&commit=yyy → 展示 SpecDiffView"
+      expected_result: "该版本 vs 当前版本的 unified diff 展示"
+      error_handling: "diff 失败时显示 '无法生成 diff'"
+
+    - id: "B6"
+      trigger: "用户在 SpecHistoryPanel 点击 Rollback 按钮"
+      action: "弹出确认对话框 → 用户确认 → POST /api/workspace/specs/rollback"
+      expected_result: "文件内容回滚到目标版本，自动保存并 validate"
+      error_handling: "回滚失败时保留当前内容，显示错误 + 不跳转"
+
+    - id: "B7"
+      trigger: "用户在 SpecValidateBar 点击 Validate 按钮"
+      action: "POST /api/spec/validate?path=xxx → 执行 validate → 展示结果"
+      expected_result: "通过/失败/警告 + 错误列表（可点击跳转行号）"
+      error_handling: "validate 超时（60s）时显示超时提示"
+
+    - id: "B8"
+      trigger: "SpecTreeMap 加载时"
+      action: "GET /api/workspace/specs/tree → 构建 L1→L2→L3→L4→L5 树"
+      expected_result: "树完整展示，每个 L4 显示 L5 覆盖率 badge"
+      error_handling: "树构建失败时显示部分树 + 错误提示"
+
+    - id: "B9"
+      trigger: "用户在 SpecTreeMap 展开 L4 节点"
+      action: "加载该 L4 的 L5 子节点（GET /api/workspace/specs/children?parent=FEAT-xxx）"
+      expected_result: "L4 节点下展开 L5 列表"
+      error_handling: "无 L5 时显示空列表"
+
+  api_contracts:
+    GET /api/workspace/specs/tree:
+      description: "返回完整 spec 树结构（用于 SpecTreeMap 初始化）"
+      response: |
+        {
+          "roots": [{
+            "name": "vibex-workbench-mvp",
+            "level": "L1",
+            "status": "proposal",
+            "children": [{
+              "name": "vibex-workbench-skeleton",
+              "level": "L2",
+              "status": "proposal",
+              "children": [...]
+            }]
+          }]
+        }
+
+    GET /api/workspace/specs/history:
+      description: "返回指定 spec 文件的 git log（最近 20 条）"
+      request: |
+        path=specs/L4-feature/FEAT-ide-agent-panel.yaml
+      response: |
+        { "commits": [{
+          "hash": "abc1234",
+          "short_hash": "abc1234",
+          "message": "feat(spec): align with Cursor...",
+          "author": "hermes",
+          "date": "2026-04-28T12:00:00Z",
+          "files": ["specs/L4-feature/FEAT-ide-agent-panel.yaml"]
+        }] }
+
+    GET /api/workspace/specs/diff:
+      description: "返回指定 commit 与当前版本的 diff"
+      request: |
+        path=specs/.../xxx.yaml&commit=abc1234
+      response: |
+        { "old": "--- content at commit abc1234 ---",
+          "new": "--- current content ---",
+          "unified_diff": "@@ -1,10 +1,12 @@ ..." }
+
+    POST /api/workspace/specs/rollback:
+      description: "回滚 spec 文件到指定 commit 版本"
+      request: |
+        { "path": "specs/.../xxx.yaml", "commit": "abc1234" }
+      response: |
+        { "ok": true, "message": "Rolled back to abc1234" }
+      side_effect: |
+        1. git checkout abc1234 -- path
+        2. 保存文件
+        3. 自动触发 validate
+      errors:
+        - "file not in git": 400
+        - "git checkout failed": 500 + stderr
+
+    POST /api/spec/validate:
+      description: "验证指定 spec 文件（走 make validate 的子集）"
+      request: |
+        { "path": "specs/L4-feature/FEAT-ide-agent-panel.yaml" }
+      response: |
+        { "ok": true, "status": "pass", "errors": [], "warnings": [] }
+      errors:
+        - "parse error": { "status": "fail", "errors": [{"line": 42, "msg": "..."}] }
+        - "timeout": { "status": "timeout", "message": "validate 超时 60s" }
+
+  user_stories:
+    - id: "US-1"
+      as_a: "架构师"
+      i_want: "从 L1 开始一路钻到 L5，看到每个 spec 的状态和内容"
+      so_that: "了解整个产品 spec 树的当前全貌"
+      acceptance: "点击 L1 展开 → L2 展开 → L3 展开 → 点击 L4 → Monaco 加载该 spec"
+
+    - id: "US-2"
+      as_a: "开发者"
+      i_want: "编辑 spec 后一键验证，不用切终端"
+      so_that: "确保我的修改不会破坏 spec 树结构"
+      acceptance: "Ctrl+S 保存 → Validate Bar 显示 pass/fail → 失败时点击错误跳转行"
+
+    - id: "US-3"
+      as_a: "审查者"
+      i_want: "看到 spec 的历史变更，必要时 rollback"
+      so_that: "了解 spec 演变过程，回退到错误修改前"
+      acceptance: "点击 History → 选择 commit → 看到 diff → Rollback → 确认 → 自动 validate"
+
+    - id: "US-4"
+      as_a: "协调者"
+      i_want: "一眼看出哪些 L4 缺 L5"
+      so_that: "知道实现优先级，哪些 spec 还有空白"
+      acceptance: "SpecTreeMap 中 FEAT-spec-editor 显示 '⚠ L5x0'，FEAT-ide-agent-panel 显示 'OK L5x1'"
+
+    - id: "US-5"
+      as_a: "新加入的开发者"
+      i_want: "搜索 spec 名称快速定位"
+      so_that: "不用记住完整的 spec 层级也能找到目标"
+      acceptance: "搜索框输入 'agent' → 过滤出所有含 'agent' 的节点并高亮"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "Drill-down L1 to L5"
+      given: "所有 spec 已加载"
+      when: "用户依次点击 L1→L2→L3→L4→L5"
+      then: "每步节点正确展开，最终 Monaco 加载 L5 spec 内容"
+      evaluation: "L5 spec 完整展示，parent chain 验证通过"
+
+    - id: "TC-2"
+      scenario: "Edit and validate"
+      given: "FEAT-spec-write 已加载"
+      when: "用户修改 status: proposal → status: ready"
+      then: "Ctrl+S 保存 → Validate 通过 → 状态栏绿色"
+      evaluation: "git status 显示文件已修改"
+
+    - id: "TC-3"
+      scenario: "Rollback spec"
+      given: "FEAT-spec-write 有 3 条 git history"
+      when: "用户点击 History → 选择第 3 条 → Rollback → 确认"
+      then: "文件内容回滚到第 3 条 commit，自动保存并 validate"
+      evaluation: "git log --oneline 显示 HEAD 已移动"
+
+    - id: "TC-4"
+      scenario: "Coverage badge shows gap"
+      given: "FEAT-spec-editor L4 无 L5"
+      when: "SpecTreeMap 渲染"
+      then: "FEAT-spec-editor 节点旁显示 '⚠ L5x0' badge"
+      evaluation: "点击 FEAT-spec-editor 后详情面板显示缺失 L5 列表"
+
+    - id: "TC-5"
+      scenario: "Search filters tree"
+      given: "SpecTreeMap 加载完整树"
+      when: "用户在搜索框输入 'ide-agent'"
+      then: "树只显示匹配节点，父路径自动展开"
+      evaluation: "FEAT-ide-agent-panel 高亮，其他节点折叠隐藏"
+
+  constraints:
+    - id: "C1"
+      name: "Read-only tree structure"
+      rule: "SpecTreeMap 的树结构由 spec YAML 的 parent 字段决定，不支持在树视图内拖拽重排 parent"
+      validation: "移动节点只能通过修改 spec YAML 的 parent 字段实现"
+
+    - id: "C2"
+      name: "Rollback always saves"
+      rule: "Rollback 操作必须立即保存，不允许'回滚到历史但不保存'的中间态"
+      validation: "Rollback 后 git status 显示文件已修改"
+
+    - id: "C3"
+      name: "Validate is non-destructive"
+      rule: "Validate 操作只读 spec 文件，不修改任何内容"
+      validation: "Validate 前后的 git status 相同"
+
+    - id: "C4"
+      name: "Tree is lazy-loaded"
+      rule: "SpecTreeMap 初始只加载 L1/L2，展开时再加载子节点"
+      validation: "大仓库（100+ spec）初始渲染 < 2s"
+
+  l4_l5_lineage:
+    summary: "L4 定义全链路交互协议，L5 拆分组件实现"
+    which_slices:
+      - slice: "SLICE-spec-tree-map"
+        covers: "SpecTreeMap 组件：树渲染 + drill-down + 搜索 + 覆盖率 badge"
+      - slice: "SLICE-spec-detail-panel"
+        covers: "SpecDetailPanel：Monaco 集成 + 元信息栏 + Validate Bar"
+      - slice: "SLICE-spec-history-rollback"
+        covers: "SpecHistoryPanel + SpecDiffView + Rollback API"
+      - slice: "SLICE-spec-history-api"
+        covers: "Go agent: /api/workspace/specs/tree|history|diff|rollback|validate 端点"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-28"
+    author: "hermes"
+    changes:
+      - "新增 spec 全景视图能力：钻取导航 + Monaco 编辑 + git rollback + 一键 validate"
+      - "核心创新：git history 即 spec 版本历史，无需额外 version 存储"
+      - "覆盖率 badge：L4 节点实时显示 L5 覆盖状态"

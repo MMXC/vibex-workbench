@@ -1,0 +1,129 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-history-rollback"
+  parent: "FEAT-spec-governance-viewer"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-28"
+  updated: "2026-04-28"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-28"
+
+io_contract:
+  input: |
+    用户点击 History 按钮，
+    GET /api/workspace/specs/history 的 commit 列表，
+    GET /api/workspace/specs/diff 的 old/new 内容。
+  output: |
+    SpecHistoryPanel.svelte：git log 列表 + SpecDiffView + Rollback 确认对话框
+  boundary: |
+    git 操作由 Go agent 调用 git 命令实现，本 slice 只处理前端展示和交互。
+  behavior_summary: |
+    点击 History → 加载 git log → 展示 commit 列表 → 点击 commit → 展示 diff →
+    点击 Rollback → 确认 → 调用 rollback API → 自动保存并 validate。
+
+content:
+  file_path: "frontend/src/lib/components/workbench/SpecHistoryPanel.svelte"
+  file_type: svelte
+  implementation_boundary:
+    allowed:
+    - git commit log 列表展示
+    - commit 选中高亮
+    - unified diff 视图（使用 Monaco diff editor）
+    - Rollback 确认对话框
+    - Rollback 成功后自动关闭面板
+    forbidden:
+    - 直接调用 git 命令
+    - 修改 git 历史
+    - 强制 push
+
+  layout_structure: |
+    SpecHistoryPanel (slide-up panel, 300px height)
+    ├─ Header
+    │   ├─ "History: {spec_name}"
+    │   ├─ [Load more]
+    │   └─ [x] close
+    ├─ CommitList (scrollable)
+    │   ├─ [selected] commit abc1234 - feat: align with Cursor (hermes, 2h ago)
+    │   ├─ commit def5678 - feat(spec): drift architecture... (hermes, 1d ago)
+    │   └─ commit ghi9012 - feat(spec): Cursor-aligned agent panel... (hermes, 2d ago)
+    ├─ DiffPreview (Monaco diff editor, when commit selected)
+    └─ ActionBar
+        └─ [Rollback to this version] button (disabled when HEAD selected)
+
+  rollback_confirmation_dialog: |
+    Title: "Rollback to {commit_message}?"
+    Body: "This will revert {spec_name} to the version from {commit_date} by {author}."
+          "This action cannot be undone via the UI. You can always redo the change."
+    [Cancel] [Confirm Rollback]
+    
+    After confirm:
+    1. POST /api/workspace/specs/rollback
+    2. Save file
+    3. Auto-trigger validate
+    4. Close SpecHistoryPanel
+    5. SpecDetailPanel refresh with rolled-back content
+
+  verification:
+    commands:
+    - npm --prefix frontend run build
+    manual_checks:
+    - Rollback 后 SpecDetailPanel 显示新内容
+    - Rollback 后 validate 自动触发
+    - HEAD commit 的 Rollback 按钮禁用
+    - Diff preview 在 commit 选择后 300ms 内显示
+    failure_conditions:
+    - Rollback 失败后 SpecHistoryPanel 保持打开，内容不变
+    - Rollback 后 git status 与预期不符
+
+  dependencies:
+    - file: "frontend/src/lib/components/workbench/MonacoEditor.svelte"
+      reason: "Monaco diff editor 用于 diff 展示"
+    - file: "agent/cmd/web/workspace_handlers.go"
+      reason: "/api/workspace/specs/history|diff|rollback 端点"
+
+  behaviors:
+    - id: "B1"
+      trigger: "用户点击 History 按钮"
+      action: "GET /api/workspace/specs/history?path=xxx → 展示 commit 列表"
+      expected_result: "最近 20 条 commit 展示，HEAD 在最上方"
+      error_handling: "无 git 历史时显示：'首次创建，无历史记录'"
+
+    - id: "B2"
+      trigger: "用户点击某个 commit"
+      action: "GET /api/workspace/specs/diff?path=xxx&commit=yyy → Monaco diff editor 展示"
+      expected_result: "old（该 commit）vs new（当前）并排 diff 显示"
+      error_handling: "diff 生成失败时显示纯文本 old content"
+
+    - id: "B3"
+      trigger: "用户点击 Rollback 按钮"
+      action: "显示确认对话框 → 用户确认 → POST /api/workspace/specs/rollback"
+      expected_result: "文件回滚，SpecHistoryPanel 关闭，DetailPanel 刷新"
+      error_handling: "回滚失败时保留当前内容，显示错误 toast"
+
+    - id: "B4"
+      trigger: "Rollback 成功后"
+      action: "自动触发 validate → SpecDetailPanel 显示新内容"
+      expected_result: "validate 结果展示"
+      error_handling: "N/A — validate 独立运行"
+
+    - id: "B5"
+      trigger: "用户点击 [x] 或 Escape"
+      action: "关闭 SpecHistoryPanel"
+      expected_result: "面板收起，无副作用"
+      error_handling: "N/A"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-28"
+    author: "hermes"
+    changes:
+      - "新增 SpecHistoryPanel：git history + diff + rollback 确认"

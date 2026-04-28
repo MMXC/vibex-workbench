@@ -1,0 +1,162 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-history-api"
+  parent: "FEAT-spec-governance-viewer"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-04-28"
+  updated: "2026-04-28"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-28"
+
+io_contract:
+  input: |
+    WORKSPACE_ROOT（当前仓库根）+ spec 相对路径 + git commit hash
+  output: |
+    - /api/workspace/specs/tree 的完整 spec 树 JSON
+    - /api/workspace/specs/history 的 commit 列表
+    - /api/workspace/specs/diff 的 unified diff
+    - /api/workspace/specs/rollback 的回滚结果
+  boundary: |
+    只实现 Go agent 端的 API 端点。
+    不实现前端 UI 组件（由 SLICE-spec-tree-map 和 SLICE-spec-history-rollback 负责）。
+  behavior_summary: |
+    tree → git ls-files + YAML 解析构建树结构 →
+    history → git log --follow --oneline -- json →
+    diff → git show commit:path vs git show HEAD:path →
+    rollback → git checkout commit -- path → 保存。
+
+content:
+  file_path: "agent/vibex/domain/spec/governance_handlers.go"
+  file_type: go
+  implementation_boundary:
+    allowed:
+    - git ls-files / git log / git show / git checkout 命令
+    - YAML 解析（gopkg.in/yaml.v3）
+    - 构建 tree/history/diff/rollback 响应
+    forbidden:
+    - 修改 git 历史（git rebase/reset/amend）
+    - 强制 push
+    - 跨 WORKSPACE_ROOT 操作
+
+  api_implementations:
+    GET /api/workspace/specs/tree:
+      impl: |
+        1. git ls-files specs/ --error-unmatch（检查是否是 git 跟踪文件）
+        2. 遍历 specs/ 下所有 .yaml 文件
+        3. 每个文件解析 YAML → 提取 spec.name / spec.level / spec.parent / spec.status
+        4. 构建树结构（L1→L2→L3→L4→L5 层级）
+        5. 统计每个 L4 的 L5 子节点数
+      response_shape: |
+        { "roots": [SpecNode], "generated_at": "2026-04-28T12:00:00Z" }
+
+    GET /api/workspace/specs/history:
+      impl: |
+        1. git log --follow --oneline --format='{"hash":"%H","short_hash":"%h","message":"%s","author":"%an","date":"%aI","files":["path"]}' -- {spec_path}
+        2. 最多返回 20 条
+        3. --follow 保持文件重命名历史
+      response_shape: |
+        { "commits": [Commit], "file_path": "..." }
+
+    GET /api/workspace/specs/diff:
+      impl: |
+        1. old_content = git show {commit}:{spec_path}（该 commit 时文件内容）
+        2. new_content = 当前文件内容（或 HEAD 版本）
+        3. 使用 github.com/sergi/go-diff 生成 unified diff
+        4. 返回 { "old": "...", "new": "...", "unified_diff": "..." }
+      response_shape: |
+        { "old": "...", "new": "...", "unified_diff": "@@ ... @@" }
+
+    POST /api/workspace/specs/rollback:
+      impl: |
+        1. git checkout {commit} -- {spec_path}（从 git 恢复）
+        2. 读取恢复后内容
+        3. 写入文件（确保 UTF-8）
+        4. 返回 ok
+      constraints: |
+        - 必须先 git checkout 再写入，不能直接 cp 历史文件
+        - rollback 后文件在工作目录是 modified 状态（待 git add/commit）
+        - 禁止强制覆盖未提交的本地修改（如果 git status 显示 modified，提示先 commit）
+      response_shape: |
+        { "ok": true, "new_content": "...", "message": "Rolled back to {short_hash}" }
+      errors:
+        - "file not tracked by git": 400
+        - "commit not found": 404
+        - "local modifications exist": 409 { "message": "请先 commit 当前修改" }
+
+    POST /api/spec/validate:
+      description: "验证指定 spec 文件（轻量版，不用跑完整 make validate）"
+      impl: |
+        1. 读取 spec YAML → YAML 语法检查
+        2. 检查 spec.name / spec.level / spec.parent 字段存在
+        3. 检查 parent 引用的 spec 是否存在（通过 tree index）
+        4. 检查 level 与目录一致性（L4 必须在 specs/L4-feature/）
+      response_shape: |
+        { "ok": true, "status": "pass|fail|warning",
+          "errors": [{ "line": 42, "msg": "duplicate key" }],
+          "warnings": [{ "line": 15, "msg": "..." }] }
+      timeout: 60s
+
+  verification:
+    commands:
+    - cd agent && go build ./...
+    manual_checks:
+    - tree API 返回完整 L1→L5 树
+    - history API 返回正确的 commit 顺序
+    - diff 显示 old vs new unified diff
+    - Rollback 后文件内容与目标 commit 一致
+    failure_conditions:
+    - 非 git 仓库时报错（请先 git init）
+    - git 命令失败时返回 500 + stderr
+
+  dependencies:
+    - file: "agent/vibex/domain/spec/governance_handlers.go"
+      reason: "API 端点实现"
+    - file: "agent/cmd/web/workspace_handlers.go"
+      reason: "路由注册"
+
+  behaviors:
+    - id: "B1"
+      trigger: "GET /api/workspace/specs/tree"
+      action: "扫描 specs/ → 解析 YAML → 构建树 → JSON 返回"
+      expected_result: "完整树结构，L4 附带 l5_count"
+      error_handling: "非 git 仓库时返回 {roots: [], error: "not a git repo"}"
+
+    - id: "B2"
+      trigger: "GET /api/workspace/specs/history"
+      action: "git log --follow -- {spec_path}"
+      expected_result: "commit 列表，最新在上"
+      error_handling: "文件不在 git 中时返回空列表"
+
+    - id: "B3"
+      trigger: "GET /api/workspace/specs/diff"
+      action: "git show commit:path vs 当前内容 → unified diff"
+      expected_result: "unified diff 格式"
+      error_handling: "commit 不存在该文件时返回 404"
+
+    - id: "B4"
+      trigger: "POST /api/workspace/specs/rollback"
+      action: "git checkout commit -- path → 写入文件"
+      expected_result: "文件内容回滚"
+      error_handling: "本地有未提交修改时返回 409"
+
+    - id: "B5"
+      trigger: "POST /api/spec/validate"
+      action: "YAML 解析 + 结构检查 + parent chain 验证"
+      expected_result: "pass/fail/warning + 错误列表"
+      error_handling: "timeout 后返回 timeout status"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-28"
+    author: "hermes"
+    changes:
+      - "新增 Go agent 端 API：tree/history/diff/rollback/validate"
