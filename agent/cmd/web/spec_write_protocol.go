@@ -28,6 +28,26 @@ type validationErrorCategory struct {
 	Suggest  string `json:"suggest"`
 }
 
+// normalizeWorkspaceRoot validates and normalizes a workspace root path.
+// Returns (normalizedPath, errorCode). errorCode is empty on success.
+func normalizeWorkspaceRoot(ws string) (string, string) {
+	if ws == "" {
+		return "", "workspace_root_empty"
+	}
+	clean := filepath.Clean(ws)
+	info, err := os.Stat(clean)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", "workspace_root_not_found"
+		}
+		return "", "workspace_root_error"
+	}
+	if !info.IsDir() {
+		return "", "workspace_root_not_directory"
+	}
+	return clean, ""
+}
+
 // handleAgentSpecWriteProtocol handles confirmed spec drafts from the agent.
 // It assembles a specs/write request, calls write, then runs make validate,
 // and classifies the result for the agent thread.

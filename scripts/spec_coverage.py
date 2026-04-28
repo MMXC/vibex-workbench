@@ -38,7 +38,7 @@ def build_coverage_matrix(specs):
         if info['level'] == '4_feature':
             p = info['parent']
             if p: l3_to_l4[p].append(name)
-        elif info['level'] == '5_slice':
+        elif info['level'] in ('5_slice', '5_implementation'):
             p = info['parent']
             if p: l4_to_l5[p].append(name)
     return l3_to_l4, l4_to_l5
@@ -65,7 +65,7 @@ def generate_markdown_report(specs, l3_to_l4, l4_to_l5, issues):
     l2_n = sum(1 for i in specs.values() if i['level']=='2_skeleton')
     l3_n = sum(1 for i in specs.values() if i['level']=='3_module')
     l4_n = sum(1 for i in specs.values() if i['level']=='4_feature')
-    l5_n = sum(1 for i in specs.values() if i['level']=='5_slice')
+    l5_n = sum(1 for i in specs.values() if i['level'] in ('5_slice', '5_implementation'))
     l4_with_l5 = sum(1 for n, i in specs.items() if i['level']=='4_feature' and l4_to_l5.get(n))
     l4_total = sum(1 for n, i in specs.items() if i['level']=='4_feature')
 
