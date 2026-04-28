@@ -1,6 +1,6 @@
 ---
 spec:
-  version: "0.1"
+  version: "0.2"
   level: "4_feature"
   name: "FEAT-ide-agent-panel"
   parent: "MOD-ide-chrome"
@@ -11,115 +11,298 @@ meta:
   module: "frontend"
   owner: "hermes"
   created: "2026-04-26"
-  updated: "2026-04-26"
+  updated: "2026-04-28"
 
 lifecycle:
   current: "proposal"
-  updated: "2026-04-26"
+  updated: "2026-04-28"
 
 io_contract:
   input: |
-    用户在右侧 AI Agent panel 中选择线程、查看消息、输入 prompt 或拖入 artifact。
+    用户在右侧 AI Agent panel 中：
+    - 输入自然语言目标（文字 / 图片 / 文件 / URL）
+    - 或从 spec 图谱选中一个 spec 节点后点击 "Ask Agent"
+    - 或从 spec 编辑器中选中一段文字后 Cmd+Shift+L（发给 agent）
+    - agent 返回：消息 / Diff 提议 / Terminal 输出 / Artifacts
   output: |
-    - ThreadList 展示会话列表和当前线程
-    - ConversationPanel 展示当前线程消息
-    - Composer 提交用户输入到 agent 或 mock backend
-    - RunStatusBar 展示当前 run/tool 状态
+    - ThreadList：会话列表 + 当前线程
+    - ConversationPanel：消息气泡 + Diff 卡片 + Artifact 卡片
+    - Composer：底部输入区，支持 text/image/file/url mode
+    - DiffPreview：agent 提议的文件修改，用户可接受/拒绝/修改后接受
+    - RunStatusBar：当前 run 的 tool 调用数 + 状态
   boundary: |
-    本 feature 只负责右侧 panel 的信息架构与用户输入入口，
-    不定义 agent 推理、tool 选择和代码修改策略。
+    本 feature 只定义 Agent Panel 的交互协议：
+    消息↔Diff↔Terminal↔Artifact 的状态机。
+    不定义 agent 推理策略、tool 选择算法、model provider。
   behavior:
-    - "AiChatColumn 垂直分区：线程列表、对话、composer"
-    - "Composer 支持 text/image/file/url mode"
-    - "Composer Ctrl+Enter 提交"
-    - "Composer 支持 artifact 拖拽注入 @artifactId"
-    - "submit 后通过 /api/chat 或 mock /api/runs 启动会话"
+    - "用户 Ctrl+Enter 提交 → 创建/复用线程 → SSE 流式接收"
+    - "agent 返回 tool_use → RunStatusBar 显示工具链"
+    - "agent 返回 diff_proposal → DiffPreview 卡片出现"
+    - "用户接受 diff → 写入文件 → spec-drift 检查"
+    - "agent 返回 artifact → ArtfactCard 显示 + @引用可注入 Composer"
+    - "用户点 Ask Agent from spec node → 自动注入 spec 上下文"
 
 content:
+  alignment_with_cursor: |
+    Cursor Agent Panel 的核心交互模式：
+    1. Autonomy Slider：Tab(内联补全) → Cmd+K(定向编辑) → Agent(全自主)
+    2. Composer：底部固定输入栏，支持 @ 引用 workspace 文件
+    3. Diff 卡片：agent 改文件前先展示 diff，用户 review 后 apply
+    4. Terminal 内嵌：agent 执行命令时实时流式输出到 panel
+    5. Artifacts：agent 生成的可交互产物（图表/组件），可注入 Composer
+    6. 多线程：每个 spec 或每个任务一个 thread，thread 可命名/收藏
+    
+    VibeX 的 Agent Panel 对齐策略：
+    - 保留 autonomy slider，但第一阶段 MVP 仅支持 Agent 模式
+    - Diff 卡片是 spec→代码闭环的关键：agent 改 spec 对应文件前必须先 diff
+    - Artifacts 对应 VibeX 的 preview prototype（HTML 原型）
+    - Terminal 输出对标 make validate/generate 的执行流
+
+  autonomy_levels:
+    - level: "Tab"
+      description: "内联补全，预测当前光标处代码（不在 MVP 内）"
+      triggers: "用户正常编辑时自动触发"
+      in_mvp: false
+    - level: "Cmd+K"
+      description: "定向编辑，选中代码后 Cmd+K 解释/修改"
+      triggers: "用户选中代码后 Cmd+K"
+      in_mvp: false
+    - level: "Agent"
+      description: "全自主 agent，读 workspace → 提议 diff → 执行"
+      triggers: "Composer Ctrl+Enter / spec node Ask Agent"
+      in_mvp: true
+
+  component_states:
+    AiChatColumn:
+      description: "右侧 AI panel 容器，三栏分区"
+      states:
+        - idle: "无 active run，显示 Composer"
+        - running: "有 active run，显示 RunStatusBar"
+        - diff_pending: "有未处理的 diff_proposal，显示 DiffPreview"
+        - terminal_active: "agent 在执行命令，Terminal 展开"
+
+    ConversationPanel:
+      description: "消息列表，垂直滚动"
+      states:
+        - empty: "无消息，显示欢迎引导"
+        - streaming: "AI 消息正在流式输出"
+        - complete: "消息已完整"
+        - diff_visible: "某条消息含 diff_proposal"
+
+    DiffPreview:
+      description: "文件 diff 预览区（嵌入 ConversationPanel）"
+      states:
+        - hidden: "无 pending diff"
+        - viewing: "展示 old/new 对比"
+        - accepting: "用户点击 Apply，agent 写入中"
+        - accepted: "diff 已应用，显示成功"
+        - rejected: "用户点击 Reject，diff 卡片消失"
+
+    RunStatusBar:
+      description: "agent 运行时状态条"
+      states:
+        - hidden: "无 active run"
+        - running: "绿色 + tool 调用数递增"
+        - tool_invocations: "显示 [tool_use #N: tool_name]"
+        - failed: "红色 + 错误摘要"
+
   behaviors:
     - id: "B1"
-      trigger: "用户点击某个 thread"
-      action: "threadStore.setCurrentThread(threadId)"
-      expected_result: "ConversationPanel 展示该线程消息"
-      error_handling: "线程不存在时保持当前线程并提示"
+      trigger: "用户在 Composer 输入文字并 Ctrl+Enter"
+      action: "handleSubmit(content, mode='text') → POST /api/chat → SSE 接收"
+      expected_result: "ConversationPanel 出现 user bubble，AI 开始流式响应"
+      error_handling: "网络失败时显示错误 toast，Composer 内容保留"
+
     - id: "B2"
-      trigger: "用户在 Composer 输入文本并 Ctrl+Enter"
-      action: "调用 handleSubmit(content, mode)"
-      expected_result: "创建或复用当前线程，并发送 /api/chat"
-      error_handling: "网络失败时 console error，输入内容不应丢失"
+      trigger: "用户选中 spec 节点后点击 'Ask Agent'"
+      action: "注入 @spec:FEAT-xxx 上下文 + 发送 chat 请求"
+      expected_result: "Composer 预填充 '参考 @spec:FEAT-xxx，分析并建议改进...'"
+      error_handling: "无选中 spec 时按钮禁用"
+
     - id: "B3"
-      trigger: "用户切换 text/image/file/url mode"
-      action: "更新 Composer mode"
-      expected_result: "提交时携带对应 mode"
-      error_handling: "未实现的 mode 暂按 text 处理"
+      trigger: "用户在 spec 编辑器选中文字后 Cmd+Shift+L"
+      action: "截取选中内容 → 注入 @spec_selection 上下文 → 发送 chat"
+      expected_result: "Composer 预填充引用，提交后 agent 分析选中内容"
+      error_handling: "无选中内容时 Cmd+Shift+L 无响应"
+
     - id: "B4"
-      trigger: "用户拖拽 artifact 到 Composer"
-      action: "注入 @{artifactId}"
-      expected_result: "输入框出现 artifact 引用"
-      error_handling: "无 artifactId 时忽略 drop"
+      trigger: "agent 返回 tool_use 事件"
+      action: "RunStatusBar 显示 tool_invocations[N] = tool_name"
+      expected_result: "绿色状态条 + 工具链计数器递增"
+      error_handling: "无 active run 时忽略 tool_use 事件"
+
     - id: "B5"
-      trigger: "runStore 中 active run 状态变化"
-      action: "显示 RunStatusBar"
-      expected_result: "running/completed/failed 三态颜色区分"
-      error_handling: "无 active run 时隐藏状态条"
+      trigger: "agent 返回 diff_proposal 事件"
+      action: "ConversationPanel 插入 DiffPreview 卡片"
+      expected_result: "old/new diff 并排显示，底部有 Apply/Reject 按钮"
+      error_handling: "diff_proposal 格式异常时回退为普通消息"
+
+    - id: "B6"
+      trigger: "用户点击 DiffPreview 的 Apply"
+      action: "agent 执行 file_write → 返回 confirm → 更新 ConversationPanel"
+      expected_result: "diff 卡片变为 accepted，文件已写入，spec-drift 检查触发"
+      error_handling: "写入失败时 diff 回退为 pending，显示错误"
+
+    - id: "B7"
+      trigger: "用户点击 DiffPreview 的 Reject"
+      action: "diff_proposal 标记为 rejected，卡片消失"
+      expected_result: "ConversationPanel 无 pending diff，agent 收到 rejection event"
+      error_handling: "N/A — 无副作用"
+
+    - id: "B8"
+      trigger: "agent 返回 terminal_output 事件"
+      action: "Terminal 展开，显示流式 stdout/stderr"
+      expected_result: "用户实时看到 make validate/generate 执行过程"
+      error_handling: "stderr 红色高亮，exit_code 非 0 时 RunStatusBar 变红"
+
+    - id: "B9"
+      trigger: "agent 返回 artifact（HTML prototype）"
+      action: "ConversationPanel 插入 ArtifactCard"
+      expected_result: "卡片内嵌 iframe 预览 + @artifactId 引用按钮"
+      error_handling: "artifact 类型未知时显示纯文本"
+
+    - id: "B10"
+      trigger: "用户拖拽 ArtifactCard 到 Composer"
+      action: "注入 @artifact:{id}"
+      expected_result: "Composer textarea 追加 artifact 引用，提交后 agent 可访问"
+      error_handling: "无 artifact.id 时忽略"
 
   user_stories:
     - id: "US-1"
-      as_a: "使用 VibeX 的开发者"
-      i_want: "在右侧保留 AI Agent 对话与输入"
-      so_that: "左侧/中心看 spec 和图谱时，仍能持续与 agent 协作"
-      acceptance: "右侧 panel 可调整宽度，Composer 始终固定在底部区域"
+      as_a: "spec 编写者"
+      i_want: "选中 spec 节点后一键问 agent"
+      so_that: "不需要复制粘贴 spec 内容，直接获得分析建议"
+      acceptance: "Ask Agent 按钮在 spec node 选中时可用，预填充内容含 spec 引用"
+
+    - id: "US-2"
+      as_a: "审阅者"
+      i_want: "agent 改文件前先看 diff"
+      so_that: "避免 agent 静默覆盖我已有代码"
+      acceptance: "每条 diff_proposal 必须显式 Apply 才写入，Reject 无副作用"
+
+    - id: "US-3"
+      as_a: "迭代者"
+      i_want: "看到 agent 执行 make 的实时输出"
+      so_that: "知道 spec→代码 校验/生成卡在哪一步"
+      acceptance: "Terminal 在 agent 执行命令时自动展开，stderr 红色"
+
+    - id: "US-4"
+      as_a: "探索者"
+      i_want: "agent 返回可预览的 HTML prototype"
+      so_that: "在 spec 写完后先看效果再生成代码"
+      acceptance: "ArtifactCard 内嵌预览，@artifact:{id} 可注入 Composer"
+
+  interaction_protocols:
+    thread_lifecycle: |
+      线程是 Agent panel 的持久化单位：
+      - 每个 thread 有 id、name、created_at、messages[]
+      - thread 可被命名为 "分析 MOD-ide-chrome" 或 "探索 L4 feature"
+      - ThreadList 默认按 last_message_at 倒序
+      - 线程数量无上限，MVP 阶段建议最多保留 20 个
+
+    context_injection: |
+      agent 接收的上下文包含：
+      - workspace_awareness: 当前目录状态、三态、最近 spec 变更
+      - active_spec: 当前选中的 spec 节点内容（完整 YAML）
+      - spec_selection: 用户选中的 spec 编辑器文字（可选）
+      - artifact_references: 用户通过 @artifact:{id} 注入的 artifacts
+      - command_history: 最近 5 次 make validate/generate 结果
+
+    diff_contracts: |
+      diff_proposal 的 JSON 形状：
+      {
+        "type": "diff_proposal",
+        "files": [{
+          "path": "frontend/src/lib/components/...",  # 相对 WORKSPACE_ROOT
+          "old": "...",  # 当前文件内容（空="" 表示新建）
+          "new": "...",  # 提议内容
+          "language": "typescript"
+        }],
+        "reason": "根据 FEAT-spec-write L5 生成",
+        "spec_ref": "FEAT-spec-write_L5"  # 关联 spec
+      }
+      约束：每个 diff_proposal 必须在用户 Apply 后才写入。
+      禁止 agent 绕过 DiffPreview 直接写入文件。
 
   test_scenarios:
     - id: "TC-1"
-      scenario: "无当前线程时发送第一条消息"
-      given: "currentThread 为空"
-      when: "用户输入目标并提交"
-      then: "创建新 thread，连接 SSE，并发送 chat 请求"
-      evaluation: "ThreadList 出现新 thread，ConversationPanel 接收 SSE 消息"
+      scenario: "Ask Agent from spec node"
+      given: "用户选中 FEAT-spec-graph-expansion 节点"
+      when: "点击 'Ask Agent'"
+      then: "Composer 预填充 '参考 @spec:FEAT-spec-graph-expansion...'"
+      evaluation: "提交后 AI 消息中包含 spec 内容引用"
+
     - id: "TC-2"
-      scenario: "Composer 拖入 artifact"
-      given: "存在 artifactId=abc123"
-      when: "拖拽到 Composer"
-      then: "textarea 追加 @{abc123}"
-      evaluation: "提交内容包含 artifact 引用"
+      scenario: "Agent diff before write"
+      given: "agent 收到生成 L5 的任务"
+      when: "agent 准备写入 FEAT-spec-write_L5.yaml"
+      then: "先发送 diff_proposal，用户 Apply 才写入"
+      evaluation: "Apply 前文件未变，Apply 后文件内容匹配 diff.new"
+
     - id: "TC-3"
-      scenario: "run 状态变化"
-      given: "runStore.active_run_id 指向 executing run"
-      when: "tool invocation 数增加"
-      then: "RunStatusBar 显示运行中与 tool 数量"
-      evaluation: "completed 后 5 秒自动隐藏"
+      scenario: "Reject diff preserves file"
+      given: "diff_proposal 显示 old='x' new='y'"
+      when: "用户点击 Reject"
+      then: "文件内容保持 old='x'，无任何变化"
+      evaluation: "git status 无变更"
+
+    - id: "TC-4"
+      scenario: "Terminal shows make output"
+      given: "agent 执行 make validate"
+      when: "make 返回非零 exit_code"
+      then: "Terminal 展开，stderr 红色，RunStatusBar 变红"
+      evaluation: "用户能看到具体哪一行失败"
+
+    - id: "TC-5"
+      scenario: "Artifact inject to Composer"
+      given: "ConversationPanel 存在 artifact.id=proto1"
+      when: "拖拽 ArtifactCard 到 Composer"
+      then: "Composer textarea 追加 '@artifact:proto1'"
+      evaluation: "提交后 AI 能访问该 artifact 上下文"
 
   constraints:
     - id: "C1"
-      name: "右侧固定 Composer"
-      rule: "Composer 区域高度由 workbenchLayoutStore.aiComposerBarPx 控制，可拖拽调整"
-      validation: "窗口高度变化时 Composer 不被挤出视口"
+      name: "No silent write"
+      rule: "agent 对 workspace 的所有写入必须经过 DiffPreview → Apply 流程"
+      validation: "grep agent 代码不存在不带 diff_proposal 的 file_write 调用"
+
     - id: "C2"
-      name: "消息唯一来源"
-      rule: "用户消息以 SSE 回显为唯一来源，避免本地提前插入导致重复"
-      validation: "提交同一消息后 ThreadList/ConversationPanel 不出现重复 user bubble"
+      name: "Context window management"
+      rule: "每条消息的 context injection 不超过 token 上限（按 model 动态）"
+      validation: "workspace_awareness 结果做截断，不发送完整文件列表"
+
+    - id: "C3"
+      name: "Thread isolation"
+      rule: "每个 thread 独立 context，不跨线程共享对话历史"
+      validation: "threadStore 以 threadId 为 key 隔离"
+
+    - id: "C4"
+      name: "Spec-aware context"
+      rule: "当有 active_spec 时，context injection 必须包含该 spec 完整内容"
+      validation: "Ask Agent 触发时 AI 响应必须引用 active_spec 的字段"
 
   l4_l5_lineage:
-    summary: "该 feature 由 AiChatColumn、ThreadList、ConversationPanel、Composer 落地。"
-    which_files:
-      - file: "frontend/src/lib/components/workbench/AiChatColumn.svelte"
-        generated_from: "panel layout"
-      - file: "frontend/src/lib/components/workbench/ThreadList.svelte"
-        generated_from: "B1"
-      - file: "frontend/src/lib/components/workbench/ConversationPanel.svelte"
-        generated_from: "B1"
-      - file: "frontend/src/lib/components/workbench/Composer.svelte"
-        generated_from: "B2-B5"
-    generation_order:
-      - "Thread store"
-      - "AiChatColumn layout"
-      - "Composer submission"
-      - "SSE bridge"
+    summary: "L4 定义交互协议，L5 定义 DiffPreview 和 Terminal 组件实现"
+    which_slices:
+      - slice: "SLICE-ide-agent-panel-component"
+        covers: "AiChatColumn + ConversationPanel + ThreadList 组件"
+      - slice: "SLICE-agent-diff-preview"
+        covers: "DiffPreview 组件 + Apply/Reject 逻辑"
+      - slice: "SLICE-agent-terminal-output"
+        covers: "Terminal 输出流式接收 + RunStatusBar"
+      - slice: "SLICE-agent-artifact-card"
+        covers: "ArtifactCard + @artifact 注入协议"
 
 changelog:
+  - version: "0.2"
+    date: "2026-04-28"
+    author: "hermes"
+    changes:
+      - "对齐 Cursor：新增 autonomy levels、Diff 卡片协议、Terminal 集成、Artifact 卡片"
+      - "新增 spec-aware context injection、Ask Agent from spec node"
+      - "新增 diff_proposal JSON 形状规范"
   - version: "0.1"
     date: "2026-04-26"
     author: "hermes"
     changes:
-      - "定义右侧 AI Agent panel 的按钮、输入与运行状态行为"
+      - "初始定义右侧 AI Agent panel 的按钮与输入行为"

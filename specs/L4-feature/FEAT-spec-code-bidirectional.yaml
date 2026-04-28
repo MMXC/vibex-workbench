@@ -1,0 +1,283 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-spec-code-bidirectional"
+  parent: "MOD-spec-editor"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-28"
+  updated: "2026-04-28"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-28"
+
+io_contract:
+  input: |
+    - spec YAML 文件（含 generates[] 声明）
+    - 已生成的代码文件（WORKSPACE_ROOT 下）
+    - 用户在 spec 图谱或 spec 编辑器中的操作
+  output: |
+    - spec 节点 → 点击可展示它生成的文件列表
+    - 文件节点 → 点击可展示它由哪个 spec 生成
+    - SpecGraphViewer 展示 spec↔code 双向边
+    - DriftIndicator：spec 变更后标红对应文件节点
+    - GenerateButton：点击触发 spec→代码生成
+  boundary: |
+    本 feature 只定义 spec 与生成代码之间的关联展示和变更检测。
+    不定义生成器执行逻辑（FEAT-scaffolding 负责 make generate）。
+    不定义 spec 父子链关系展示（FEAT-spec-graph-expansion 负责）。
+  behavior:
+    - "spec YAML 中声明 generates[] → 文件路径列表"
+    - "SpecGraphViewer 渲染 spec→文件的有向边"
+    - "用户点击 spec 节点 → 展示 generated files 列表"
+    - "用户点击 generated file → 展示关联 spec"
+    - "spec 变更后 → 对应 generated files 标记为 drift 态"
+    - "drift 文件可一键重新生成（调用 make generate）"
+
+content:
+  alignment_with_cursor: |
+    Cursor 的 SPEC.md 模式本质是"文档约定"，无系统级强制：
+    - 改代码后靠人肉更新 SPEC.md
+    - 改 SPEC.md 后靠 agent 推断要改哪些文件
+    无双向关联、无 drift 检测、无生成约束。
+    
+    VibeX 的 spec 驱动开发超越 Cursor 的核心差异：
+    1. Spec 是结构化 YAML（含 generates[] 声明），不是自然语言
+    2. 生成器从 spec 派生代码，spec 是 source of truth
+    3. Drift 检测：代码变更后可与 spec 对比，提示"已漂移"
+    4. 双向追溯：文件可定位到 spec，spec 可展开到文件
+    
+    本 feature 是"超越 Cursor SPEC.md"的地基能力。
+
+  core_concept: |
+    每个 spec 文件通过 YAML frontmatter 声明它生成的代码文件：
+    
+    generates:
+      - path: "frontend/src/lib/components/StatusBar.svelte"
+        type: "component"
+        layer: "L5"
+      - path: "frontend/src/lib/stores/status-bar-store.ts"
+        type: "store"
+        layer: "L5"
+    
+    这些 generates[] 即为 spec ↔ code 的双向关联键。
+    - spec → code：用户点 spec 节点，看到 generates[] 中的文件
+    - code → spec：用户点文件，看到是哪条 spec 的 generates[] 包含它
+
+  drift_definition: |
+    Drift（漂移）定义：
+    当 generated file 的内容与从 spec generates[] 重新生成的结果不一致时，
+    该文件处于 drift 态。
+    
+    Drift 检测触发时机：
+    - 用户在 SpecViewer 中保存 spec 后（save event）
+    - 用户在 Agent Panel 中 Apply diff 后（post-apply event）
+    - 用户手动点击 "Check Drift" 按钮
+    
+    Drift 状态：
+    - clean：文件与 spec 一致
+    - drifted：文件已被手动修改，或生成器已更新
+    - generating：正在重新生成中
+    
+    Drift 不自动修复，只提示。用户可选择：
+    - "Regenerate"：用当前 spec 重新生成（覆盖文件）
+    - "Accept as new baseline"：更新 spec generates[] 映射，标记为 clean
+    - "Ignore"：静默忽略 drift 提示
+
+  behaviors:
+    - id: "B1"
+      trigger: "用户打开 spec 文件"
+      action: "SpecViewer 读取 YAML → 提取 generates[] → 渲染 files 列表"
+      expected_result: "spec 详情面板中显示 'Generated Files: N'，每个文件可点击"
+      error_handling: "spec 无 generates[] 时显示空列表 + 引导文案"
+
+    - id: "B2"
+      trigger: "用户点击 spec 详情中的 generated file"
+      action: "打开对应文件的内容预览（只读）"
+      expected_result: "文件在 SpecViewer 或新 tab 中展示"
+      error_handling: "文件不存在时显示 'File not found: {path}' + 提示重建"
+
+    - id: "B3"
+      trigger: "用户在 Agent Panel 中 Apply diff"
+      action: "post-apply event → 找到对应 spec → 检查该 spec generates[] 中是否含此文件"
+      expected_result: "如果文件在 generates[] 中，触发 drift 检测"
+      error_handling: "文件不在 generates[] 中时跳过 drift 检测"
+
+    - id: "B4"
+      trigger: "drift 检测执行后"
+      action: "比较文件当前内容 vs 从 spec 重新生成的内容"
+      expected_result: "文件标记为 clean 或 drifted"
+      error_handling: "生成器失败时标记为 unknown，提示运行 make generate 查看错误"
+
+    - id: "B5"
+      trigger: "用户点击 drifted 文件的 'Regenerate'"
+      action: "调用 make generate 针对该 spec → 写入文件 → 重置为 clean"
+      expected_result: "文件内容与 spec generates[] 一致，drift 态消失"
+      error_handling: "make generate 失败时显示 stderr，drift 保持"
+
+    - id: "B6"
+      trigger: "用户点击 drifted 文件的 'Accept as new baseline'"
+      action: "更新 spec 的 generates[]（添加或确认 path）→ 标记为 clean"
+      expected_result: "spec YAML 无变化（generates[] 已是正确映射），状态为 clean"
+      error_handling: "spec 无写权限时提示"
+
+    - id: "B7"
+      trigger: "用户在 SpecGraphViewer 中查看节点"
+      action: "spec 节点显示所有 generates[] 文件作为子节点，边标签 'generates'"
+      expected_result: "图谱中 spec 与其生成文件之间有 'generates' 边相连"
+      error_handling: "无 generates[] 的 spec 显示为叶子节点（无 outgoing 边）"
+
+    - id: "B8"
+      trigger: "用户在图谱中点击 generated file 节点"
+      action: "查找哪个 spec 的 generates[] 包含此文件 → 跳转并高亮该 spec"
+      expected_result: "spec 编辑器打开，高亮 generates[] 中对应行"
+      error_handling: "多个 spec 声明同一文件时显示冲突提示"
+
+    - id: "B9"
+      trigger: "用户在 spec 编辑器中修改 generates[]"
+      action: "保存后自动运行 drift 检测"
+      expected_result: "新增 generates[] 中的文件立即从 drifted 变为 clean（如果内容匹配）"
+      error_handling: "YAML 格式错误时 drift 检测跳过，提示 spec 格式问题"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "溯源者"
+      i_want: "看到一个已生成的文件，知道它是从哪个 spec 来的"
+      so_that: "修改前评估影响范围"
+      acceptance: "点击文件节点 → spec 节点高亮 + spec 内容展示"
+
+    - id: "US-2"
+      as_a: "审计者"
+      i_want: "看到 spec 和生成代码的一致性状态"
+      so_that: "知道哪些文件已手动修改、哪些是干净的"
+      acceptance: "drifted 文件红色标识，clean 文件绿色标识"
+
+    - id: "US-3"
+      as_a: "迭代者"
+      i_wist: "改完 spec 后一键让代码与 spec 对齐"
+      so_that: "不需要记住哪些文件要改"
+      acceptance: "drifted 文件有 Regenerate 按钮，点击后文件与 spec 一致"
+
+    - id: "US-4"
+      as_a: "澄清者"
+      i_want: "知道一个 spec 生成的所有文件"
+      so_that: "评估一个 spec 的改动影响面"
+      acceptance: "spec 详情面板列出的 generates[] 与图谱节点数量一致"
+
+  drift_detection_algorithm: |
+    实现方案（前端 + Go agent 协作）：
+    
+    1. Agent Side（Go）：
+       - 监听 spec save event
+       - 读取 spec generates[] 中的文件列表
+       - 对每个文件执行：读取内容 + 运行生成器（dry-run）→ 比较
+       - 返回每个文件的 drift 状态 + diff（如果 drifted）
+    
+    2. Frontend Side：
+       - DriftIndicator 组件订阅 drift 状态
+       - SpecGraphViewer 根据 drift 状态渲染节点颜色
+       - DriftPanel 展示 drifted 文件列表 + 操作按钮
+    
+    3. 性能优化：
+       - drift 检测异步执行，不阻塞 spec 保存
+       - 首次加载只检测当前选中 spec 的 generates[]
+       - 后台逐步检测其他 spec（进度条提示）
+       - 结果缓存，spec 无变化时跳过重新检测
+
+  ui_design: |
+    SpecGraphViewer 图谱增强：
+    - spec 节点：蓝色圆角矩形（现有设计）
+    - generated file 节点：绿色圆角矩形（新增色）
+    - generates 边：蓝色实线箭头，从 spec 指向 file
+    - drift 边：红色虚线，drifted 文件用红色边框
+    
+    SpecViewer 详情面板增强：
+    - 新增 "Generated Files" section
+    - 每个文件一行：路径 + drift 状态 chip + 操作按钮
+    - drift 状态 chip：green="clean", red="drifted", gray="unknown"
+    
+    DriftPanel（底部 dock 或浮层）：
+    - 列出所有 drifted 文件
+    - 每个文件：path + spec 来源 + "Regenerate" + "Accept" + "Ignore"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "Spec with generates[] renders file list"
+      given: "FEAT-spec-write_L5 声明 generates: [StatusBar.svelte, store.ts]"
+      when: "用户打开 FEAT-spec-write_L5"
+      then: "详情面板显示 'Generated Files: 2'，两个文件可点击"
+      evaluation: "点击文件打开只读预览"
+
+    - id: "TC-2"
+      scenario: "Manual edit triggers drift detection"
+      given: "StatusBar.svelte 由 FEAT-spec-write_L5 生成"
+      when: "用户在编辑器中手动修改 StatusBar.svelte"
+      then: "FEAT-spec-write_L5 的 drift 状态变为 drifted"
+      evaluation: "SpecGraphViewer 中 StatusBar 节点红色边框"
+
+    - id: "TC-3"
+      scenario: "Regenerate restores clean state"
+      given: "StatusBar.svelte 处于 drifted 态"
+      when: "用户点击 'Regenerate'"
+      then: "运行 make generate → 文件内容重置 → drift 态消失"
+      evaluation: "文件内容与 spec generates[] 声明一致"
+
+    - id: "TC-4"
+      scenario: "File node navigates to spec"
+      given: "StatusBar.svelte 由 FEAT-spec-write_L5 生成"
+      when: "用户在图谱中点击 StatusBar 节点"
+      then: "FEAT-spec-write_L5 打开，generates[] 对应行高亮"
+      evaluation: "编辑器和图谱同步高亮"
+
+    - id: "TC-5"
+      scenario: "No generates[] shows empty state"
+      given: "某 L1 spec 无 generates[] 字段"
+      when: "用户查看该 spec 的 Generated Files"
+      then: "显示 '此 spec 未声明生成文件'"
+      evaluation: "不报错，不 crash"
+
+  constraints:
+    - id: "C1"
+      name: "generates[] is declarative only"
+      rule: "spec 的 generates[] 是声明，不是执行。生成动作由 make generate 触发"
+      validation: "本 feature 不实现代码生成，只实现关联展示和 drift 检测"
+
+    - id: "C2"
+      name: "Drift detection is advisory"
+      rule: "drift 状态仅提示，不阻止任何操作"
+      validation: "drifted 文件仍可编辑、提交、运行，无强制修复"
+
+    - id: "C3"
+      name: "Single source of truth per file"
+      rule: "一个 generated file 必须且只能由一个 spec generates[] 声明"
+      validation: "多 spec 声明同一文件时前端显示冲突，后端 log warning"
+
+    - id: "C4"
+      name: "generates[] is opt-in"
+      rule: "spec 可不声明 generates[]，此类 spec 不参与 drift 检测"
+      validation: "无 generates[] 的 spec 在图谱中无 outgoing 边"
+
+  l4_l5_lineage:
+    summary: "L4 定义双向关联与 drift 协议，L5 定义图谱渲染和 DriftPanel 实现"
+    which_slices:
+      - slice: "SLICE-spec-code-edge-contract"
+        covers: "generates[] YAML 格式规范 + 双向查询 API"
+      - slice: "SLICE-spec-graph-code-nodes"
+        covers: "SpecGraphViewer 中 file 节点 + generates 边渲染"
+      - slice: "SLICE-drift-detection-engine"
+        covers: "Go agent drift 检测逻辑 + dry-run 比较算法"
+      - slice: "SLICE-drift-panel"
+        covers: "DriftPanel UI + Regenerate/Accept/Ignore 操作"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-28"
+    author: "hermes"
+    changes:
+      - "新增 spec↔code 双向关联规范：generates[] 声明、drift 定义、图谱边"
