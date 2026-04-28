@@ -55,10 +55,10 @@ content:
       placement: "底部 dock 的 Problems tab 旁边新增 Drift tab"
       sections:
         - header: "Drift Summary"
-          content: "N drifted, M clean — [Check Now] 按钮
+          content: "N drifted, M clean — [Check Now] 按钮"
         - list: "Drifted Files"
           each_file: "file path + spec 来源 + status chip + [Regenerate] [Accept] [Ignore]"
-        - empty_state: "所有文件与 spec 一致 ✓"
+        - empty_state: "所有文件与 spec 一致"
 
     DriftIndicator:
       description: "注入到 SpecGraphViewer 节点的色块"
