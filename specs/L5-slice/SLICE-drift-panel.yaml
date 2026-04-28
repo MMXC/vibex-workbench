@@ -1,0 +1,149 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-drift-panel"
+  parent: "FEAT-spec-code-bidirectional"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-28"
+  updated: "2026-04-28"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-28"
+
+io_contract:
+  input: |
+    - drift-state.json（通过 GET /api/spec/drift/list）
+    - SSE drift_result 事件流
+    - 用户在 DriftPanel 中的操作（Regenerate/Accept/Ignore）
+  output: |
+    - DriftPanel：drifted 文件列表 + 操作按钮
+    - DriftIndicator：SpecGraphViewer 节点颜色
+    - DriftChip：spec 详情面板中的状态 chip
+  boundary: |
+    只实现前端 UI 展示和操作触发。
+    不执行业务逻辑，所有检测/比较操作由 Go agent 完成。
+  behavior_summary: |
+    DriftPanel 订阅 SSE 事件，GET /drift/list 初始化，
+    用户点 Regenerate → 调用 make generate；
+    Accept/Ignore → 调用对应 API。
+
+content:
+  file_path: "frontend/src/lib/components/workbench/DriftPanel.svelte"
+  file_type: svelte
+  implementation_boundary:
+    allowed:
+    - DriftPanel 组件（底部 dock 或浮层）
+    - DriftIndicator（注入到 SpecGraphViewer 节点）
+    - DriftChip（注入到 SpecViewer 详情面板）
+    - SSE drift_result 事件监听
+    - 调用 /api/spec/drift/* 端点
+    forbidden:
+    - YAML 解析（Go agent 负责）
+    - make generate 执行（Go agent 负责）
+    - drift 检测逻辑
+
+  component_design:
+    DriftPanel:
+      description: "drifted 文件列表主容器"
+      placement: "底部 dock 的 Problems tab 旁边新增 Drift tab"
+      sections:
+        - header: "Drift Summary"
+          content: "N drifted, M clean — [Check Now] 按钮
+        - list: "Drifted Files"
+          each_file: "file path + spec 来源 + status chip + [Regenerate] [Accept] [Ignore]"
+        - empty_state: "所有文件与 spec 一致 ✓"
+
+    DriftIndicator:
+      description: "注入到 SpecGraphViewer 节点的色块"
+      colors:
+        clean: "border: 2px solid #4ade80"        # 绿色
+        drifted: "border: 2px solid #f87171"        # 红色
+        ignored: "border: 2px dashed #6b7280"      # 灰色虚线
+        generating: "border: 2px solid #facc15"     # 黄色 + spinner
+
+    DriftChip:
+      description: "spec 详情面板 Generated Files 列表中的状态 chip"
+      colors:
+        clean: "bg-green-900 text-green-300"
+        drifted: "bg-red-900 text-red-300"
+        ignored: "bg-gray-700 text-gray-400"
+
+  generation_rules:
+    - rule: "DriftPanel is not blocking"
+      detail: "drift 检测异步执行，panel 不阻塞用户其他操作"
+    - rule: "Actions are optimistic"
+      detail: "点 Regenerate/Accept/Ignore 后 UI 立即更新，后端失败时回退"
+    - rule: "SSE is primary source"
+      detail: "drift 状态以 SSE 推送为准，GET /drift/list 用于初始化"
+
+  verification:
+    commands:
+    - npm --prefix frontend run build
+    manual_checks:
+    - DriftPanel 在 drifted 文件存在时显示红色 badge
+    - DriftIndicator 在 SpecGraphViewer 节点上正确显示颜色
+    - Regenerate 调用 make generate 并在完成后刷新 drift 状态
+    failure_conditions:
+    - SSE 连接断开后 DriftPanel 显示 stale 状态 + reconnect 按钮
+    - API 返回错误时显示 toast，不 crash
+
+  dependencies:
+    - file: "frontend/src/lib/components/workbench/DriftPanel.svelte"
+      reason: "主容器组件"
+    - file: "frontend/src/lib/components/workbench/SpecGraphViewer.svelte"
+      reason: "DriftIndicator 注入目标"
+    - file: "frontend/src/lib/components/workbench/SpecViewer.svelte"
+      reason: "DriftChip 注入目标"
+    - file: "frontend/src/lib/stores/drift-store.ts"
+      reason: "drift 状态 store"
+
+  behaviors:
+    - id: "B1"
+      trigger: "DriftPanel 挂载"
+      action: "GET /api/spec/drift/list → 初始化 drift-store"
+      expected_result: "panel 显示当前所有 drift 状态"
+      error_handling: "请求失败时显示空状态 + 重试按钮"
+
+    - id: "B2"
+      trigger: "SSE drift_result 事件"
+      action: "drift-store 更新对应文件状态 → UI 响应式更新"
+      expected_result: "节点颜色在事件到达时立即变化"
+      error_handling: "事件格式错误时 log error，忽略该事件"
+
+    - id: "B3"
+      trigger: "用户点击 [Regenerate]"
+      action: "POST /api/spec/drift/reject 对应文件 → 触发重新生成"
+      expected_result: "状态变为 generating，生成完成后变为 clean"
+      error_handling: "make 失败时状态保持 drifted + 显示 stderr"
+
+    - id: "B4"
+      trigger: "用户点击 [Accept]"
+      action: "POST /api/spec/drift/accept"
+      expected_result: "该文件从 drifted 列表消失，状态变为 clean"
+      error_handling: "API 404 时提示文件不在 drift 列表"
+
+    - id: "B5"
+      trigger: "用户点击 [Ignore]"
+      action: "POST /api/spec/drift/reject"
+      expected_result: "该文件从 drifted 列表消失，状态变为 ignored"
+      error_handling: "API 404 时提示文件不在 drift 列表"
+
+    - id: "B6"
+      trigger: "用户点击 [Check Now]"
+      action: "POST /api/spec/drift/check"
+      expected_result: "SSE 推送全量 drift 结果"
+      error_handling: "请求失败时显示 toast"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-28"
+    author: "hermes"
+    changes:
+      - "新增 DriftPanel + DriftIndicator + DriftChip 前端实现"

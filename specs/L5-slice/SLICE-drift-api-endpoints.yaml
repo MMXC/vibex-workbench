@@ -1,0 +1,182 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-drift-api-endpoints"
+  parent: "FEAT-spec-code-bidirectional"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-04-28"
+  updated: "2026-04-28"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-28"
+
+io_contract:
+  input: |
+    - WORKSPACE_ROOT（当前仓库根）
+    - spec YAML（含 generates[] 声明）
+    - make generate 命令（generators/gen.py）
+  output: |
+    - .vibex/drift-state.json（drift 状态持久化）
+    - SSE drift_result 事件流
+    - /api/spec/drift/* HTTP 响应
+  boundary: |
+    只实现 agent 端 drift engine 和 API 端点。
+    不涉及前端 UI 渲染（由 SLICE-drift-panel 负责）。
+  behavior_summary: |
+    POST /drift/check 触发检测 → 读 generates[] → 跑 make generate dry-run →
+    diff 比较 → 写 drift-state.json → SSE 推送结果。
+    GET /drift/list、POST /drift/accept、POST /drift/reject 管理状态。
+
+content:
+  file_path: "agent/vibex/domain/spec/drift.go"
+  file_type: go
+  implementation_boundary:
+    allowed:
+    - YAML generates[] 解析（gopkg.in/yaml.v3）
+    - make generate dry-run 执行（exec.Command）
+    - 文件内容读取 + diff 比较（github.com/sergi/go-diff）
+    - .vibex/drift-state.json 读写
+    - SSE drift_result 事件发送
+    forbidden:
+    - 前端 UI 渲染逻辑
+    - 直接修改 spec YAML 文件（accept 操作只更新 drift-state，不写 spec）
+    - 跨 WORKSPACE_ROOT 读写
+
+  api_endpoints:
+    - path: "/api/spec/drift/check"
+      method: "POST"
+      request: |
+        { "spec_path": "specs/L5-slice/FEAT-spec-write_L5.yaml" }  // 空=全量检测
+      response: |
+        { "ok": true, "total": 5, "drifted": 2 }
+      side_effect: |
+        SSE 推送多条 drift_result 事件
+      errors:
+        - "spec not found": 404
+        - "make generate failed": 500 + stderr
+
+    - path: "/api/spec/drift/list"
+      method: "GET"
+      response: |
+        .vibex/drift-state.json 完整内容
+      errors:
+        - "drift-state.json not found": 返回空 {}
+
+    - path: "/api/spec/drift/accept"
+      method: "POST"
+      request: |
+        { "file_path": "frontend/src/.../StatusBar.svelte", "spec_name": "FEAT-spec-write_L5" }
+      response: |
+        { "ok": true, "status": "clean" }
+      behavior: |
+        更新 drift-state.json 中该文件 status=clean
+
+    - path: "/api/spec/drift/reject"
+      method: "POST"
+      request: |
+        { "file_path": "...", "spec_name": "FEAT-spec-write_L5" }
+      response: |
+        { "ok": true, "status": "ignored" }
+
+  drift_state_json_shape: |
+    .vibex/drift-state.json:
+    {
+      "version": "1",
+      "generated_at": "2026-04-28T12:00:00Z",
+      "specs": {
+        "FEAT-spec-write_L5": {
+          "spec_path": "specs/L5-slice/FEAT-spec-write_L5.yaml",
+          "files": {
+            "frontend/src/lib/components/workbench/StatusBar.svelte": {
+              "status": "drifted",   // clean | drifted | ignored | generating | unknown
+              "spec_ref": "FEAT-spec-write_L5",
+              "checked_at": "2026-04-28T12:00:00Z",
+              "diff": "@@ -1,5 +1,7 @@\n-old line\n+new lines...",
+              "current_hash": "sha256:abc...",
+              "generated_hash": "sha256:def..."
+            }
+          }
+        }
+      }
+    }
+
+  generation_rules:
+    - rule: "Drift is async"
+      detail: "POST /drift/check 立即返回，后台异步执行，SSE 推送进度"
+    - rule: "State is idempotent"
+      detail: "多次 /drift/check 结果覆盖 drift-state.json，但 accept/reject 操作不变"
+    - rule: "Accept does not modify spec"
+      detail: "accept 操作只更新 drift-state.json status=clean，不写入 spec YAML"
+    - rule: "Single workspace root"
+      detail: "所有文件路径都是相对 WORKSPACE_ROOT，不允许绝对路径"
+
+  verification:
+    commands:
+    - cd agent && go build ./...
+    - echo '{"spec_path":""}' | POST /api/spec/drift/check → 200
+    - GET /api/spec/drift/list → 200 + valid JSON
+    manual_checks:
+    - drift-state.json 存在且格式正确
+    - SSE 能收到 drift_result 事件
+    - accept 后 status 变为 clean
+    - reject 后 status 变为 ignored
+    failure_conditions:
+    - make generate 执行失败时 SSE 推送 error 事件，不 crash
+    - YAML generates[] 格式错误时跳过该 spec 并 log warning
+    - drift-state.json 损坏时重建空结构，不 throw
+
+  dependencies:
+    - file: "agent/vibex/domain/spec/drift.go"
+      reason: "drift engine 核心"
+    - file: ".vibex/drift-state.json"
+      reason: "drift 状态持久化"
+    - file: "generators/gen.py"
+      reason: "make generate 命令依赖"
+    - file: "specs/L5-slice/*.yaml"
+      reason: "generates[] 声明来源"
+
+  behaviors:
+    - id: "B1"
+      trigger: "POST /api/spec/drift/check"
+      action: |
+        ① 解析 request 中的 spec_path（空=扫描所有 L4/L5 spec）
+        ② 对每个 spec：读取 YAML → 提取 generates[]
+        ③ 对每个 generates[] 文件：读取当前内容
+        ④ 跑 make generate（指定 target spec）→ 获取生成内容
+        ⑤ diff 当前内容 vs. 生成内容
+        ⑥ 更新 drift-state.json
+        ⑦ SSE 推送 drift_result 事件
+      expected_result: "drift-state.json 写入，SSE 推送完成"
+      error_handling: "单个 spec 失败不影响其他 spec，log error 后继续"
+
+    - id: "B2"
+      trigger: "GET /api/spec/drift/list"
+      action: "读取 .vibex/drift-state.json"
+      expected_result: "返回完整 drift 状态"
+      error_handling: "文件不存在返回 {}，不报错"
+
+    - id: "B3"
+      trigger: "POST /api/spec/drift/accept"
+      action: "更新 drift-state.json 中指定文件的 status=clean"
+      expected_result: "该文件不再出现在 drifted 列表"
+      error_handling: "文件不在 drift-state 中时返回 404"
+
+    - id: "B4"
+      trigger: "POST /api/spec/drift/reject"
+      action: "更新 drift-state.json 中指定文件的 status=ignored"
+      expected_result: "该文件不再出现在 drifted 列表"
+      error_handling: "文件不在 drift-state 中时返回 404"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-28"
+    author: "hermes"
+    changes:
+      - "新增 drift 检测 API 端点 + Go agent drift engine"

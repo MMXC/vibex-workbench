@@ -170,21 +170,52 @@ content:
       so_that: "评估一个 spec 的改动影响面"
       acceptance: "spec 详情面板列出的 generates[] 与图谱节点数量一致"
 
-  drift_detection_algorithm: |
-    实现方案（前端 + Go agent 协作）：
-    
-    1. Agent Side（Go）：
-       - 监听 spec save event
-       - 读取 spec generates[] 中的文件列表
-       - 对每个文件执行：读取内容 + 运行生成器（dry-run）→ 比较
-       - 返回每个文件的 drift 状态 + diff（如果 drifted）
-    
-    2. Frontend Side：
-       - DriftIndicator 组件订阅 drift 状态
-       - SpecGraphViewer 根据 drift 状态渲染节点颜色
-       - DriftPanel 展示 drifted 文件列表 + 操作按钮
-    
-    3. 性能优化：
+  drift_detection_architecture: |
+    结论：drift 检测引擎必须放在 Go agent 端。
+    理由：drift 检测本质是"文件当前内容 vs. 从 spec 重新生成的结果"，
+    需要两步操作——① YAML 解析 generates[] ② 运行 make generate（dry-run）——
+    这两步前端都不具备能力，必须走 agent。
+
+    整体架构（Go agent 端 + 前端展示分离）：
+
+    1. Go Agent（drift engine）：
+       - POST /api/spec/drift/check {spec_path?} → 触发全量或单 spec drift 检测
+       - 读取目标 spec YAML → 提取 generates[]
+       - 跑 make generate（dry-run）→ 获取生成后的文件内容
+       - 对每个 generates[] 中的文件执行 diff：当前内容 vs. 生成内容
+       - 写 .vibex/drift-state.json（drift 结果持久化）
+       - 通过 SSE 推送 drift_result 事件
+       - POST /api/spec/drift/accept {file_path, spec_path} → 标记 clean
+       - POST /api/spec/drift/reject {file_path} → 标记 ignored
+       - GET /api/spec/drift/list → 读取 .vibex/drift-state.json
+
+    2. Frontend（展示 + 操作）：
+       - DriftIndicator：订阅 SSE drift_result 事件，更新节点颜色
+       - SpecGraphViewer：根据 drift-state.json 渲染节点颜色
+         - clean：绿色边框
+         - drifted：红色边框 + 叹号
+         - generating：灰色 + spinner
+         - unknown：黄色边框
+       - DriftPanel：展示 drifted 文件列表 + 操作按钮
+       - 不执行业务逻辑，只调用 agent API + 渲染结果
+
+    3. .vibex/drift-state.json 形状：
+       {
+         "specs": {
+           "FEAT-spec-write_L5": {
+             "files": {
+               "StatusBar.svelte": {
+                 "status": "drifted",  // clean | drifted | ignored | generating | unknown
+                 "spec_ref": "FEAT-spec-write_L5",
+                 "checked_at": "2026-04-28T12:00:00Z",
+                 "diff": "..."  // unified diff if drifted
+               }
+             }
+           }
+         }
+       }
+
+    4. 性能优化：
        - drift 检测异步执行，不阻塞 spec 保存
        - 首次加载只检测当前选中 spec 的 generates[]
        - 后台逐步检测其他 spec（进度条提示）
@@ -264,16 +295,16 @@ content:
       validation: "无 generates[] 的 spec 在图谱中无 outgoing 边"
 
   l4_l5_lineage:
-    summary: "L4 定义双向关联与 drift 协议，L5 定义图谱渲染和 DriftPanel 实现"
+    summary: "L4 定义双向关联与 drift 协议，drift engine 强制在 Go agent 端，L5 拆分 API 和 UI 实现"
     which_slices:
       - slice: "SLICE-spec-code-edge-contract"
         covers: "generates[] YAML 格式规范 + 双向查询 API"
       - slice: "SLICE-spec-graph-code-nodes"
         covers: "SpecGraphViewer 中 file 节点 + generates 边渲染"
-      - slice: "SLICE-drift-detection-engine"
-        covers: "Go agent drift 检测逻辑 + dry-run 比较算法"
+      - slice: "SLICE-drift-api-endpoints"
+        covers: "Go agent drift engine + /api/spec/drift/* 端点 + .vibex/drift-state.json"
       - slice: "SLICE-drift-panel"
-        covers: "DriftPanel UI + Regenerate/Accept/Ignore 操作"
+        covers: "DriftPanel UI + DriftIndicator + Regenerate/Accept/Ignore 操作"
 
 changelog:
   - version: "0.1"
