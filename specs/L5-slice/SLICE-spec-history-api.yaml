@@ -90,7 +90,7 @@ content:
       errors:
         - "file not tracked by git": 400
         - "commit not found": 404
-        - "local modifications exist": 409 { "message": "请先 commit 当前修改" }
+        - "local modifications exist": 409
 
     POST /api/spec/validate:
       description: "验证指定 spec 文件（轻量版，不用跑完整 make validate）"
@@ -128,7 +128,7 @@ content:
       trigger: "GET /api/workspace/specs/tree"
       action: "扫描 specs/ → 解析 YAML → 构建树 → JSON 返回"
       expected_result: "完整树结构，L4 附带 l5_count"
-      error_handling: "非 git 仓库时返回 {roots: [], error: "not a git repo"}"
+      error_handling: "非 git 仓库时返回 roots empty + error note"
 
     - id: "B2"
       trigger: "GET /api/workspace/specs/history"

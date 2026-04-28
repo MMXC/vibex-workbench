@@ -146,9 +146,9 @@ content:
       states:
         - idle: "Validate 按钮可点击"
         - running: "旋转图标 + 'Validating...' + spinner"
-        - pass: "绿色徽章 ✓ Valid" + 耗时
-        - fail: "红色徽章 ✗ Invalid + 错误数 + 摘要"
-        - warning: "黄色徽章 ⚠ Warning + 警告数"
+        - pass: "绿色徽章 Valid 耗时"
+        - fail: "红色徽章 Invalid 错误数 摘要"
+        - warning: "黄色徽章 Warning 警告数"
       errors:
         - click_error: "滚动到错误行高亮"
         - copy_errors: "一键复制所有错误"
