@@ -152,19 +152,55 @@ L1: vibex-workbench-mvp [proposal]
   🟢 FEAT-mvp-governance
 ```
 
-## 验证命令
+## 分析脚本（已实现）
+
+分析脚本路径：`scripts/spec_coverage.py`（在 vibex-workbench repo 根目录）
 
 ```bash
-# 扫描并生成报告
-python3 << 'EOF'
-#（见 Step 1-4 的脚本）
-EOF
+# 控制台矩阵（快速）
+python3 scripts/spec_coverage.py
 
-# 检查 parent chain
-python3 generators/validate_specs.py specs/
-
-# 生成 YAML frontmatter（coverage report 也作为 spec）
+# 生成完整 markdown 报告（git push 后自动更新）
+python3 scripts/spec_coverage.py --report
+# 输出：specs/_governance/coverage-report.md
 ```
+
+脚本能力：
+- 扫描所有 specs/ 下的 YAML，构建 name→{level,parent,status} 映射
+- 计算 L3→L4、L4→L5 覆盖矩阵
+- 识别无 L5 的 L4，按 CRITICAL/HIGH/MEDIUM 排序
+- 检测 parent chain 断裂 + 重复命名
+- 生成 coverage-report.md（可提交到 git 作为历史快照）
+
+## YAML 格式陷阱
+
+**已踩坑：多行字符串的 unclosed quote**
+
+症状：`yaml.parser.ParserError: expected <block end>, but found '<scalar>'`
+位置：通常在 `content: "..."` 这种字段跨多行时
+
+原因：YAML 多行标量字符串格式错误，例如：
+```yaml
+# 错误 — content 值跨行但引号在第一行就闭合了，导致后续行被当成新 key
+      sections:
+        - header: "Drift Summary"
+          content: "N drifted, M clean — [Check Now] 按钮
+        - list: "Drifted Files"
+```
+末尾的 `"` 只闭合了 `content` 的第一个字符，`- list:` 被解析为缩进错误的标量。
+
+修复：确保多行内容全在同一行，或用 YAML 块标量 `|`：
+```yaml
+# 正确：单行字符串
+          content: "N drifted, M clean — [Check Now] 按钮"
+
+# 或正确：块标量
+          content: |
+            N drifted, M clean
+            [Check Now] 按钮
+```
+
+验证：每次写完 YAML 后运行 `python3 -c "import yaml; yaml.safe_load(open('path'))"` 确保能 parse。
 
 ## 相关 Skills
 
