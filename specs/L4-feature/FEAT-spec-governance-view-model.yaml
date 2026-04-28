@@ -1,0 +1,135 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-spec-governance-view-model"
+  parent: "MOD-spec-editor"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-04-28"
+  updated: "2026-04-28"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-28"
+
+io_contract:
+  input: |
+    WORKSPACE_ROOT/specs 下的 YAML spec、validator 结果、coverage matrix、drift state、
+    implementation journal、git history、最近命令结果。
+  output: |
+    Go 后端生成的 spec governance view model：
+    - 单 spec 的 .view.json / .view.md
+    - 全仓库 panorama.json / coverage-report.md
+    - 可被 UI 渲染、agent 注入、用户确认的 action/link/button 元数据
+  boundary: |
+    YAML spec 是事实源，只保存稳定契约。
+    view model 是动态治理中间层，不反写业务事实到 spec YAML。
+    前端只消费 view model，不重复实现 coverage/consistency 计算。
+  behavior:
+    - "Go governance engine 扫描 spec YAML 并构建 SpecIndex"
+    - "按 L1/L2/L3/L4/L5 层级生成对应 view.json 和 view.md"
+    - "view model 合并 parent/children、coverage、consistency、runtime、links、buttons"
+    - "Markdown 中的 action URI 映射到 UI action，不直接执行危险操作"
+    - "agent 读取同一份 view.json 作为当前 spec 的用户可见上下文"
+
+content:
+  design_principle:
+    source_of_truth: "spec YAML"
+    computed_layer: "Go governance engine"
+    interaction_layer:
+      - "specs/_governance/**/*.view.json"
+      - "specs/_governance/**/*.view.md"
+      - "specs/_governance/panorama.json"
+      - "specs/_governance/coverage-report.md"
+
+  view_model_fields:
+    spec:
+      - "name"
+      - "level"
+      - "path"
+      - "parent"
+      - "status"
+    coverage:
+      - "children_count"
+      - "missing_children"
+      - "coverage_status"
+    consistency:
+      - "parent_exists"
+      - "duplicate_name"
+      - "generates_conflicts"
+      - "file_path_conflicts"
+    runtime:
+      - "last_validate"
+      - "last_make_result"
+      - "drift_status"
+      - "journal_summary"
+    interactions:
+      - "links"
+      - "buttons"
+      - "user_confirmations"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "用户"
+      i_want: "打开任意 spec 时看到它的可交互治理视图"
+      so_that: "确认该 spec 的父子关系、缺口、可执行动作和验证状态"
+      acceptance: "SpecViewer 能加载对应 .view.json/.view.md 并渲染 links/buttons"
+    - id: "US-2"
+      as_a: "agent"
+      i_want: "读取和用户看到一致的 spec view model"
+      so_that: "我的建议和用户确认界面不会基于两套不同解释"
+      acceptance: "agent context 注入使用同一 view.json"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "生成 L4 spec view"
+      given: "FEAT-spec-governance-viewer 有 4 个 L5 child"
+      when: "Go governance engine 生成 view model"
+      then: ".view.json coverage.children_count=4，.view.md 显示 L5x4"
+      evaluation: "UI 和 agent 读取结果一致"
+    - id: "TC-2"
+      scenario: "动态信息不污染 spec YAML"
+      given: "last_validate_result 从 pass 变为 fail"
+      when: "重新生成 view model"
+      then: "只更新 _governance view 文件，不修改原 spec YAML"
+      evaluation: "git diff 中原 spec 不变"
+
+  constraints:
+    - id: "C1"
+      name: "YAML remains stable"
+      rule: "coverage/runtime/journal/drift 等动态信息不得写回业务 spec YAML"
+      validation: "view model 生成只写 specs/_governance"
+    - id: "C2"
+      name: "Backend owns governance"
+      rule: "coverage/consistency/panorama 计算必须在 Go 后端或同等后端工具中完成"
+      validation: "前端只渲染 view model"
+    - id: "C3"
+      name: "Actions require policy"
+      rule: "action URI 只是声明，写盘/rollback/generate 必须经过确认和权限检查"
+      validation: "危险 action 有 requires_confirmation=true"
+
+acceptance_criteria:
+  - id: "AC-1"
+    given: "任意合法 spec YAML"
+    when: "governance engine 生成 view model"
+    then: "生成对应 .view.json 和 .view.md"
+  - id: "AC-2"
+    given: "spec 有缺失 L5 或 consistency issue"
+    when: "用户打开治理视图"
+    then: "view model 显示缺口、风险和建议动作"
+  - id: "AC-3"
+    given: "view model 包含写盘类按钮"
+    when: "用户点击"
+    then: "UI 进入确认流程，不直接写盘"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-28"
+    author: "hermes"
+    changes:
+      - "新增 Go 后端 spec governance view model 总协议"

@@ -1,0 +1,88 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-interactive-markdown-renderer"
+  parent: "FEAT-spec-governance-view-model"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-28"
+  updated: "2026-04-28"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-28"
+
+io_contract:
+  input: |
+    Go 后端生成的 .view.md 和 .view.json 中的 links/buttons/action metadata。
+  output: |
+    SpecViewer/SpecDetailPanel 中可交互的 Markdown 视图，支持 action URI、按钮和确认流程。
+  boundary: |
+    只负责渲染和 dispatch action，不在前端重新计算 governance。
+
+content:
+  file_path: "frontend/src/lib/components/workbench/SpecInteractiveMarkdown.svelte"
+  file_type: "svelte"
+
+  implementation_boundary:
+    allowed:
+      - "渲染 .view.md"
+      - "识别 action URI link"
+      - "渲染 view.json buttons"
+      - "将 action 派发到已有 workspace/spec/agent command"
+      - "危险 action 进入确认对话框"
+    forbidden:
+      - "前端直接写 spec 文件"
+      - "前端直接执行 git rollback"
+      - "前端重新实现 coverage/consistency 计算"
+
+  action_uri_contract:
+    examples:
+      - "action:open_spec:MOD-spec-editor"
+      - "action:run_make:validate"
+      - "action:create_child_spec:L5"
+      - "action:show_history:current"
+      - "action:refresh_governance:current"
+    rules:
+      - "未知 action 显示为 disabled link"
+      - "requires_confirmation=true 的 action 必须弹确认"
+      - "写盘类 action 走 agent/spec-write 或 specs/write 协议"
+
+  generation_rules:
+    - rule: "Markdown is view, not authority"
+      detail: ".view.md 用于用户阅读和点击，权威 action metadata 来自 .view.json"
+    - rule: "No hidden side effect"
+      detail: "点击链接前 UI 必须展示 action label/risk/target"
+    - rule: "Accessible fallback"
+      detail: "action 不能执行时显示普通文本和原因"
+
+  verification:
+    commands:
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - "open_spec link 能打开 parent spec"
+      - "create_child_spec link 进入 agent 确认线程"
+      - "未知 action 不 crash"
+      - "危险 action 显示确认原因"
+    failure_conditions:
+      - "Markdown link 直接写盘"
+      - "按钮和 view.json metadata 不一致"
+      - "前端重复计算 coverage 导致与后端不一致"
+
+  dependencies:
+    - file: "specs/L5-slice/SLICE-spec-view-model-builder.yaml"
+      reason: "view.md/view.json source"
+    - file: "specs/L5-slice/SLICE-agent-spec-write-api-contract.yaml"
+      reason: "confirmed write action path"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-28"
+    author: "hermes"
+    changes:
+      - "新增可交互 Markdown 渲染与 action URI 协议"

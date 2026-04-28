@@ -1,0 +1,94 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-governance-auto-update-hook"
+  parent: "FEAT-spec-panorama-auto-update"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-04-28"
+  updated: "2026-04-28"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-28"
+
+io_contract:
+  input: |
+    spec mutation events and runtime result events from workspace APIs。
+  output: |
+    governance refresh job result、SSE governance_refreshed event、stale_governance marker on failure。
+  boundary: |
+    只实现刷新触发与任务编排，不实现 view model 具体构建逻辑。
+
+content:
+  file_path: "agent/vibex/domain/spec/governance_auto_update.go"
+  file_type: "go"
+
+  implementation_boundary:
+    allowed:
+      - "注册 spec write/rollback/generate/validate/drift 事件 hook"
+      - "计算 affected specs"
+      - "调用 view builder 和 panorama writer"
+      - "发送 governance_refreshed SSE 事件"
+      - "失败时写 stale_governance 状态"
+    forbidden:
+      - "在未确认时触发业务写盘"
+      - "刷新失败后回滚 spec 写入"
+      - "阻塞用户保存直到全仓库 panorama 完成"
+
+  event_contract:
+    mutation_events:
+      - "spec_write_success"
+      - "agent_spec_write_success"
+      - "spec_rollback_success"
+      - "generate_completed"
+      - "validate_completed"
+      - "drift_check_completed"
+    sse_event:
+      name: "governance_refreshed"
+      fields:
+        - "affected_specs"
+        - "panorama_updated"
+        - "stale_governance"
+        - "error_summary"
+
+  generation_rules:
+    - rule: "Fast affected refresh"
+      detail: "同步刷新 current/parent/children view，异步刷新全仓库 panorama"
+    - rule: "Debounce"
+      detail: "短时间多次 spec save 合并为一次 panorama refresh"
+    - rule: "Stale marker"
+      detail: "刷新失败必须记录 stale_governance 和失败原因"
+
+  verification:
+    commands:
+      - "go test ./agent/..."
+      - "make validate"
+    manual_checks:
+      - "保存 spec 后收到 governance_refreshed"
+      - "新增 L5 后 parent L4 view 更新"
+      - "模拟 writer 失败时 UI 显示 stale_governance"
+    failure_conditions:
+      - "保存 spec 后 coverage badge 不刷新"
+      - "全仓库刷新阻塞 UI 太久"
+      - "刷新失败被静默吞掉"
+
+  dependencies:
+    - file: "specs/L4-feature/FEAT-spec-panorama-auto-update.yaml"
+      reason: "auto update feature contract"
+    - file: "specs/L5-slice/SLICE-spec-view-model-builder.yaml"
+      reason: "affected spec view refresh"
+    - file: "specs/L5-slice/SLICE-spec-panorama-json-writer.yaml"
+      reason: "panorama refresh"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-28"
+    author: "hermes"
+    changes:
+      - "新增 governance auto-update hook 规格"

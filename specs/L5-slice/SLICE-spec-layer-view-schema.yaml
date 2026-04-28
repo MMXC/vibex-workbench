@@ -1,0 +1,102 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-layer-view-schema"
+  parent: "FEAT-spec-governance-view-model"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-04-28"
+  updated: "2026-04-28"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-28"
+
+io_contract:
+  input: |
+    L1/L2/L3/L4/L5 spec metadata and computed governance facts。
+  output: |
+    每个层级对应的 view model schema，供 Go builder、UI renderer、agent context 共用。
+  boundary: |
+    只定义 schema，不实现扫描、写文件或 UI 渲染。
+
+content:
+  file_path: "agent/vibex/domain/spec/governance_view_schema.go"
+  file_type: "go"
+
+  implementation_boundary:
+    allowed:
+      - "定义 SpecViewModel struct"
+      - "定义 LayerSpecificView struct"
+      - "定义 ActionLink/Button/Confirmation schema"
+      - "定义 JSON serialization tags"
+    forbidden:
+      - "读取磁盘 spec"
+      - "执行 validate/generate/rollback"
+      - "在 schema 中存储 secret 或完整命令日志"
+
+  schema_contract:
+    common:
+      - "spec"
+      - "coverage"
+      - "consistency"
+      - "runtime"
+      - "links"
+      - "buttons"
+      - "user_confirmations"
+    layer_specific:
+      L1:
+        - "mission_summary"
+        - "module_coverage"
+        - "mvp_status"
+      L2:
+        - "modules_matrix"
+        - "architecture_constraints"
+      L3:
+        - "feature_children"
+        - "owned_capabilities"
+      L4:
+        - "slice_children"
+        - "acceptance_coverage"
+        - "missing_l5"
+      L5:
+        - "file_path"
+        - "implementation_boundary"
+        - "verification"
+        - "generates"
+
+  generation_rules:
+    - rule: "Single schema source"
+      detail: "Go struct 是 JSON schema 的唯一代码源，前端类型从该 schema 派生或同步"
+    - rule: "Dynamic facts separated"
+      detail: "runtime/coverage/consistency 字段来自计算，不回写业务 spec"
+    - rule: "Action URI"
+      detail: "links/buttons 使用 action URI，如 action:open_spec:MOD-spec-editor"
+
+  verification:
+    commands:
+      - "go test ./agent/..."
+      - "make validate"
+    manual_checks:
+      - "L4 view schema 包含 missing_l5"
+      - "L5 view schema 包含 file_path/verification"
+      - "action button 包含 requires_confirmation"
+    failure_conditions:
+      - "不同层级 view 缺少 common 字段"
+      - "schema 允许危险 action 缺少 confirmation policy"
+
+  dependencies:
+    - file: "specs/L4-feature/FEAT-spec-governance-view-model.yaml"
+      reason: "view model feature contract"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-28"
+    author: "hermes"
+    changes:
+      - "新增 L1-L5 spec view model schema"

@@ -1,0 +1,88 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-governance-consistency-engine"
+  parent: "FEAT-spec-governance-view-model"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-04-28"
+  updated: "2026-04-28"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-28"
+
+io_contract:
+  input: |
+    SpecIndex、L5 file_path、generates[]、capability tags、parent chain、status metadata。
+  output: |
+    ConsistencyIssue 列表，进入 view.json、panorama.json、coverage-report.md 和 UI Problems。
+  boundary: |
+    只检测治理一致性，不自动修复 spec，不执行生成器。
+
+content:
+  file_path: "agent/vibex/domain/spec/governance_consistency.go"
+  file_type: "go"
+
+  implementation_boundary:
+    allowed:
+      - "检测 parent chain 断裂"
+      - "检测 duplicate spec name"
+      - "检测 generates[] 同路径多 owner"
+      - "检测 L5 file_path ownership 冲突"
+      - "检测 L4 无 L5 且未声明 deferred/no_l5_needed"
+      - "检测 capability tag 重复或空洞"
+    forbidden:
+      - "自动改写 parent"
+      - "自动删除重复 spec"
+      - "运行 make generate"
+      - "跨 workspace 读取文件"
+
+  issue_types:
+    - "orphan_parent"
+    - "duplicate_spec_name"
+    - "generates_path_conflict"
+    - "l5_file_path_conflict"
+    - "missing_l5"
+    - "missing_verification"
+    - "capability_overlap"
+    - "stale_governance"
+
+  generation_rules:
+    - rule: "Severity"
+      detail: "每个 issue 包含 severity=critical|warning|info"
+    - rule: "Actionable"
+      detail: "每个 issue 包含 suggested_action 和 related_specs"
+    - rule: "No false authority"
+      detail: "能力重复无法确定时标记 needs_human_review，不自动判定冲突"
+
+  verification:
+    commands:
+      - "go test ./agent/..."
+      - "make validate"
+    manual_checks:
+      - "两个 L5 声明同一 file_path 时报告 l5_file_path_conflict"
+      - "两个 spec generates[] 同一路径时报告 generates_path_conflict"
+      - "L4 无 L5 且无 deferred 标记时报告 missing_l5"
+    failure_conditions:
+      - "脚本声称检查 generates[] 冲突但实际未检查"
+      - "重复 name 只覆盖 map 导致漏报"
+      - "capability overlap 被自动修复"
+
+  dependencies:
+    - file: "specs/L4-feature/FEAT-spec-code-bidirectional.yaml"
+      reason: "generates[] ownership contract"
+    - file: "specs/L5-slice/SLICE-spec-panorama-json-writer.yaml"
+      reason: "consistency issues output consumer"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-28"
+    author: "hermes"
+    changes:
+      - "新增 governance consistency engine 规格"

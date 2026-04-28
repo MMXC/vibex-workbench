@@ -1,0 +1,90 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-view-model-builder"
+  parent: "FEAT-spec-governance-view-model"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-04-28"
+  updated: "2026-04-28"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-28"
+
+io_contract:
+  input: |
+    target spec path/name、SpecIndex、coverage facts、consistency facts、runtime state。
+  output: |
+    单个 spec 的 SpecViewModel 对象，以及 .view.json/.view.md 内容。
+  boundary: |
+    只构建单 spec view model，不负责全仓库 panorama 聚合和 HTTP 渲染。
+
+content:
+  file_path: "agent/vibex/domain/spec/governance_view_builder.go"
+  file_type: "go"
+
+  implementation_boundary:
+    allowed:
+      - "构建单 spec view model"
+      - "合并 parent/children/sibling 信息"
+      - "合并 coverage/consistency/runtime/journal/drift 摘要"
+      - "生成可交互 links/buttons/user_confirmations"
+      - "输出 view.json 和 view.md 字符串"
+    forbidden:
+      - "修改业务 spec YAML"
+      - "执行 action URI"
+      - "直接调用 git rollback 或 make generate"
+
+  action_examples:
+    - id: "open-parent"
+      uri: "action:open_spec:<parent_name>"
+      requires_confirmation: false
+    - id: "run-validate"
+      uri: "action:run_make:validate"
+      requires_confirmation: false
+    - id: "create-child-l5"
+      uri: "action:create_child_spec:L5"
+      requires_confirmation: true
+    - id: "rollback-spec"
+      uri: "action:rollback_spec:<commit>"
+      requires_confirmation: true
+
+  generation_rules:
+    - rule: "Explain before action"
+      detail: "每个 button 必须包含 label、intent、risk、requires_confirmation"
+    - rule: "Agent-user parity"
+      detail: "agent 注入和 UI 渲染使用同一个 view.json"
+    - rule: "Graceful missing data"
+      detail: "没有 journal/drift/validate 时 runtime 字段标记 unknown，不阻塞 view 生成"
+
+  verification:
+    commands:
+      - "go test ./agent/..."
+      - "make validate"
+    manual_checks:
+      - "选中 L4 spec 生成的 view 显示 L5 coverage"
+      - "选中 L5 spec 生成的 view 显示 file_path 和 verification"
+      - "写盘类按钮带 requires_confirmation=true"
+    failure_conditions:
+      - "view builder 修改原始 YAML"
+      - "agent 和 UI 读取不同数据源"
+      - "缺失 runtime 数据导致 view 生成失败"
+
+  dependencies:
+    - file: "specs/L5-slice/SLICE-spec-layer-view-schema.yaml"
+      reason: "view model schema"
+    - file: "specs/L5-slice/SLICE-spec-governance-consistency-engine.yaml"
+      reason: "consistency facts source"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-28"
+    author: "hermes"
+    changes:
+      - "新增单 spec governance view model builder"

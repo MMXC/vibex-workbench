@@ -1,0 +1,95 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-panorama-json-writer"
+  parent: "FEAT-spec-governance-view-model"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-04-28"
+  updated: "2026-04-28"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-28"
+
+io_contract:
+  input: |
+    SpecIndex、所有 SpecViewModel、coverage matrix、consistency issues、runtime summaries。
+  output: |
+    specs/_governance/panorama.json，以及可选的 coverage-report.md 更新。
+  boundary: |
+    只负责全仓库 panorama 聚合和原子写入，不负责 UI 展示。
+
+content:
+  file_path: "agent/vibex/domain/spec/panorama_writer.go"
+  file_type: "go"
+
+  implementation_boundary:
+    allowed:
+      - "聚合全仓库 spec tree"
+      - "生成 panorama.json"
+      - "生成 coverage summary"
+      - "写入 specs/_governance"
+      - "使用 temp file + rename 原子写"
+    forbidden:
+      - "扫描 workspace 外路径"
+      - "把 panorama.json 当 spec YAML 参与 parent chain"
+      - "写入未脱敏命令日志或 secret"
+
+  panorama_schema:
+    version: "string"
+    generated_at: "timestamp"
+    workspace_root_hash: "string"
+    totals:
+      - "l1"
+      - "l2"
+      - "l3"
+      - "l4"
+      - "l5"
+    tree: "SpecNode[]"
+    coverage_matrix: "object"
+    consistency_issues: "array"
+    stale_governance: "boolean"
+    action_index: "array"
+
+  generation_rules:
+    - rule: "Machine-readable first"
+      detail: "panorama.json 是 UI/agent 的稳定输入，Markdown report 是人读快照"
+    - rule: "No spec pollution"
+      detail: "所有动态输出都写入 specs/_governance，不修改 L1-L5 spec"
+    - rule: "Atomic write"
+      detail: "JSON/MD 写入都使用临时文件和 rename"
+    - rule: "UTF-8 always"
+      detail: "Windows 下必须显式使用 UTF-8 读写，避免 GBK 误读"
+
+  verification:
+    commands:
+      - "go test ./agent/..."
+      - "make validate"
+      - "PYTHONIOENCODING=utf-8 PYTHONUTF8=1 python scripts/spec_coverage.py --report"
+    manual_checks:
+      - "panorama.json 可被前端解析"
+      - "coverage-report.md 与 panorama coverage 数字一致"
+      - "Windows 默认环境不生成 Total: 0 specs 的错误报告"
+    failure_conditions:
+      - "panorama.json 写坏半截"
+      - "_governance 下文件被 spec validator 当作 L1-L5 spec"
+      - "编码错误导致 specs 扫描为 0"
+
+  dependencies:
+    - file: "specs/L5-slice/SLICE-spec-view-model-builder.yaml"
+      reason: "per spec view source"
+    - file: "scripts/spec_coverage.py"
+      reason: "legacy coverage report generator to replace or wrap"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-28"
+    author: "hermes"
+    changes:
+      - "新增 panorama.json writer 和 UTF-8 约束"
