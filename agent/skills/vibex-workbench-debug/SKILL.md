@@ -8,15 +8,49 @@ repo_tracked: true
 
 # vibex-workbench-debug
 
-## 触发条件
+## Terminal Deadlock
 
-遇到以下任一问题时，调用此技能：
-- `npx tsc --noEmit` 有 TypeScript 错误（31个常见错误模式）
-- `npm run build` 失败
-- `make lint-specs` 报错 "parent 'MOD-xxx' 未找到"
-- spec L4 feature 的 parent 引用无法通过验证
-- `make generate` 失败或产出空文件
-- 前端组件 stub（13 行骨架）无实际功能
+**症状**：terminal 所有命令立即返回 exit 130 (SIGINT)，所有工具调用中断。
+
+**根因**：在当前 session 用 `&` 启动了 `vibex-agent-web` 后台进程。SIGINT 传染给所有后续命令。
+
+**解法**：从外部 terminal 执行 `pkill -9 vibex-agent-web`。不要在同一 session 试图杀进程。
+
+**防御**：用 `nohup ./vibex-agent-web > /tmp/log 2>&1 &` 替代直接 `&`，或用 screen/tmux 隔离。
+
+## Workspace Root 不生效
+
+**症状**：API 总是用默认路径 `/root/vibex-workbench`，忽略用户传入的 `workspace_root`。
+
+**根因**：Go struct JSON tag 驼峰 vs 前端 TypeScript 下划线，unmarshal 静默失败。
+
+```go
+// 错
+WorkspaceRoot string `json:"workspaceRoot"`
+// 对
+WorkspaceRoot string `json:"workspace_root"`
+```
+
+**修复**：`sed -i 's/`json:"workspaceRoot"`/`json:"workspace_root"`/' agent/cmd/web/workspace_handlers.go`
+
+## 编译错误：重复声明
+
+**症状**：`redeclared in this block`
+
+**场景**：`handlers.go` 和 `handlers_workspace.go` 都有同名函数（如 `MakeWorkspaceDetectStateHandler`）。保留 `handlers_workspace.go` 的原生 Go 版本，删掉 `handlers.go` 里的重复块。
+
+## API 404 但 handler 已注册
+
+**根因**：改了代码但运行的是旧 binary。
+
+**解法**：`pkill vibex-agent-web && go build -o vibex-agent-web ./cmd/web/ && ./vibex-agent-web &`
+
+## Coverage Report 漏计 L5
+
+**根因**：`spec_coverage.py` 只认 `level: 5_slice`，漏 `level: 5_implementation`。
+
+**修复**：两处改为 `('5_slice', '5_implementation')`。
+
 
 ## 核心架构
 

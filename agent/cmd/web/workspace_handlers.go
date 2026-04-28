@@ -21,7 +21,7 @@ import (
 
 // workspaceDetectStateRequest is the POST body for /api/workspace/detect-state.
 type workspaceDetectStateRequest struct {
-	WorkspaceRoot string `json:"workspaceRoot"`
+	WorkspaceRoot string `json:"workspace_root"`
 }
 
 // workspaceDetectStateHandler GET/POST /api/workspace/detect-state
@@ -103,7 +103,7 @@ func workspaceDetectStateHandler(w http.ResponseWriter, r *http.Request) {
 
 // workspaceScaffoldRequest is the POST body for /api/workspace/scaffold.
 type workspaceScaffoldRequest struct {
-	WorkspaceRoot  string `json:"workspaceRoot"`
+	WorkspaceRoot  string `json:"workspace_root"`
 	Template       string `json:"template"`
 	ProjectName    string `json:"projectName"`
 	Owner          string `json:"owner"`
@@ -196,7 +196,7 @@ func workspaceScaffoldHandler(w http.ResponseWriter, r *http.Request) {
 
 // workspaceSpecWriteRequest is the POST body for /api/workspace/specs/write.
 type workspaceSpecWriteRequest struct {
-	WorkspaceRoot string `json:"workspaceRoot"`
+	WorkspaceRoot string `json:"workspace_root"`
 	Path          string `json:"path"`
 	Content       string `json:"content"`
 }
@@ -254,7 +254,7 @@ func workspaceSpecWriteHandler(w http.ResponseWriter, r *http.Request) {
 
 // workspaceRunMakeRequest is the POST body for /api/workspace/run-make.
 type workspaceRunMakeRequest struct {
-	WorkspaceRoot string `json:"workspaceRoot"`
+	WorkspaceRoot string `json:"workspace_root"`
 	Target        string `json:"target"`
 }
 
