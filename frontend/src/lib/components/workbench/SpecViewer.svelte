@@ -3,6 +3,7 @@
 	import { parse as parseYaml } from 'yaml';
 	import GoalSpecCanvas from '$lib/components/workbench/GoalSpecCanvas.svelte';
 	import GenericSpecGraph from '$lib/components/workbench/GenericSpecGraph.svelte';
+	import MonacoEditor from '$lib/components/workbench/MonacoEditor.svelte';
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
 	import {
 		type ConventionPayload,
@@ -81,6 +82,11 @@
 			raw = '';
 			fetchErr = null;
 			isGoalFile = false;
+			typeId = null;
+			specParent = null;
+			specName = null;
+			parentGuessPath = null;
+			siblingFeaturePath = null;
 			return;
 		}
 		loading = true;
@@ -150,6 +156,7 @@
 		siblingFeaturePath =
 			sib && normalizeSpecPath(sib) !== norm ? sib : null;
 	});
+
 	// ── edit mode ───────────────────────────────────────────────
 	function startEdit() {
 		editContent = raw;
@@ -271,30 +278,9 @@
 						title={siblingFeaturePath}
 						onclick={() => specExplorerStore.selectSpec(siblingFeaturePath)}
 					>
-					同目录主 feature
-			</button>
-		</div>
-		{#if editMode}
-			<div class="edit-toolbar">
-				<button type="button" class="btn-save" onclick={saveEdit} disabled={saving}>
-					{saving ? '保存中…' : '💾 保存'}
-				</button>
-				<button type="button" class="btn-cancel" onclick={cancelEdit} disabled={saving}>
-					取消
-				</button>
-				<span class="edit-hint">编辑 {selectedPath}</span>
-				{#if saveError}
-					<span class="edit-error">❌ {saveError}</span>
+						同目录主 feature
+					</button>
 				{/if}
-				{#if saveSuccess}
-					<span class="edit-success">✅ 已保存</span>
-				{/if}
-			</div>
-		{:else}
-			<div class="view-toolbar">
-				<button type="button" class="btn-edit" onclick={startEdit}>
-					✏️ 编辑
-				</button>
 			</div>
 		{/if}
 
@@ -303,22 +289,43 @@
 				<p class="muted pad">加载 {selectedPath}…</p>
 			{:else if fetchErr}
 				<p class="err pad">{fetchErr}</p>
-			{:else if editMode}
-				<textarea
-					class="edit-area"
-					bind:value={editContent}
-					spellcheck={false}
-					autocomplete="off"
-					autocorrect="off"
-				></textarea>
-			{:else if centerView === 'text'}
-				<pre class="spec-text">{raw}</pre>
-			{:else if isGoalFile}
-				<div class="goal-wrap">
-					<GoalSpecCanvas />
-				</div>
 			{:else}
-				<GenericSpecGraph specPath={selectedPath} content={raw} />
+				{#if editMode}
+					<div class="edit-wrap">
+						<MonacoEditor bind:value={editContent} language="yaml" />
+					</div>
+				{:else}
+					<div class="view-toolbar">
+						<button type="button" class="btn-edit" onclick={startEdit}>
+							✏️ 编辑
+						</button>
+					</div>
+				{/if}
+				{#if editMode}
+					<div class="edit-toolbar">
+						<button type="button" class="btn-save" onclick={saveEdit} disabled={saving}>
+							{saving ? '保存中…' : '💾 保存'}
+						</button>
+						<button type="button" class="btn-cancel" onclick={cancelEdit} disabled={saving}>
+							取消
+						</button>
+						<span class="edit-hint">编辑 {selectedPath}</span>
+						{#if saveError}
+							<span class="edit-error">❌ {saveError}</span>
+						{/if}
+						{#if saveSuccess}
+							<span class="edit-success">✅ 已保存</span>
+						{/if}
+					</div>
+				{:else if centerView === 'text'}
+					<pre class="spec-text">{raw}</pre>
+				{:else if isGoalFile}
+					<div class="goal-wrap">
+						<GoalSpecCanvas />
+					</div>
+				{:else}
+					<GenericSpecGraph specPath={selectedPath} content={raw} />
+				{/if}
 			{/if}
 		</div>
 	{/if}
@@ -558,6 +565,13 @@
 		background: rgba(88, 86, 214, 0.22);
 		color: var(--wb-text, #e8e8ed);
 	}
+	.edit-wrap {
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+	}
 	.edit-toolbar {
 		flex-shrink: 0;
 		display: flex;
@@ -600,18 +614,4 @@
 	}
 	.edit-error { font-size: 11px; color: #f87171; }
 	.edit-success { font-size: 11px; color: #6ee7b7; }
-	.edit-area {
-		flex: 1;
-		margin: 0;
-		padding: 16px 24px;
-		background: #0d0d0e;
-		color: #e8e8ed;
-		border: none;
-		resize: none;
-		font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
-		font-size: 12px;
-		line-height: 1.7;
-		tab-size: 2;
-	}
-	.edit-area:focus { outline: none; }
 </style>
