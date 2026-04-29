@@ -57,10 +57,8 @@ export async function windowQuit(): Promise<void> {
  */
 export function eventsOn(event: string, callback: (...args: any[]) => void): void {
 	const rt = getRuntime();
-	if (!rt) {
-		// Silent no-op in browser — avoids console spam during dev
-		return;
-	}
+	if (!rt) return;
+	if (typeof rt.EventsOn !== 'function') return;
 	rt.EventsOn(event, callback);
 }
 

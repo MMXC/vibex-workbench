@@ -8,33 +8,33 @@
 修改 specs/ 目录下的 YAML 文件后重新运行 make generate-frontend
 ============================================================ -->
 
-<script>
-  import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
-  import { openDirectoryDialog, eventsOn } from '$lib/wails-runtime';
-  import '../app.css';
-  let { children } = $props();
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { openDirectoryDialog, eventsOn } from '$lib/wails-runtime';
+	import '../app.css';
+	let { children } = $props();
 
-  onMount(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
-    }
+	/** 处理"打开项目"：弹目录选择 → 保存 → 跳转 workbench */
+	async function handleOpenProject() {
+		try {
+			const dir = await openDirectoryDialog();
+			if (!dir) return;
+			localStorage.setItem('vibex-workspace-root', dir);
+			goto('/workbench');
+		} catch (e) {
+			console.error('[layout] handleOpenProject error:', e);
+		}
+	}
 
-    // Global: menu:open-project → select dir → save → emit event → go to workbench
-    eventsOn('menu:open-project', async () => {
-      console.log('[layout] menu:open-project received!');
-      try {
-        const dir = await openDirectoryDialog();
-        console.log('[layout] openDirectoryDialog result:', dir);
-        if (!dir) return;
-        localStorage.setItem('vibex-workspace-root', dir);
-        eventsEmit('workspace:selected', dir);
-        goto('/workbench');
-      } catch (e) {
-        console.error('[layout] menu:open-project error:', e);
-      }
-    });
-  });
+	onMount(() => {
+		if ('serviceWorker' in navigator) {
+			navigator.serviceWorker.register('/sw.js').catch(() => {});
+		}
+
+		// 接收 Go backend 发出的 menu:open-project（通过 Wails event system）
+		eventsOn('menu:open-project', handleOpenProject);
+	});
 </script>
 
 <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;">

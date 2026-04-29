@@ -4,7 +4,8 @@
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { eventsEmit } from '$lib/wails-runtime';
+	import { goto } from '$app/navigation';
+	import { openDirectoryDialog } from '$lib/wails-runtime';
 
 	let { title = 'VibeX Workbench' }: { title?: string } = $props();
 
@@ -21,12 +22,13 @@
 		await (window as any).runtime?.Quit();
 	}
 
-	function openProject(e: MouseEvent) {
-		e.stopPropagation();
+	/** 打开项目：弹目录选择 → 保存 → 跳转 workbench */
+	async function openProject() {
 		fileMenuOpen = false;
-		console.log('[Titlebar] openProject: emitting menu:open-project');
-		eventsEmit('menu:open-project');
-		console.log('[Titlebar] openProject: emit done');
+		const dir = await openDirectoryDialog();
+		if (!dir) return;
+		localStorage.setItem('vibex-workspace-root', dir);
+		goto('/workbench');
 	}
 
 	function toggleMenu(e: MouseEvent) {
@@ -34,7 +36,6 @@
 		fileMenuOpen = !fileMenuOpen;
 	}
 
-	// 点击 dropdown 外部时关闭菜单（不用 window onclick，避免冒泡误判）
 	function handleClickOutside(e: MouseEvent) {
 		if (fileMenuOpen && menuWrapperEl && !menuWrapperEl.contains(e.target as Node)) {
 			fileMenuOpen = false;
