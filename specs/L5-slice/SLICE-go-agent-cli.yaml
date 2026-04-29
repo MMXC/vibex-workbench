@@ -1,0 +1,236 @@
+spec:
+  version: '0.1'
+  level: 5_slice
+  name: SLICE-go-agent-cli
+  parent: FEAT-workspace-selector
+  status: proposal
+meta:
+  type: slice
+  module: backend+frontend
+  owner: hermes
+  created: '2026-04-29'
+  updated: '2026-04-29'
+lifecycle:
+  current: proposal
+  updated: '2026-04-29'
+io_contract:
+  input: '前端通过 Wails binding 调用 `window.go.main.App.RunAgent(goal, workspaceRoot)`，传入 JSON goal payload'
+  output: 'agent 进程 stdout 输出 JSON lines，Wails 前端逐行解析 SSE event'
+  boundary: '只管 agent 进程生命周期（spawn/kill/stdout→前端）；SSE 连接仍由前端维护'
+  behavior_summary: 共 4 个 behavior，详见 content.behaviors
+content:
+  file_path: agent/cmd/agent/main.go + agent/web/broadcast.go + agent/vibex/domain/registry.go
+  file_type: go
+  implementation_boundary:
+    allowed:
+    - 在 runtime.RunInteractive() 外层包一层 RunGoal(ctx, goal, workspaceRoot) 函数
+    - 支持 `--goal` / `--workspace` CLI flag，检测到时进入单次模式并输出 JSON stream
+    - "agent 的 Broadcaster 改为写 stdout（而非 WebSocket），格式每行 JSON: { type, data }"
+    - Wails App struct 新增 `RunAgent(ctx, goalJSON string)` 方法，spawn 进程并透传 stdout
+    forbidden:
+    - 不修改现有 runtime.RunInteractive() 的交互逻辑
+    - agent 进程不在 Wails App 内直接执行（必须 spawn subprocess），避免阻塞
+  generation_rules:
+    - rule: 单次调用入口
+      detail: |
+        // agent/cmd/agent/main.go
+        func main() {
+          // 检测 --goal flag
+          if goal := flag.String("goal", "", "run single goal"); goal != nil && *goal != "" {
+            workspace := flag.String("workspace", "", "workspace root")
+            flag.Parse()
+            ctx := context.Background()
+            if err := RunGoal(ctx, *goal, *workspace); err != nil {
+              fmt.Fprintln(os.Stderr, `{"type":"error","data":{"message":`+jsonMarshal(err.Error())+`}}`)
+              os.Exit(1)
+            }
+            return
+          }
+          // 原有交互模式
+          if err := RunInteractive(); err != nil { ... }
+        }
+    - rule: RunGoal 函数
+      detail: |
+        // agent/cmd/agent/main.go
+        func RunGoal(ctx context.Context, goal, workspaceRoot string) error {
+          cfg := common.LoadConfig()
+          rawClient := common.NewClient(cfg)
+          llm := adapters.NewLLMClient(rawClient, cfg.BaseURL, cfg.Model)
+          // ... 初始化 skillRegistry / parentSkills / todo / sessionStore ...
+          // Broadcaster 改为 stdout 输出
+          broadcaster := func(threadID, event string, data interface{}) {
+            line, _ := json.Marshal(map[string]interface{}{"type": event, "data": data})
+            fmt.Println(string(line))
+          }
+          // 构建 tools + handlers，使用 workspaceRoot
+          tools := rtools.BuildTools(specs)
+          handlers := rtools.BuildHandlers(specs)
+          messages := []responses.ResponseInputItemUnionParam{
+            responses.ResponseInputItemParamOfMessage(developerMessage, responses.EasyInputMessageRoleDeveloper),
+            responses.ResponseInputItemParamOfMessage(goal, responses.EasyInputMessageRoleUser),
+          }
+          answer, _, err := runToolLoop(ctx, llm, cfg.Model, tools, handlers, todo, messages, nil, nil, parentSkills, skillRegistry)
+          if err != nil {
+            fmt.Fprintf(os.Stderr, `{"type":"error","data":{"message":`+jsonMarshal(err.Error())+`}}\n`)
+            return err
+          }
+          fmt.Println(`{"type":"done","data":{"answer":`+jsonMarshal(answer)+`}}`)
+          return nil
+        }
+    - rule: Event 类型
+      detail: |
+        所有 stdout line 均为 JSON：
+        { "type": "tool_call",   "data": { "name": "...", "args": {...} } }
+        { "type": "tool_output", "data": { "output": "..." } }
+        { "type": "message",    "data": { "role": "assistant", "content": "..." } }
+        { "type": "done",       "data": { "answer": "..." } }
+        { "type": "error",      "data": { "message": "..." } }
+    - rule: Wails App.RunAgent binding
+      detail: |
+        // main.go
+        func (a *App) RunAgent(ctx context.Context, goalJSON string) (map[string]any, error) {
+          var req struct {
+            Goal          string `json:"goal"`
+            WorkspaceRoot string `json:"workspaceRoot"`
+          }
+          if err := json.Unmarshal([]byte(goalJSON), &req); err != nil {
+            return nil, fmt.Errorf("invalid goal JSON: %w", err)
+          }
+
+          // 找 agent binary
+          agentBin := a.findAgentBinary()
+          cmd := exec.CommandContext(ctx, agentBin,
+            "-goal", req.Goal,
+            "-workspace", req.WorkspaceRoot,
+          )
+          cmd.Dir = req.WorkspaceRoot
+          cmd.Stdout = os.Stdout
+          cmd.Stderr = os.Stderr
+          if err := cmd.Start(); err != nil {
+            return nil, fmt.Errorf("failed to start agent: %w", err)
+          }
+
+          return map[string]any{
+            "ok":    true,
+            "pid":   cmd.Process.Pid,
+            "goal":  req.Goal,
+          }, nil
+        }
+    - rule: findAgentBinary 辅助
+      detail: |
+        // 查找顺序：./agent/vibex-agent（build output） > ./agent（build output） > $PATH/vibex-agent
+        // 与现有 SpawnGoBackend 逻辑一致
+
+  dependencies:
+    - file: agent/cmd/agent/main.go
+      reason: RunInteractive 已存在，追加 RunGoal + --goal flag 分支
+    - file: agent/web/broadcast.go
+      reason: broadcaster interface 参考
+    - file: main.go
+      reason: App.RunAgent Wails binding
+    - file: agent/agents/runtime/runtime.go
+      reason: runToolLoop 函数签名
+
+content:
+  file_path: main.go
+  file_type: go
+  implementation_boundary:
+    allowed:
+    - App.RunAgent 方法 spawn agent subprocess
+    - 复用现有 binary 查找逻辑（findAgentBinary）
+    forbidden:
+    - 不在 App.RunAgent 内直接执行 agent 代码（用 subprocess）
+  generation_rules:
+    - rule: App.RunAgent
+      detail: spawn vibex-agent subprocess with -goal/-workspace flags, return pid
+    - rule: App.KillAgent
+      detail: terminate agent subprocess by pid
+
+content:
+  file_path: frontend/src/lib/wails-agent.ts
+  file_type: typescript
+  implementation_boundary:
+    allowed:
+    - 封装 window.go.main.App.RunAgent 调用
+    - 解析 agent stdout JSON lines，转换为前端事件
+    - 支持 kill 正在运行的 agent
+    forbidden:
+    - agent 输出不做二次缓存（前端实时消费）
+  generation_rules:
+    - rule: RunAgent 函数
+      detail: |
+        interface AgentGoalRequest { goal: string; workspaceRoot: string }
+        interface AgentEvent { type: string; data: any }
+        export function runAgent(
+          goal: string,
+          workspaceRoot: string,
+          onEvent: (event: AgentEvent) => void,
+          onDone: (answer: string) => void,
+          onError: (err: string) => void,
+        ): { pid: number; kill: () => void }
+        实现：
+        1. result = await window.go.main.App.RunAgent(JSON.stringify({goal, workspaceRoot}))
+        2. pid = result.pid
+        3. return { pid, kill: () => window.go.main.App.KillAgent(pid) }
+        注意：agent stdout 当前会打印到进程 stdout（Wails 进程）。
+              若需要前端实时接收，需要改用 agent pipe stdout → 前端 WebSocket / SSE bridge。
+    - rule: 实时输出方案
+      detail: |
+        方案 A（推荐）：agent stdout → WebSocket SSE bridge
+        - 前端调用 RunAgent 后，agent 改为连接 ws://localhost:port/stream/{pid}
+        - agent 每条 event 写到 WebSocket，前端实时渲染
+        方案 B（简化）：agent 执行完返回最终 answer，前端轮询
+        - RunAgent 为阻塞调用，结束后返回完整 answer
+        - 适合短任务（<30s）
+        MVP 用方案 B，实时流作为后续迭代
+
+  dependencies:
+    - file: main.go
+      reason: App.RunAgent / App.KillAgent Wails binding
+    - file: agent/cmd/agent/main.go
+      reason: agent binary 和 --goal flag
+
+verification:
+  commands:
+    - cd /root/vibex-workbench && go build ./agent/cmd/agent && ./agent -goal "hello" -workspace /tmp
+    - go build ./... && npm --prefix frontend run build
+  manual_checks:
+    - CLI 单次调用：./agent -goal "hello" -workspace /path 返回 JSON event lines
+    - Wails binding：window.go.main.App.RunAgent 成功 spawn 进程
+    - agent 输出正确传递到前端
+  failure_conditions:
+    - agent 进程启动失败（binary 找不到）
+    - agent 输出格式非 JSON（导致前端解析失败）
+
+behaviors:
+  - id: B1
+    trigger: 用户在 Composer 输入 goal 并提交
+    action: runAgent(goal, workspaceRoot) → window.go.main.App.RunAgent → agent subprocess
+    expected_result: agent 执行并通过事件流返回结果，前端实时展示
+    error_handling: agent 错误时 onError 回调，Composer 显示错误消息
+  - id: B2
+    trigger: 用户点击停止按钮
+    action: kill(pid) → window.go.main.App.KillAgent(pid)
+    expected_result: agent subprocess 收到 SIGTERM，Composer 停止输出
+    error_handling: 进程已结束则 no-op
+  - id: B3
+    trigger: agent 执行完毕
+    action: onDone(answer) → Composer 显示最终结果 → SpecExplorer 自动刷新
+    expected_result: 用户看到 agent 回复，spec 文件变更后 explorer 刷新
+    error_handling: 异常时 onError 回调
+  - id: B4
+    trigger: CLI 独立使用
+    action: ./agent -goal "..." -workspace /path
+    expected_result: JSON event lines 输出到 stdout，末尾为 done 或 error
+    error_handling: 异常打印 error JSON 到 stderr 并 exit 1
+
+changelog:
+  - version: '0.1'
+    date: '2026-04-29'
+    author: hermes
+    changes:
+      - 新增 SLICE-go-agent-cli，agent 作为 CLI subprocess 提供给前端
+      - agent/cmd/agent/main.go 增加 --goal/-workspace flag 支持单次调用
+      - agent stdout 改为 JSON lines 输出（type + data 结构）
+      - main.go 新增 App.RunAgent / App.KillAgent Wails binding
+      - frontend wails-agent.ts 封装调用层

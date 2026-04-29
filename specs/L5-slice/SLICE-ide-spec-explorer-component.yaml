@@ -14,38 +14,29 @@ lifecycle:
   current: proposal
   updated: '2026-04-26'
 io_contract:
-  input: '/api/workspace/specs/list 返回的 spec 路径列表，以及 spec-directory-convention 元数据。
-
-    '
-  output: '左侧资源管理器展示 workspace 名、specs section、文件列表、层级 badge 和选中态。
-
-    '
-  boundary: '只管 SpecExplorer.svelte 的列表读取和选中交互。
-
-    不负责读取文件内容、编辑保存或图谱渲染。
-
-    '
+  input: 'wailsListSpecs(root) 返回 spec 文件列表（window.go.main.App.ListSpecs），browser dev 模式 fallback 到 HTTP GET /api/workspace/specs/list'
+  output: '左侧资源管理器展示 workspace 名、specs section、文件列表、层级 badge 和选中态。'
+  boundary: '只管 SpecExplorer.svelte 的列表读取和选中交互。不负责读取文件内容、编辑保存或图谱渲染。'
   behavior_summary: 共 4 个行为步骤，详见 content.behaviors
 content:
   file_path: frontend/src/lib/components/workbench/SpecExplorer.svelte
   file_type: svelte
   implementation_boundary:
     allowed:
-    - fetch /api/workspace/specs/list
-    - fetch /api/workspace/specs/convention
+    - 调用 wailsListSpecs(root)（Wails 优先）或 fetch('/api/workspace/specs/list?workspaceRoot=...'）（browser dev fallback）
     - 文件树展示、层级 badge、选中态
     - specExplorerStore.selectSpec(path)
     forbidden:
-    - fetch /api/workspace/specs/read
+    - 直接调用 os.ReadDir / filesystem API
     - 写入 spec 文件
     - 在组件内做 YAML parse
   generation_rules:
-  - rule: Relative path only
-    detail: 文件路径必须保持 specs/... 相对路径
-  - rule: Convention optional
-    detail: convention 加载失败时仍可展示文件列表，只是不显示 type badge
-  - rule: Refresh
-    detail: 刷新按钮只重新调用 list，不清空 selectedSpecPath
+    - rule: Wails binding 优先
+      detail: wailsListSpecs(root) → window.go.main.App.ListSpecs；browser dev 模式 fallback 到 HTTP
+    - rule: Relative path only
+      detail: 文件路径必须保持 specs/... 相对路径
+    - rule: Refresh
+      detail: 刷新按钮只重新调用 wailsListSpecs，不清空 selectedSpecPath
   verification:
     commands:
     - npm --prefix frontend run build
@@ -53,14 +44,16 @@ content:
     - 左侧显示 VIBEX-WORKBENCH 和 specs section
     - 点击 YAML 后中央区打开对应 spec
     - 接口失败时展示错误文本且页面不崩溃
+    - Wails 模式下加载无需网络请求（直读文件系统）
+    - Browser dev 模式下 fallback 到 HTTP
     failure_conditions:
     - 选中 spec 后路径不是相对路径
-    - convention 失败导致整个 explorer 空白
+    - Wails mode 下 filesystem 读取失败但无 fallback
   dependencies:
-  - file: frontend/src/lib/workbench/spec-convention.ts
-    reason: 推断 spec type badge
-  - file: frontend/src/lib/stores/spec-explorer-store.ts
-    reason: 保存 selectedSpecPath
+    - file: frontend/src/lib/wails-runtime.ts
+      reason: wailsListSpecs 封装（Wails binding + HTTP fallback）
+    - file: frontend/src/lib/stores/spec-explorer-store.ts
+      reason: 保存 selectedSpecPath 和 workspaceRoot
   behaviors:
   - id: B1
     trigger: 步骤1

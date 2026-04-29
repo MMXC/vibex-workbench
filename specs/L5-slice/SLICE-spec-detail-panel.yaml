@@ -80,13 +80,13 @@ content:
   behaviors:
     - id: "B1"
       trigger: "specPath 变化"
-      action: "GET /api/workspace/specs/read?path=xxx → 设置 Monaco value → 更新元信息栏"
+      action: "wailsReadSpecFile(root, path) → 设置 Monaco value → 更新元信息栏。browser dev 模式 fallback 到 HTTP GET /api/workspace/specs/read"
       expected_result: "Monaco 显示 spec 内容，元信息栏显示 metadata"
       error_handling: "读取失败时显示错误，不清空 Monaco 当前内容"
 
     - id: "B2"
       trigger: "用户 Ctrl+S"
-      action: "POST /api/workspace/specs/write {path, content} → 成功后触发 validate"
+      action: "wailsWriteSpecFile(root, path, content) → 成功后触发 validate。browser dev 模式 fallback 到 HTTP POST /api/workspace/specs/write"
       expected_result: "文件保存，Validate Bar 显示结果"
       error_handling: "保存失败时 toast 提示，Monaco 内容保留"
 
@@ -144,6 +144,8 @@ content:
       reason: "FEAT-spec-write 已集成的 Monaco 组件"
     - file: "frontend/src/lib/components/workbench/SpecHistoryPanel.svelte"
       reason: "History 按钮触发"
+    - file: "frontend/src/lib/wails-runtime.ts"
+      reason: "wailsReadSpecFile / wailsWriteSpecFile 封装（Wails binding + HTTP fallback）"
 
 changelog:
   - version: "0.1"

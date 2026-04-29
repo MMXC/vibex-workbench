@@ -67,7 +67,9 @@ content:
 
   dependencies:
     - file: agent/cmd/web/workspace_handlers.go
-      reason: DetectWorkspaceState 复用 state_detector.py 调用逻辑
+      reason: DetectWorkspaceState 复用 state_detector.py 调用逻辑；HTTP endpoint 保留仅用于 browser dev 模式
+    - file: agent/web/broadcast.go
+      reason: event broadcaster interface 参考
     - file: frontend/src/lib/wails-runtime.ts
       reason: 前端 Wails binding 封装层
 
