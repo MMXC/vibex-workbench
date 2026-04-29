@@ -1,26 +1,31 @@
 ---
 spec:
-  version: "0.1"
+  version: "0.2"
   level: "1_project-goal"
-  name: "vibex-workbench-mvp"
+  name: vibex-workbench-mvp
   parent: null
-  status: "proposal"
+  status: proposal
 
 meta:
-  type: "project-goal"
-  owner: "hermes"
+  type: project-goal
+  owner: hermes
   created: "2026-04-24"
-  updated: "2026-04-24"
+  updated: "2026-04-29"
 
 lifecycle:
-  current: "proposal"
-  updated: "2026-04-24"
+  current: implementation
+  updated: "2026-04-29"
   history:
-    - status: "proposal"
+    - status: proposal
       at: "2026-04-24T00:00:00"
-      by: "hermes"
-      trigger: "user:manual"
-      note: "基于空仓库场景定义 MVP 目标"
+      by: hermes
+      trigger: user:manual
+      note: 基于空仓库场景定义 MVP 目标
+    - status: implementation
+      at: "2026-04-29T10:35:00"
+      by: hermes
+      trigger: system:e2e-validated
+      note: 五项最小能力端到端验证通过，进入 implementation phase
 
 io_contract:
   input: |
@@ -43,74 +48,162 @@ io_contract:
     - "系统生成代码骨架"
     - "用户迭代 spec → 生成 → 验收"
 
+acceptance_criteria:
+  - id: AC1
+    name: 仓库根绑定
+    description: |
+      用户选定目录后，前端 SSR、Go agent、所有读写和命令统一在该目录下执行。
+      验证方式：POST /api/workspace/detect-state 传入空目录，返回 state: empty，
+      前端显示正确的状态和下一步建议。
+    test_scenario: |
+      1. 选一个完全空的目录 /tmp/vibex-e2e-test
+      2. POST /api/workspace/detect-state {workspace_root: /tmp/vibex-e2e-test}
+      3. 断言返回 state == "empty"，三个信号（hasSpecDir / hasGenerators / hasPackageJson）全为 false
+      4. 断言返回的 nextAction 包含"创建脚手架"建议
+
+  - id: AC2
+    name: 三态探测
+    description: |
+      系统能区分空目录（无任何 VibeX 文件）、半就绪目录（有部分结构）、
+      就绪目录（含 specs/、gen.py、package.json、Makefile）。
+      UI 只展示状态和一句"下一步建议"，不强制全自动。
+    test_scenario: |
+      1. 空目录 -> state: empty, nextAction: scaffold
+      2. scaffold 后 -> state: ready, hasSpecDir: true, hasGenerators: true, hasPackageJson: true
+      3. 部分删除 specs/ -> state: partial
+      4. 前端 UI 正确渲染三种状态的 badge 和建议文案
+
+  - id: AC3
+    name: 脚手架确认式写入
+    description: |
+      在空仓库里生成最小可跑骨架：specs/ 目录（含 L1 ENTRY.yaml）、
+      generators/gen.py、package.json、Makefile（含 lint-specs / generate / validate）。
+      写入前必须有显式确认，禁止静默污染磁盘。
+    test_scenario: |
+      1. 空目录调用 POST /api/workspace/scaffold {confirm: true}
+      2. 断言落地文件：specs/L1-goal/ENTRY.yaml、generators/gen.py、Makefile、package.json
+      3. 断言 ENTRY.yaml 含 YAML frontmatter 且 spec.level == "1_project-goal"
+      4. 断言再次调用 detect-state 返回 state: ready
+
+  - id: AC4
+    name: Spec 可读可写
+    description: |
+      读取：spec 图谱/列表能反映 specs/ 里的节点关系。
+      写入：能保存对 spec 文件的修改（或新建 L1/L2 向导写盘）。
+      这是"人机交互澄清目标"的基础。
+    test_scenario: |
+      1. GET /api/workspace/spec?path=specs/L1-goal/ENTRY.yaml
+         断言返回 200 和 YAML 文件内容
+      2. POST /api/workspace/specs/write
+         {workspace_root, path: specs/L1-goal/ENTRY.yaml, content: "mission: E2E测试目标"}
+         断言返回 ok: true
+      3. 断言文件内容包含 mission: E2E测试目标
+
+  - id: AC5
+    name: 校验/生成一触即达
+    description: |
+      在同一仓库根执行 make lint-specs / validate / generate。
+      失败时在 UI 露出可读错误摘要。
+      否则 spec 写完仍要用户切终端，产品边界会糊在"编辑器外壳"里。
+    test_scenario: |
+      1. scaffold 后调用 POST /api/workspace/run-make {workspace: /tmp/xxx, target: "validate"}
+      2. 断言返回 exitCode: 0（91 specs 全绿）
+      3. 断言 validate_specs.py parent chain 检查无警告
+      4. 前端 action bar 有 make 按钮，失败时显示 stdout 前 500 字符
+
+behaviors:
+  - id: B-PHASE
+    trigger: lifecycle phase transition
+    phases:
+      - name: proposal
+        entry: L1 spec 创建，定义 MVP 5 项能力边界
+        exit_condition: 五项最小能力 AC1–AC5 端到端验证通过
+      - name: implementation
+        entry: 2026-04-29 五项能力全部 e2e 验证通过，lifecycle.current 设为 implementation
+        exit_condition: |
+          所有 6 个 MOD 的 L4 feature 至少有一个进入 implementation 状态
+          或 spec_coverage.py 全绿（92 specs，无 missing L5）
+      - name: delivered
+        entry: 所有 L4 feature 均有 L5 slice 落地且 make validate 全绿
+        exit_condition: 持续迭代，无终点
+
+  - id: B-E2E
+    trigger: 五项最小能力任意一项实现变更
+    action: Go agent 执行 e2e 验证脚本，输出 results.json
+    expected_result: |
+      每次 code change 后自动跑 AC1–AC5，
+      失败时 Slack 通知，阻止 merge 到 master。
+    error_handling: e2e 超时 300s 标记为 skip，不阻塞 deploy
 content:
-  mission: |
-    VibeX Workbench 是一个"空仓库脚手架 + spec 驱动开发"的桌面工作台。
-    用户指定一个空目录，描述产品意图，系统生成最小可跑骨架，
-    用户在 spec 编辑器中编写规格，系统完成校验与代码生成，形成完整闭环。
-
-  target_users:
-    - name: "独立开发者"
-      description: "想快速从想法落地为可运行项目的开发者"
-      pain_point: "开新项目时目录结构/配置/脚手架的选择耗时"
-
   constraints:
-    - id: "C1"
-      name: "仓库根唯一性"
-      rule: "所有读写/命令统一在用户选定的仓库根下执行，不允许跨目录"
-      verification: "WORKSPACE_ROOT env 贯穿 agent/backend/frontend 全链路"
-    - id: "C2"
-      name: "显式确认门槛"
-      rule: "首次写入脚手架必须经过用户确认，不能静默污染磁盘"
-      verification: "scaffolding wizard 有确认步骤"
-    - id: "C3"
-      name: "spec 写闭环"
-      rule: "用户能读 spec 也能写 spec，保存后能触发校验"
-      verification: "spec-editor 写 API 连通 + 校验按钮可用"
-    - id: "C4"
-      name: "可验证链路"
-      rule: "make validate/generate 在 UI 可触发，失败时显示错误摘要"
-      verification: "前端有 make 按钮，错误时显示 stdout 前 500 字符"
+    - id: C1
+      name: 仓库根唯一性
+      rule: 所有读写/命令统一在用户选定的仓库根下执行，不允许跨目录
+      maps_to: AC1
+    - id: C2
+      name: 三态探测
+      rule: 系统能区分空目录/半就绪/就绪三种状态，UI 展示状态 badge 和建议
+      maps_to: AC2
+    - id: C3
+      name: 显式确认门槛
+      rule: 首次写入脚手架必须经过用户确认，不能静默污染磁盘
+      maps_to: AC3
+    - id: C4
+      name: spec 写闭环
+      rule: 用户能读 spec 也能写 spec，保存后能触发校验
+      maps_to: AC4
+    - id: C5
+      name: 可验证链路
+      rule: make validate/generate 在 UI 可触发，失败时显示错误摘要
+      maps_to: AC5
 
   l1_l2_lineage:
-    summary: |
-      L1 定义"空仓库脚手架 + spec 驱动开发"作为产品能力集。
-      L2 将能力集落地为具体技术架构（agent/backend/frontend/generators）。
-    what_l1_owns:
-      - "MVP 5 项能力的边界定义"
-      - "用户场景：空目录 → 边做边长"
-      - "成功标准：不依赖外部模板，纯原生落地"
-    what_l2_owns:
-      - "Go agent（nanoClaudeCode 扩展）"
-      - "SvelteKit 前端"
-      - "Python generators（gen.py 等）"
-      - "memlace（Go实现的轻量记忆系统）"
-      - "spec-templates（L0–L5 模板）"
-    traceability:
-      - l1_concern: "用户能指定仓库根"
-        in_l2: "frontend workspace-root.ts + backend WORKSPACE_ROOT env"
-      - l1_concern: "能探测目录状态"
-        in_l2: "generators/state_detector.py"
-      - l1_concern: "能生成脚手架"
-        in_l2: "generators/scaffolder.py + spec-templates"
-      - l1_concern: "能读写 spec"
-        in_l2: "frontend spec-editor + API routes + backend"
-      - l1_concern: "能跑校验/生成"
-        in_l2: "Makefile + make-run API + frontend action bar"
+  summary: |
+    L1 定义"空仓库脚手架 + spec 驱动开发"作为产品能力集。
+    L2 将能力集落地为具体技术架构（agent/backend/frontend/generators）。
+  what_l1_owns:
+    - MVP 5 项能力的边界定义
+    - 用户场景：空目录 → 边做边长
+    - 成功标准：不依赖外部模板，纯原生落地
+  what_l2_owns:
+    - Go agent（nanoClaudeCode 扩展）
+    - SvelteKit 前端
+    - Python generators（gen.py 等）
+    - memlace（Go实现的轻量记忆系统）
+    - spec-templates（L0–L5 模板）
+  traceability:
+    - l1_concern: 用户能指定仓库根
+      in_l2: frontend workspace/+page.svelte + backend workspace_handlers.go
+    - l1_concern: 能探测目录状态
+      in_l2: generators/state_detector.py + /api/workspace/detect-state
+    - l1_concern: 能生成脚手架
+      in_l2: generators/scaffolder.py + /api/workspace/scaffold
+    - l1_concern: 能读写 spec
+      in_l2: frontend spec detail panel + /api/workspace/spec (GET/POST)
+    - l1_concern: 能跑校验/生成
+      in_l2: Makefile + /api/workspace/run-make + frontend action bar
 
-  product_value_layers:
-    summary: |
-      三层价值：① 开发者直接价值 ② 体系自举价值 ③ 工具链价值。
-    direct_value:
-      meaning: "从空目录到可运行项目，零模板依赖，原生自举"
-    proof_value:
-      meaning: "spec 体系本身用 spec 驱动落地，证明 VibeX 理念可行"
-    experience_value:
-      meaning: "clarification 循环 + canvas 可视化 + TDD，让开发过程可追溯"
+product_value_layers:
+  summary: |
+    三层价值：① 开发者直接价值 ② 体系自举价值 ③ 工具链价值。
+  direct_value:
+    meaning: 从空目录到可运行项目，零模板依赖，原生自举
+  proof_value:
+    meaning: spec 体系本身用 spec 驱动落地，证明 VibeX 理念可行
+  experience_value:
+    meaning: clarification 循环 + canvas 可视化 + TDD，让开发过程可追溯
 
 changelog:
   - version: "0.1"
     date: "2026-04-24"
-    author: "hermes"
+    author: hermes
     changes:
-      - "初始版本，定义 MVP 5 项最小能力"
+      - 初始版本，定义 MVP 5 项最小能力
+  - version: "0.2"
+    date: "2026-04-29"
+    author: hermes
+    changes:
+      - 五项最小能力全部 e2e 验证通过，lifecycle.current 从 proposal 升级为 implementation
+      - 新增 acceptance_criteria（AC1–AC5）：五项能力的具体验收条件和测试场景
+      - 新增 behaviors：phase transition 定义（B-PHASE）+ e2e 自动验证（B-E2E）
+      - constraints C1–C4 与五项能力一一对应
