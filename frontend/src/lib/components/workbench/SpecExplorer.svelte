@@ -4,10 +4,6 @@
 -->
 <script lang="ts">
 	import { specExplorerStore, workspaceDisplayName } from '$lib/stores/spec-explorer-store';
-	import {
-		inferSpecTypeId,
-		specTypeLabel,
-	} from '$lib/workbench/spec-convention';
 
 	// 订阅 store 中的 specs 列表
 	let specs = $state<{ path: string; level: number; name: string }[]>([]);
@@ -23,12 +19,7 @@
 			specsLoading = s.specsLoading;
 			specsError = s.specsError;
 			selectedPath = s.selectedSpecPath;
-			const root = s.workspaceRoot;
-			// workspaceRoot 切换时触发 loadList（store.setWorkspaceRoot 已调用 loadList）
-			if (root && root !== currentWorkspaceRoot) {
-				currentWorkspaceRoot = root;
-				specExplorerStore.loadList(root);
-			}
+			currentWorkspaceRoot = s.workspaceRoot;
 		});
 		return unsub;
 	});
