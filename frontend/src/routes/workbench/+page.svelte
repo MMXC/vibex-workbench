@@ -33,7 +33,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 	// Status bar state
 	let workspaceRoot = $state('—');
 	let backendStatus = $state<'connecting' | 'ready' | 'error'>('connecting');
-	let workspaceState = $state<'empty' | 'half' | 'ready'>('empty');
+	let workspaceState = $state<'empty' | 'partial' | 'ready'>('empty');
 
 	let prevThreadId: string | null = null;
 

@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { openDirectoryDialog } from '$lib/wails-runtime';
 
   let workspaceRoot = $state('');
   let state = $state<{state: string, signals: any[], suggestions: string[]} | null>(null);
@@ -62,7 +63,7 @@
       const res = await fetch('/api/workspace/run-make', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({target, workspace: workspaceRoot})
+        body: JSON.stringify({target, workspace_root: workspaceRoot})
       });
       const data = await res.json();
       error = data.output || (data.ok ? 'OK' : 'FAILED');
@@ -70,6 +71,18 @@
       error = e.message;
     } finally {
       loading = false;
+    }
+  }
+
+  async function browseDir() {
+    try {
+      const dir = await openDirectoryDialog();
+      if (!dir) return;
+      workspaceRoot = dir;
+      state = null;
+      await detectState();
+    } catch (e: any) {
+      error = e.message;
     }
   }
 
@@ -112,6 +125,9 @@
       />
       <button onclick={detectState} disabled={loading || !workspaceRoot} class="btn-detect">
         {loading ? '检测中…' : '🔍 检测'}
+      </button>
+      <button onclick={browseDir} class="btn-browse" title="选择目录">
+        📁 浏览…
       </button>
     </div>
 
@@ -259,6 +275,17 @@
   }
   .btn-detect:hover:not(:disabled) { background: #313244; }
   .btn-detect:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-browse {
+    padding: 9px 16px;
+    background: #1a1a2e;
+    border: 1px solid #3a3a5a;
+    border-radius: 6px;
+    color: #89b4fa;
+    cursor: pointer;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .btn-browse:hover { background: #2a2a4e; border-color: #89b4fa; }
 
   .error-box {
     background: #1e1e2e;
