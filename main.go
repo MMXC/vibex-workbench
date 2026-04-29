@@ -22,6 +22,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/sqweek/dialog"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -189,17 +190,28 @@ type App struct {
 
 // ── Binding Methods ─────────────────────────────────────────
 
-// OpenDirectoryDialog 打开系统原生目录选择器
+// OpenDirectoryDialog 打开系统原生目录选择器（完整路径）
+// 使用 github.com/sqweek/dialog 而非 Wails runtime.OpenDirectoryDialog，
+// 因为 Wails 内置 dialog 在 Windows 上只返回文件夹名，不返回完整路径。
 func (a *App) OpenDirectoryDialog(ctx context.Context) (string, error) {
-	dir, err := runtime.OpenDirectoryDialog(ctx, runtime.OpenDialogOptions{
-		Title:            "选择工作区目录",
-		DefaultDirectory: a.workspaceRoot,
-	})
+	dir, err := dialog.Directory().
+		SetStartDir(a.workspaceRoot).
+		Title("选择工作区目录").
+		Browse()
 	if err != nil {
-		return "", fmt.Errorf("OpenDirectoryDialog failed: %w", err)
+		// 用户取消不返回错误
+		return "", nil
 	}
 	if dir == "" {
-		return "", nil // 用户取消
+		return "", nil
+	}
+	// 确保是绝对路径
+	if !filepath.IsAbs(dir) {
+		abs, err := filepath.Abs(dir)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve absolute path: %w", err)
+		}
+		dir = abs
 	}
 	a.workspaceRoot = dir
 	runtime.EventsEmit(ctx, "workspace:selected", dir)
