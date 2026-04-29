@@ -15,7 +15,7 @@ meta:
 
 io_contract:
   input: |
-    用户点击工作台顶栏的仓库路径输入框，输入或选择目录
+    用户点击工作台顶栏的 "文件" 导航菜单 弹出选择项目 点击后弹出文件选择器，选择目录
   output: |
     - 路径写入 frontend store（workspaceRoot）
     - 触发 state detection（自动探测新仓库状态）
