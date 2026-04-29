@@ -207,3 +207,10 @@ changelog:
       - 新增 acceptance_criteria（AC1–AC5）：五项能力的具体验收条件和测试场景
       - 新增 behaviors：phase transition 定义（B-PHASE）+ e2e 自动验证（B-E2E）
       - constraints C1–C4 与五项能力一一对应
+  - version: "0.3"
+    date: "2026-04-30"
+    author: hermes
+    changes:
+      - "AC3 确认式脚手架实现：scaffold 端点强制检查 confirm=true，partial mode 支持"
+      - "AC4 Spec 读端点修复：workspaceSpecReadHandler 正确读 query workspaceRoot，增加 path traversal 保护"
+      - scaffolder.py 返回值格式更新：written_files / skipped_files / state

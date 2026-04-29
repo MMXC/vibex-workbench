@@ -103,15 +103,18 @@ func workspaceDetectStateHandler(w http.ResponseWriter, r *http.Request) {
 
 // workspaceScaffoldRequest is the POST body for /api/workspace/scaffold.
 type workspaceScaffoldRequest struct {
-	WorkspaceRoot  string `json:"workspace_root"`
-	Template       string `json:"template"`
-	ProjectName    string `json:"projectName"`
-	Owner          string `json:"owner"`
+	WorkspaceRoot string `json:"workspace_root"`
+	Confirm      bool   `json:"confirm"`
+	Template     string `json:"template"`
+	ProjectName  string `json:"projectName"`
+	Owner       string `json:"owner"`
+	Mode        string `json:"mode"` // "full" or "partial"
 }
 
 // workspaceScaffoldHandler POST /api/workspace/scaffold
-// Body: { "workspaceRoot": "/path/to/workspace", "template": "default", "projectName": "...", "owner": "..." }
-// Response: { "ok": true, "created": [...], "errors": [...] }
+// Body: { "workspaceRoot": "/path/to/workspace", "confirm": true, "template": "default", "mode": "full" }
+// Response: { "ok": true, "state": "ready", "written_files": [...], "skipped_files": [...] }
+// AC3 要求：confirm=true 才能写入，否则返回 {ok: false, error: "需确认"}
 func workspaceScaffoldHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -136,7 +139,17 @@ func workspaceScaffoldHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 调用 scaffolder.py — 基于 backend binary 位置推导 generators 路径
+	// AC3: 必须显式 confirm，禁止静默污染磁盘
+	if !req.Confirm {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok":    false,
+			"error": "需确认：前端必须传入 confirm: true",
+		})
+		return
+	}
+
+	// 调用 scaffolder.py
 	scriptPath := filepath.Join(filepath.Dir(os.Args[0]), "..", "generators", "scaffolder.py")
 	scriptPath, _ = filepath.Abs(scriptPath)
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
@@ -158,6 +171,9 @@ func workspaceScaffoldHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	args := []string{scriptPath, wsRoot, "--template", template}
+	if req.Mode == "partial" {
+		args = append(args, "--mode", "partial")
+	}
 	cmdCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(cmdCtx, "python3", args...)
@@ -177,7 +193,31 @@ func workspaceScaffoldHandler(w http.ResponseWriter, r *http.Request) {
 	var result map[string]interface{}
 	if err == nil {
 		if err := json.Unmarshal([]byte(output), &result); err != nil {
-			result = map[string]interface{}{"ok": true, "created": []string{}, "raw": output}
+			result = map[string]interface{}{
+				"ok":          true,
+				"writtenFiles": []string{},
+				"skippedFiles": []string{},
+				"raw":         output,
+			}
+		}
+		// 兼容旧字段名 created → written_files
+		if written, ok := result["written_files"].([]any); ok {
+			writtenList := make([]string, len(written))
+			for i, v := range written {
+				if s, ok := v.(string); ok {
+					writtenList[i] = s
+				}
+			}
+			result["writtenFiles"] = writtenList
+		}
+		if skipped, ok := result["skipped_files"].([]any); ok {
+			skippedList := make([]string, len(skipped))
+			for i, v := range skipped {
+				if s, ok := v.(string); ok {
+					skippedList[i] = s
+				}
+			}
+			result["skippedFiles"] = skippedList
 		}
 	} else {
 		result = map[string]interface{}{
@@ -190,6 +230,62 @@ func workspaceScaffoldHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
+}
+
+// ── spec read ──────────────────────────────────────────────────────
+
+// workspaceSpecReadHandler GET /api/workspace/spec/read
+// Query: ?workspaceRoot=/path/to/workspace&path=specs/L1-goal/ENTRY.yaml
+// Response: { "ok": true, "path": "...", "content": "..." }
+// AC4 要求：能读取 specs/ 目录下的 YAML 文件内容
+func workspaceSpecReadHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	wsRoot := r.URL.Query().Get("workspaceRoot")
+	if wsRoot == "" {
+		wsRoot = cfg.WorkspaceDir
+	}
+	if wsRoot == "" {
+		wsRoot = os.Getenv("WORKSPACE_ROOT")
+	}
+	if wsRoot == "" {
+		http.Error(w, "workspaceRoot required", http.StatusBadRequest)
+		return
+	}
+
+	specPath := r.URL.Query().Get("path")
+	if specPath == "" {
+		http.Error(w, "path required", http.StatusBadRequest)
+		return
+	}
+
+	// Path traversal protection
+	cleanPath := filepath.Clean(specPath)
+	absPath := filepath.Join(wsRoot, cleanPath)
+	if !strings.HasPrefix(absPath, wsRoot) {
+		http.Error(w, "forbidden: path traversal detected", http.StatusForbidden)
+		return
+	}
+
+	content, err := os.ReadFile(absPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			http.Error(w, "not found: "+specPath, http.StatusNotFound)
+		} else {
+			http.Error(w, "read failed: "+err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"ok":     true,
+		"path":   specPath,
+		"content": string(content),
+	})
 }
 
 // ── spec write ────────────────────────────────────────────────────

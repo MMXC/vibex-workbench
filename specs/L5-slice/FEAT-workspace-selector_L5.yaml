@@ -199,8 +199,8 @@ content:
   - file: agent/cmd/web/workspace_handlers.go
     reason: "detect-state / scaffold / run-make workspace API"
 lifecycle:
-  current: proposal
-  updated: '2026-04-29'
+  current: implementation
+  updated: '2026-04-30'
 changelog:
 - version: '0.1'
   date: '2026-04-26'

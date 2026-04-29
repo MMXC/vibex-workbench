@@ -4,12 +4,12 @@ spec:
   level: "4_feature"
   name: "FEAT-workspace-selector"
   parent: "MOD-workspace-root"
-  status: "proposal"
+  status: "implementation"
 
 meta:
   type: "feature"
   module: "frontend"
-  owner: "hermes"
+  owner: hermes
   created: "2026-04-24"
   updated: "2026-04-30"
   ui_elements_ref: "FEAT-workspace-selector_L5.yaml#content/ui_elements"

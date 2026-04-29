@@ -94,46 +94,11 @@ def substitute(content: str, project_name: str, owner: str) -> str:
     return result
 
 
-def scaffold(workspace_root: str, template_variant: str = "default",
-             project_name: str = "my-project", owner: str = "user") -> dict:
-    """
-    在指定 workspace 根目录生成最小可跑骨架。
-
-    Args:
-        workspace_root: 目标工作区根目录
-        template_variant: "default" | "agent-assisted"（目前统一用 default）
-        project_name: 项目名称（用于 L1 spec 文件名）
-        owner: 负责人（用于 L1 spec 元数据）
-
-    Returns:
-        {"ok": true, "created": [...], "errors": [...]}
-    """
-    root = Path(workspace_root).resolve()
-    created = []
-    errors = []
-
-    # 前置：workspace_root 必须是目录
-    if not root.is_dir():
-        return {"ok": False, "error": f"目录不存在: {workspace_root}"}
-
-    try:
-        # 创建目录
-        for d in ["specs/L1-goal", "generators"]:
-            p = root / d
-            p.mkdir(parents=True, exist_ok=True)
-            created.append(str(p.relative_to(root)))
-
-        # 复制 L1 入口模板
-        src_entry = TEMPLATE_ROOT / "L1-goal" / "entry.yaml"
-        if src_entry.exists():
-            content = src_entry.read_text(encoding="utf-8")
-            content = substitute(content, project_name, owner)
-            dst = root / "specs" / "L1-goal" / "ENTRY.yaml"
-            dst.write_text(content, encoding="utf-8")
-            created.append(str(dst.relative_to(root)))
-        else:
-            # 模板不存在时，生成内联 L1 spec
-            entry_content = f"""---
+def _inline_l1_spec(project_name: str, owner: str) -> str:
+    """Generate inline L1 spec content when template file is missing."""
+    now = datetime.now().strftime("%Y-%m-%d")
+    now_ts = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    return f"""---
 spec:
   version: "0.1"
   level: "1_project_goal"
@@ -141,21 +106,21 @@ spec:
   parent: null
   status: "proposal"
   owner: "{owner}"
-  created: "{datetime.now().strftime('%Y-%m-%d')}"
-  updated: "{datetime.now().strftime('%Y-%m-%d')}"
+  created: "{now}"
+  updated: "{now}"
 
 meta:
   type: "project-goal"
   owner: "{owner}"
-  created: "{datetime.now().strftime('%Y-%m-%d')}"
-  updated: "{datetime.now().strftime('%Y-%m-%d')}"
+  created: "{now}"
+  updated: "{now}"
   tags: []
 
 lifecycle:
   current: "proposal"
   history:
     - status: "proposal"
-      at: "{datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}"
+      at: "{now_ts}"
       by: "{owner}"
       trigger: "user:manual"
       note: "项目目标初始化"
@@ -179,29 +144,91 @@ content:
     proof: "证明路径"
     experience: "用户体验"
 """
-            dst = root / "specs" / "L1-goal" / "ENTRY.yaml"
-            dst.write_text(entry_content, encoding="utf-8")
-            created.append(str(dst.relative_to(root)))
+
+
+def scaffold(workspace_root: str, template_variant: str = "default",
+             project_name: str = "my-project", owner: str = "user",
+             mode: str = "full") -> dict:
+    """
+    在指定 workspace 根目录生成最小可跑骨架。
+
+    Args:
+        workspace_root: 目标工作区根目录
+        template_variant: "default" | "agent-assisted"（目前统一用 default）
+        project_name: 项目名称（用于 L1 spec 文件名）
+        owner: 负责人（用于 L1 spec 元数据）
+        mode: "full" | "partial"
+            full:   在空目录创建所有骨架文件
+            partial: 补全缺失文件，已存在的文件（包括 specs/）不覆盖
+
+    Returns:
+        {"ok": true, "state": "empty|partial|ready", "written_files": [...], "skipped_files": [...]}
+    """
+    root = Path(workspace_root).resolve()
+    written_files = []
+    skipped_files = []
+    errors = []
+
+    # 前置：workspace_root 必须是目录
+    if not root.is_dir():
+        return {"ok": False, "error": f"目录不存在: {workspace_root}"}
+
+    # partial mode: specs/ 目录存在时标记为已跳过，不覆盖
+    specs_dir = root / "specs"
+    if mode == "partial" and specs_dir.exists():
+        skipped_files.append("specs/")
+
+    try:
+        # 创建目录（partial mode 下若 specs/ 已存在则不重建）
+        if mode == "partial" and specs_dir.exists():
+            # 只创建 generators/，不碰 specs/
+            gen_dir = root / "generators"
+            gen_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            for d in ["specs/L1-goal", "generators"]:
+                p = root / d
+                p.mkdir(parents=True, exist_ok=True)
+
+        # 复制 L1 入口模板
+        dst_entry = root / "specs" / "L1-goal" / "ENTRY.yaml"
+        if mode == "partial" and dst_entry.exists():
+            skipped_files.append("specs/L1-goal/ENTRY.yaml")
+        else:
+            src_entry = TEMPLATE_ROOT / "L1-goal" / "entry.yaml"
+            if src_entry.exists():
+                content = src_entry.read_text(encoding="utf-8")
+                content = substitute(content, project_name, owner)
+                dst_entry.write_text(content, encoding="utf-8")
+                written_files.append(str(dst_entry.relative_to(root)))
+            else:
+                dst_entry.write_text(_inline_l1_spec(project_name, owner), encoding="utf-8")
+                written_files.append(str(dst_entry.relative_to(root)))
 
         # 生成 generators/gen.py（写桩，不覆盖已有）
         gen_py = root / "generators" / "gen.py"
         if not gen_py.exists():
             gen_py.write_text(GEN_PY_TEMPLATE, encoding="utf-8")
-            created.append("generators/gen.py")
+            written_files.append("generators/gen.py")
+        else:
+            skipped_files.append("generators/gen.py")
 
-        # 复制 validate_specs.py（从 generators/ 自身复制，不覆盖已有）
+        # 复制 validate_specs.py（不覆盖已有）
         src_validate = SCRIPT_DIR / "validate_specs.py"
-        if src_validate.exists():
-            dst_validate = root / "generators" / "validate_specs.py"
-            if not dst_validate.exists():
+        dst_validate = root / "generators" / "validate_specs.py"
+        if not dst_validate.exists():
+            if src_validate.exists():
                 shutil.copy2(src_validate, dst_validate)
-                created.append("generators/validate_specs.py")
+                written_files.append("generators/validate_specs.py")
+        else:
+            skipped_files.append("generators/validate_specs.py")
 
-        # 生成 Makefile（写 Makefile，不覆盖已有）
+        # 生成 Makefile（不覆盖已有）
         mk = root / "Makefile"
         if not mk.exists():
             mk.write_text(MAKEFILE_TEMPLATE, encoding="utf-8")
-            created.append("Makefile")
+            written_files.append("Makefile")
+        else:
+            skipped_files.append("Makefile")
 
         # 生成 README.md（不覆盖已有）
         readme = root / "README.md"
@@ -210,14 +237,29 @@ content:
                 f"# {root.name}\n\nGenerated by VibeX Workbench.\n",
                 encoding="utf-8"
             )
-            created.append("README.md")
+            written_files.append("README.md")
+        else:
+            skipped_files.append("README.md")
 
     except Exception as e:
         errors.append(str(e))
 
+    # 计算最终状态
+    has_specs = (root / "specs").exists()
+    has_gen_py = (root / "generators" / "gen.py").exists()
+    has_makefile = (root / "Makefile").exists()
+    if has_specs and has_gen_py and has_makefile:
+        state = "ready"
+    elif has_specs or has_gen_py or has_makefile:
+        state = "partial"
+    else:
+        state = "empty"
+
     return {
         "ok": True,
-        "created": created,
+        "state": state,
+        "written_files": written_files,
+        "skipped_files": skipped_files,
         "errors": errors,
         "workspaceRoot": str(root),
     }
@@ -227,7 +269,7 @@ def main():
     as_json = "--json" in sys.argv
 
     if len(sys.argv) < 2 or "--help" in sys.argv:
-        msg = "Usage: scaffolder.py <workspace_root> [--template default] [--json]"
+        msg = "Usage: scaffolder.py <workspace_root> [--template default] [--mode full|partial] [--json]"
         if as_json:
             print(json.dumps({"ok": False, "error": msg}))
         else:
@@ -236,16 +278,21 @@ def main():
 
     workspace = sys.argv[1]
     template = "default"
+    mode = "full"
     if "--template" in sys.argv:
         idx = sys.argv.index("--template")
         if idx + 1 < len(sys.argv):
             template = sys.argv[idx + 1]
+    if "--mode" in sys.argv:
+        idx = sys.argv.index("--mode")
+        if idx + 1 < len(sys.argv):
+            mode = sys.argv[idx + 1]
 
     # 从环境变量或默认值获取 project_name / owner
     project_name = os.environ.get("VIBEX_PROJECT_NAME", Path(workspace).name)
     owner = os.environ.get("VIBEX_OWNER", "user")
 
-    result = scaffold(workspace, template, project_name, owner)
+    result = scaffold(workspace, template, project_name, owner, mode=mode)
 
     if as_json or not sys.stdout.isatty():
         print(json.dumps(result, ensure_ascii=False, indent=2))

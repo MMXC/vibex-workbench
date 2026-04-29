@@ -60,7 +60,7 @@ func main() {
 	http.HandleFunc("/api/step", withCORS(stepHandler))
 	http.HandleFunc("/api/clarifications", withCORS(clarificationsHandler))
 	http.HandleFunc("/api/clarifications/", withCORS(clarificationHandler))
-	http.HandleFunc("/api/workspace/specs/read", withCORS(workspaceSpecHandler))
+	http.HandleFunc("/api/workspace/specs/read", withCORS(workspaceSpecReadHandler))
 	http.HandleFunc("/api/workspace/specs/write", withCORS(workspaceSpecWriteHandler))
 	http.HandleFunc("/api/workspace/specs/list", withCORS(workspaceSpecsListHandler))
 	http.HandleFunc("/api/workspace/specs/convention", withCORS(workspaceSpecsConventionHandler))
