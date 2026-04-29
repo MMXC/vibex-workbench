@@ -14,15 +14,13 @@ export function isWails(): boolean {
 	return getRuntime() !== null;
 }
 
-/**
- * Opens a native directory picker dialog.
- * @returns the selected directory path, or empty string if cancelled / unavailable.
+/** Opens a native directory picker dialog.
+ *  Falls back to a browser prompt() when Wails runtime is not available.
  */
-export async function openDirectoryDialog(): Promise<string> {
+export async function openDirectoryDialog(fallbackPrompt = '请输入目录路径:'): Promise<string> {
 	const rt = getRuntime();
 	if (!rt) {
-		console.warn('[wails-runtime] openDirectoryDialog: runtime not available');
-		return '';
+		return window.prompt(fallbackPrompt) ?? '';
 	}
 	const result = await rt.OpenDirectoryDialog();
 	return result ?? '';

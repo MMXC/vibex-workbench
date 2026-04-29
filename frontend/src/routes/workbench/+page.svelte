@@ -23,7 +23,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 	import SpecViewer from '$lib/components/workbench/SpecViewer.svelte';
 	import StatusBar from '$lib/components/workbench/StatusBar.svelte';
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
-	import { openDirectoryDialog, eventsOn, eventsEmit } from '$lib/wails-runtime';
+	import { eventsOn } from '$lib/wails-runtime';
 	import { appendOutput, clearOutput } from '$lib/stores/workspace-output-store';
 
 	const SSE_URL = import.meta.env.VITE_SSE_URL || 'http://localhost:33338';
@@ -59,20 +59,6 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 		rt.EventsOn('workspace:selected', (path: string) => {
 			workspaceRoot = path;
 			detectWorkspaceState(path);
-		});
-
-		// ── Menu event wiring ──────────────────────────────────────────
-		// menu:open-project → open directory dialog → set workspaceRoot → detect state
-		eventsOn('menu:open-project', async () => {
-			try {
-				const dir = await openDirectoryDialog();
-				if (!dir) return;
-				workspaceRoot = dir;
-				detectWorkspaceState(dir);
-				eventsEmit('workspace:selected', dir);
-			} catch (e) {
-				console.error('[Workbench] menu:open-project error:', e);
-			}
 		});
 
 		// menu:run-generate → POST /api/workspace/run-make { target: "generate", workspace_root } → append to output
