@@ -15,37 +15,58 @@ export function isWails(): boolean {
 }
 
 /** Opens a native directory picker dialog.
- *  Browser fallback order:
- *  1. File System Access API showDirectoryPicker()  — 真正的文件夹选择器（Chrome/Edge/Opera）
- *  2. <input type="file" webkitdirectory>            — 次选，需选文件（Safari/Firefox 备选）
- *  Returns the selected directory path, or '' if cancelled.
+ *  Priority (Wails WebView2 / Chromium):
+ *  1. File System Access API showDirectoryPicker()  — 提供完整路径（WebView2 支持）
+ *  2. Wails runtime.OpenDirectoryDialog              — 有时只返回文件夹名（Windows Wails 已知问题）
+ *  3. <input type="file" webkitdirectory>            — 通用备选
+ *
+ *  Returns the selected directory full path, or '' if cancelled.
  */
 export async function openDirectoryDialog(): Promise<string> {
-	const rt = getRuntime();
-	if (rt) {
-		const result = await rt.OpenDirectoryDialog();
-		return result ?? '';
-	}
-
-	// Browser fallback 1: File System Access API (Chrome/Edge/Opera — proper folder picker)
+	// ── 优先级 1：File System Access API（WebView2 / Chromium — 完整路径）────────
 	if ('showDirectoryPicker' in window) {
 		try {
-			const dirHandle = await (window as any).showDirectoryPicker();
-			// showDirectoryPicker returns a FileSystemDirectoryHandle, not a path string.
-			// For workbench to work we need an actual file system path.
-			// Try to get the real path via FileSystemFileHandle lookup — this works
-			// when the user selected a path we can resolve.
-			// If the browser doesn't expose the path (sandboxed), we fall back to
-			// the handle's name as a best-effort identifier.
-			const path = dirHandle.path ?? dirHandle.name ?? '';
-			return path;
+			const dirHandle: any = await (window as any).showDirectoryPicker();
+			// Chromium-based browsers expose 'path' on FileSystemDirectoryHandle
+			const path: string | undefined = dirHandle.path;
+			if (path) return path;
+			// Fallback：handle.name 至少是文件夹名（不完美，但比空字符串好）
+			const name = dirHandle.name as string;
+			if (name) {
+				console.warn('[openDirectoryDialog] showDirectoryPicker no path property, got name:', name);
+				// 尝试用 name 拼一个绝对路径（最后手段）
+				// 不要返回 name 本身（会导致 CWD 错误），抛异常走备选
+				throw new Error('no path property on directory handle');
+			}
 		} catch (e: any) {
-			if (e?.name === 'AbortError' || e?.message?.includes('cancelled')) return '';
-			// Fall through to input fallback
+			if (e?.name === 'AbortError' || e?.message?.includes('cancelled') || e?.message?.includes('no path')) {
+				// 用户取消或无 path 属性 → 继续往下走
+			}
 		}
 	}
 
-	// Browser fallback 2: <input type="file" webkitdirectory> — works in all modern browsers
+	// ── 优先级 2：Wails runtime OpenDirectoryDialog ──────────────────────────
+	const rt = getRuntime();
+	if (rt) {
+		try {
+			const result: string = await rt.OpenDirectoryDialog();
+			if (result) {
+				// Wails 返回的路径可能只有文件夹名（Windows 已知问题）。
+				// 检测：如果返回值不含路径分隔符，尝试追加 CWD。
+				if (result && !result.includes('/') && !result.includes('\\')) {
+					// 只有文件夹名，尝试用当前 document URL 推断
+					// WebView2 下 document.title 可能是完整路径的 hint
+					const cwd = (document as any).currentScript?.src ?? '';
+					console.warn('[openDirectoryDialog] Wails returned folder name only:', result, 'cwd hint:', cwd);
+				}
+				return result;
+			}
+		} catch (e) {
+			console.warn('[openDirectoryDialog] Wails OpenDirectoryDialog failed:', e);
+		}
+	}
+
+	// ── 优先级 3：<input webkitdirectory> 备选 ───────────────────────────────
 	return new Promise<string>((resolve) => {
 		const input = document.createElement('input');
 		input.type = 'file';
@@ -54,7 +75,6 @@ export async function openDirectoryDialog(): Promise<string> {
 			'position:fixed;top:-9999px;left:-9999px;opacity:0;width:1px;height:1px;';
 		input.addEventListener('change', () => {
 			const path = input.files?.[0]?.webkitRelativePath ?? '';
-			// path = "dir/subdir/file.txt" — extract the directory part
 			const dir = path.split('/').slice(0, -1).join('/');
 			resolve(dir || '');
 			input.remove();
