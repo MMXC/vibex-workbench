@@ -5,7 +5,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { openDirectoryDialog } from '$lib/wails-runtime';
+	import { openDirectoryDialog, eventsEmit } from '$lib/wails-runtime';
+	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
 
 	let { title = 'VibeX Workbench' }: { title?: string } = $props();
 
@@ -22,12 +23,16 @@
 		await (window as any).runtime?.Quit();
 	}
 
-	/** 打开项目：弹目录选择 → 保存 → 跳转 workbench */
+	/** 打开项目：弹目录选择 → 同步 store → 触发事件 → 跳转 */
 	async function openProject() {
 		fileMenuOpen = false;
 		const dir = await openDirectoryDialog();
 		if (!dir) return;
 		localStorage.setItem('vibex-workspace-root', dir);
+		// 1. 直接更新 store → SpecExplorer 的 $effect 立即触发刷新
+		specExplorerStore.setWorkspaceRoot(dir);
+		// 2. 发出事件 → workbench/+page.svelte 同步状态 + detectWorkspaceState
+		eventsEmit('workspace:selected', dir);
 		goto('/workbench');
 	}
 
