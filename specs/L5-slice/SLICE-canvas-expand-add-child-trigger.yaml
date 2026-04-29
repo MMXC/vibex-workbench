@@ -1,0 +1,144 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: SLICE-canvas-expand-add-child-trigger
+  parent: FEAT-canvas-expand
+
+meta:
+  type: slice
+  module: frontend
+  owner: hermes
+  created: "2026-04-29"
+  updated: "2026-04-29"
+
+lifecycle:
+  current: proposal
+  updated: "2026-04-29"
+
+io_contract:
+  input: |
+    用户点击节点展开后的 + 卡片，传入目标 level 和 parent spec name。
+    ClarificationPanel 接收 create-child-spec intent。
+  output: |
+    ClarificationPanel 打开，显示 agent 推荐的子 spec（name + level + description）。
+    用户确认后写入 spec 文件（FEAT-spec-write）。
+  boundary: |
+    Canvas 只发出 intent，不直接写盘。
+    层级规则（level_rules）来自 FEAT-spec-graph-expansion，不在 Canvas 层硬编码。
+    线程澄清复用 AI Composer（右侧栏），不在 Canvas 新建组件。
+
+content:
+  file_path: frontend/src/lib/components/workbench/GoalSpecCanvas.svelte
+  file_type: svelte
+  implementation_boundary:
+    allowed:
+      - "Canvas overlay 层：+ 卡片绝对定位在展开节点附近"
+      - "点击 + 卡片调用 openClarificationPanel(intent: create-child-spec)"
+      - "ClarificationPanel 组件复用（从 spec-first-workflow skill 集成）"
+      - "target_level/target_dir 从 level_rules 计算"
+      - "AI Composer 右侧栏接收 intent 并显示 agent 推荐"
+    forbidden:
+      - "Canvas 直接写 spec 文件"
+      - "在 Canvas 层硬编码 level 数字"
+      - "新建 Canvas 专属的澄清 UI 组件"
+
+  add_card_positioning:
+    strategy: absolute positioning in canvas overlay layer
+    anchor: bottom-right corner of expanded node
+    offset: "x: +16px, y: -8px"
+    z_index: 10
+    style: |
+      .add-child-card {
+        position: absolute;
+        width: 28px; height: 28px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: white;
+        font-size: 18px;
+        font-weight: bold;
+        cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        transition: transform 0.15s, box-shadow 0.15s;
+        z-index: 10;
+      }
+      .add-child-card:hover {
+        transform: scale(1.15);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      }
+      .add-child-card.hidden { display: none; }
+
+  level_rules_source: |
+    来自 FEAT-spec-graph-expansion 的 content.level_rules。
+    典型规则：
+      L1 -> 可添加 L2
+      L2 -> 可添加 L3
+      L3 -> 可添加 L4
+      L4 -> 可添加 L4（兄弟节点）
+      L5 -> 不可添加子节点（叶节点无 + 卡片）
+    Canvas 从 specTreeStore 读取 level_rules，不在组件内硬编码。
+
+  intent_contract:
+    event: openClarificationPanel
+    payload:
+      intent: '"create-child-spec"'
+      parent_spec_name: string
+      parent_spec_path: string
+      target_level: string (如 "4_feature")
+      target_dir: string (如 "specs/L4-feature/")
+    handler: ClarificationPanel.svelte 或 AI Composer
+
+  clarification_flow:
+    1: Canvas 发出 intent，ClarificationPanel 打开
+    2: ClarificationPanel 调用 Go agent spec-first-workflow
+    3: agent 推荐子 spec 名称、level、description
+    4: 用户在 ClarificationPanel 内编辑/确认
+    5: 用户点击「写盘」，ClarificationPanel 调用 /api/workspace/specs/write
+    6: 写盘成功 -> SSE canvas.refresh -> Canvas 重渲染（FEAT-spec-write 闭环）
+
+  dependencies:
+    - file: frontend/src/lib/components/workbench/ClarificationPanel.svelte
+      reason: 接收 create-child-spec intent，显示 agent 推荐
+    - file: specs/L5-slice/SLICE-spec-graph-viewer.yaml
+      reason: level_rules 来自图谱展开 spec
+    - file: specs/L4-feature/FEAT-spec-write.yaml
+      reason: 写盘后 SSE canvas.refresh 事件
+    - file: agents/skills/spec-first-workflow
+      reason: agent 推荐子 spec 名称/描述的 skill
+
+  test_scenarios:
+    - id: TC-3
+      given: 用户选择了 L4，agent 给出了推荐
+      when: 用户关闭了澄清对话（未点确认）
+      then: spec 未写盘，无副作用，Canvas 保持展开状态
+      evaluation: |
+        Bash: test ! -f "${WORKSPACE}/specs/L4-feature/<generated-name>.yaml"
+        playwright-cli eval "document.querySelector('.clarification-panel')?.className.includes('open')" == false
+
+    - id: TC-4
+      given: 用户选择了 L4，agent 推荐了一个名称
+      when: 点击「写盘」确认
+      then: 写入 specs/L4-feature/<name>.yaml，Canvas 刷新显示新节点
+      evaluation: |
+        Bash: test -f "${WORKSPACE}/specs/L4-feature/<name>.yaml"
+        playwright-cli eval "document.querySelector('.canvas-node[data-name=\"<name>\"]') !== null"
+
+  verification:
+    commands:
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - 点击展开节点 → + 卡片出现
+      - L5 节点 → 无 + 卡片（叶节点）
+      - 点击 + 卡片 → ClarificationPanel 打开
+      - 写盘成功 → 新节点出现在图谱中
+
+  acceptance_criteria:
+    - id: AC-AT-1
+      description: L5 节点不显示 + 卡片（叶节点规则）
+    - id: AC-AT-2
+      description: 点击 + 卡片 -> ClarificationPanel 打开，parent spec name 正确传入
+    - id: AC-AT-3
+      description: 取消澄清 -> Canvas 无副作用，新节点不出现
+    - id: AC-AT-4
+      description: 写盘成功 -> SSE canvas.refresh 触发，3s 内新节点出现在图谱

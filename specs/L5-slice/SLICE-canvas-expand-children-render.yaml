@@ -1,0 +1,118 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: SLICE-canvas-expand-children-render
+  parent: FEAT-canvas-expand
+
+meta:
+  type: slice
+  module: frontend
+  owner: hermes
+  created: "2026-04-29"
+  updated: "2026-04-29"
+
+lifecycle:
+  current: proposal
+  updated: "2026-04-29"
+
+io_contract:
+  input: |
+    用户在 GoalSpecCanvas 上点击某个 spec 节点。
+    传入该节点的 spec.name 和 spec.level。
+  output: |
+    节点展开：子节点以动画方式出现在节点周围，按 level badge 着色。
+    无子节点时显示「暂无子 spec」空态。
+    写盘成功后 SSE canvas.refresh 事件触发图谱重渲染。
+  boundary: |
+    只修改前端 UI 状态（isExpanded、expandedChildren），不直接写任何 spec 文件。
+    动画时长 300ms（CSS transition），不支持禁用动画。
+
+content:
+  file_path: frontend/src/lib/components/workbench/GoalSpecCanvas.svelte
+  file_type: svelte
+  implementation_boundary:
+    allowed:
+      - "GoalSpecCanvas.svelte 的节点展开状态（isExpanded map、expandedChildren）"
+      - "read API 调用获取子 spec 列表"
+      - "CSS transition 动画（@keyframes fadeInScale，300ms ease-out）"
+      - "空态文案：暂无子 spec / 已是叶节点"
+      - "SSE canvas.refresh 事件监听触发重渲染"
+    forbidden:
+      - "直接写盘或调用 spec write API"
+      - "修改 DependencyGraph store 的核心数据"
+      - "动画禁用或缩短到 100ms 以下"
+
+  implementation_notes: |
+    展开逻辑依赖 DependencyGraph 已有数据，在 graphData.nodes 中增加 children[] 字段。
+    每个节点维护独立的 isExpanded 状态（Map<specPath, boolean>）。
+    点击节点时：
+      1. toggle isExpanded
+      2. if expanding: fetch /api/workspace/specs/list?parent=<name> 获取子节点
+      3. render children with animation
+      4. draw SVG lines from parent to children
+    写盘成功（FEAT-spec-write）后 emit SSE canvas.refresh -> 触发 loadGraphData() 重渲染。
+
+  children_fetch:
+    api: GET /api/workspace/specs/list
+    params:
+      parent: string (spec.name of clicked node)
+    response: |
+      { ok: true, specs: [{ path, name, level, status }] }
+    empty_result: |
+      返回空数组时渲染「暂无子 spec」空态 + 层级允许时展示 + 卡片
+
+  animation_spec:
+    keyframes: fadeInScale
+    duration: 300ms
+    easing: ease-out
+    children_stagger: 50ms (每增加一个子节点，延迟 50ms 后入场)
+    line_draw: stroke-dashoffset animation, 400ms
+
+  svelte_stores:
+    - name: graphStore
+      file: frontend/src/lib/stores/graph-store.ts
+      used_fields: [nodes, edges, selectedNodePath, loadGraphData]
+    - name: specTreeStore
+      file: frontend/src/lib/stores/spec-tree-store.ts
+      used_fields: [specChildren (keyed by parent name)]
+
+  test_scenarios:
+    - id: TC-1
+      given: 某个 L2 spec 没有任何子 spec
+      when: 点击该节点
+      then: 展开区域显示「暂无子 spec」空态，+ 卡片出现（若当前层级允许新增）
+      evaluation: |
+        playwright-cli eval "document.querySelector('.empty-children')?.textContent" == "暂无子 spec"
+
+    - id: TC-2
+      given: 某个 L3 spec 有 2 个 L4 子 spec
+      when: 点击该节点
+      then: 2 个子节点以动画方式展开，按 L4 badge 着色，SVG 连线从父节点画出
+      evaluation: |
+        playwright-cli eval "document.querySelectorAll('.node-badge.level-4').length" == 2
+
+  dependencies:
+    - file: frontend/src/lib/stores/graph-store.ts
+      reason: 读取 nodes/edges 和 selectedNodePath，emit loadGraphData
+    - file: specs/L5-slice/SLICE-spec-graph-viewer.yaml
+      reason: 共享 SVG 连线渲染逻辑（复用 stroke-dashoffset 动画）
+    - file: specs/L4-feature/FEAT-spec-write.yaml
+      reason: 写盘成功后 SSE canvas.refresh 事件由 spec-write 触发
+
+  verification:
+    commands:
+      - "npm --prefix frontend run build"
+      - "make validate"
+    manual_checks:
+      - 点击 L2 节点 → 看到「暂无子 spec」空态 + + 卡片
+      - 点击 L3 节点（有子节点）→ 子节点动画入场，SVG 连线绘制
+      - 写盘成功后图谱自动刷新
+
+  acceptance_criteria:
+    - id: AC-CR-1
+      description: 点击节点 toggle 展开/收起，收起时子节点消失（fadeOut 动画）
+    - id: AC-CR-2
+      description: 无子节点时显示空态文案，无 SVG 连线
+    - id: AC-CR-3
+      description: 写盘成功后图谱在 500ms 内自动刷新（canvas.refresh 监听）

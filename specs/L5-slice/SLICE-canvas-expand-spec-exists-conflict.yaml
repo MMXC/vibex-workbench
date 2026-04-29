@@ -1,0 +1,105 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: SLICE-canvas-expand-spec-exists-conflict
+  parent: FEAT-canvas-expand
+
+meta:
+  type: slice
+  module: frontend
+  owner: hermes
+  created: "2026-04-29"
+  updated: "2026-04-29"
+
+lifecycle:
+  current: proposal
+  updated: "2026-04-29"
+
+io_contract:
+  input: |
+    用户在 ClarificationPanel 内点击「写盘」，传入 spec 文件路径。
+    系统检测该路径是否已存在文件。
+  output: |
+    文件存在：弹出确认对话框，显示「spec 已存在，是否覆盖？」+ 取消/覆盖按钮。
+    文件不存在：直接写入。
+  boundary: |
+    只检测 workspace_root 子树内的 spec 文件，不检测外部路径。
+    不自动覆盖，必须用户显式确认。
+    覆盖操作只写一次，不重复覆盖。
+
+content:
+  file_path: frontend/src/lib/components/workbench/ClarificationPanel.svelte
+  file_type: svelte
+  implementation_boundary:
+    allowed:
+      - "写盘前检查文件是否存在（fetch GET /api/workspace/spec）"
+      - "ConflictDialog 确认组件（modal）"
+      - "覆盖写入（PATCH vs PUT 语义）"
+      - "错误展示：文件名 + 「spec 已存在」+ 取消/覆盖按钮"
+    forbidden:
+      - "静默覆盖已有文件"
+      - "检测 workspace_root 之外的文件"
+      - "自动重命名文件"
+
+  conflict_detection:
+    method: HEAD /api/workspace/spec?path=specs/<level>/<name>.yaml
+    http_status:
+      200: 文件存在 -> 触发 ConflictDialog
+      404: 文件不存在 -> 直接写入
+    response_time_limit: 500ms（超时视为不存在，直接写入）
+
+  conflict_dialog:
+    type: modal overlay
+    title: "spec 已存在"
+    body: |
+      <spec-name>.yaml 已存在于 <specs/<level>/>。
+      是否覆盖？覆盖将替换原有内容。
+    buttons:
+      - label: 取消
+        action: close dialog, abort write
+        style: secondary
+      - label: 覆盖
+        action: proceed with write (PUT semantics)
+        style: danger (red)
+
+  write_semantics:
+    new_file: POST /api/workspace/specs/write (create)
+    existing_file: POST /api/workspace/specs/write (overwrite)
+    note: |
+      不区分 create/overwrite，统一调用 write API。
+      覆盖行为由后端 /api/workspace/specs/write 自行处理（通常直接覆盖）。
+
+  dependencies:
+    - file: frontend/src/lib/components/workbench/ClarificationPanel.svelte
+      reason: 写盘入口，集成 ConflictDialog
+    - file: agent/cmd/web/workspace_handlers.go
+      reason: GET /api/workspace/spec 存在性检测 + POST /api/workspace/specs/write
+
+  test_scenarios:
+    - id: TC-4
+      given: specs/L4-feature/ 中已存在同名文件
+      when: 用户确认写盘
+      then: 提示「spec 已存在」，不覆盖文件（用户取消）
+      evaluation: |
+        playwright-cli eval "document.querySelector('.conflict-dialog')?.className.includes('open')" == true
+        playwright-cli eval "document.querySelector('.conflict-dialog .body')?.textContent.includes('spec 已存在')" == true
+        Bash: diff <(git show HEAD:specs/L4-feature/<name>.yaml) <(cat specs/L4-feature/<name>.yaml) # 无差异
+
+  verification:
+    commands:
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - 写盘同名文件 -> ConflictDialog 出现
+      - 点击取消 -> 文件未变化
+      - 点击覆盖 -> 文件被替换
+
+  acceptance_criteria:
+    - id: AC-CF-1
+      description: 写盘前 500ms 内完成文件存在性检测，无感知延迟
+    - id: AC-CF-2
+      description: 文件存在时 ConflictDialog 出现，不静默覆盖
+    - id: AC-CF-3
+      description: 点击取消 -> 文件内容不变，无副作用
+    - id: AC-CF-4
+      description: 点击覆盖 -> 文件被替换，无确认二次弹窗

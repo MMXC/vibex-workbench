@@ -1,0 +1,103 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: SLICE-qa-playwright-scenario-runner
+  parent: FEAT-spec-qa-playwright-integration
+
+meta:
+  type: slice
+  module: backend
+  owner: hermes
+  created: "2026-04-29"
+  updated: "2026-04-29"
+
+lifecycle:
+  current: proposal
+  updated: "2026-04-29"
+
+io_contract:
+  input: |
+    POST /api/workspace/qa/run {workspace_root, spec_path, scenario_ids[]}
+    spec YAML 含 test_scenarios[].given/when/then/evaluation。
+  output: |
+    每个 scenario 执行结果：status（pass/fail/error）+ screenshot 路径 + results.json。
+    通过 SSE 推送 qa_completed 事件。
+  boundary: |
+    playwright-cli 运行在 Go agent 所在机器。
+    不修改 spec YAML，不自动修复失败。
+
+content:
+  file_path: agent/cmd/web/qa_runner.go
+  file_type: go
+  implementation_boundary:
+    allowed:
+      - "读取 spec YAML 的 test_scenarios[]"
+      - "生成 playwright-cli 命令脚本"
+      - "执行脚本，收集 screenshot + stdout"
+      - "解析退出码判断 pass/fail"
+      - "超时保护（60s/scenario）"
+    forbidden:
+      - "修改 spec YAML"
+      - "自动修复失败场景"
+      - "访问 workspace_root 之外的路径"
+
+  command_generation:
+    for_each_scenario: |
+      playwright-cli -s=${SESSION} open <url>
+      # given: setup commands
+      # when: interaction commands
+      playwright-cli -s=${SESSION} screenshot --filename="${EVIDENCE_DIR}/${scenario_id}.png"
+      # then: assertion commands
+      playwright-cli -s=${SESSION} close
+      # evaluation: bash checks
+    evidence_dir: "<workspace>/.vibex/qa/<spec-name>/<scenario-id>/"
+    screenshot_naming: "<scenario-id>-step-N.png"
+
+  timeout_protection:
+    per_scenario: 60 seconds
+    action_on_timeout: playwright-cli session close, mark as "error"
+    retry: no retry (avoid infinite loop)
+
+  results_json_schema:
+    scenario_id: string
+    spec_name: string
+    spec_path: string
+    status: '"pass" | "fail" | "error"'
+    duration_ms: number
+    screenshot: string (relative path)
+    error_message: string (optional)
+    assertions: [{ expression: string, pass: bool }]
+
+  test_scenarios:
+    - id: QA-E2E-1
+      given: VibeX frontend 运行在 localhost:5173，FEAT-canvas-expand 有 4 个 test_scenarios
+      url: http://localhost:5173
+      spec_path: specs/L4-feature/FEAT-canvas-expand.yaml
+      scenario_ids: []
+      then: 返回 results.json 含 4 个 scenario 结果，每个有 screenshot
+      evaluation: |
+        Bash: test -f "${WORKSPACE}/.vibex/qa/FEAT-canvas-expand/results.json"
+        Bash: python3 -c "import json; d=json.load(open('results.json')); print(len(d['results']))" == 4
+
+  dependencies:
+    - file: specs/L4-feature/FEAT-canvas-expand.yaml
+      reason: 首个有 test_scenarios 的 L4，驱动 QA runner
+    - file: agents/skills/playwright-cli
+      reason: playwright-cli 命令参考
+
+  verification:
+    commands:
+      - "playwright-cli --version"
+      - "make validate"
+    manual_checks:
+      - 4 scenarios 执行完毕，results.json 存在
+      - 每个 scenario 有 screenshot
+
+  acceptance_criteria:
+    - id: AC-QA-R1
+      description: 每个 scenario 60s 内完成，超时标记为 error
+    - id: AC-QA-R2
+      description: results.json 写入 .vibex/qa/<spec-name>/，幂等（重复运行覆盖）
+    - id: AC-QA-R3
+      description: playwright-cli 不可用时返回 500 + 友好错误信息

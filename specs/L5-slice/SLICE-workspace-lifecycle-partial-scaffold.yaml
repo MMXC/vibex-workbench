@@ -1,0 +1,109 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: SLICE-workspace-lifecycle-partial-scaffold
+  parent: FEAT-workspace-lifecycle
+
+meta:
+  type: slice
+  module: backend
+  owner: hermes
+  created: "2026-04-29"
+  updated: "2026-04-29"
+
+lifecycle:
+  current: proposal
+  updated: "2026-04-29"
+
+io_contract:
+  input: |
+    用户在 partial 状态（有 specs/ 但无 gen.py/Makefile）点击「补全脚手架」。
+    POST /api/workspace/scaffold {workspace_root, confirm: true, mode: "partial"}.
+  output: |
+    只补全缺失文件，不覆盖已有 specs/ 目录。
+    返回落地文件列表 + 新状态 ready。
+  boundary: |
+    不删除或覆盖已有 spec 文件。
+    不在 specs/ 外创建多余目录。
+
+content:
+  file_path: generators/scaffolder.py
+  file_type: python
+  implementation_boundary:
+    allowed:
+      - "scaffolder.py generate() 检测已有目录"
+      - "只创建不存在的文件，跳过已存在的"
+      - "partial mode: specs/ 目录存在时跳过，不覆盖"
+      - "返回落地文件列表（written_files[]）"
+    forbidden:
+      - "覆盖已有 spec 文件"
+      - "删除用户手动创建的目录"
+
+  partial_mode_logic: |
+    def generate(workspace_root, mode='full'):
+        specs_dir = Path(workspace_root) / 'specs'
+        gen_path = Path(workspace_root) / 'generators' / 'gen.py'
+        existing_files = []
+        if mode == 'partial':
+            # 只补全缺失，不覆盖
+            if gen_path.exists():
+                existing_files.append(str(gen_path))
+            if (specs_dir / 'L1-goal').exists():
+                existing_files.append('specs/')
+
+        written = []
+        # 只写不存在的文件
+        if not gen_path.exists():
+            write(gen_path, gen_py_template)
+            written.append('generators/gen.py')
+        if not (specs_dir / 'L1-goal' / 'ENTRY.yaml').exists():
+            written.append('specs/L1-goal/ENTRY.yaml')
+        return { 'written_files': written, 'skipped_files': existing_files }
+
+  diff_behavior:
+    empty_dir: "full mode: 创建所有 7 个文件"
+    partial_dir: "partial mode: 只写缺失文件，跳过已存在的"
+    ready_dir: "full mode: 跳过所有已存在的（幂等）"
+
+  api_contract:
+    POST /api/workspace/scaffold:
+      body:
+        workspace_root: string
+        confirm: boolean
+        mode: '"full" | "partial"' (optional, default "full")
+      response:
+        ok: true
+        state: '"empty" | "partial" | "ready"'
+        written_files: string[]
+        skipped_files: string[]
+
+  test_scenarios:
+    - id: TC-4
+      given: partial 状态（已有 specs/ 但无 gen.py）
+      when: 再次运行 scaffold
+      then: specs/ 目录不覆盖，只补全缺失的 gen.py 和 Makefile
+      evaluation: |
+        Bash: test -f "${WORKSPACE}/generators/gen.py" && test -d "${WORKSPACE}/specs"
+        Bash: git diff "${WORKSPACE}/specs" | wc -l == 0  # specs/ 未被修改
+
+  dependencies:
+    - file: generators/scaffolder.py
+      reason: scaffold 逻辑实现
+    - file: agent/cmd/web/workspace_handlers.go
+      reason: scaffold API handler 传入 mode 参数
+
+  verification:
+    commands:
+      - "make validate"
+    manual_checks:
+      - partial dir scaffold -> written_files 只含 gen.py 和 Makefile
+      - specs/ 目录内容不变
+
+  acceptance_criteria:
+    - id: AC-WL-PS1
+      description: partial mode 不覆盖已存在的任何文件
+    - id: AC-WL-PS2
+      description: 返回 written_files 和 skipped_files 列表
+    - id: AC-WL-PS3
+      description: scaffold 后状态从 partial 变为 ready

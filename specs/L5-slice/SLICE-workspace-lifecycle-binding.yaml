@@ -1,0 +1,115 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: SLICE-workspace-lifecycle-binding
+  parent: FEAT-workspace-lifecycle
+
+meta:
+  type: slice
+  module: frontend
+  owner: hermes
+  created: "2026-04-29"
+  updated: "2026-04-29"
+
+lifecycle:
+  current: proposal
+  updated: "2026-04-29"
+
+io_contract:
+  input: |
+    用户选择一个目录路径（或通过 URL 参数传入 WORKSPACE_ROOT）。
+    已有正在编辑的 spec 时，记录 unsavedChanges = true。
+  output: |
+    目录绑定成功：POST /api/workspace/detect-state 更新全局 workspaceRoot。
+    切换前若有未保存内容：弹出「有未保存内容，是否切换？」确认。
+    绑定后 UI 更新 workspace badge + state badge。
+  boundary: |
+    不验证目录是否真实存在（由 detect-state 后端负责）。
+    不处理跨机器路径（WORKSPACE_ROOT 必须在本地可访问）。
+
+content:
+  file_path: frontend/src/lib/components/workbench/GoalSpecCanvas.svelte
+  file_type: svelte
+  implementation_boundary:
+    allowed:
+      - "workspaceRoot 全局状态（stores/workspace-root.ts）"
+      - "unsavedChanges 检测（Svelte $state 标记 spec 是否脏）"
+      - "切换确认 dialog"
+      - "POST /api/workspace/detect-state 调用"
+      - "state badge + workspace badge 更新"
+    forbidden:
+      - "静默丢弃未保存编辑"
+      - "修改 backend 目录结构"
+      - "WORKSPACE_ROOT 验证逻辑（backend 职责）"
+
+  state_machine:
+    states:
+      - name: unbound
+        description: 未选择仓库，workspace badge 显示「未绑定」
+        next: bind (用户选择目录)
+      - name: empty
+        description: 空仓库，state badge 红色，显示「初始化脚手架」按钮
+        next: scaffold (用户确认)
+      - name: partial
+        description: 部分就绪，state badge 黄色，显示「补全脚手架」
+        next: scaffold (用户确认)
+      - name: ready
+        description: 就绪，state badge 绿色，显示 spec 列表
+        next: edit (用户编辑 spec)
+
+  unsaved_changes_guard:
+    trigger: 用户点击切换目录时
+    condition: "specEditor.dirty === true"
+    dialog:
+      title: "有未保存的内容"
+      body: "切换目录将丢失未保存的编辑。确定切换吗？"
+      buttons:
+        - label: 取消
+          action: abort switch, keep current workspaceRoot
+        - label: 切换
+          action: discard changes, switch workspaceRoot
+
+  test_scenarios:
+    - id: TC-2
+      given: WORKSPACE_ROOT = /root/v-test（已有脚手架的就绪目录）
+      when: 用户绑定该目录
+      then: |
+        1. 状态显示「就绪」（绿色 badge）
+        2. spec 列表立即加载
+        3. make 按钮可用
+      evaluation: |
+        playwright-cli eval "document.querySelector('.state-badge')?.className" includes "ready"
+        playwright-cli eval "document.querySelectorAll('.spec-list-item').length" > 0
+
+    - id: TC-3
+      given: 当前在 ready 状态，正在编辑某 spec（未保存）
+      when: 用户切换到另一个空目录
+      then: 弹出确认 dialog，提示有未保存内容；用户取消后留在原 workspace
+      evaluation: |
+        playwright-cli eval "document.querySelector('.unsaved-dialog')?.className.includes('open')" == true
+
+  dependencies:
+    - file: frontend/src/lib/stores/workspace-root.ts
+      reason: 全局 workspaceRoot 状态
+    - file: specs/L5-slice/SLICE-workspace-session-store.yaml
+      reason: workspace session 持久化
+    - file: agent/cmd/web/workspace_handlers.go
+      reason: POST /api/workspace/detect-state
+
+  verification:
+    commands:
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - 未绑定 -> workspace badge 显示「未绑定」
+      - 绑定就绪目录 -> 绿色 badge + spec 列表加载
+      - 绑定空目录 -> 红色 badge + 脚手架按钮
+      - 有未保存时切换 -> 弹出确认
+
+  acceptance_criteria:
+    - id: AC-WL-B1
+      description: 绑定空目录显示红色 empty badge + 脚手架按钮
+    - id: AC-WL-B2
+      description: 绑定就绪目录显示绿色 ready badge + spec 列表
+    - id: AC-WL-B3
+      description: 有未保存内容时切换目录，弹出确认 dialog，不静默丢弃
