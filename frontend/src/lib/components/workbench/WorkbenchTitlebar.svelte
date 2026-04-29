@@ -3,8 +3,11 @@
      顶部菜单栏由 Wails 原生 MenuSetApplicationMenu 提供，不在此组件内。
 -->
 <script lang="ts">
+	import { eventsEmit } from '$lib/wails-runtime';
+
 	let { title = 'VibeX Workbench' }: { title?: string } = $props();
-	const menus = ['文件', '编辑', '视图', '终端', '帮助'] as const;
+
+	let fileMenuOpen = $state(false);
 
 	async function handleMinimize() {
 		await (window as any).runtime?.WindowMinimise();
@@ -15,7 +18,21 @@
 	async function handleClose() {
 		await (window as any).runtime?.Quit();
 	}
+
+	function openProject() {
+		fileMenuOpen = false;
+		eventsEmit('menu:open-project');
+	}
+
+	function closeMenu(e: MouseEvent) {
+		const target = e.target as HTMLElement;
+		if (!target.closest('.menu-item-wrapper')) {
+			fileMenuOpen = false;
+		}
+	}
 </script>
+
+<svelte:window onclick={closeMenu} />
 
 <header class="titlebar">
 	<div class="lead">
@@ -24,9 +41,26 @@
 		</a>
 		<span class="workspace-mark">vibex-workbench</span>
 		<nav class="menu-strip" aria-label="WebView 内层菜单">
-			{#each menus as menu}
-				<button type="button">{menu}</button>
-			{/each}
+			<div class="menu-item-wrapper">
+				<button
+					type="button"
+					class="menu-btn"
+					class:active={fileMenuOpen}
+					onclick={(e) => { e.stopPropagation(); fileMenuOpen = !fileMenuOpen; }}
+				>文件</button>
+				{#if fileMenuOpen}
+					<div class="dropdown" role="menu">
+						<button type="button" class="dropdown-item" role="menuitem" onclick={openProject}>
+							<span class="item-icon">📂</span>打开项目…
+							<span class="shortcut">⌘O</span>
+						</button>
+					</div>
+				{/if}
+			</div>
+			<button type="button" class="menu-btn" disabled>编辑</button>
+			<button type="button" class="menu-btn" disabled>视图</button>
+			<button type="button" class="menu-btn" disabled>终端</button>
+			<button type="button" class="menu-btn" disabled>帮助</button>
 		</nav>
 	</div>
 
@@ -154,8 +188,74 @@
 		cursor: pointer;
 	}
 
-	.menu-strip button:hover {
+	.menu-btn {
+		height: 26px;
+		padding: 0 8px;
+		border: 0;
+		border-radius: 4px;
+		background: transparent;
+		color: #cccccc;
+		font: inherit;
+		font-size: 12px;
+		cursor: pointer;
+	}
+
+	.menu-btn:hover:not(:disabled),
+	.menu-btn.active {
 		background: #2a2d2e;
+	}
+
+	.menu-btn:disabled {
+		opacity: 0.4;
+		cursor: default;
+	}
+
+	.menu-item-wrapper {
+		position: relative;
+	}
+
+	.dropdown {
+		position: absolute;
+		top: calc(100% + 2px);
+		left: 0;
+		min-width: 200px;
+		background: #252526;
+		border: 1px solid #3c3c3c;
+		border-radius: 6px;
+		padding: 4px;
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+		z-index: 9999;
+	}
+
+	.dropdown-item {
+		display: flex;
+		align-items: center;
+		width: 100%;
+		padding: 7px 10px;
+		border: 0;
+		border-radius: 4px;
+		background: transparent;
+		color: #cccccc;
+		font: inherit;
+		font-size: 13px;
+		text-align: left;
+		cursor: pointer;
+		box-sizing: border-box;
+		gap: 8px;
+	}
+
+	.dropdown-item:hover {
+		background: #094771;
+	}
+
+	.dropdown-item .item-icon {
+		font-size: 14px;
+	}
+
+	.dropdown-item .shortcut {
+		margin-left: auto;
+		font-size: 11px;
+		color: #6c7086;
 	}
 
 	.command-center {

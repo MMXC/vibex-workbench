@@ -10,12 +10,28 @@
 
 <script>
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { openDirectoryDialog, eventsOn } from '$lib/wails-runtime';
   import '../app.css';
   let { children } = $props();
+
   onMount(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
+
+    // Global: menu:open-project → select dir → save → emit event → go to workbench
+    eventsOn('menu:open-project', async () => {
+      try {
+        const dir = await openDirectoryDialog();
+        if (!dir) return;
+        localStorage.setItem('vibex-workspace-root', dir);
+        eventsEmit('workspace:selected', dir);
+        goto('/workbench');
+      } catch (e) {
+        console.error('[layout] menu:open-project error:', e);
+      }
+    });
   });
 </script>
 
