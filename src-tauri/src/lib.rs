@@ -37,8 +37,9 @@ pub fn spawn_go_backend(state: State<'_, AppState>) -> Result<SpawnResult, Strin
         .map_err(|e| e.to_string())?
         .ok_or("Could not determine executable directory")?;
 
+    // FIX: binary moved from backend/ to agent/ (vibex-agent-web)
     let backend_bin = find_backend_binary(&exe_dir)
-        .ok_or_else(|| "Go backend binary not found. Build it: cd backend && go build -o vibex-backend .".to_string())?;
+        .ok_or_else(|| "Go backend binary not found. Build it: cd agent && go build -o vibex-agent-web ./cmd/web/.".to_string())?;
 
     // Pick an available port
     let port = find_available_port();
@@ -60,13 +61,20 @@ pub fn spawn_go_backend(state: State<'_, AppState>) -> Result<SpawnResult, Strin
         Ok(Some(status)) => {
             return Err(format!("Go backend exited immediately with: {}", status));
         }
-        _ => {}
+        Ok(None) => {} // Still running
+        Err(e) => {
+            return Err(format!("Failed to check process status: {}", e));
+        }
     }
 
+    // Store handle
     let handle = GoBackendHandle { pid, port };
-    *state.go_backend_handle.lock().unwrap() = Some(handle.clone());
+    {
+        let mut guard = state.go_backend_handle.lock().unwrap();
+        *guard = Some(handle.clone());
+    }
 
-    log::info!("Go backend spawned with PID {}", handle.pid);
+    log::info!("Go backend spawned successfully, PID={}, port={}", pid, port);
     Ok(SpawnResult { pid, port })
 }
 
@@ -76,7 +84,6 @@ pub fn kill_go_backend(state: State<'_, AppState>) -> Result<(), String> {
     let mut guard = state.go_backend_handle.lock().unwrap();
     if let Some(handle) = guard.take() {
         kill_process(handle.pid)?;
-        log::info!("Go backend (PID {}) killed", handle.pid);
     }
     Ok(())
 }
@@ -91,10 +98,14 @@ pub fn run_make(target: String, workspace: String) -> Result<MakeResult, String>
         .output()
         .map_err(|e| format!("Failed to run make: {}", e))?;
 
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    log::info!("make {} finished: ok={}", target, output.status.success());
+
     Ok(MakeResult {
         ok: output.status.success(),
-        output: String::from_utf8_lossy(&output.stdout).to_string(),
-        stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+        output: stdout,
+        stderr,
     })
 }
 
@@ -107,11 +118,9 @@ pub fn open_directory_picker() -> Result<String, String> {
             .args(["-e", "POSIX path of (choose folder)"])
             .output()
             .map_err(|e| e.to_string())?;
-        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if path.is_empty() {
-            Err("No directory selected".to_string())
-        } else {
-            Ok(path)
+
+        if output.status.success() {
+            return Ok(String::from_utf8_lossy(&output.stdout).trim().to_string());
         }
     }
     #[cfg(target_os = "linux")]
@@ -121,34 +130,46 @@ pub fn open_directory_picker() -> Result<String, String> {
             .args(["--file-selection", "--directory"])
             .output()
             .map_err(|e| e.to_string())?;
-        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if path.is_empty() {
-            Err("No directory selected".to_string())
-        } else {
-            Ok(path)
+
+        if output.status.success() {
+            return Ok(String::from_utf8_lossy(&output.stdout).trim().to_string());
         }
+        return Err("Directory picker not available (zenity required on Linux)".to_string());
     }
     #[cfg(target_os = "windows")]
     {
-        Err("Windows directory picker not yet implemented".to_string())
+        let output = Command::new("powershell")
+            .args(["-Command", "Add-Type -AssemblyName System.Windows.Forms; [Windows.Forms.FolderBrowserDialog]::new().SelectedPath"])
+            .output()
+            .map_err(|e| e.to_string())?;
+
+        if output.status.success() {
+            return Ok(String::from_utf8_lossy(&output.stdout).trim().to_string());
+        }
     }
+
+    Err("Directory picker not supported on this platform".to_string())
 }
 
+/// Find the Go backend binary by searching relative to the executable
 fn find_backend_binary(exe_dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    // FIX: binary moved from backend/ to agent/ (vibex-agent-web)
     let candidates = [
-        exe_dir.join("backend").join("vibex-backend.exe"),
-        exe_dir.join("backend").join("vibex-backend"),
-        exe_dir.join("vibex-backend.exe"),
+        exe_dir.join("agent").join("vibex-agent-web"),
+        exe_dir.join("agent").join("vibex-agent-web.exe"),
+        exe_dir.join("vibex-agent-web.exe"),
+        exe_dir.join("vibex-agent-web"),
+        exe_dir.join("..").join("agent").join("vibex-agent-web"),
+        exe_dir.join("..").join("..").join("agent").join("vibex-agent-web"),
         exe_dir.join("vibex-backend"),
+        exe_dir.join("vibex-backend.exe"),
         exe_dir.join("..").join("backend").join("vibex-backend"),
         exe_dir.join("..").join("..").join("backend").join("vibex-backend"),
-        exe_dir.join("..").join("vibex-backend"),
-        exe_dir.join("..").join("vibex-backend.exe"),
     ];
 
     for candidate in candidates.iter() {
         if candidate.exists() {
-            log::info!("Found backend binary at {:?}", candidate);
+            log::info!("Found backend binary: {:?}", candidate);
             return Some(candidate.clone());
         }
     }
@@ -156,7 +177,7 @@ fn find_backend_binary(exe_dir: &std::path::Path) -> Option<std::path::PathBuf> 
     // Try PATH
     if let Ok(path) = std::env::var("PATH") {
         for dir in std::env::split_paths(&path) {
-            for name in &["vibex-backend", "vibex-backend.exe"] {
+            for name in &["vibex-agent-web", "vibex-agent-web.exe", "vibex-backend", "vibex-backend.exe"] {
                 let full = dir.join(name);
                 if full.exists() {
                     log::info!("Found backend binary in PATH: {:?}", &full);
@@ -165,6 +186,7 @@ fn find_backend_binary(exe_dir: &std::path::Path) -> Option<std::path::PathBuf> 
             }
         }
     }
+
     None
 }
 
@@ -190,33 +212,30 @@ fn is_port_available(port: u16) -> bool {
 }
 
 fn kill_process(pid: u32) -> Result<(), String> {
-    #[cfg(windows)]
+    #[cfg(target_os = "windows")]
     {
         Command::new("taskkill")
             .args(["/F", "/PID", &pid.to_string()])
             .output()
             .map_err(|e| e.to_string())?;
     }
-    #[cfg(not(windows))]
+    #[cfg(not(target_os = "windows"))]
     {
         Command::new("kill")
-            .args(["-9", &pid.to_string()])
+            .arg("-9")
+            .arg(pid.to_string())
             .output()
             .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
 
-// ── App Entry ─────────────────────────────────────────────────
-
 pub fn run() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .init();
+    env_logger::init();
 
     log::info!("Starting VibeX Workbench (Tauri v1)...");
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
         .manage(AppState {
             go_backend_handle: Mutex::new(None),
         })
@@ -226,57 +245,11 @@ pub fn run() {
             run_make,
             open_directory_picker,
         ])
-        .setup(|app| {
-            log::info!("Tauri app setup complete, window opened");
-
-            // Auto-spawn Go backend
-            let state = app.state::<AppState>();
-            match spawn_backend_internal(&state) {
-                Ok(handle) => {
-                    log::info!("Go backend auto-spawned: PID {} port {}", handle.pid, handle.port);
-                }
-                Err(e) => {
-                    log::warn!("Failed to auto-spawn Go backend: {}", e);
-                }
-            }
-
+        .setup(|_app| {
+            log::info!("Tauri v1 app setup complete");
             Ok(())
-        })
-        .on_window_event(|event| {
-            if let tauri::WindowEvent::CloseRequested { .. } = event.event {
-                log::info!("Window close requested, killing Go backend...");
-                let state = event.window().state::<AppState>();
-                if let Some(handle) = state.go_backend_handle.lock().unwrap().take() {
-                    let _ = kill_process(handle.pid);
-                }
-            }
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
 
-fn spawn_backend_internal(state: &State<'_, AppState>) -> Result<GoBackendHandle, String> {
-    let exe_dir = std::env::current_exe()
-        .map(|p| p.parent().map(|p| p.to_path_buf()))
-        .map_err(|e| e.to_string())?
-        .ok_or("Could not determine executable directory")?;
-
-    let backend_bin = find_backend_binary(&exe_dir)
-        .ok_or("Go backend binary not found in any expected location")?;
-
-    let port = find_available_port();
-
-    let child = Command::new(&backend_bin)
-        .env("PORT", port.to_string())
-        .spawn()
-        .map_err(|e| format!("Failed to spawn: {}", e))?;
-
-    std::thread::sleep(std::time::Duration::from_millis(500));
-
-    let handle = GoBackendHandle {
-        pid: child.id(),
-        port,
-    };
-    *state.go_backend_handle.lock().unwrap() = Some(handle.clone());
-    Ok(handle)
-}
