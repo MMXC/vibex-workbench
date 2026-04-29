@@ -24,7 +24,9 @@
 	function openProject(e: MouseEvent) {
 		e.stopPropagation();
 		fileMenuOpen = false;
+		console.log('[Titlebar] openProject: emitting menu:open-project');
 		eventsEmit('menu:open-project');
+		console.log('[Titlebar] openProject: emit done');
 	}
 
 	function toggleMenu(e: MouseEvent) {

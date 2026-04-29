@@ -22,8 +22,10 @@
 
     // Global: menu:open-project → select dir → save → emit event → go to workbench
     eventsOn('menu:open-project', async () => {
+      console.log('[layout] menu:open-project received!');
       try {
         const dir = await openDirectoryDialog();
+        console.log('[layout] openDirectoryDialog result:', dir);
         if (!dir) return;
         localStorage.setItem('vibex-workspace-root', dir);
         eventsEmit('workspace:selected', dir);
