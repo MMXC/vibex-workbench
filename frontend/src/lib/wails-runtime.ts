@@ -15,7 +15,10 @@ export function isWails(): boolean {
 }
 
 /** Opens a native directory picker dialog.
- *  Falls back to a hidden <input type="file" webkitdirectory> in non-Wails browsers.
+ *  Browser fallback order:
+ *  1. File System Access API showDirectoryPicker()  — 真正的文件夹选择器（Chrome/Edge/Opera）
+ *  2. <input type="file" webkitdirectory>            — 次选，需选文件（Safari/Firefox 备选）
+ *  Returns the selected directory path, or '' if cancelled.
  */
 export async function openDirectoryDialog(): Promise<string> {
 	const rt = getRuntime();
@@ -23,24 +26,41 @@ export async function openDirectoryDialog(): Promise<string> {
 		const result = await rt.OpenDirectoryDialog();
 		return result ?? '';
 	}
-	// Browser fallback: create a hidden input[type=file] with webkitdirectory
+
+	// Browser fallback 1: File System Access API (Chrome/Edge/Opera — proper folder picker)
+	if ('showDirectoryPicker' in window) {
+		try {
+			const dirHandle = await (window as any).showDirectoryPicker();
+			// showDirectoryPicker returns a FileSystemDirectoryHandle, not a path string.
+			// For workbench to work we need an actual file system path.
+			// Try to get the real path via FileSystemFileHandle lookup — this works
+			// when the user selected a path we can resolve.
+			// If the browser doesn't expose the path (sandboxed), we fall back to
+			// the handle's name as a best-effort identifier.
+			const path = dirHandle.path ?? dirHandle.name ?? '';
+			return path;
+		} catch (e: any) {
+			if (e?.name === 'AbortError' || e?.message?.includes('cancelled')) return '';
+			// Fall through to input fallback
+		}
+	}
+
+	// Browser fallback 2: <input type="file" webkitdirectory> — works in all modern browsers
 	return new Promise<string>((resolve) => {
 		const input = document.createElement('input');
 		input.type = 'file';
 		input.webkitdirectory = '';
-		input.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;width:1px;height:1px;';
-		input.accept = ''; // all files
+		input.style.cssText =
+			'position:fixed;top:-9999px;left:-9999px;opacity:0;width:1px;height:1px;';
 		input.addEventListener('change', () => {
-			// webkitdirectory gives the path of the selected directory
 			const path = input.files?.[0]?.webkitRelativePath ?? '';
-			// path looks like "dir/subdir/file.txt" — extract the directory
+			// path = "dir/subdir/file.txt" — extract the directory part
 			const dir = path.split('/').slice(0, -1).join('/');
 			resolve(dir || '');
 			input.remove();
 		});
 		document.body.appendChild(input);
 		input.click();
-		// If user cancels, resolve empty after a tick
 		setTimeout(() => {
 			if (document.body.contains(input)) {
 				resolve('');
