@@ -3,8 +3,11 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -322,6 +325,267 @@ func (a *App) RunMake(ctx context.Context, target string, workspace string) (map
 		"ok":    err == nil,
 		"output": string(out),
 	}, err
+}
+
+// ── Filesystem Bridge ───────────────────────────────────────
+
+// SpecFile 单个规格文件的元信息
+type SpecFile struct {
+	Path   string `json:"path"`   // 相对路径，如 specs/L1-goal/xxx.yaml
+	Level  int    `json:"level"`  // 1-5，从目录名推导
+	Name   string `json:"name"`   // frontmatter.name 或文件名
+	Status string `json:"status"` // frontmatter.status，默认为 "active"
+}
+
+// levelFromDir 根据目录名推导 level（L1-L5）
+func levelFromDir(name string) int {
+	switch {
+	case strings.HasPrefix(name, "L5"):
+		return 5
+	case strings.HasPrefix(name, "L4"):
+		return 4
+	case strings.HasPrefix(name, "L3"):
+		return 3
+	case strings.HasPrefix(name, "L2"):
+		return 2
+	case strings.HasPrefix(name, "L1"):
+		return 1
+	default:
+		return 0
+	}
+}
+
+// parseSpecFrontmatter 提取 frontmatter 中的 name 和 status
+func parseSpecFrontmatter(content string) (name, status string) {
+	lines := strings.SplitN(content, "\n", 20)
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "name:") {
+			name = strings.TrimSpace(strings.TrimPrefix(line, "name:"))
+			name = strings.Trim(name, "\"")
+		}
+		if strings.HasPrefix(line, "status:") {
+			status = strings.TrimSpace(strings.TrimPrefix(line, "status:"))
+			status = strings.Trim(status, "\"")
+		}
+	}
+	if status == "" {
+		status = "active"
+	}
+	return
+}
+
+// ListSpecs 扫描 {root}/specs/ 下所有 .yaml/.yml 文件，返回元信息列表
+func (a *App) ListSpecs(root string) []SpecFile {
+	if root == "" {
+		root = a.workspaceRoot
+	}
+	specsDir := filepath.Join(root, "specs")
+	if _, err := os.Stat(specsDir); os.IsNotExist(err) {
+		return []SpecFile{}
+	}
+
+	var result []SpecFile
+	filepath.Walk(specsDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext != ".yaml" && ext != ".yml" {
+			return nil
+		}
+
+		rel, _ := filepath.Rel(root, path)
+		// 从相对路径提取 level
+		parts := strings.Split(filepath.ToSlash(rel), "/")
+		level := 0
+		if len(parts) >= 2 {
+			level = levelFromDir(parts[1])
+		}
+
+		// 提取 frontmatter
+		data, _ := os.ReadFile(path)
+		name, status := parseSpecFrontmatter(string(data))
+		if name == "" {
+			name = info.Name()
+		}
+
+		result = append(result, SpecFile{
+			Path:   rel,
+			Level:  level,
+			Name:   name,
+			Status: status,
+		})
+		return nil
+	})
+	if result == nil {
+		result = []SpecFile{}
+	}
+	return result
+}
+
+// ReadSpecFile 读取 {root}/{path} 文件内容
+func (a *App) ReadSpecFile(root, path string) (string, error) {
+	if root == "" {
+		root = a.workspaceRoot
+	}
+	full := filepath.Join(root, filepath.Clean(path))
+	data, err := os.ReadFile(full)
+	if err != nil {
+		return "", fmt.Errorf("ReadSpecFile %s: %w", path, err)
+	}
+	return string(data), nil
+}
+
+// WriteSpecFile 写入 {root}/{path} 文件（自动创建中间目录）
+func (a *App) WriteSpecFile(root, path, content string) error {
+	if root == "" {
+		root = a.workspaceRoot
+	}
+	full := filepath.Join(root, filepath.Clean(path))
+	if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+		return fmt.Errorf("WriteSpecFile mkdir: %w", err)
+	}
+	if err := os.WriteFile(full, []byte(content), 0644); err != nil {
+		return fmt.Errorf("WriteSpecFile write: %w", err)
+	}
+	return nil
+}
+
+// WorkspaceState 工作区状态检测结果
+type WorkspaceState struct {
+	State       string   `json:"state"` // "empty" | "half" | "ready" | "error"
+	Signals     []Signal `json:"signals"`
+	Suggestions []string `json:"suggestions"`
+}
+
+// Signal 单个检测信号
+type Signal struct {
+	Path    string `json:"path"`
+	Exists  bool   `json:"exists"`
+	Reason  string `json:"reason"`
+}
+
+// DetectWorkspaceState 调用 generators/state_detector.py，返回状态结构
+func (a *App) DetectWorkspaceState(root string) (WorkspaceState, error) {
+	if root == "" {
+		root = a.workspaceRoot
+	}
+	script := filepath.Join(root, "generators", "state_detector.py")
+	cmd := exec.Command("python3", script, root, "--json")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		// state_detector 在目录不存在时返回 error state（exit 1 不代表真正错误）
+		// 尝试解析已有的 stdout
+	}
+	var result WorkspaceState
+	if out := stdout.String(); out != "" {
+		json.Unmarshal([]byte(out), &result)
+	}
+	if result.State == "" {
+		result.State = "error"
+		result.Suggestions = []string{"无法检测工作区状态"}
+	}
+	return result, nil
+}
+
+// ── Agent Spawn ─────────────────────────────────────────────
+
+// agentProcess 跟踪当前 agent subprocess
+var agentProcess *exec.Cmd
+
+// findAgentBinary 查找 agent binary 路径
+func findAgentBinary() string {
+	candidates := []string{
+		"./agent/vibex-agent.exe",
+		"./agent/vibex-agent",
+		"vibex-agent",
+	}
+	exe, _ := os.Executable()
+	exeDir := filepath.Dir(exe)
+	for _, suffix := range []string{".exe", ""} {
+		cand := filepath.Join(exeDir, "agent", "vibex-agent"+suffix)
+		if _, err := os.Stat(cand); err == nil {
+			return cand
+		}
+	}
+	for _, cand := range candidates {
+		if _, err := os.Stat(cand); err == nil {
+			return cand
+		}
+	}
+	return "./agent/vibex-agent"
+}
+
+// RunAgent spawn agent subprocess（JSON goal payload），通过 Wails event 把 stdout lines 发给前端
+func (a *App) RunAgent(ctx context.Context, goalJSON string) (map[string]any, error) {
+	var req struct {
+		Goal          string `json:"goal"`
+		WorkspaceRoot string `json:"workspaceRoot"`
+	}
+	if err := json.Unmarshal([]byte(goalJSON), &req); err != nil {
+		return nil, fmt.Errorf("invalid goal JSON: %w", err)
+	}
+	workspace := req.WorkspaceRoot
+	if workspace == "" {
+		workspace = a.workspaceRoot
+	}
+
+	// 杀掉已有的 agent 进程
+	if agentProcess != nil && agentProcess.Process != nil {
+		agentProcess.Process.Signal(syscall.SIGTERM)
+		agentProcess = nil
+	}
+
+	bin := findAgentBinary()
+	cmd := exec.CommandContext(ctx, bin, "-goal", req.Goal, "-workspace", workspace)
+	cmd.Dir = workspace
+	cmd.Stderr = os.Stderr
+	// 用 pipe 读取 stdout 并转发到 Wails event
+	stdoutPipe, _ := cmd.StdoutPipe()
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start agent: %w", err)
+	}
+	agentProcess = cmd
+
+	// 在后台读取 stdout 并通过 Wails event 转发给前端，同时打印到本进程 stdout
+	go func() {
+		scanner := bufio.NewScanner(stdoutPipe)
+		for scanner.Scan() {
+			line := scanner.Text()
+			fmt.Println(line) // 透传到 Wails 进程 stdout
+			if a.ctx != nil && line != "" {
+				runtime.EventsEmit(a.ctx, "agent:stdout", line)
+			}
+		}
+		cmd.Wait()
+		if a.ctx != nil {
+			runtime.EventsEmit(a.ctx, "agent:done", map[string]any{
+				"pid":    cmd.Process.Pid,
+				"exited": true,
+			})
+		}
+		agentProcess = nil
+	}()
+
+	return map[string]any{
+		"ok":   true,
+		"pid":  cmd.Process.Pid,
+		"goal": req.Goal,
+	}, nil
+}
+
+// KillAgent 终止当前 agent subprocess
+func (a *App) KillAgent(ctx context.Context, pid int) error {
+	if agentProcess != nil && agentProcess.Process != nil && agentProcess.Process.Pid == pid {
+		if err := agentProcess.Process.Signal(syscall.SIGTERM); err != nil {
+			return fmt.Errorf("KillAgent: %w", err)
+		}
+		agentProcess = nil
+	}
+	return nil
 }
 
 // ── App Menu ──────────────────────────────────────────────

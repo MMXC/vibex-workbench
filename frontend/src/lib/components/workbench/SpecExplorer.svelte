@@ -1,87 +1,46 @@
-<!-- Spec 文件树（对齐 R2 sidebar ws-tree）；点击 → specExplorerStore.selectSpec -->
+<!-- SpecExplorer — Wails filesystem binding 驱动
+     列表数据来自 specExplorerStore.specs（store.loadList 内部调用 wailsListSpecs）
+     生产用 Wails binding，开发用 HTTP fallback（见 wails-filesystem.ts）
+-->
 <script lang="ts">
 	import { specExplorerStore, workspaceDisplayName } from '$lib/stores/spec-explorer-store';
 	import {
-		type ConventionPayload,
 		inferSpecTypeId,
 		specTypeLabel,
 	} from '$lib/workbench/spec-convention';
 
-	let paths = $state<string[]>([]);
-	let loadErr = $state<string | null>(null);
-	let loading = $state(true);
-	let convention = $state<ConventionPayload['convention'] | null>(null);
-
+	// 订阅 store 中的 specs 列表
+	let specs = $state<{ path: string; level: number; name: string }[]>([]);
+	let specsLoading = $state(false);
+	let specsError = $state<string | null>(null);
 	let selectedPath = $state<string | null>(null);
 	let currentWorkspaceRoot = $state('');
 
-	// 订阅 selectedPath（来自 store，选中状态）
+	// 订阅 store（列表 + 选中状态）
 	$effect(() => {
 		const unsub = specExplorerStore.subscribe(s => {
+			specs = s.specs;
+			specsLoading = s.specsLoading;
+			specsError = s.specsError;
 			selectedPath = s.selectedSpecPath;
-		});
-		return unsub;
-	});
-
-	// 订阅 workspaceRoot（来自 store，切换时触发重新加载）
-	$effect(() => {
-		const unsub = specExplorerStore.subscribe(s => {
 			const root = s.workspaceRoot;
+			// workspaceRoot 切换时触发 loadList（store.setWorkspaceRoot 已调用 loadList）
 			if (root && root !== currentWorkspaceRoot) {
 				currentWorkspaceRoot = root;
-				loadWithRoot(root);
+				specExplorerStore.loadList(root);
 			}
 		});
 		return unsub;
 	});
 
-	async function loadConvention() {
-		try {
-			const r = await fetch('/api/workspace/specs/convention');
-			if (!r.ok) return;
-			const j = (await r.json()) as ConventionPayload;
-			convention = j.convention ?? null;
-		} catch {
-			convention = null;
-		}
-	}
-
-	/**
-	 * 带 workspaceRoot 的 specs 列表加载
-	 * @param root workspace 根路径，为空时跳过加载
-	 */
-	async function loadWithRoot(root: string) {
-		loading = true;
-		loadErr = null;
-		loadConvention();
-		try {
-			const url = `/api/workspace/specs/list?workspaceRoot=${encodeURIComponent(root)}`;
-			const r = await fetch(url);
-			if (!r.ok) throw new Error(await r.text());
-			const data = (await r.json()) as { paths: string[] };
-			paths = data.paths ?? [];
-		} catch (e) {
-			loadErr = e instanceof Error ? e.message : String(e);
-			paths = [];
-		} finally {
-			loading = false;
-		}
-	}
-
 	/** 手动刷新（点击 ↻ 按钮） */
-	async function reload() {
+	function reload() {
 		if (!currentWorkspaceRoot) return;
-		await loadWithRoot(currentWorkspaceRoot);
+		specExplorerStore.loadList(currentWorkspaceRoot);
 	}
 
 	function depthIndent(path: string): number {
 		return path.split('/').length - 2;
-	}
-
-	function badgeShort(specTypeId: string): string {
-		const m = specTypeId.match(/^(L\d+[a-z]*)/i);
-		if (m) return m[1];
-		return specTypeId === 'meta_binding' ? 'meta' : specTypeId.slice(0, 6);
 	}
 </script>
 
@@ -98,32 +57,31 @@
 
 	{#if !currentWorkspaceRoot}
 		<p class="muted pad">未设置工作区</p>
-	{:else if loading}
+	{:else if specsLoading}
 		<p class="muted pad">加载中…</p>
-	{:else if loadErr}
-		<p class="err pad">{loadErr}</p>
+	{:else if specsError}
+		<p class="err pad">{specsError}</p>
+	{:else if specs.length === 0}
+		<p class="muted pad">无 spec 文件（点击工具栏「初始化」开始）</p>
 	{:else}
 		<div class="tree" role="tree">
 			<div class="tree-section">
 				<span class="chevron">▾</span>
 				<span>specs</span>
 			</div>
-			{#each paths as p (p)}
+			{#each specs as item (item.path)}
 				<button
 					type="button"
 					class="ws-item"
-					class:active={selectedPath === p}
-					style:padding-left="{10 + depthIndent(p) * 12}px"
-					onclick={() => specExplorerStore.selectSpec(p)}
+					class:active={selectedPath === item.path}
+					style:padding-left="{10 + depthIndent(item.path) * 12}px"
+					onclick={() => specExplorerStore.selectSpec(item.path)}
 				>
-					<span class="ws-icon">{p.endsWith('.yaml') ? '◇' : '·'}</span>
-					{#if convention}
-						{@const tid = inferSpecTypeId(p, convention)}
-						{#if tid}
-							<span class="type-pill" title={specTypeLabel(convention, tid) ?? tid}>{badgeShort(tid)}</span>
-						{/if}
+					<span class="ws-icon">◇</span>
+					{#if item.level > 0}
+						<span class="level-badge">L{item.level}</span>
 					{/if}
-					<span class="ws-name">{p.replace(/^specs\//, '')}</span>
+					<span class="ws-name">{item.path.replace(/^specs\//, '')}</span>
 				</button>
 			{/each}
 		</div>
@@ -272,7 +230,7 @@
 		color: #519aba;
 	}
 
-	.type-pill {
+	.level-badge {
 		flex-shrink: 0;
 		font-size: 9px;
 		font-weight: 700;
@@ -282,9 +240,6 @@
 		border-radius: 4px;
 		background: rgba(0, 122, 204, 0.22);
 		color: #9cdcfe;
-		max-width: 44px;
-		overflow: hidden;
-		text-overflow: ellipsis;
 	}
 
 	.ws-name {

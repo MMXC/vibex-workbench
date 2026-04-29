@@ -1,4 +1,5 @@
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
+import { wailsListSpecs, type WailsSpecFile } from '$lib/wails-filesystem';
 
 /** 与 Cursor/R2 对齐：左侧活动栏视图（资源管理器 / Git / 搜索 / 扩展） */
 export type LeftActivity = 'explorer' | 'git' | 'search' | 'extensions';
@@ -12,6 +13,12 @@ export type SpecExplorerState = {
 	centerView: SpecCenterView;
 	/** 当前 workspace 根路径，切换时驱动 SpecExplorer 刷新文件树 */
 	workspaceRoot: string;
+	/** 规格文件列表（从 store 加载） */
+	specs: { path: string; level: number; name: string }[];
+	/** 列表加载中 */
+	specsLoading: boolean;
+	/** 列表加载错误 */
+	specsError: string | null;
 };
 
 const initial: SpecExplorerState = {
@@ -19,10 +26,46 @@ const initial: SpecExplorerState = {
 	selectedSpecPath: null,
 	centerView: 'graph',
 	workspaceRoot: '',
+	specs: [],
+	specsLoading: false,
+	specsError: null,
 };
 
 function createSpecExplorerStore() {
 	const { subscribe, set, update } = writable<SpecExplorerState>(initial);
+
+	/**
+	 * 加载 spec 列表。
+	 * 生产用 Wails binding（filesystem 直接读），开发用 HTTP fallback。
+	 * 当 workspaceRoot 切换时由外部调用（见 SpecExplorer.svelte $effect）。
+	 */
+	async function loadList(workspaceRoot?: string): Promise<void> {
+		const root = workspaceRoot ?? get({ subscribe }).workspaceRoot;
+		if (!root) {
+			update(s => ({ ...s, specs: [], specsError: null }));
+			return;
+		}
+		update(s => ({ ...s, specsLoading: true, specsError: null }));
+		try {
+			const files: WailsSpecFile[] = await wailsListSpecs(root);
+			update(s => ({
+				...s,
+				specs: files.map(f => ({
+					path: f.path,
+					level: f.level,
+					name: f.name,
+				})),
+				specsLoading: false,
+			}));
+		} catch (e) {
+			update(s => ({
+				...s,
+				specs: [],
+				specsError: e instanceof Error ? e.message : String(e),
+				specsLoading: false,
+			}));
+		}
+	}
 
 	return {
 		subscribe,
@@ -54,7 +97,12 @@ function createSpecExplorerStore() {
 				workspaceRoot: root,
 				selectedSpecPath: null,
 			}));
+			// 切换后自动加载列表
+			loadList(root);
 		},
+
+		/** 手动刷新 spec 列表 */
+		loadList,
 	};
 }
 

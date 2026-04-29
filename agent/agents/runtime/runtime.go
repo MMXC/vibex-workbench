@@ -250,6 +250,23 @@ func RunInteractive() error {
 // It is agnostic to which API (Responses or Chat Completions) backs the client.
 // Returns (answer, inputItems, error). inputItems includes all tool calls and outputs
 // from this turn — use it for self-reflection without modifying the persisted messages.
+// RunToolLoop exports runToolLoop for use by RunGoal CLI mode
+func RunToolLoop(
+	ctx context.Context,
+	llm adapters.LLMClient,
+	model string,
+	tools []responses.ToolUnionParam,
+	handlers map[string]rtools.Handler,
+	todo *rtools.TodoStore,
+	messages []responses.ResponseInputItemUnionParam,
+	backgroundMgr *background.Manager,
+	subAgentMgr *subagent.Manager,
+	skillState *skills.State,
+	skillRegistry *skills.Registry,
+) (string, []responses.ResponseInputItemUnionParam, error) {
+	return runToolLoop(ctx, llm, model, tools, handlers, todo, messages, backgroundMgr, subAgentMgr, skillState, skillRegistry)
+}
+
 func runToolLoop(
 	ctx context.Context,
 	llm adapters.LLMClient,

@@ -14,6 +14,8 @@
 		normalizeSpecPath,
 		specTypeLabel,
 	} from '$lib/workbench/spec-convention';
+	import { wailsReadSpecFile, wailsWriteSpecFile } from '$lib/wails-filesystem';
+	import { get } from 'svelte/store';
 
 	let selectedPath = $state<string | null>(null);
 	let centerView = $state<'graph' | 'text'>('graph');
@@ -62,12 +64,10 @@
 
 	async function resolveIsGoal(goalPath: string): Promise<boolean> {
 		try {
-			const r = await fetch(
-				`/api/workspace/specs/read?path=${encodeURIComponent('specs/meta/goal-aspect-bindings.yaml')}`
-			);
-			if (!r.ok) return false;
-			const j = (await r.json()) as { content: string };
-			const b = parseYaml(j.content) as { goal_spec_path?: string };
+			const state = get(specExplorerStore);
+			const root = state.workspaceRoot;
+			const content = await wailsReadSpecFile(root, 'specs/meta/goal-aspect-bindings.yaml');
+			const b = parseYaml(content) as { goal_spec_path?: string };
 			const g = b.goal_spec_path?.replace(/\\/g, '/') ?? '';
 			const t = goalPath.replace(/\\/g, '/');
 			return g !== '' && t === g;
@@ -92,17 +92,16 @@
 		loading = true;
 		fetchErr = null;
 		let cancelled = false;
+		const state = get(specExplorerStore);
+		const root = state.workspaceRoot;
 
 		Promise.all([
-			fetch(`/api/workspace/specs/read?path=${encodeURIComponent(p)}`).then(async r => {
-				if (!r.ok) throw new Error(await r.text());
-				return r.json() as Promise<{ content: string }>;
-			}),
+			wailsReadSpecFile(root, p).catch(e => { throw e; }),
 			resolveIsGoal(p),
 		])
-			.then(([data, goal]) => {
+			.then(([content, goal]) => {
 				if (cancelled) return;
-				raw = data.content;
+				raw = content;
 				isGoalFile = goal;
 				fetchErr = null;
 			})
@@ -177,24 +176,18 @@
 		saveError = null;
 		saveSuccess = false;
 		try {
+			const state = get(specExplorerStore);
+			const root = state.workspaceRoot;
 			const normPath = selectedPath.replace(/\\/g, '/');
 			const specsIdx = normPath.indexOf('specs/');
-			const wsRoot = specsIdx >= 0 ? normPath.slice(0, specsIdx) : '';
 			const relPath = specsIdx >= 0 ? normPath.slice(specsIdx) : normPath;
-			const res = await fetch('/api/workspace/specs/write', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ workspaceRoot: wsRoot, path: relPath, content: editContent }),
-			});
-			if (!res.ok) {
-				const err = await res.text();
-				saveError = err || `HTTP ${res.status}`;
-			} else {
-				saveSuccess = true;
-				editOriginal = editContent;
-				raw = editContent;
-				editMode = false;
-			}
+			await wailsWriteSpecFile(root, relPath, editContent);
+			saveSuccess = true;
+			editOriginal = editContent;
+			raw = editContent;
+			editMode = false;
+			// 刷新 spec 列表（文件已变更）
+			specExplorerStore.loadList(root);
 		} catch (e) {
 			saveError = e instanceof Error ? e.message : String(e);
 		} finally {
