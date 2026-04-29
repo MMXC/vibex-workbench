@@ -5,7 +5,6 @@
 -->
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import WorkspaceSelector from '$lib/components/workbench/WorkspaceSelector.svelte';
 
   let workspaceRoot = $state('');
   let state = $state<{state: string, signals: any[], suggestions: string[]} | null>(null);
@@ -42,8 +41,12 @@
         body: JSON.stringify({workspace_root: workspaceRoot, confirm: true})
       });
       const data = await res.json();
-      if (data.output) error = data.output;
-      else await detectState();
+      // scaffolder returns {ok, created, errors} or {ok: false, error, stderr}
+      if (!data.ok) {
+        error = data.error || data.errors?.join('\n') || 'scaffold 失败';
+      } else {
+        await detectState();
+      }
     } catch (e: any) {
       error = e.message;
     } finally {
@@ -76,11 +79,11 @@
     goto('/workbench');
   }
 
-  // state=half → partial/ready 时可进入 workbench
-  let ready = $derived(state?.state === 'ready' || state?.state === 'half');
+  // state=partial → partial/ready 时可进入 workbench
+  let ready = $derived(state?.state === 'ready' || state?.state === 'partial');
 
   const stateIcons: Record<string, string> = {
-    empty: '⬜', half: '🟨', ready: '🟩', error: '❌'
+    empty: '⬜', partial: '🟨', ready: '🟩', error: '❌'
   };
 </script>
 

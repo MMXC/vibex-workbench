@@ -5,7 +5,7 @@
 	interface Props {
 		workspaceRoot?: string;
 		backendStatus?: 'connecting' | 'ready' | 'error';
-		workspaceState?: 'empty' | 'half' | 'ready';
+		workspaceState?: 'empty' | 'partial' | 'ready';
 	}
 
 	let {
@@ -16,13 +16,13 @@
 
 	const stateLabels = {
 		empty: '空仓库',
-		half: '半成品',
+		partial: '半成品',
 		ready: '就绪',
 	} as const;
 
 	const stateColors = {
 		empty: '#f97316',
-		half: '#eab308',
+		partial: '#eab308',
 		ready: '#22c55e',
 	} as const;
 
