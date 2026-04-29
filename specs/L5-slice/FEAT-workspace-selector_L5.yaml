@@ -168,8 +168,8 @@ content:
     behavior: "Workbench 内菜单切换项目"
     implementation: |
       1. 监听 menu:open-project
-      2. 调用 Wails OpenDirectoryDialog
-      3. 选中目录后更新 workspaceRoot
+      2. 调用 openDirectoryDialog()（frontend 侧优先 showDirectoryPicker；Go 侧使用 native dialog）
+      3. 选中目录后更新 workspaceRoot（必须为完整绝对路径，不能只有文件夹名）
       4. 重新 detectWorkspaceState 并 emit workspace:selected
   verification:
     commands:
@@ -220,3 +220,9 @@ changelog:
   - 修复 B3 run-make body 字段名：workspace → workspace_root（与 Go handler 对齐）
   - 移除 related_files 中未使用的 WorkspaceSelector.svelte
   - 新增依赖文件：+layout.svelte（全局 menu:open-project 监听器）、WorkbenchTitlebar.svelte（文件下拉菜单）
+- version: '0.4'
+  date: '2026-04-30'
+  author: hermes
+  changes:
+  - SLICE-ide-titlebar-component: 修正 Runtime fallback 规则——showDirectoryPicker 应为首选（完整路径），Wails runtime OpenDirectoryDialog 为备选（Windows 只返回文件夹名）
+  - B4 行为更新：强调 workspaceRoot 必须是完整绝对路径，Go 侧需用 native dialog（github.com/sqweek/dialog）替代 Wails 内置 dialog

@@ -9,7 +9,7 @@ meta:
   module: frontend
   owner: hermes
   created: '2026-04-26'
-  updated: '2026-04-26'
+  updated: '2026-04-30'
 lifecycle:
   current: proposal
   updated: '2026-04-26'
@@ -57,11 +57,14 @@ content:
           回调触发 runtime.EventsEmit，frontend 的 eventsOn 接收）。
       (3) menu 下拉项的 openProject() 必须直接调用 openDirectoryDialog()，
           禁止 eventsEmit('menu:open-project')。
-  - rule: Runtime fallback
-    detail: 非 Wails 浏览器中按以下顺序降级：
-            ① File System Access API `showDirectoryPicker()`（Chrome/Edge/Opera — 原生文件夹选择器）；
-            ② `<input type="file" webkitdirectory>`（Safari/Firefox 备选，需选文件）。
-            其他 runtime API 静默 no-op，不得导致页面崩溃。
+  - rule: Runtime fallback ⚠
+    detail: |
+      Wails 环境下打开目录选择器需要完整路径（非文件夹名），优先级如下：
+      ① File System Access API `showDirectoryPicker()` — WebView2/Chromium 提供完整路径（首选）
+      ② Wails runtime `OpenDirectoryDialog()` — 有已知问题：Windows 上只返回文件夹名，不返回完整路径
+         → Go 侧应使用 `github.com/sqweek/dialog`（直接调 native Win32 API，返回完整路径）替代 Wails 内置 dialog
+      ③ `<input type="file" webkitdirectory>` — 通用备选，路径可能不完整
+      其他 runtime API 静默 no-op，不得导致页面崩溃。
   verification:
     commands:
     - npm --prefix frontend run build
@@ -105,3 +108,8 @@ changelog:
   author: hermes
   changes:
   - 新增 WorkbenchTitlebar 文件级边界与验证条件
+- version: '0.2'
+  date: '2026-04-30'
+  author: hermes
+  changes:
+  - 修正「Runtime fallback」规则：showDirectoryPicker 应为首选（完整路径），Wails runtime OpenDirectoryDialog 为备选（Windows 只返回文件夹名）；说明 Go 侧需改用 github.com/sqweek/dialog
