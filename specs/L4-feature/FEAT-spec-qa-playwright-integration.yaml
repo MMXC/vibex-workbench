@@ -1,0 +1,188 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-spec-qa-playwright-integration"
+  parent: "MOD-spec-editor"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-28"
+  updated: "2026-04-29"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-04-29"
+
+io_contract:
+  input: |
+    spec YAML（含 test_scenarios[]）、目标前端 URL（通常 http://localhost:5173）、
+    工作区路径 workspace_root。
+  output: |
+    每个 scenario 的执行结果：pass/fail/error + screenshot 路径 + trace 路径（可选）
+    + results.json（汇总文件）。UI 展示测试结果面板。
+  boundary: |
+    不修改 spec YAML，不自动提交 git。
+    只运行测试，不自动修复失败。
+    playwright-cli 运行在 Go agent 所在机器，测试同一台机器上的前端服务。
+
+content:
+  design_principle:
+    core_concept: |
+      spec test_scenarios[] 是可执行的 QA 规格。
+      每个 scenario 的 given/when/then/evaluation 映射到 playwright-cli 命令序列。
+      测试结果（截图/trace）作为 spec 验收的视觉证据。
+    motivation: |
+      传统测试：写完代码再写测试，spec 和测试脱节。
+      Spec-first 测试：spec test_scenarios 直接驱动测试生成，spec 就是测试脚本的来源。
+      失败时截图停在出事现场，比纯文本断言更直观。
+    mapping:
+      test_scenarios[].given        -> playwright-cli 初始化（goto/cookie-set/localStorage-set）
+      test_scenarios[].when         -> click/fill/type/press
+      test_scenarios[].then         -> playwright-cli eval 断言 DOM 状态
+      test_scenarios[].evaluation   -> Bash 文件系统校验
+
+  playwright_cli_integration:
+    command: "playwright-cli"
+    install: "npm install -g @playwright/cli@latest"
+    session_strategy: |
+      每个 scenario 用唯一 session name（如 tc-001）：
+        playwright-cli -s=tc-001 open <url>
+        playwright-cli -s=tc-001 snapshot
+        ...
+        playwright-cli -s=tc-001 close
+      方便调试时 attach 到特定 session。
+    evidence:
+      - "screenshot --filename=... — 每步后截图"
+      - "tracing-start / tracing-stop — 失败时保留完整 DOM 执行轨迹"
+      - "console — 捕获 JS console 错误"
+      - "network — 记录 XHR/fetch 请求"
+    assertion_patterns:
+      dom_text: |
+        playwright-cli eval "document.querySelector('<selector>')?.textContent"
+      dom_class: |
+        playwright-cli eval "document.querySelector('<selector>')?.className"
+      file_exists: "Bash: test -f <path> && echo PASS || echo FAIL"
+      api_json: "Bash: curl -s <url> | python3 -c 'import json,sys; d=json.load(sys.stdin)'"
+      state_badge: "playwright-cli eval \"document.querySelector('.state-badge')?.className\""
+
+  scenario_to_script:
+    trigger: "用户点击 spec detail 面板「运行测试」按钮"
+    steps:
+      - "解析 spec YAML 的 test_scenarios[]"
+      - "每条 scenario 映射为 playwright-cli 命令序列（given→when→then）"
+      - "生成脚本：<workspace>/.vibex/qa/<spec-name>/<scenario-id>.sh"
+      - "执行脚本，收集 screenshot + stdout + trace"
+      - "解析退出码判断 pass/fail"
+      - "结果写入 <workspace>/.vibex/qa/<spec-name>/results.json"
+      - "通过 SSE 推送 qa_completed 事件到前端"
+    script_template: |
+      #!/bin/bash
+      SESSION="<scenario-id>"
+      WORKSPACE="<workspace-root>"
+      EVIDENCE_DIR="${WORKSPACE}/.vibex/qa/<spec-name>/<scenario-id>"
+      mkdir -p "${EVIDENCE_DIR}"
+
+      playwright-cli -s=${SESSION} open <url>
+      # given
+      <given-commands>
+      # when
+      <when-commands>
+      playwright-cli -s=${SESSION} screenshot --filename="${EVIDENCE_DIR}/final.png"
+      # then
+      <eval-assertions> | tee "${EVIDENCE_DIR}/output.txt"
+      playwright-cli -s=${SESSION} close
+
+      # evaluation
+      <bash-checks>
+      echo "EXIT:$?" > "${EVIDENCE_DIR}/exit.txt"
+
+  test_result_schema:
+    scenario_id: string
+    spec_name: string
+    spec_path: string
+    status: '"pass" | "fail" | "error"'
+    duration_ms: number
+    steps: string[]
+    assertions: [{ expression: string, result: string, pass: bool }]
+    evidence:
+      screenshot: string (relative path)
+      trace: string (optional)
+      output_log: string
+    error_message: string (optional)
+
+  api_contract:
+    POST /api/workspace/qa/run:
+      description: "运行指定 spec 的 test_scenarios"
+      body:
+        workspace_root: string (required)
+        spec_path: string (required, relative path in specs/)
+        scenario_ids: string[] (optional, 空表示运行全部)
+      response:
+        ok: true
+        results_file: ".vibex/qa/<spec-name>/results.json"
+        scenarios: [{ scenario_id, status, screenshot }]
+      errors:
+        400: "spec_path required"
+        404: "spec file not found"
+        500: "playwright-cli not installed"
+
+  user_stories:
+    - id: "US-1"
+      as_a: "spec 编写者"
+      i_want: "点击一次运行 spec 的所有 test_scenarios"
+      so_that: "不用切换到终端手动跑命令"
+      acceptance: "UI 显示每个 scenario 的 pass/fail badge + 截图，失败有错误摘要"
+    - id: "US-2"
+      as_a: "agent"
+      i_want: "spec write 成功后自动运行 test_scenarios"
+      so_that: "确认写入的 spec 对应 UI 行为正确"
+      acceptance: "agent spec write 后自动触发 QA，结果通过 SSE 推送"
+    - id: "US-3"
+      as_a: "用户"
+      i_want: "看到 spec 对应 UI 的截图"
+      so_that: "知道 spec 到底会渲染成什么样"
+      acceptance: "每个 scenario 附有截图，失败截图停在出问题的地方"
+
+  behaviors:
+    - id: "B1"
+      trigger: "用户点击 spec detail 面板「运行测试」"
+      action: "POST /api/workspace/qa/run {workspace_root, spec_path, scenario_ids}"
+      expected_result: "QA 执行完毕，UI 更新结果面板：每个 scenario 显示 pass/fail badge + 截图缩略图"
+      error_handling: "playwright-cli 不可用时报「请先安装：npm install -g @playwright/cli@latest」"
+    - id: "B2"
+      trigger: "scenario 执行中断言失败"
+      action: "截图保存到 .vibex/qa/，tracing 自动开启，错误写入 results.json"
+      expected_result: "失败 scenario 标红，显示断言内容和错误摘要"
+      error_handling: "失败不影响其他 scenario，全部执行完再汇总"
+    - id: "B3"
+      trigger: "用户点击失败 scenario"
+      action: "打开 screenshot overlay + trace viewer"
+      expected_result: "可视化还原失败现场"
+      error_handling: "trace 不存在时只显示 screenshot"
+    - id: "B4"
+      trigger: "spec write 成功后"
+      action: "Go agent 调用 QA runner，结果通过 SSE 推送"
+      expected_result: "用户在 SpecViewer 看到 QA 摘要（pass/fail/count）"
+      error_handling: "QA 超时 60s 标记为 error，不阻塞 spec write 成功"
+
+  dependencies:
+    - file: "specs/L4-feature/FEAT-spec-editor.yaml"
+      reason: "「运行测试」按钮在 SpecViewer 界面"
+    - file: "specs/L4-feature/FEAT-scaffolding.yaml"
+      reason: "test_scenarios given 常用 scaffold 后的 partial 状态"
+
+  constraints:
+    - id: "C1"
+      name: "只读执行"
+      rule: "测试不修改 spec YAML 和代码文件"
+      validation: "playwright-cli 脚本不含 write_file/patch/rm"
+    - id: "C2"
+      name: "证据留存"
+      rule: "每次运行生成 screenshot + results.json，不自动清理"
+    - id: "C3"
+      name: "超时保护"
+      rule: "单个 scenario 60s 后强制关闭 browser session"
