@@ -168,8 +168,8 @@ content:
     behavior: "Workbench 内菜单切换项目"
     implementation: |
       1. 监听 menu:open-project
-      2. 调用 openDirectoryDialog()（frontend 侧优先 showDirectoryPicker；Go 侧使用 native dialog）
-      3. 选中目录后更新 workspaceRoot（必须为完整绝对路径，不能只有文件夹名）
+      2. 直接绑 `window.go.main.App.OpenDirectoryDialog()` — 调用 Go sqweek/dialog，返回完整绝对路径
+      3. 选中目录后更新 workspaceRoot（必须是完整路径）
       4. 重新 detectWorkspaceState 并 emit workspace:selected
   verification:
     commands:
@@ -232,3 +232,9 @@ changelog:
   changes:
   - wails-runtime.ts catch 逻辑修复：showDirectoryPicker 无 path 时不再 return 空字符串，继续走到 Wails runtime OpenDirectoryDialog（Go 侧已切 sqweek/dialog 返回完整路径）
   - Wails OpenDirectoryDialog 返回值若无路径分隔符（只有文件夹名）也不接受，继续往下走
+- version: '0.6'
+  date: '2026-04-30'
+  author: hermes
+  changes:
+  - 架构变更：+layout.svelte 和 workspace/+page.svelte 改用直接绑 window.go.main.App.OpenDirectoryDialog()
+  - B4 行为同步更新：直接绑 Go 侧方法，废弃 openDirectoryDialog() wrapper 作为 Wails 环境首选路径
