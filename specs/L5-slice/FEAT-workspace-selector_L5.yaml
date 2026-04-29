@@ -11,7 +11,7 @@ meta:
   created: '2026-04-26'
   updated: '2026-04-26'
 io_contract:
-  input: '用户在 WorkbenchTitlebar 点击「选择工作区」按钮，或在
+  input: '用户在 WorkbenchTitlebar 点击「文件」- 「打开项目」/「新建项目」按钮，或在
 
     WorkbenchBootstrapPrototype 检测到无 WORKSPACE_ROOT 时。
 
@@ -57,8 +57,8 @@ content:
       '
   behaviors:
   - id: L5-B1
-    behavior: 用户输入路径或选择目录
-    implementation: '1. 监听 input (change) 事件
+    behavior: 用户选择目录
+    implementation: '1. 监听 目录选择 事件
 
       2. 获取 e.target.files[0]?.webkitRelativePath || path
 
