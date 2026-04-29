@@ -11,7 +11,9 @@ meta:
   module: "frontend"
   owner: "hermes"
   created: "2026-04-24"
-  updated: "2026-04-29"
+  updated: "2026-04-30"
+  ui_elements_ref: "FEAT-workspace-selector_L5.yaml#content/ui_elements"
+  # L4 定义行为和约束；L5 精确到 UI 元素和 CSS selector
 
 io_contract:
   input: |
@@ -116,3 +118,10 @@ changelog:
     author: "hermes"
     changes:
       - "按当前 /workspace 页面按钮和 workbench menu:open-project 实际行为重写 feature 描述"
+
+  - version: "0.3"
+    date: "2026-04-30"
+    author: "hermes"
+    changes:
+      - "meta 新增 ui_elements_ref 字段，指向 L5 spec 的 ui_elements 节"
+      - "修复教训：spec 缺少 UI 元素定义导致 TitleBar 文件菜单绑定缺失；L5 spec 补充了完整 ui_elements 章节（含 CSS selector、事件绑定、condition）"

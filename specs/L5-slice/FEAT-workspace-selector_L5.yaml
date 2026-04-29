@@ -28,17 +28,83 @@ io_contract:
 content:
   file_path: frontend/src/routes/workspace/+page.svelte
   file_type: svelte
+  # ── 用户可见 UI 元素（2026-04-30 新增：用于定位 spec 与实现落差的根因）────────
+  ui_elements:
+    - id: UE-WORKSPACE-PAGE
+      location: /workspace 页面（selector-wrap 区域）
+      css_selector: ".ws-input, .btn-detect, .btn-browse, .state-card, .btn-primary, .btn-enter, .btn-secondary"
+      elements:
+        - selector: ".ws-input"
+          label: 路径输入框
+          type: text input
+          placeholder: "/path/to/your/project"
+          events: onkeydown(Enter) → detectState()
+        - selector: ".btn-detect"
+          label: "🔍 检测 按钮"
+          condition: always visible when workspaceRoot non-empty
+          events: onclick → detectState()
+        - selector: ".btn-browse"
+          label: "📁 浏览… 按钮"
+          events: onclick → openDirectoryDialog() → workspaceRoot=dir → detectState()
+          note: 2026-04-30 新增，无需手输路径
+        - selector: ".state-card"
+          label: 状态卡片（条件渲染：detectState 完成后显示）
+          shows:
+            - ".state-badge": state badge (⬜空仓库 / 🟨半成品 / 🟩就绪)
+            - ".sig-row": signals 列表（✅/❌ + 路径 + 原因）
+            - ".sug": suggestions 列表
+        - selector: ".btn-primary"
+          label: "📦 初始化脚手架 按钮"
+          condition: state=empty
+          events: onclick → scaffold(confirm=true)
+        - selector: ".btn-secondary"
+          label: "✅ 校验 Spec / ⚙️ 生成代码 按钮"
+          condition: state=partial 或 state=ready
+          events: onclick → runMake(target)
+        - selector: ".btn-enter"
+          label: "→ 进入 Workbench 按钮"
+          condition: state=partial 或 state=ready
+          events: onclick → localStorage.setItem → goto('/workbench')
+    - id: UE-TITLEBAR-FILE-MENU
+      location: WorkbenchTitlebar.svelte（顶栏菜单条 .menu-strip）
+      css_selector: ".menu-strip .menu-item-wrapper"
+      elements:
+        - selector: ".menu-btn"
+          label: "文件 按钮"
+          events: onclick → toggle fileMenuOpen dropdown
+        - selector: ".dropdown-item"
+          label: "📂 打开项目… (⌘O)"
+          events: onclick → eventsEmit('menu:open-project')
+          note: |
+            触发后由 +layout.svelte 全局监听器处理：
+            openDirectoryDialog() → localStorage → eventsEmit('workspace:selected') → goto('/workbench')
+        - selector: ".menu-btn:nth-child(n+3)"
+          label: 编辑 / 视图 / 终端 / 帮助
+          disabled: true
+    - id: UE-STATUSBAR
+      location: StatusBar.svelte（workbench 底栏）
+      css_selector: ".status-bar"
+      shows:
+        - field: workspaceRoot
+          example: "/home/user/my-project"
+        - field: backendStatus
+          values: connecting | ready | error
+        - field: workspaceState
+          values: empty | partial | ready
+          colors: 橙 | 黄 | 绿
   related_files:
-  - frontend/src/lib/components/workbench/WorkspaceSelector.svelte
+  - frontend/src/routes/+layout.svelte
+  - frontend/src/routes/workspace/+page.svelte
   - frontend/src/routes/workbench/+page.svelte
-  - frontend/src/lib/wails-runtime.ts
+  - frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte
   - frontend/src/lib/components/workbench/StatusBar.svelte
+  - frontend/src/lib/wails-runtime.ts
   implementation_boundary:
     allowed:
     - "/workspace 页面：workspaceRoot 输入框绑定、Enter 检测、按钮 disabled 状态"
     - "POST /api/workspace/detect-state { workspace_root }"
     - "POST /api/workspace/scaffold { workspace_root, confirm: true }"
-    - "POST /api/workspace/run-make { target, workspace }"
+    - "POST /api/workspace/run-make { target, workspace_root }"
     - "localStorage.setItem('vibex-workspace-root', workspaceRoot)"
     - "goto('/workbench')"
     - "/workbench 页面：menu:open-project → openDirectoryDialog → detectWorkspaceState → eventsEmit('workspace:selected')"
@@ -96,7 +162,7 @@ content:
     implementation: |
       1. detect-state 返回 partial 或 ready
       2. 页面显示「校验 Spec」「生成代码」「进入 Workbench」
-      3. validate/generate 调用 POST /api/workspace/run-make { target, workspace }
+      3. validate/generate 调用 POST /api/workspace/run-make { target, workspace_root }
       4. 点击「进入 Workbench」保存 localStorage 并跳转 /workbench
   - id: L5-B4
     behavior: "Workbench 内菜单切换项目"
@@ -146,3 +212,11 @@ changelog:
   author: hermes
   changes:
   - 按当前 /workspace 页面按钮和 /workbench menu:open-project 实际 wiring 重写 L5 边界
+- version: '0.3'
+  date: '2026-04-30'
+  author: hermes
+  changes:
+  - 补充 ui_elements 章节：定义 /workspace 页面、TitleBar 文件菜单、StatusBar 可见元素
+  - 修复 B3 run-make body 字段名：workspace → workspace_root（与 Go handler 对齐）
+  - 移除 related_files 中未使用的 WorkspaceSelector.svelte
+  - 新增依赖文件：+layout.svelte（全局 menu:open-project 监听器）、WorkbenchTitlebar.svelte（文件下拉菜单）
