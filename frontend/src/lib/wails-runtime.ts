@@ -15,15 +15,39 @@ export function isWails(): boolean {
 }
 
 /** Opens a native directory picker dialog.
- *  Falls back to a browser prompt() when Wails runtime is not available.
+ *  Falls back to a hidden <input type="file" webkitdirectory> in non-Wails browsers.
  */
-export async function openDirectoryDialog(fallbackPrompt = '请输入目录路径:'): Promise<string> {
+export async function openDirectoryDialog(): Promise<string> {
 	const rt = getRuntime();
-	if (!rt) {
-		return window.prompt(fallbackPrompt) ?? '';
+	if (rt) {
+		const result = await rt.OpenDirectoryDialog();
+		return result ?? '';
 	}
-	const result = await rt.OpenDirectoryDialog();
-	return result ?? '';
+	// Browser fallback: create a hidden input[type=file] with webkitdirectory
+	return new Promise<string>((resolve) => {
+		const input = document.createElement('input');
+		input.type = 'file';
+		input.webkitdirectory = '';
+		input.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;width:1px;height:1px;';
+		input.accept = ''; // all files
+		input.addEventListener('change', () => {
+			// webkitdirectory gives the path of the selected directory
+			const path = input.files?.[0]?.webkitRelativePath ?? '';
+			// path looks like "dir/subdir/file.txt" — extract the directory
+			const dir = path.split('/').slice(0, -1).join('/');
+			resolve(dir || '');
+			input.remove();
+		});
+		document.body.appendChild(input);
+		input.click();
+		// If user cancels, resolve empty after a tick
+		setTimeout(() => {
+			if (document.body.contains(input)) {
+				resolve('');
+				input.remove();
+			}
+		}, 5000);
+	});
 }
 
 /** Minimizes the application window. */

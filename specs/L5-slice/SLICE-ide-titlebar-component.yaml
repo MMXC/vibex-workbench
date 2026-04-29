@@ -58,7 +58,8 @@ content:
       (3) menu 下拉项的 openProject() 必须直接调用 openDirectoryDialog()，
           禁止 eventsEmit('menu:open-project')。
   - rule: Runtime fallback
-    detail: 非 Wails 浏览器预览中，runtime 缺失时 openDirectoryDialog 降级为 window.prompt()，
+    detail: 非 Wails 浏览器预览中，runtime 缺失时 openDirectoryDialog 降级为
+            隐藏的 `<input type="file" webkitdirectory>` 原生目录选择器，
             其他 runtime API 静默 no-op，不得导致页面崩溃。
   verification:
     commands:
