@@ -1,0 +1,190 @@
+spec:
+  version: '0.1'
+  level: 5_slice
+  name: SLICE-wails-filesystem-bridge
+  parent: FEAT-workspace-selector
+  status: proposal
+meta:
+  type: slice
+  module: backend+frontend
+  owner: hermes
+  created: '2026-04-29'
+  updated: '2026-04-29'
+lifecycle:
+  current: proposal
+  updated: '2026-04-29'
+io_contract:
+  input: '前端传入 workspaceRoot 路径字符串（来自 showDirectoryPicker / localStorage / state）'
+  output: 'Go method 返回 JSON-serializable 结构体，前端直接用，无 HTTP overhead'
+  boundary: '只做本地文件系统读写；agent 推理/SSE 连接走独立 channel'
+  behavior_summary: 共 5 个 binding method，详见 content.behaviors
+content:
+  file_path: main.go
+  file_type: go
+  implementation_boundary:
+    allowed:
+    - 在 App struct 上新增 Wails binding method
+    - Go filesystem 操作：os.ReadDir / os.ReadFile / os.WriteFile
+    - 调用 state_detector.py 脚本（复用现有逻辑）
+    - 自动 JSON 序列化返回值（Wails 内置）
+    forbidden:
+    - 在 binding method 里启动 goroutine（用 context timeout 替代）
+    - 直接暴露 os/exec 执行外部命令（RunMake 除外）
+  generation_rules:
+    - rule: SpecFile struct
+      detail: |
+        定义在 main.go 内部（不出包）：
+        type SpecFile struct {
+            Path   string `json:"path"`    // 相对路径，L1-goal/xxx.yaml
+            Level  int    `json:"level"`   // 1-5，从目录名推导
+            Name   string `json:"name"`    // frontmatter.name 或文件名
+            Status string `json:"status"`  // frontmatter.status，default 'active'
+        }
+    - rule: ListSpecs(root string)
+      detail: |
+        扫描 {root}/specs/ 下所有 .yaml/.yml 文件，返回 []SpecFile。
+        filepath.Walk + filepath.Rel 计算相对路径。
+        错误返回空切片 []SpecFile{} 而非 error（前端可区分空/错误）。
+    - rule: ReadSpecFile(root, path string)
+      detail: |
+        读取 {root}/{path} 文件内容返回 string。
+        path = specs/L1-goal/xxx.yaml → 拼接为 {root}/specs/L1-goal/xxx.yaml。
+        文件不存在时返回空字符串 + error。
+    - rule: WriteSpecFile(root, path, content string)
+      detail: |
+        写入 {root}/{path} 文件。
+        自动创建中间目录（os.MkdirAll）。
+        返回 error 或 nil。
+    - rule: DetectWorkspaceState(root string)
+      detail: |
+        调用同目录的 generators/state_detector.py，返回结构：
+        { "state": "empty"|"half"|"ready", "signals": [...], "suggestions": [...] }
+        复用 agent/cmd/web/workspace_handlers.go 中 workspaceDetectStateHandler 的调用逻辑。
+    - rule: GetWorkspaceRoot() / SetWorkspaceRoot(ctx, path)
+      detail: 已在 main.go 实现，确认保留。
+    - rule: RunMake(ctx, target, workspace string)
+      detail: 已在 main.go 实现，确认保留。
+
+  dependencies:
+    - file: agent/cmd/web/workspace_handlers.go
+      reason: DetectWorkspaceState 复用 state_detector.py 调用逻辑
+    - file: frontend/src/lib/wails-runtime.ts
+      reason: 前端 Wails binding 封装层
+
+content:
+  file_path: frontend/src/lib/wails-runtime.ts
+  file_type: typescript
+  implementation_boundary:
+    allowed:
+    - 封装 window.go.main.App.* 调用
+    - 生产模式用 Wails binding，开发模式 fallback 到 HTTP
+    forbidden:
+    - 在 binding 调用外包装 retry/layer（让每个 call 自己处理错误）
+  generation_rules:
+    - rule: Wails binding 封装函数
+      detail: |
+        export interface WailsSpecFile { path: string; level: number; name: string; status: string }
+        export async function wailsListSpecs(root: string): Promise<WualsSpecFile[]>
+        export async function wailsReadSpecFile(root: string, path: string): Promise<string>
+        export async function wailsWriteSpecFile(root: string, path: string, content: string): Promise<void>
+        export async function wailsDetectWorkspaceState(root: string): Promise<{state: string, signals: string[], suggestions: string[]}>
+    - rule: 生产/开发模式分支
+      detail: |
+        const rt = (window as any).runtime;
+        if (rt) {
+          // 生产：Wails binding
+          return await window.go.main.App.ListSpecs(root);
+        } else {
+          // 开发：Vite proxy HTTP fallback
+          const r = await fetch(`/api/workspace/specs/list?workspaceRoot=${encodeURIComponent(root)}`);
+          return (await r.json()).specs;
+        }
+    - rule: RunMake 复用
+      detail: 直接使用现有 window.go.main.App.RunMake(target, workspace)，无需修改
+
+  dependencies:
+    - file: main.go
+      reason: Wails binding method 实现
+
+content:
+  file_path: frontend/src/lib/stores/spec-explorer-store.ts
+  file_type: typescript
+  implementation_boundary:
+    allowed:
+    - loadList(root?) 优先调用 wailsListSpecs，fallback 到 HTTP
+    - 保持现有 store API 不变（setWorkspaceRoot / loadList / workspaceDisplayName）
+    forbidden:
+    - 在 store 层直接写 Wails 调用（统一由 wails-runtime.ts 封装）
+  generation_rules:
+    - rule: loadList 改用 Wails binding
+      detail: |
+        async function loadList(workspaceRoot?: string) {
+          const root = workspaceRoot ?? get().workspaceRoot;
+          if (!root) { ...清空... return; }
+          try {
+            const rt = (window as any).runtime;
+            let specs: WailsSpecFile[];
+            if (rt) {
+              specs = await window.go.main.App.ListSpecs(root);
+            } else {
+              const r = await fetch(`/api/workspace/specs/list?workspaceRoot=${encodeURIComponent(root)}`);
+              specs = (await r.json()).specs;
+            }
+            items = specs.map(s => ({ path: s.path, level: s.level, name: s.name }));
+          } catch {
+            // 保持旧值
+          }
+        }
+
+  dependencies:
+    - file: frontend/src/lib/wails-runtime.ts
+      reason: wailsListSpecs 等封装函数
+
+verification:
+  commands:
+    - cd /root/vibex-workbench && go build ./... && npm --prefix frontend run build
+  manual_checks:
+    - Wails 模式下打开项目 → 资源管理器列表加载（无网络请求）
+    - 浏览器 dev 模式下打开项目 → 资源管理器列表加载（走 HTTP fallback）
+    - 两种模式下 detectWorkspaceState / RunMake 结果一致
+  failure_conditions:
+    - Wails 模式下列表为空（filesystem 读取失败）
+    - HTTP fallback 失效（Vite proxy 配置错误）
+    - 切换 workspace 后列表不刷新
+
+behaviors:
+  - id: B1
+    trigger: 用户在 SpecExplorer 视图加载时
+    action: store.loadList(root) → wailsListSpecs(root) → window.go.main.App.ListSpecs
+    expected_result: Go 扫描 {root}/specs/ 返回文件列表，前端渲染树
+    error_handling: Wails 不可用时自动 fallback 到 HTTP
+  - id: B2
+    trigger: 用户点击 spec 文件节点
+    action: wailsReadSpecFile(root, path) → 显示文件内容
+    expected_result: 右侧 panel 展示 spec 文本
+    error_handling: 文件不存在时显示错误提示
+  - id: B3
+    trigger: 用户在 spec 编辑器保存时
+    action: wailsWriteSpecFile(root, path, content) → 落盘
+    expected_result: 文件写入成功，SpecExplorer 列表自动刷新
+    error_handling: 保存失败时 toast 提示，不丢失内容
+  - id: B4
+    trigger: 切换 workspace 时
+    action: setWorkspaceRoot(dir) → loadList(dir) → ListSpecs(dir) 重新加载
+    expected_result: 资源管理器切换到新 workspace 的 specs 目录
+    error_handling: 新 workspace 无 specs 目录时显示空状态
+  - id: B5
+    trigger: 用户执行 make generate / make lint-specs
+    action: window.go.main.App.RunMake(target, workspace)
+    expected_result: Go 直接 exec make 命令，stdout/stderr 返回前端展示
+    error_handling: make 失败时返回 exit code，前端展示错误输出
+
+changelog:
+  - version: '0.1'
+    date: '2026-04-29'
+    author: hermes
+    changes:
+      - 新增 SLICE-wails-filesystem-bridge，Go filesystem binding 替换 HTTP API
+      - main.go 新增 ListSpecs / ReadSpecFile / WriteSpecFile / DetectWorkspaceState
+      - wails-runtime.ts 新增 Wails binding 封装 + 生产/开发模式分支
+      - specExplorerStore.loadList 优先 Wails binding，fallback HTTP
