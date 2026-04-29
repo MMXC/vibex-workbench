@@ -1,0 +1,104 @@
+spec:
+  version: '0.1'
+  level: 5_slice
+  name: SLICE-spec-explorer-workspace-awareness
+  parent: FEAT-workspace-selector
+  status: ready
+meta:
+  type: slice
+  module: frontend
+  owner: hermes
+  created: '2026-04-29'
+  updated: '2026-04-29'
+lifecycle:
+  current: ready
+  updated: '2026-04-29'
+io_contract:
+  input: '用户通过「文件 → 打开项目」选择新目录，或启动时从 localStorage 恢复已有 workspace 路径。'
+  output: 'SpecExplorer 列表刷新为新 workspace 的 specs/ 目录内容；workspace 名称显示在资源管理器头部。'
+  boundary: '只管 SpecExplorer 刷新行为，不涉及图谱视图刷新或全量文件资源管理器。'
+  behavior_summary: 共 3 个行为，详见 content.behaviors
+content:
+  file_path: frontend/src/lib/stores/spec-explorer-store.ts + frontend/src/lib/components/workbench/SpecExplorer.svelte + frontend/src/routes/workbench/+page.svelte + agent/cmd/web/workspace_handlers.go
+  file_type: typescript + svelte + svelte + go
+  implementation_boundary:
+    allowed:
+    - specExplorerStore 新增 workspaceRoot (string, default '') / loading (boolean) / error (string|null) 字段
+    - setWorkspaceRoot(root)：写入 state.workspaceRoot，若非空则调用 loadList(root)，空则清空 items
+    - loadList(workspaceRoot?)：参数优先于 state，API GET /api/workspace/specs/list?workspaceRoot=，空值清空
+    - workspaceDisplayName derived store：取 workspaceRoot 路径末段，为空显示 '—'
+    - SpecExplorer.svelte：读取 workspaceDisplayName，onMount/↻ 按钮调用 loadList()，三态展示
+    - workbench/+page.svelte：workspace:selected 和 onMount 恢复时调用 setWorkspaceRoot
+    - Go ListSpecsHandler：ShouldBindQuery 读取 workspaceRoot query 参数，空则 fallback 到 cfg.WorkspaceDir
+    forbidden:
+    - 在 store 层直接执行 fetch（fetch 在 Component 层调用）
+    - 跨 workspace 保留旧列表内容（切换时清空）
+    - 修改其他 handler 的签名
+  generation_rules:
+    - rule: Store 字段
+      detail: specExplorerStore 新增 workspaceRoot (string, default '')、loading (boolean, default false)、error (string|null, default null)
+    - rule: setWorkspaceRoot
+      detail: 写入 state.workspaceRoot，若 root 非空则调用 loadList(root)，否则清空 items
+    - rule: loadList 可选参数
+      detail: 参数 workspaceRoot 优先于 state.workspaceRoot；空值清空列表
+    - rule: workspaceDisplayName derived
+      detail: 取 state.workspaceRoot 路径末段，为空时显示 '—'
+    - rule: SpecExplorer workspace 头部
+      detail: 显示 workspaceDisplayName，workspaceRoot 为空时显示「请先打开项目」（黄色提示）
+    - rule: SpecExplorer 刷新按钮
+      detail: ↻ 按钮 onclick 调用 specExplorerStore.loadList()
+    - rule: SpecExplorer 三态
+      detail: loading=true 时显示 loading 标签；error 非空时显示 error 信息
+    - rule: workbench onMount 恢复
+      detail: 读取 localStorage('vibex-workspace-root')，若存在则 specExplorerStore.setWorkspaceRoot(saved)
+    - rule: workspace:selected 同步
+      detail: EventsOn('workspace:selected') 中调用 specExplorerStore.setWorkspaceRoot(path)
+    - rule: Go query 参数绑定
+      detail: ListSpecsHandler 用 ShouldBindQuery 读取 WorkspaceRoot 字段
+    - rule: Go 空值 fallback
+      detail: workspaceRoot == "" 时使用 h.cfg.WorkspaceDir
+  verification:
+    commands:
+      - npm --prefix frontend run build
+    manual_checks:
+      - 启动时无 workspace → SpecExplorer 显示「请先打开项目」
+      - 打开新项目后 → 列表刷新，显示新 workspace 的 specs
+      - SpecExplorer 内点击 ↻ → 列表重新加载
+      - workspaceState 检测正确（空/半成品/就绪三态）
+    failure_conditions:
+      - 切换 workspace 后 SpecExplorer 不刷新
+      - workspaceRoot 为空时 API 请求包含错误的 workspaceRoot
+  dependencies:
+    - file: frontend/src/lib/stores/spec-explorer-store.ts
+      reason: 提供 workspaceRoot/loading/error/setWorkspaceRoot/loadList/workspaceDisplayName
+    - file: frontend/src/lib/components/workbench/SpecExplorer.svelte
+      reason: 调用 specExplorerStore.loadList() / 读取 workspaceDisplayName
+    - file: frontend/src/routes/workbench/+page.svelte
+      reason: workspace:selected 事件中调用 setWorkspaceRoot
+    - file: agent/cmd/web/workspace_handlers.go
+      reason: ListSpecsHandler 需支持 ?workspaceRoot= query 参数
+behaviors:
+  - id: B1
+    trigger: 用户通过「文件 → 打开项目」选择新目录
+    action: 'workbench/+page.svelte 收到 workspace:selected 事件 → setWorkspaceRoot(path) → loadList(path)'
+    expected_result: SpecExplorer 列表刷新为新 workspace 的 specs 目录内容
+    error_handling: API 错误时显示 error 信息，列表保持旧值
+  - id: B2
+    trigger: 启动时 localStorage 有已保存的 workspace
+    action: onMount → setWorkspaceRoot(saved) → loadList(saved)
+    expected_result: SpecExplorer 自动加载上次 workspace 的 specs
+    error_handling: API 错误时显示 error 信息
+  - id: B3
+    trigger: 用户在 SpecExplorer 内点击刷新按钮 ↻
+    action: loadList() 使用当前 state.workspaceRoot
+    expected_result: 列表重新加载当前 workspace 的 specs
+    error_handling: 加载失败显示 error 标签
+changelog:
+  - version: '0.1'
+    date: '2026-04-29'
+    author: hermes
+    changes:
+      - 新增 SLICE-spec-explorer-workspace-awareness，实现 SpecExplorer workspace 感知与切换刷新
+      - store 新增 workspaceRoot/loading/error + setWorkspaceRoot/loadList/workspaceDisplayName
+      - workbench/+page.svelte workspace:selected 同步到 store
+      - go ListSpecsHandler 支持 ?workspaceRoot= query 参数

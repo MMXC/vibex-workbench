@@ -1,6 +1,6 @@
 <!-- Spec 文件树（对齐 R2 sidebar ws-tree）；点击 → specExplorerStore.selectSpec -->
 <script lang="ts">
-	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
+	import { specExplorerStore, workspaceDisplayName } from '$lib/stores/spec-explorer-store';
 	import {
 		type ConventionPayload,
 		inferSpecTypeId,
@@ -13,10 +13,24 @@
 	let convention = $state<ConventionPayload['convention'] | null>(null);
 
 	let selectedPath = $state<string | null>(null);
+	let currentWorkspaceRoot = $state('');
 
+	// 订阅 selectedPath（来自 store，选中状态）
 	$effect(() => {
 		const unsub = specExplorerStore.subscribe(s => {
 			selectedPath = s.selectedSpecPath;
+		});
+		return unsub;
+	});
+
+	// 订阅 workspaceRoot（来自 store，切换时触发重新加载）
+	$effect(() => {
+		const unsub = specExplorerStore.subscribe(s => {
+			const root = s.workspaceRoot;
+			if (root && root !== currentWorkspaceRoot) {
+				currentWorkspaceRoot = root;
+				loadWithRoot(root);
+			}
 		});
 		return unsub;
 	});
@@ -32,11 +46,17 @@
 		}
 	}
 
-	async function loadList() {
+	/**
+	 * 带 workspaceRoot 的 specs 列表加载
+	 * @param root workspace 根路径，为空时跳过加载
+	 */
+	async function loadWithRoot(root: string) {
 		loading = true;
 		loadErr = null;
+		loadConvention();
 		try {
-			const r = await fetch('/api/workspace/specs/list');
+			const url = `/api/workspace/specs/list?workspaceRoot=${encodeURIComponent(root)}`;
+			const r = await fetch(url);
 			if (!r.ok) throw new Error(await r.text());
 			const data = (await r.json()) as { paths: string[] };
 			paths = data.paths ?? [];
@@ -48,6 +68,12 @@
 		}
 	}
 
+	/** 手动刷新（点击 ↻ 按钮） */
+	async function reload() {
+		if (!currentWorkspaceRoot) return;
+		await loadWithRoot(currentWorkspaceRoot);
+	}
+
 	function depthIndent(path: string): number {
 		return path.split('/').length - 2;
 	}
@@ -57,25 +83,22 @@
 		if (m) return m[1];
 		return specTypeId === 'meta_binding' ? 'meta' : specTypeId.slice(0, 6);
 	}
-
-	$effect(() => {
-		loadConvention();
-		loadList();
-	});
 </script>
 
 <div class="spec-explorer">
 	<div class="hdr">
 		<span class="hdr-title">资源管理器</span>
-		<button type="button" class="reload" title="刷新列表" onclick={() => loadList()}>↻</button>
+		<button type="button" class="reload" title="刷新列表" onclick={reload}>↻</button>
 	</div>
 	<div class="workspace-head">
 		<span class="chevron">▾</span>
-		<span class="workspace-name">VIBEX-WORKBENCH</span>
+		<span class="workspace-name">{$workspaceDisplayName}</span>
 		<span class="workspace-actions">···</span>
 	</div>
 
-	{#if loading}
+	{#if !currentWorkspaceRoot}
+		<p class="muted pad">未设置工作区</p>
+	{:else if loading}
 		<p class="muted pad">加载中…</p>
 	{:else if loadErr}
 		<p class="err pad">{loadErr}</p>

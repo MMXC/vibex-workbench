@@ -43,6 +43,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 		const saved = localStorage.getItem('vibex-workspace-root');
 		if (saved) {
 			workspaceRoot = saved;
+			specExplorerStore.setWorkspaceRoot(saved);
 			detectWorkspaceState(saved);
 		}
 
@@ -58,6 +59,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 		});
 		rt.EventsOn('workspace:selected', (path: string) => {
 			workspaceRoot = path;
+			specExplorerStore.setWorkspaceRoot(path);
 			detectWorkspaceState(path);
 		});
 
