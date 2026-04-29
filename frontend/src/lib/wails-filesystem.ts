@@ -3,6 +3,11 @@
  *
  * Production (Wails): calls window.go.main.App.* directly (zero HTTP overhead)
  * Development (Vite): falls back to HTTP via Vite proxy
+ *
+ * 调用约定：
+ *   1. isWails() → 确认在 Wails WebView 内
+ *   2. rt.ListSpecs 存在 → 确认 binding 方法已注册
+ *   3. 调用之，catch → 打出诊断信息，不静默 fallback
  */
 
 import { isWails } from './wails-runtime';
@@ -28,6 +33,15 @@ function getRuntime(): any | null {
 	return (window as any).runtime ?? null;
 }
 
+/**
+ * 检查 Wails binding 方法是否存在。
+ * 在 Wails runtime 完全 init 前，window.go.main.App.* 方法尚不存在。
+ */
+function hasBinding(name: string): boolean {
+	const rt = getRuntime();
+	return !!(rt && (rt as any).ListSpecs !== undefined);
+}
+
 // ── ListSpecs ──────────────────────────────────────────────────
 
 /**
@@ -35,21 +49,28 @@ function getRuntime(): any | null {
  * 生产用 Wails binding，开发用 HTTP fallback。
  */
 export async function wailsListSpecs(root: string): Promise<WailsSpecFile[]> {
+	if (!root) return [];
+
 	const rt = getRuntime();
-	if (rt) {
+	// 优先用 Wails binding（仅在方法已注册时）
+	if (isWails() && rt && typeof (rt as any).ListSpecs === 'function') {
 		try {
-			return (await rt.ListSpecs(root)) as WailsSpecFile[];
+			console.log('[wails-filesystem] ListSpecs via Wails, root=', root);
+			return (await (rt as any).ListSpecs(root)) as WailsSpecFile[];
 		} catch (e) {
-			console.warn('[wails-filesystem] ListSpecs fallback to HTTP:', e);
+			console.error('[wails-filesystem] ListSpecs Wails call failed:', e);
+			// Wails 调用失败时不应静默降级到 HTTP（在 Wails 环境里 HTTP 走不通）
+			throw e;
 		}
 	}
+
 	// HTTP fallback for browser dev
+	console.log('[wails-filesystem] ListSpecs via HTTP, root=', root);
 	const r = await fetch(
 		`/api/workspace/specs/list?workspaceRoot=${encodeURIComponent(root)}`
 	);
 	if (!r.ok) return [];
 	const j = await r.json();
-	// HTTP API 返回 { paths: string[] }，转成 WailsSpecFile[]
 	return (j.paths ?? []).map((p: string) => ({
 		path: p,
 		level: 0,
@@ -67,14 +88,18 @@ export async function wailsReadSpecFile(
 	root: string,
 	path: string
 ): Promise<string> {
+	if (!root || !path) throw new Error('root and path required');
+
 	const rt = getRuntime();
-	if (rt) {
+	if (isWails() && rt && typeof (rt as any).ReadSpecFile === 'function') {
 		try {
-			return (await rt.ReadSpecFile(root, path)) as string;
+			return (await (rt as any).ReadSpecFile(root, path)) as string;
 		} catch (e) {
-			console.warn('[wails-filesystem] ReadSpecFile fallback to HTTP:', e);
+			console.error('[wails-filesystem] ReadSpecFile Wails call failed:', e);
+			throw e;
 		}
 	}
+
 	// HTTP fallback
 	const r = await fetch(
 		`/api/workspace/specs/read?workspaceRoot=${encodeURIComponent(root)}&path=${encodeURIComponent(path)}`
@@ -94,15 +119,19 @@ export async function wailsWriteSpecFile(
 	path: string,
 	content: string
 ): Promise<void> {
+	if (!root || !path) throw new Error('root and path required');
+
 	const rt = getRuntime();
-	if (rt) {
+	if (isWails() && rt && typeof (rt as any).WriteSpecFile === 'function') {
 		try {
-			await rt.WriteSpecFile(root, path, content);
+			await (rt as any).WriteSpecFile(root, path, content);
 			return;
 		} catch (e) {
-			console.warn('[wails-filesystem] WriteSpecFile fallback to HTTP:', e);
+			console.error('[wails-filesystem] WriteSpecFile Wails call failed:', e);
+			throw e;
 		}
 	}
+
 	// HTTP fallback
 	const r = await fetch('/api/workspace/specs/write', {
 		method: 'POST',
@@ -120,14 +149,18 @@ export async function wailsWriteSpecFile(
 export async function wailsDetectWorkspaceState(
 	root: string
 ): Promise<WailsWorkspaceState> {
+	if (!root) return { state: 'error', signals: [], suggestions: ['workspace root 为空'] };
+
 	const rt = getRuntime();
-	if (rt) {
+	if (isWails() && rt && typeof (rt as any).DetectWorkspaceState === 'function') {
 		try {
-			return (await rt.DetectWorkspaceState(root)) as WailsWorkspaceState;
+			return (await (rt as any).DetectWorkspaceState(root)) as WailsWorkspaceState;
 		} catch (e) {
-			console.warn('[wails-filesystem] DetectWorkspaceState fallback to HTTP:', e);
+			console.error('[wails-filesystem] DetectWorkspaceState Wails call failed:', e);
+			throw e;
 		}
 	}
+
 	// HTTP fallback
 	const r = await fetch(
 		`/api/workspace/detect-state?workspaceRoot=${encodeURIComponent(root)}`
@@ -142,13 +175,15 @@ export async function wailsDetectWorkspaceState(
 
 /**
  * 在 workspace 执行 make target。
+ * Wails 环境专用（HTTP fallback 无意义）。
  */
 export async function wailsRunMake(
 	target: string,
 	workspace: string
 ): Promise<{ ok: boolean; output: string }> {
+	if (!isWails()) throw new Error('wailsRunMake requires Wails mode');
 	const rt = getRuntime();
-	if (!rt) throw new Error('RunMake requires Wails mode');
-	const result = await rt.RunMake(target, workspace);
+	if (!rt) throw new Error('Wails runtime not available');
+	const result = await (rt as any).RunMake(target, workspace);
 	return result as { ok: boolean; output: string };
 }
