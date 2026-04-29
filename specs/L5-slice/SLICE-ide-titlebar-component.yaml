@@ -61,8 +61,8 @@ content:
     detail: |
       Wails 环境下打开目录选择器需要完整路径（非文件夹名），优先级如下：
       ① File System Access API `showDirectoryPicker()` — WebView2/Chromium 提供完整路径（首选）
-      ② Wails runtime `OpenDirectoryDialog()` — 有已知问题：Windows 上只返回文件夹名，不返回完整路径
-         → Go 侧应使用 `github.com/sqweek/dialog`（直接调 native Win32 API，返回完整路径）替代 Wails 内置 dialog
+         注意：WebView2 的 `showDirectoryPicker()` 无 `path` 属性时只返回文件夹名，此时会继续往下走
+      ② Wails runtime `OpenDirectoryDialog()` — Go 侧已切 `github.com/sqweek/dialog`（native Win32 API，返回完整路径）
       ③ `<input type="file" webkitdirectory>` — 通用备选，路径可能不完整
       其他 runtime API 静默 no-op，不得导致页面崩溃。
   verification:

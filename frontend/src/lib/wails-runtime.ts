@@ -27,46 +27,36 @@ export async function openDirectoryDialog(): Promise<string> {
 	if ('showDirectoryPicker' in window) {
 		try {
 			const dirHandle: any = await (window as any).showDirectoryPicker();
-			// Chromium-based browsers expose 'path' on FileSystemDirectoryHandle
 			const path: string | undefined = dirHandle.path;
 			if (path) return path;
-			// Fallback：handle.name 至少是文件夹名（不完美，但比空字符串好）
-			const name = dirHandle.name as string;
-			if (name) {
-				console.warn('[openDirectoryDialog] showDirectoryPicker no path property, got name:', name);
-				// 尝试用 name 拼一个绝对路径（最后手段）
-				// 不要返回 name 本身（会导致 CWD 错误），抛异常走备选
-				throw new Error('no path property on directory handle');
-			}
+			// 有 handle.name 但无 path → 不可用，抛异常继续往下
+			throw new Error('showDirectoryPicker has no path property');
 		} catch (e: any) {
-			if (e?.name === 'AbortError' || e?.message?.includes('cancelled') || e?.message?.includes('no path')) {
-				// 用户取消或无 path 属性 → 继续往下走
+			if (e?.name === 'AbortError' || e?.message?.includes('cancelled')) {
+				return ''; // 用户取消 → 不继续
 			}
+			// 其他错误（no path property）→ 继续往下走，不 return
 		}
 	}
 
-	// ── 优先级 2：Wails runtime OpenDirectoryDialog ──────────────────────────
+	// ── 优先级 2：Wails runtime OpenDirectoryDialog（已切 sqweek/dialog，返回完整路径）─
 	const rt = getRuntime();
 	if (rt) {
 		try {
 			const result: string = await rt.OpenDirectoryDialog();
+			if (result && (result.includes('/') || result.includes('\\'))) {
+				return result; // 有路径分隔符 = 完整路径
+			}
 			if (result) {
-				// Wails 返回的路径可能只有文件夹名（Windows 已知问题）。
-				// 检测：如果返回值不含路径分隔符，尝试追加 CWD。
-				if (result && !result.includes('/') && !result.includes('\\')) {
-					// 只有文件夹名，尝试用当前 document URL 推断
-					// WebView2 下 document.title 可能是完整路径的 hint
-					const cwd = (document as any).currentScript?.src ?? '';
-					console.warn('[openDirectoryDialog] Wails returned folder name only:', result, 'cwd hint:', cwd);
-				}
-				return result;
+				console.warn('[openDirectoryDialog] Wails returned folder name only:', result);
+				// 只有文件夹名，没有完整路径 → 不接受，继续往下
 			}
 		} catch (e) {
 			console.warn('[openDirectoryDialog] Wails OpenDirectoryDialog failed:', e);
 		}
 	}
 
-	// ── 优先级 3：<input webkitdirectory> 备选 ───────────────────────────────
+	// ── 优先级 3：<input webkitdirectory> 备选（路径可能不完整）──────────────
 	return new Promise<string>((resolve) => {
 		const input = document.createElement('input');
 		input.type = 'file';

@@ -226,3 +226,9 @@ changelog:
   changes:
   - SLICE-ide-titlebar-component: 修正 Runtime fallback 规则——showDirectoryPicker 应为首选（完整路径），Wails runtime OpenDirectoryDialog 为备选（Windows 只返回文件夹名）
   - B4 行为更新：强调 workspaceRoot 必须是完整绝对路径，Go 侧需用 native dialog（github.com/sqweek/dialog）替代 Wails 内置 dialog
+- version: '0.5'
+  date: '2026-04-30'
+  author: hermes
+  changes:
+  - wails-runtime.ts catch 逻辑修复：showDirectoryPicker 无 path 时不再 return 空字符串，继续走到 Wails runtime OpenDirectoryDialog（Go 侧已切 sqweek/dialog 返回完整路径）
+  - Wails OpenDirectoryDialog 返回值若无路径分隔符（只有文件夹名）也不接受，继续往下走
