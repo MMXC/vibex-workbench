@@ -76,11 +76,11 @@
     goto('/workbench');
   }
 
-  // 状态已就绪时，可进入 workbench
-  let ready = $derived(state?.state === 'ready' || state?.state === 'partial');
+  // state=half → partial/ready 时可进入 workbench
+  let ready = $derived(state?.state === 'ready' || state?.state === 'half');
 
   const stateIcons: Record<string, string> = {
-    empty: '⬜', partial: '🟨', ready: '🟩', error: '❌'
+    empty: '⬜', half: '🟨', ready: '🟩', error: '❌'
   };
 </script>
 

@@ -67,14 +67,14 @@ content:
     ready_dir: "full mode: 跳过所有已存在的（幂等）"
 
   api_contract:
-    POST /api/workspace/scaffold:
+    'POST /api/workspace/scaffold':
       body:
         workspace_root: string
         confirm: boolean
-        mode: '"full" | "partial"' (optional, default "full")
+        mode: "full | partial"           # (optional, default "full")
       response:
         ok: true
-        state: '"empty" | "partial" | "ready"'
+        state: "empty | half | ready"
         written_files: string[]
         skipped_files: string[]
 

@@ -38,7 +38,14 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 	let prevThreadId: string | null = null;
 
 	// 监听 Wails backend 事件
+	// 启动时从 localStorage 恢复 workspaceRoot
 	onMount(() => {
+		const saved = localStorage.getItem('vibex-workspace-root');
+		if (saved) {
+			workspaceRoot = saved;
+			detectWorkspaceState(saved);
+		}
+
 		const rt = (window as any).runtime;
 		if (!rt) return;
 
@@ -68,7 +75,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 			}
 		});
 
-		// menu:run-generate → POST /api/workspace/run-make { target: "generate" } → append to output
+		// menu:run-generate → POST /api/workspace/run-make { target: "generate", workspace_root } → append to output
 		eventsOn('menu:run-generate', async () => {
 			clearOutput();
 			appendOutput(`[run-make] Starting generate...\n`);
@@ -76,7 +83,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 				const res = await fetch('/api/workspace/run-make', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ target: 'generate' }),
+					body: JSON.stringify({ target: 'generate', workspace_root: workspaceRoot }),
 				});
 				const data = await res.json();
 				if (data.output) appendOutput(data.output);
@@ -87,7 +94,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 			}
 		});
 
-		// menu:run-lint → POST /api/workspace/run-make { target: "lint-specs" } → append to output
+		// menu:run-lint → POST /api/workspace/run-make { target: "lint-specs", workspace_root } → append to output
 		eventsOn('menu:run-lint', async () => {
 			clearOutput();
 			appendOutput(`[run-make] Starting lint-specs...\n`);
@@ -95,7 +102,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 				const res = await fetch('/api/workspace/run-make', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ target: 'lint-specs' }),
+					body: JSON.stringify({ target: 'lint-specs', workspace_root: workspaceRoot }),
 				});
 				const data = await res.json();
 				if (data.output) appendOutput(data.output);
@@ -113,7 +120,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 			const res = await fetch(`/api/workspace/detect-state`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ workspaceRoot: root }),
+				body: JSON.stringify({ workspace_root: root }),
 			});
 			if (res.ok) {
 				const data = await res.json();
