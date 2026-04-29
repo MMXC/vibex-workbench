@@ -3,11 +3,13 @@
      顶部菜单栏由 Wails 原生 MenuSetApplicationMenu 提供，不在此组件内。
 -->
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { eventsEmit } from '$lib/wails-runtime';
 
 	let { title = 'VibeX Workbench' }: { title?: string } = $props();
 
 	let fileMenuOpen = $state(false);
+	let menuWrapperEl = $state<HTMLElement | null>(null);
 
 	async function handleMinimize() {
 		await (window as any).runtime?.WindowMinimise();
@@ -19,20 +21,29 @@
 		await (window as any).runtime?.Quit();
 	}
 
-	function openProject() {
+	function openProject(e: MouseEvent) {
+		e.stopPropagation();
 		fileMenuOpen = false;
 		eventsEmit('menu:open-project');
 	}
 
-	function closeMenu(e: MouseEvent) {
-		const target = e.target as HTMLElement;
-		if (!target.closest('.menu-item-wrapper')) {
+	function toggleMenu(e: MouseEvent) {
+		e.stopPropagation();
+		fileMenuOpen = !fileMenuOpen;
+	}
+
+	// 点击 dropdown 外部时关闭菜单（不用 window onclick，避免冒泡误判）
+	function handleClickOutside(e: MouseEvent) {
+		if (fileMenuOpen && menuWrapperEl && !menuWrapperEl.contains(e.target as Node)) {
 			fileMenuOpen = false;
 		}
 	}
-</script>
 
-<svelte:window onclick={closeMenu} />
+	onMount(() => {
+		document.addEventListener('click', handleClickOutside);
+		return () => document.removeEventListener('click', handleClickOutside);
+	});
+</script>
 
 <header class="titlebar">
 	<div class="lead">
@@ -41,12 +52,12 @@
 		</a>
 		<span class="workspace-mark">vibex-workbench</span>
 		<nav class="menu-strip" aria-label="WebView 内层菜单">
-			<div class="menu-item-wrapper">
+			<div class="menu-item-wrapper" bind:this={menuWrapperEl}>
 				<button
 					type="button"
 					class="menu-btn"
 					class:active={fileMenuOpen}
-					onclick={(e) => { e.stopPropagation(); fileMenuOpen = !fileMenuOpen; }}
+					onclick={toggleMenu}
 				>文件</button>
 				{#if fileMenuOpen}
 					<div class="dropdown" role="menu">
