@@ -9,100 +9,140 @@ meta:
   module: frontend
   owner: hermes
   created: '2026-04-26'
-  updated: '2026-04-26'
+  updated: '2026-04-29'
 io_contract:
-  input: '用户在 WorkbenchTitlebar 点击「文件」- 「打开项目」/「新建项目」按钮，或在
-
-    WorkbenchBootstrapPrototype 检测到无 WORKSPACE_ROOT 时。
-
-    '
-  output: '返回 { path, state, signals, suggestions }，
-
-    前端切换到新 workspace，更新 store，更新 status bar。
-
-    '
-  boundary: '只读目录，不做写操作，不调用生成器。
-
-    '
+  input: |
+    /workspace 路由上的路径输入框、按钮点击事件，以及 /workbench 路由中 Wails 菜单事件：
+    - 输入框 Enter 或「检测」按钮
+    - state=empty 时的「初始化脚手架」按钮
+    - state=partial|ready 时的「校验 Spec」「生成代码」「进入 Workbench」按钮
+    - menu:open-project 事件触发的 OpenDirectoryDialog
+  output: |
+    - detect-state 返回的 { state, signals, suggestions } 渲染到状态卡片
+    - run-make/scaffold 输出渲染到 error/output 区
+    - 进入 Workbench 时 localStorage['vibex-workspace-root'] 持久化
+    - Workbench StatusBar 显示 workspaceRoot、backendStatus、workspaceState
+  boundary: |
+    本 slice 精确描述当前前端入口页面和 Workbench 菜单 wiring。
+    不实现 path guard、不实现 scaffolder、不实现 make runner、不实现 agent context injection。
 content:
-  file_path: frontend/src/lib/components/workbench/WorkspaceSelector.svelte
+  file_path: frontend/src/routes/workspace/+page.svelte
   file_type: svelte
+  related_files:
+  - frontend/src/lib/components/workbench/WorkspaceSelector.svelte
+  - frontend/src/routes/workbench/+page.svelte
+  - frontend/src/lib/wails-runtime.ts
+  - frontend/src/lib/components/workbench/StatusBar.svelte
   implementation_boundary:
     allowed:
-    - WorkspaceSelector.svelte 组件逻辑：input 绑定、click handler
-    - 调用 GET /api/workspace/detect-state?workspaceRoot={path}
-    - 将 path 写入 workspace_store 的 selectedWorkspace 字段
-    - 将 state/suggestions 更新到 workspace_output_store
-    - on:select 事件通知父组件切换路由到 /workspace
+    - "/workspace 页面：workspaceRoot 输入框绑定、Enter 检测、按钮 disabled 状态"
+    - "POST /api/workspace/detect-state { workspace_root }"
+    - "POST /api/workspace/scaffold { workspace_root, confirm: true }"
+    - "POST /api/workspace/run-make { target, workspace }"
+    - "localStorage.setItem('vibex-workspace-root', workspaceRoot)"
+    - "goto('/workbench')"
+    - "/workbench 页面：menu:open-project → openDirectoryDialog → detectWorkspaceState → eventsEmit('workspace:selected')"
+    - "StatusBar 读取 workspaceRoot/workspaceState/backendStatus props"
     forbidden:
-    - 禁止在 WorkspaceSelector 组件内直接调用 make 命令
-    - 禁止修改 StatusBar.svelte 的状态显示逻辑
-    - 禁止跨 workspace 路径读文件
+    - "在路径输入或目录选择时自动 scaffold"
+    - "在 selector 内实现 path traversal 判断"
+    - "在 selector 内实现 make target allowlist"
+    - "在 selector 内直接读写 specs 文件"
+    - "把 Git commit/push/pull 纳入 workspace selector"
   generation_rules:
-  - rule: 用户输入路径验证
-    detail: '调用 GET /api/workspace/detect-state?workspaceRoot={用户输入路径}
-
-      - state=''empty'' → 显示橙色「空仓库」+「初始化脚手架」按钮
-
-      - state=''partial'' → 显示黄色「半成品」+ 具体缺失项
-
-      - state=''ready'' → 显示绿色「就绪」
-
-      '
-  - rule: 目录选择器触发
-    detail: '点击「浏览」按钮打开原生目录选择（input type="file" webkitdirectory）
-
-      选中的 path 即为 WORKSPACE_ROOT
-
-      '
+  - rule: "/workspace 检测按钮"
+    detail: |
+      点击「检测」或输入框 Enter：
+      - loading=true，error=''
+      - POST /api/workspace/detect-state，body 使用 workspace_root
+      - 返回数据写入 state
+      - loading=false
+  - rule: "状态驱动按钮"
+    detail: |
+      state=null：只显示提示「输入路径后点击『检测』查看项目状态」
+      state=empty：显示「初始化脚手架」
+      state=partial 或 state=ready：显示「校验 Spec」「生成代码」「进入 Workbench」
+  - rule: "进入 Workbench"
+    detail: |
+      点击「进入 Workbench」：
+      - localStorage.setItem('vibex-workspace-root', workspaceRoot)
+      - goto('/workbench')
+      当前实现不在进入前强制 validate/generate 成功。
+  - rule: "Workbench 菜单打开项目"
+    detail: |
+      收到 menu:open-project：
+      - 调用 openDirectoryDialog()
+      - 用户取消则 return
+      - workspaceRoot=dir
+      - detectWorkspaceState(dir)，POST /api/workspace/detect-state，body 使用 workspaceRoot
+      - eventsEmit('workspace:selected', dir)
   behaviors:
   - id: L5-B1
-    behavior: 用户选择目录
-    implementation: '1. 监听 目录选择 事件
-
-      2. 获取 e.target.files[0]?.webkitRelativePath || path
-
-      3. 调用 detect-state API
-
-      4. 根据 state 更新 UI 状态
-
-      '
+    behavior: "用户检测 workspace root"
+    implementation: |
+      1. 用户在 /workspace 输入路径
+      2. 点击「检测」或按 Enter
+      3. 调用 POST /api/workspace/detect-state { workspace_root }
+      4. 渲染 state badge、signals、suggestions
   - id: L5-B2
-    behavior: 绑定 WORKSPACE_ROOT
-    implementation: '调用 workspace_store.setWorkspace(path)
-
-      更新 window.__WORKSPACE_ROOT__ 全局变量
-
-      通知所有子组件刷新
-
-      '
+    behavior: "空目录初始化入口"
+    implementation: |
+      1. detect-state 返回 empty
+      2. 页面显示「初始化脚手架」
+      3. 点击后 POST /api/workspace/scaffold { workspace_root, confirm: true }
+      4. 成功后重新 detectState；失败时显示 output/error
+  - id: L5-B3
+    behavior: "partial/ready 后进入 Workbench"
+    implementation: |
+      1. detect-state 返回 partial 或 ready
+      2. 页面显示「校验 Spec」「生成代码」「进入 Workbench」
+      3. validate/generate 调用 POST /api/workspace/run-make { target, workspace }
+      4. 点击「进入 Workbench」保存 localStorage 并跳转 /workbench
+  - id: L5-B4
+    behavior: "Workbench 内菜单切换项目"
+    implementation: |
+      1. 监听 menu:open-project
+      2. 调用 Wails OpenDirectoryDialog
+      3. 选中目录后更新 workspaceRoot
+      4. 重新 detectWorkspaceState 并 emit workspace:selected
   verification:
     commands:
-    - cd /root/v-test && npm --prefix frontend run build 2>&1 | grep -i error | head -5
-    - cd /root/v-test && python3 generators/state_detector.py /tmp 2>&1
-    - cd /root/v-test && curl -s 'http://localhost:33338/api/workspace/detect-state?workspaceRoot=/tmp' 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('state','?'))"
+    - npm --prefix frontend run build
+    - make validate
     manual_checks:
-    - WorkbenchTitlebar 有「选择工作区」按钮
-    - 点击后出现 WorkspaceSelector 抽屉/弹窗
-    - 输入空目录后显示「空仓库」状态
-    - 输入 v-test 目录后显示「就绪」状态
+    - "/workspace 页面有路径输入框和「检测」按钮"
+    - "empty 状态只显示「初始化脚手架」，不显示「进入 Workbench」"
+    - "partial/ready 状态显示「校验 Spec」「生成代码」「进入 Workbench」"
+    - "点击「进入 Workbench」后 localStorage 出现 vibex-workspace-root"
+    - "Workbench 内 menu:open-project 选择目录后 StatusBar 路径更新"
     failure_conditions:
-    - 前端编译报 WorkspaceSelector 组件错误
-    - detect-state API 返回非 empty/partial/ready 状态
-    - workspace_store 更新后 StatusBar 未同步
+    - "/workspace 编译失败或按钮事件报错"
+    - "detect-state 返回 empty 时仍显示进入 Workbench"
+    - "只检测路径就触发 scaffold 写盘"
+    - "选择目录取消后覆盖了现有 workspaceRoot"
+    - "StatusBar 状态与 detect-state 返回不一致"
   dependencies:
+  - file: frontend/src/routes/workspace/+page.svelte
+    reason: "当前真实入口页按钮和状态卡片实现"
+  - file: frontend/src/routes/workbench/+page.svelte
+    reason: "Workbench 内 menu:open-project wiring 和 StatusBar props 来源"
+  - file: frontend/src/lib/wails-runtime.ts
+    reason: "openDirectoryDialog / eventsOn / eventsEmit wrapper"
   - file: frontend/src/lib/components/workbench/StatusBar.svelte
-    reason: 读取 workspace_output_store 的 state 字段显示状态
-  - file: frontend/src/lib/stores/workspace-output-store.ts
-    reason: 写入 detect-state 返回的 signals/suggestions
+    reason: "展示 workspaceRoot、backendStatus、workspaceState"
   - file: agent/cmd/web/workspace_handlers.go
-    reason: detect-state handler 实现在此文件
+    reason: "detect-state / scaffold / run-make workspace API"
 lifecycle:
   current: proposal
-  updated: '2026-04-26'
+  updated: '2026-04-29'
 changelog:
 - version: '0.1'
   date: '2026-04-26'
   author: hermes
   changes:
   - 初始版本，含 behaviors + verification + constraints
+- version: '0.2'
+  date: '2026-04-29'
+  author: hermes
+  changes:
+  - 按当前 /workspace 页面按钮和 /workbench menu:open-project 实际 wiring 重写 L5 边界

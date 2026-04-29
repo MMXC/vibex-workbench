@@ -11,71 +11,108 @@ meta:
   module: "frontend"
   owner: "hermes"
   created: "2026-04-24"
-  updated: "2026-04-24"
+  updated: "2026-04-29"
 
 io_contract:
   input: |
-    用户点击工作台顶栏的 "文件" 导航菜单 弹出选择项目 点击后弹出文件选择器，选择目录
+    用户在 /workspace 入口页输入本地目录路径并点击「检测」，或在 Workbench 内通过菜单事件
+    menu:open-project 打开原生目录选择器。
   output: |
-    - 路径写入 frontend store（workspaceRoot）
-    - 触发 state detection（自动探测新仓库状态）
-    - agent 进程感知（通过 SSE 重连或 env 注入）
+    - /workspace 页面显示 detect-state 返回的 empty / partial / ready 状态、signals、suggestions
+    - empty 状态显示「初始化脚手架」按钮
+    - partial 或 ready 状态显示「校验 Spec」「生成代码」「进入 Workbench」按钮
+    - 点击「进入 Workbench」后将 workspaceRoot 写入 localStorage 并跳转 /workbench
+    - Workbench 内 menu:open-project 选择目录后更新 StatusBar 的 workspaceRoot 与 workspaceState
   boundary: |
-    路径选择后触发 state detection，不负责验证路径合法性
+    本 feature 只负责 workspace root 选择、状态探测入口、进入 Workbench 的前置绑定。
+    不负责脚手架内容生成、不负责 make 命令实现、不负责路径安全细则。
   behavior:
-    - "用户在路径输入框输入或使用目录选择器"
-    - "store.setWorkspaceRoot(path) 更新"
-    - "触发 /api/workspace/detect-state"
-    - "更新 UI 状态指示器（空/半/就绪）"
-    - "如果 agent 已连接，发送 reset 事件重置上下文"
+    - "用户在 /workspace 输入框输入路径，按 Enter 或点击「检测」"
+    - "前端 POST /api/workspace/detect-state { workspace_root }"
+    - "state card 展示 state badge、signals 列表、suggestions 列表"
+    - "state=empty 时显示「初始化脚手架」"
+    - "state=partial|ready 时显示「校验 Spec」「生成代码」「进入 Workbench」"
+    - "点击「进入 Workbench」保存 localStorage['vibex-workspace-root'] 并跳转 /workbench"
+    - "Workbench 内 menu:open-project 调用 OpenDirectoryDialog，选中后 detect-state 并 emit workspace:selected"
 
 content:
   behaviors:
     - id: "B1"
-      trigger: "用户输入有效目录路径并按 Enter"
-      action: "store.setWorkspaceRoot → SSE reconnect"
-      expected_result: "状态指示器更新，显示新仓库状态"
-      error_handling: "路径无效时显示红色边框 + '目录不存在' 提示"
+      trigger: "用户在 /workspace 输入路径后按 Enter 或点击「检测」"
+      action: "POST /api/workspace/detect-state { workspace_root }"
+      expected_result: "页面显示 state badge、signals、suggestions"
+      error_handling: "fetch 失败时显示 error-box，workspaceRoot 输入值保留"
+    - id: "B2"
+      trigger: "detect-state 返回 empty"
+      action: "显示「初始化脚手架」按钮"
+      expected_result: "用户可确认初始化，完成后重新 detect-state"
+      error_handling: "scaffold 返回 output 或异常时显示在 error-box"
+    - id: "B3"
+      trigger: "detect-state 返回 partial 或 ready"
+      action: "显示「校验 Spec」「生成代码」「进入 Workbench」按钮"
+      expected_result: "validate/generate 调用 run-make；进入 Workbench 保存 workspaceRoot 并跳转"
+      error_handling: "run-make 输出写入 error-box，跳转前不要求 make 成功"
+    - id: "B4"
+      trigger: "Workbench 内收到 menu:open-project"
+      action: "OpenDirectoryDialog → 设置 workspaceRoot → detect-state → emit workspace:selected"
+      expected_result: "StatusBar 显示新路径和新状态"
+      error_handling: "用户取消目录选择时不改变当前 workspaceRoot"
 
   user_stories:
     - id: "US-1"
       as_a: "开发者"
-      i_want: "能切换当前工作的仓库根"
-      so_that: "在同一窗口内管理多个项目"
-      acceptance: "切换后所有 API/agent 命令都在新目录执行"
+      i_want: "在进入 Workbench 前确认本地目录处于 empty、partial 或 ready 哪种状态"
+      so_that: "我知道下一步应该初始化脚手架、校验 spec，还是直接进入工作台"
+      acceptance: "检测后页面根据状态显示正确按钮，进入 Workbench 前 workspaceRoot 已持久化"
+    - id: "US-2"
+      as_a: "已在 Workbench 内的用户"
+      i_want: "通过打开项目菜单切换当前目录"
+      so_that: "状态栏和后续 workspace API 都对准新目录"
+      acceptance: "选择目录后 StatusBar 路径更新，并重新探测状态"
 
   test_scenarios:
     - id: "TC-1"
-      scenario: "用户输入空目录路径"
-      given: "仓库根为空"
-      when: "用户输入 /tmp/new-project 并回车"
-      then: "state detection 返回 'empty'，显示初始化脚手架按钮"
-      evaluation: "UI 正确显示 'empty' 状态，workspaceRoot === /tmp/new-project"
+      scenario: "入口页检测空目录"
+      given: "用户停留在 /workspace，输入一个空目录"
+      when: "点击「检测」"
+      then: "state card 显示 EMPTY，并显示「初始化脚手架」按钮"
+      evaluation: "signals 和 suggestions 被展示；未显示「进入 Workbench」"
     - id: "TC-2"
-      scenario: "用户输入已配置的仓库路径"
-      given: "仓库根为已有项目"
-      when: "用户输入 /root/v-test 并回车"
-      then: "state detection 返回 'ready'，显示 spec 列表"
-      evaluation: "UI 正确显示 'ready' 状态"
+      scenario: "入口页检测 partial/ready 目录"
+      given: "detect-state 返回 partial 或 ready"
+      when: "检测完成"
+      then: "显示「校验 Spec」「生成代码」「进入 Workbench」按钮"
+      evaluation: "点击「进入 Workbench」后 localStorage 写入 vibex-workspace-root 并跳转 /workbench"
     - id: "TC-3"
-      scenario: "用户输入无效目录"
-      given: "用户输入 /this/path/does/not/exist"
-      when: "按 Enter 或点击确认"
-      then: "显示红色错误提示「目录不存在」，workspaceRoot 不更新"
-      evaluation: "页面不崩溃，旧 workspaceRoot 保持不变"
+      scenario: "Workbench 内菜单打开目录"
+      given: "用户已经在 /workbench 页面"
+      when: "触发 menu:open-project 并选择目录"
+      then: "OpenDirectoryDialog 返回路径，StatusBar 更新 workspaceRoot 和 workspaceState"
+      evaluation: "workspace:selected 事件被 emit，取消选择不会改变当前状态"
     - id: "TC-4"
-      scenario: "刷新页面后路径恢复"
-      given: "用户已设置 workspaceRoot = /root/v-test"
-      when: "刷新页面"
-      then: "workspaceRoot 自动恢复为 /root/v-test，无需重新输入"
-      evaluation: "localStorage 中有记录，页面加载时自动读取"
+      scenario: "detect-state 或 run-make 失败"
+      given: "backend 请求失败或 run-make 返回失败 output"
+      when: "用户点击「检测」「校验 Spec」或「生成代码」"
+      then: "页面显示 error-box，不清空用户输入的 workspaceRoot"
+      evaluation: "loading 最终恢复 false，按钮重新可点击"
 
   constraints:
     - id: "C1"
-      name: "路径持久化"
-      rule: "切换后路径写入 localStorage，下次启动自动恢复"
-      validation: "刷新页面后路径一致"
+      name: "Detect before enter"
+      rule: "入口页只有 state=partial 或 state=ready 时才显示「进入 Workbench」"
+      validation: "state=null 或 state=empty 时不显示 enter 按钮"
     - id: "C2"
-      name: "WORKSPACE_ROOT 绑定后才能操作"
-      rule: "scaffold / spec-write / make 按钮在 workspaceRoot === null 时 disabled"
-      validation: "workspaceState === 'empty' 且 workspaceRoot === '—' 时所有写操作按钮不可点击"
+      name: "No implicit write on select"
+      rule: "输入路径或打开目录只触发 detect-state；只有点击「初始化脚手架」才调用 scaffold"
+      validation: "detect-state 请求不创建文件"
+    - id: "C3"
+      name: "Persist only on enter"
+      rule: "/workspace 入口页在点击「进入 Workbench」时写入 localStorage"
+      validation: "仅检测目录不应改变已进入工作台的持久化 root"
+
+changelog:
+  - version: "0.2"
+    date: "2026-04-29"
+    author: "hermes"
+    changes:
+      - "按当前 /workspace 页面按钮和 workbench menu:open-project 实际行为重写 feature 描述"
