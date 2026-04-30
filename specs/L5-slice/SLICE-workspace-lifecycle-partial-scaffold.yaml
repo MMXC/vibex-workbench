@@ -13,8 +13,8 @@ meta:
   updated: "2026-04-29"
 
 lifecycle:
-  current: proposal
-  updated: "2026-04-29"
+  current: implementation
+  updated: '2026-04-30'
 
 io_contract:
   input: |

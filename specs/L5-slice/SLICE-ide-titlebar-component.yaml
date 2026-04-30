@@ -59,12 +59,10 @@ content:
           禁止 eventsEmit('menu:open-project')。
   - rule: Runtime fallback ⚠
     detail: |
-      Wails 环境下打开目录选择器需要完整路径（非文件夹名），优先级如下：
-      ① File System Access API `showDirectoryPicker()` — WebView2/Chromium 提供完整路径（首选）
-      ② Wails runtime `OpenDirectoryDialog()` — 有已知问题：Windows 上只返回文件夹名，不返回完整路径
-         → Go 侧应使用 `github.com/sqweek/dialog`（直接调 native Win32 API，返回完整路径）替代 Wails 内置 dialog
-      ③ `<input type="file" webkitdirectory>` — 通用备选，路径可能不完整
-      其他 runtime API 静默 no-op，不得导致页面崩溃。
+      ⚠ 2026-04-30 架构变更：Wails 环境下已废弃 openDirectoryDialog() wrapper，改用直接绑定。
+      新路径（优先级）：
+      ① 直接绑 `window.go.main.App.OpenDirectoryDialog()` — Go 侧使用 github.com/sqweek/dialog（native Win32 API，返回完整路径）
+      ② Fallback: openDirectoryDialog() wrapper（showDirectoryPicker / webkitdirectory）仅用于浏览器开发模式（Vite dev server）
   verification:
     commands:
     - npm --prefix frontend run build
@@ -113,3 +111,9 @@ changelog:
   author: hermes
   changes:
   - 修正「Runtime fallback」规则：showDirectoryPicker 应为首选（完整路径），Wails runtime OpenDirectoryDialog 为备选（Windows 只返回文件夹名）；说明 Go 侧需改用 github.com/sqweek/dialog
+- version: '0.3'
+  date: '2026-04-30'
+  author: hermes
+  changes:
+  - 架构变更：Wails 环境改用直接绑定 window.go.main.App.OpenDirectoryDialog()，废弃 openDirectoryDialog() wrapper 作为首选路径（Go 侧已切 sqweek/dialog）
+  - openDirectoryDialog() wrapper 仅保留为 Vite dev server（浏览器开发模式）的 fallback

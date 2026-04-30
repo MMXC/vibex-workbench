@@ -4,12 +4,12 @@ spec:
   level: "4_feature"
   name: "FEAT-workspace-selector"
   parent: "MOD-workspace-root"
-  status: "proposal"
+  status: "implementation"
 
 meta:
   type: "feature"
   module: "frontend"
-  owner: "hermes"
+  owner: hermes
   created: "2026-04-24"
   updated: "2026-04-30"
   ui_elements_ref: "FEAT-workspace-selector_L5.yaml#content/ui_elements"
@@ -35,7 +35,7 @@ io_contract:
     - "state=empty 时显示「初始化脚手架」"
     - "state=partial|ready 时显示「校验 Spec」「生成代码」「进入 Workbench」"
     - "点击「进入 Workbench」保存 localStorage['vibex-workspace-root'] 并跳转 /workbench"
-    - "Workbench 内 menu:open-project 调用 openDirectoryDialog（前端优先 showDirectoryPicker；Go 侧使用 native dialog 返回完整路径），选中后 detect-state 并 emit workspace:selected"
+    - "Workbench 内 menu:open-project 直接绑 Go 侧 window.go.main.App.OpenDirectoryDialog()（Go 使用 sqweek/dialog native dialog，返回完整路径）"
 
 content:
   behaviors:
@@ -56,7 +56,7 @@ content:
       error_handling: "run-make 输出写入 error-box，跳转前不要求 make 成功"
     - id: "B4"
       trigger: "Workbench 内收到 menu:open-project"
-      action: "openDirectoryDialog（frontend 优先 showDirectoryPicker；Go 侧使用 native dialog）→ 设置 workspaceRoot（必须为完整绝对路径）→ detect-state → emit workspace:selected"
+      action: "直接绑 window.go.main.App.OpenDirectoryDialog() → Go 侧使用 sqweek/dialog（完整路径）→ 设置 workspaceRoot → detect-state → emit workspace:selected"
       expected_result: "StatusBar 显示新路径和新状态"
       error_handling: "用户取消目录选择时不改变当前 workspaceRoot"
 
@@ -132,3 +132,10 @@ changelog:
     changes:
       - "B4 行为更新：强调 openDirectoryDialog 必须返回完整绝对路径；Go 侧需使用 native dialog（github.com/sqweek/dialog）替代 Wails runtime OpenDirectoryDialog（Windows 只返回文件夹名）"
       - "behavior 列表同步更新：menu:open-project 调用链路说明 frontend/Go 分层职责"
+
+  - version: "0.5"
+    date: "2026-04-30"
+    author: "hermes"
+    changes:
+      - "架构变更：B4 改用直接绑 window.go.main.App.OpenDirectoryDialog()，废弃 openDirectoryDialog() wrapper 作为 Wails 环境首选路径"
+      - "Go 侧使用 github.com/sqweek/dialog（native Win32 API，返回完整路径）"

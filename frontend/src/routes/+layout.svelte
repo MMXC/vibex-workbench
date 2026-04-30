@@ -15,10 +15,25 @@
 	import '../app.css';
 	let { children } = $props();
 
+	/** 直接绑 Wails Go binding，跳过 openDirectoryDialog() wrapper */
+	async function wailsOpenDirectory(): Promise<string> {
+		const rt = (window as any).runtime;
+		if (rt && typeof rt.OpenDirectoryDialog === 'function') {
+			const result: string = await rt.OpenDirectoryDialog();
+			if (result && (result.includes('/') || result.includes('\\'))) {
+				return result;
+			}
+			console.warn('[layout] Wails OpenDirectoryDialog returned no valid path, ignoring');
+			return '';
+		}
+		// Fallback: 浏览器开发模式（Vite dev server）
+		return openDirectoryDialog();
+	}
+
 	/** 处理"打开项目"：弹目录选择 → 保存 → 跳转 workbench */
 	async function handleOpenProject() {
 		try {
-			const dir = await openDirectoryDialog();
+			const dir = await wailsOpenDirectory();
 			if (!dir) return;
 			localStorage.setItem('vibex-workspace-root', dir);
 			goto('/workbench');
