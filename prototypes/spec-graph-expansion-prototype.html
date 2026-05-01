@@ -1,0 +1,1202 @@
+<!--
+  spec: FEAT-spec-graph-expansion.yaml
+  source_canvas: C:/Users/76028/.cursor/projects/c-project-vibex-workbench/canvases/spec-graph-expansion-prototype.canvas.tsx
+  prototype: interactive-html
+  generated: 2026-05-02
+-->
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spec Graph Expansion Prototype</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0c10;
+      --ink: #eef0f5;
+      --muted: #a3abb9;
+      --faint: #6f7888;
+      --panel: #151820;
+      --panel-2: #1c202a;
+      --panel-3: #242936;
+      --stroke: #303746;
+      --stroke-2: #465064;
+      --blue: #7aa2ff;
+      --cyan: #72d6d0;
+      --green: #87cf8a;
+      --yellow: #efc66b;
+      --orange: #f09a6a;
+      --red: #e16d75;
+      --purple: #b99cff;
+      --shadow: 0 18px 60px rgba(0, 0, 0, .36);
+      --mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+      --ui: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 12% 8%, rgba(122, 162, 255, .14), transparent 28%),
+        radial-gradient(circle at 88% 16%, rgba(114, 214, 208, .12), transparent 32%),
+        linear-gradient(180deg, #0b0c10, #10121a 62%, #0b0c10);
+      color: var(--ink);
+      font-family: var(--ui);
+      overflow: hidden;
+    }
+
+    button, input, select, textarea { font-family: inherit; }
+
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    header {
+      padding: 18px 22px 14px;
+      border-bottom: 1px solid var(--stroke);
+      background: rgba(12, 14, 19, .88);
+      backdrop-filter: blur(18px);
+    }
+
+    .topline {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .eyebrow {
+      color: var(--cyan);
+      font: 800 11px/1 var(--mono);
+      text-transform: uppercase;
+      letter-spacing: .16em;
+      margin-bottom: 9px;
+    }
+
+    h1 {
+      margin: 0 0 7px;
+      font-size: 24px;
+      line-height: 1.1;
+      letter-spacing: -.03em;
+    }
+
+    .subtitle {
+      margin: 0;
+      max-width: 980px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .layout {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 310px minmax(640px, 1fr) 360px;
+      gap: 14px;
+      padding: 14px;
+    }
+
+    .panel {
+      min-height: 0;
+      background: rgba(21, 24, 32, .92);
+      border: 1px solid var(--stroke);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .side,
+    .drawer {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+    }
+
+    .panel-head {
+      padding: 14px 14px 12px;
+      border-bottom: 1px solid var(--stroke);
+      background: rgba(28, 32, 42, .7);
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .panel-subtitle {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .toolbar {
+      padding: 12px 14px;
+      display: grid;
+      gap: 10px;
+      border-bottom: 1px solid var(--stroke);
+    }
+
+    .filter-row,
+    .mode-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .btn,
+    .chip {
+      border: 1px solid var(--stroke-2);
+      background: rgba(36, 41, 54, .86);
+      color: var(--muted);
+      border-radius: 999px;
+      height: 30px;
+      padding: 0 11px;
+      font-size: 12px;
+      font-weight: 720;
+      cursor: pointer;
+      transition: .16s ease;
+    }
+
+    .btn:hover,
+    .chip:hover {
+      color: var(--ink);
+      border-color: var(--blue);
+      transform: translateY(-1px);
+    }
+
+    .btn.active,
+    .chip.active {
+      color: #08111d;
+      border-color: var(--blue);
+      background: var(--blue);
+    }
+
+    .btn.intent {
+      color: #071513;
+      border-color: var(--cyan);
+      background: var(--cyan);
+    }
+
+    .search {
+      width: 100%;
+      height: 34px;
+      border-radius: 10px;
+      border: 1px solid var(--stroke);
+      background: #10131a;
+      color: var(--ink);
+      outline: none;
+      padding: 0 11px;
+      font-size: 12px;
+    }
+
+    .list {
+      overflow: auto;
+      padding: 10px;
+      display: grid;
+      align-content: start;
+      gap: 7px;
+    }
+
+    .spec-row {
+      border: 1px solid transparent;
+      border-radius: 13px;
+      padding: 10px;
+      background: rgba(28, 32, 42, .62);
+      cursor: pointer;
+      transition: .16s ease;
+    }
+
+    .spec-row:hover {
+      border-color: var(--stroke-2);
+      background: rgba(36, 41, 54, .82);
+    }
+
+    .spec-row.active {
+      border-color: var(--blue);
+      background: rgba(122, 162, 255, .13);
+    }
+
+    .spec-row-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+
+    .spec-name {
+      min-width: 0;
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 780;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .spec-meta {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      color: var(--faint);
+      font: 11px/1.25 var(--mono);
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      height: 21px;
+      border: 1px solid var(--stroke-2);
+      border-radius: 999px;
+      padding: 0 8px;
+      color: var(--muted);
+      background: rgba(12, 14, 19, .5);
+      font: 700 10px/1 var(--mono);
+      white-space: nowrap;
+    }
+
+    .tag.goal { color: var(--cyan); border-color: rgba(114, 214, 208, .5); }
+    .tag.skeleton { color: var(--green); border-color: rgba(135, 207, 138, .5); }
+    .tag.module { color: var(--blue); border-color: rgba(122, 162, 255, .5); }
+    .tag.feature { color: var(--yellow); border-color: rgba(239, 198, 107, .5); }
+    .tag.slice { color: var(--orange); border-color: rgba(240, 154, 106, .5); }
+    .tag.impl { color: var(--purple); border-color: rgba(185, 156, 255, .5); }
+    .tag.warn { color: var(--red); border-color: rgba(225, 109, 117, .5); }
+
+    .stage {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-width: 0;
+    }
+
+    .stage-head {
+      padding: 13px 15px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      border-bottom: 1px solid var(--stroke);
+      background: rgba(28, 32, 42, .68);
+    }
+
+    .current-title {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 840;
+      letter-spacing: -.02em;
+    }
+
+    .crumbs {
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      color: var(--faint);
+      font: 11px/1.3 var(--mono);
+    }
+
+    .graph-wrap {
+      position: relative;
+      min-height: 0;
+      padding: 12px;
+      background:
+        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px),
+        #0e1016;
+      background-size: 26px 26px;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 560px;
+      border: 1px solid var(--stroke);
+      border-radius: 16px;
+      background: rgba(12, 14, 19, .74);
+    }
+
+    .inspector-tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      padding: 10px;
+      border-top: 1px solid var(--stroke);
+      background: rgba(12, 14, 19, .45);
+    }
+
+    .mini-stat {
+      border: 1px solid var(--stroke);
+      border-radius: 12px;
+      padding: 9px 10px;
+      background: rgba(28, 32, 42, .75);
+    }
+
+    .mini-stat strong {
+      display: block;
+      color: var(--ink);
+      font-size: 12px;
+      margin-bottom: 3px;
+    }
+
+    .mini-stat span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .drawer {
+      grid-template-rows: auto 1fr auto;
+    }
+
+    .drawer-body {
+      min-height: 0;
+      overflow: auto;
+      padding: 12px;
+      display: grid;
+      align-content: start;
+      gap: 12px;
+    }
+
+    .card {
+      border: 1px solid var(--stroke);
+      border-radius: 15px;
+      background: rgba(28, 32, 42, .72);
+      padding: 13px;
+    }
+
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 13px;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .kv {
+      display: grid;
+      gap: 7px;
+      margin-top: 9px;
+    }
+
+    .kv-row {
+      display: grid;
+      grid-template-columns: 92px 1fr;
+      gap: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .kv-key {
+      color: var(--faint);
+      font-family: var(--mono);
+    }
+
+    .kv-val {
+      color: var(--ink);
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .action-grid {
+      display: grid;
+      gap: 8px;
+    }
+
+    .action {
+      display: grid;
+      gap: 4px;
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--stroke-2);
+      background: #11141b;
+      color: var(--ink);
+      border-radius: 12px;
+      padding: 10px;
+      cursor: pointer;
+    }
+
+    .action strong {
+      font-size: 12px;
+    }
+
+    .action span {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .action:hover {
+      border-color: var(--cyan);
+    }
+
+    .drawer-foot {
+      border-top: 1px solid var(--stroke);
+      padding: 12px;
+      background: rgba(12, 14, 19, .5);
+      display: grid;
+      gap: 8px;
+    }
+
+    .patch {
+      min-height: 154px;
+      border: 1px solid var(--stroke);
+      border-radius: 13px;
+      padding: 11px;
+      background: #0b0d12;
+      color: #b8c0cf;
+      font: 11px/1.5 var(--mono);
+      white-space: pre-wrap;
+      overflow: auto;
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      max-width: 380px;
+      border: 1px solid rgba(114, 214, 208, .45);
+      border-radius: 15px;
+      padding: 12px 14px;
+      background: rgba(16, 20, 27, .96);
+      box-shadow: var(--shadow);
+      color: var(--ink);
+      font-size: 12px;
+      line-height: 1.5;
+      transform: translateY(24px);
+      opacity: 0;
+      pointer-events: none;
+      transition: .2s ease;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    @media (max-width: 1240px) {
+      body { overflow: auto; }
+      .app { height: auto; min-height: 100vh; }
+      .layout { grid-template-columns: 1fr; }
+      svg { min-height: 520px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="topline">
+        <div>
+          <div class="eyebrow">Spec Graph Expansion Prototype</div>
+          <h1>依托现有 spec 层级的可交互图谱编辑原型</h1>
+          <p class="subtitle">
+            内置当前仓库的代表性 spec 索引：L1 Goal、L2 Skeleton、L3 Module、L4 Feature、L5 Slice / Implementation。
+            点击左侧真实 spec 样本会重绘一跳关系图；点击图中节点会切换焦点；点击 Add 子卡会生成可审查 intent 和 YAML patch preview。
+          </p>
+        </div>
+        <div class="header-actions">
+          <button class="btn active" data-mode="focus">Focus</button>
+          <button class="btn" data-mode="map">Type Map</button>
+          <button class="btn" data-mode="edit">Edit Draft</button>
+          <button class="btn intent" id="validateBtn">Validate Draft</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="panel side">
+        <div class="panel-head">
+          <h2 class="panel-title">Spec Index Snapshot</h2>
+          <p class="panel-subtitle">来自当前 `specs/` 层级的代表性节点。筛选任一类型可查看该类型的卡片展示方式。</p>
+        </div>
+        <div class="toolbar">
+          <input id="search" class="search" placeholder="搜索 name / parent / path" />
+          <div class="filter-row" id="levelFilters"></div>
+        </div>
+        <div class="list" id="specList"></div>
+      </aside>
+
+      <section class="panel stage">
+        <div class="stage-head">
+          <div>
+            <h2 class="current-title" id="currentTitle">FEAT-spec-graph-expansion</h2>
+            <div class="crumbs" id="crumbs"></div>
+          </div>
+          <div class="mode-row">
+            <span class="tag" id="currentLevelTag">L4</span>
+            <span class="tag" id="currentStatusTag">proposal</span>
+            <span class="tag" id="childRuleTag">child: L5</span>
+          </div>
+        </div>
+
+        <div class="graph-wrap">
+          <svg viewBox="0 0 1060 610" aria-label="interactive spec graph">
+            <defs>
+              <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                <path d="M0,0 L8,4 L0,8 Z" fill="#465064"></path>
+              </marker>
+            </defs>
+            <g id="swimlanes"></g>
+            <g id="edges"></g>
+            <g id="nodes"></g>
+            <g id="modeOverlay"></g>
+          </svg>
+        </div>
+
+        <div class="inspector-tabs">
+          <div class="mini-stat"><strong id="parentCount">0</strong><span>parent chain</span></div>
+          <div class="mini-stat"><strong id="siblingCount">0</strong><span>siblings</span></div>
+          <div class="mini-stat"><strong id="childCount">0</strong><span>children</span></div>
+          <div class="mini-stat"><strong id="issueCount">0</strong><span>graph issues</span></div>
+        </div>
+      </section>
+
+      <aside class="panel drawer">
+        <div class="panel-head">
+          <h2 class="panel-title">Spec Type Inspector</h2>
+          <p class="panel-subtitle" id="typeSubtitle">展示当前 spec 类型该怎么读、怎么展开、怎么编辑。</p>
+        </div>
+        <div class="drawer-body">
+          <div class="card">
+            <h3 id="typeTitle">L4 Feature 展示方式</h3>
+            <p id="typeDescription"></p>
+            <div class="kv" id="detailKv"></div>
+          </div>
+
+          <div class="card">
+            <h3>当前类型的图形化展示</h3>
+            <p id="visualRule"></p>
+          </div>
+
+          <div class="card">
+            <h3>允许操作</h3>
+            <div class="action-grid" id="actions"></div>
+          </div>
+
+          <div class="card">
+            <h3>一跳关系上下文</h3>
+            <p id="contextSummary"></p>
+          </div>
+        </div>
+
+        <div class="drawer-foot">
+          <div class="patch" id="patchPreview"></div>
+          <div class="mode-row">
+            <button class="btn intent" id="confirmBtn">Confirm Write</button>
+            <button class="btn" id="resetDraftBtn">Reset Draft</button>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const levelDefs = {
+      L1: {
+        label: "L1 Goal",
+        raw: "1_project-goal",
+        dir: "specs/L1-goal/",
+        color: "#72d6d0",
+        className: "goal",
+        child: "L2",
+        shape: "Mission anchor",
+        description: "项目目标层，解释为什么存在、MVP 边界、验收目标。图上应作为根节点展示，不允许被 reparent。",
+        visual: "大号根节点卡片，强调 mission、acceptance 和当前 lifecycle。只允许向下新增 L2 Skeleton。"
+      },
+      L2: {
+        label: "L2 Skeleton",
+        raw: "2_skeleton",
+        dir: "specs/L2-skeleton/",
+        color: "#87cf8a",
+        className: "skeleton",
+        child: "L3",
+        shape: "System frame",
+        description: "技术骨架层，承接 L1，把系统拆成 tech_stack、modules_matrix、entry_points。",
+        visual: "骨架节点要显示模块矩阵摘要和技术边界；子节点是 L3 Module，不展示具体 feature 细节。"
+      },
+      L3: {
+        label: "L3 Module",
+        raw: "3_module",
+        dir: "specs/L3-module/",
+        color: "#7aa2ff",
+        className: "module",
+        child: "L4",
+        shape: "Module lane",
+        description: "模块层，定义一个系统模块的职责、输入输出和边界，如 MOD-spec-editor、MOD-ide-chrome。",
+        visual: "模块节点以泳道或聚合卡展示，重点显示它拥有的 L4 Feature 子树和 sibling modules。"
+      },
+      L4: {
+        label: "L4 Feature",
+        raw: "4_feature",
+        dir: "specs/L4-feature/",
+        color: "#efc66b",
+        className: "feature",
+        child: "L5",
+        shape: "Feature contract",
+        description: "功能层，定义用户行为、边界、level_rules、integration_contract 和测试场景。",
+        visual: "功能节点应展示行为契约、合法 Add L5 入口和关键 guard。它是图形编辑最常用的焦点层。"
+      },
+      L5: {
+        label: "L5 Slice",
+        raw: "5_slice / 5_implementation",
+        dir: "specs/L5-slice/",
+        color: "#f09a6a",
+        className: "slice",
+        child: null,
+        shape: "Implementation slice",
+        description: "实现切片层，落到具体文件、组件、API 或验证器。L5 没有合法子 spec。",
+        visual: "叶子节点卡片，重点展示 file_path、implementation_boundary、verification 和依赖文件。禁用 Add 子卡。"
+      },
+      IMPL: {
+        label: "L5 Implementation",
+        raw: "5_implementation",
+        dir: "specs/L5-slice/",
+        color: "#b99cff",
+        className: "impl",
+        child: null,
+        shape: "Legacy implementation spec",
+        description: "历史/兼容的 L5 implementation 形态，仍属于 L5 叶子层，但命名常带 FEAT-*_L5。",
+        visual: "用紫色叶子节点与 SLICE 区分，提示后续可收敛为统一 L5 Slice 表达。"
+      }
+    };
+
+    const specs = [
+      { id: "goal", name: "vibex-workbench-mvp", level: "L1", status: "implementation", parent: null, path: "specs/L1-goal/vibex-workbench-mvp.yaml", module: "project", summary: "空仓库到可运行项目的 MVP 目标，定义全局验收与边界。" },
+      { id: "skeleton", name: "vibex-workbench-skeleton", level: "L2", status: "proposal", parent: "vibex-workbench-mvp", path: "specs/L2-skeleton/vibex-workbench-skeleton.yaml", module: "vibex-workbench", summary: "技术骨架、模块矩阵、API 入口和运行时边界。" },
+      { id: "mod-spec-editor", name: "MOD-spec-editor", level: "L3", status: "proposal", parent: "vibex-workbench-skeleton", path: "specs/L3-module/MOD-spec-editor.yaml", module: "frontend", summary: "spec 文件读写、编辑器、图谱和治理视图的模块边界。" },
+      { id: "mod-ide-chrome", name: "MOD-ide-chrome", level: "L3", status: "proposal", parent: "vibex-workbench-skeleton", path: "specs/L3-module/MOD-ide-chrome.yaml", module: "frontend", summary: "Workbench IDE 外壳，承载 titlebar、activity bar、dock 和状态栏。" },
+      { id: "mod-workspace-root", name: "MOD-workspace-root", level: "L3", status: "proposal", parent: "vibex-workbench-skeleton", path: "specs/L3-module/MOD-workspace-root.yaml", module: "frontend/backend", summary: "workspace root 选择、持久化、安全边界和运行态守卫。" },
+      { id: "mod-build-panel", name: "MOD-build-panel", level: "L3", status: "proposal", parent: "vibex-workbench-skeleton", path: "specs/L3-module/MOD-build-panel.yaml", module: "frontend/backend", summary: "make/run output、Problems 面板和验收门禁入口。" },
+      { id: "feat-graph", name: "FEAT-spec-graph-expansion", level: "L4", status: "proposal", parent: "MOD-spec-editor", path: "specs/L4-feature/FEAT-spec-graph-expansion.yaml", module: "frontend", summary: "选中 spec 后展示 parent/current/children/siblings，并提供 Add 子 spec 入口。" },
+      { id: "feat-editor", name: "FEAT-spec-editor", level: "L4", status: "proposal", parent: "MOD-spec-editor", path: "specs/L4-feature/FEAT-spec-editor.yaml", module: "frontend", summary: "YAML 编辑体验、保存、校验反馈和编辑器边界。" },
+      { id: "feat-governance-viewer", name: "FEAT-spec-governance-viewer", level: "L4", status: "proposal", parent: "MOD-spec-editor", path: "specs/L4-feature/FEAT-spec-governance-viewer.yaml", module: "frontend", summary: "治理视图、历史、详情面板和 spec 树映射。" },
+      { id: "feat-canvas-expand", name: "FEAT-canvas-expand", level: "L4", status: "proposal", parent: "MOD-spec-editor", path: "specs/L4-feature/FEAT-canvas-expand.yaml", module: "frontend", summary: "Canvas 子节点展开、冲突检查和图上 Add 触发。" },
+      { id: "feat-titlebar", name: "FEAT-ide-titlebar", level: "L4", status: "proposal", parent: "MOD-ide-chrome", path: "specs/L4-feature/FEAT-ide-titlebar.yaml", module: "frontend", summary: "IDE 顶栏、菜单和 Wails 窗口能力入口。" },
+      { id: "feat-workspace-selector", name: "FEAT-workspace-selector", level: "L4", status: "proposal", parent: "MOD-workspace-root", path: "specs/L4-feature/FEAT-workspace-selector.yaml", module: "frontend", summary: "项目目录选择、workspaceRoot 完整路径和 Wails native-first 规则。" },
+      { id: "feat-runtime-safety", name: "FEAT-workspace-runtime-safety", level: "L4", status: "proposal", parent: "MOD-workspace-root", path: "specs/L4-feature/FEAT-workspace-runtime-safety.yaml", module: "frontend/backend", summary: "运行时安全、路径脏值清理和 workspace 生命周期边界。" },
+      { id: "feat-make", name: "FEAT-make-integration", level: "L4", status: "proposal", parent: "MOD-build-panel", path: "specs/L4-feature/FEAT-make-integration.yaml", module: "frontend/backend", summary: "make validate/build/run 命令触发与输出接入。" },
+      { id: "slice-graph-viewer", name: "SLICE-spec-graph-viewer", level: "L5", status: "proposal", parent: "FEAT-spec-graph-expansion", path: "specs/L5-slice/SLICE-spec-graph-viewer.yaml", module: "frontend", summary: "中央图谱关系卡片，点击 parent/child/sibling 切换 selectedSpecPath。" },
+      { id: "slice-add-child", name: "SLICE-spec-add-child-card", level: "L5", status: "proposal", parent: "FEAT-spec-graph-expansion", path: "specs/L5-slice/SLICE-spec-add-child-card.yaml", module: "frontend", summary: "合法 + 子 spec 卡片，生成 create-child-spec intent。" },
+      { id: "slice-agent-clarify", name: "SLICE-spec-agent-clarification-thread", level: "L5", status: "proposal", parent: "FEAT-spec-graph-expansion", path: "specs/L5-slice/SLICE-spec-agent-clarification-thread.yaml", module: "frontend", summary: "右侧 agent 澄清线程，草稿确认后再写盘。" },
+      { id: "slice-canvas-add", name: "SLICE-canvas-expand-add-child-trigger", level: "L5", status: "proposal", parent: "FEAT-canvas-expand", path: "specs/L5-slice/SLICE-canvas-expand-add-child-trigger.yaml", module: "frontend", summary: "Canvas 中的 Add child 触发器，复用 graph expansion intent。" },
+      { id: "slice-titlebar", name: "SLICE-ide-titlebar-component", level: "L5", status: "proposal", parent: "FEAT-ide-titlebar", path: "specs/L5-slice/SLICE-ide-titlebar-component.yaml", module: "frontend", summary: "WorkbenchTitlebar 组件、文件菜单与 native dialog 守卫。" },
+      { id: "slice-wails-guard", name: "SLICE-wails-binding-guard", level: "L5", status: "ready", parent: "FEAT-workspace-selector", path: "specs/L5-slice/SLICE-wails-binding-guard.yaml", module: "frontend", summary: "Wails binding source of truth、防 webkitdirectory、防旧 Service Worker 缓存。" },
+      { id: "slice-filesystem", name: "SLICE-wails-filesystem-bridge", level: "L5", status: "proposal", parent: "FEAT-workspace-selector", path: "specs/L5-slice/SLICE-wails-filesystem-bridge.yaml", module: "frontend", summary: "window.go.main.App.* filesystem bridge，拒绝非完整 workspaceRoot。" },
+      { id: "impl-workspace-selector", name: "FEAT-workspace-selector_L5", level: "IMPL", status: "proposal", parent: "FEAT-workspace-selector", path: "specs/L5-slice/FEAT-workspace-selector_L5.yaml", module: "frontend", summary: "历史 L5 implementation 形态，记录 workspace selector 的实现约束。" },
+      { id: "impl-make", name: "FEAT-make-integration_L5", level: "IMPL", status: "proposal", parent: "FEAT-make-integration", path: "specs/L5-slice/FEAT-make-integration_L5.yaml", module: "frontend", summary: "历史 L5 implementation 形态，记录 make integration 实现约束。" },
+      { id: "slice-output-store", name: "SLICE-command-output-problems-store", level: "L5", status: "proposal", parent: "FEAT-command-output-problems-panel", path: "specs/L5-slice/SLICE-command-output-problems-store.yaml", module: "frontend", summary: "命令输出和 Problems store 的实现切片，示例中父节点未加载。" }
+    ];
+
+    const viewState = {
+      selected: "feat-graph",
+      filter: "ALL",
+      mode: "focus",
+      search: "",
+      draft: null
+    };
+
+    const xByLevel = { L1: 80, L2: 250, L3: 430, L4: 635, L5: 840, IMPL: 840 };
+    const levelOrder = ["ALL", "L1", "L2", "L3", "L4", "L5", "IMPL"];
+
+    function $(id) { return document.getElementById(id); }
+    function specByName(name) { return specs.find(s => s.name === name); }
+    function specById(id) { return specs.find(s => s.id === id); }
+    function childrenOf(name) { return specs.filter(s => s.parent === name); }
+    function siblingsOf(spec) { return specs.filter(s => s.parent === spec.parent && s.id !== spec.id); }
+    function parentOf(spec) { return spec.parent ? specByName(spec.parent) : null; }
+    function defOf(spec) { return levelDefs[spec.level]; }
+    function isL5(spec) { return spec.level === "L5" || spec.level === "IMPL"; }
+
+    function toast(message) {
+      $("toast").textContent = message;
+      $("toast").classList.add("show");
+      window.clearTimeout(toast.timer);
+      toast.timer = window.setTimeout(() => $("toast").classList.remove("show"), 2400);
+    }
+
+    function el(name, attrs = {}) {
+      const node = document.createElementNS("http://www.w3.org/2000/svg", name);
+      for (const [k, v] of Object.entries(attrs)) {
+        if (v !== undefined && v !== null) node.setAttribute(k, String(v));
+      }
+      return node;
+    }
+
+    function htmlEscape(value) {
+      return String(value ?? "").replace(/[&<>"']/g, ch => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[ch]));
+    }
+
+    function renderLevelFilters() {
+      const root = $("levelFilters");
+      root.innerHTML = "";
+      levelOrder.forEach(level => {
+        const btn = document.createElement("button");
+        btn.className = `chip ${viewState.filter === level ? "active" : ""}`;
+        const label = level === "ALL" ? "All" : levelDefs[level].label.replace("L5 ", "L5/");
+        btn.textContent = label;
+        btn.addEventListener("click", () => {
+          viewState.filter = level;
+          render();
+        });
+        root.appendChild(btn);
+      });
+    }
+
+    function renderSpecList() {
+      const query = viewState.search.trim().toLowerCase();
+      const rows = specs.filter(spec => {
+        const levelMatch = viewState.filter === "ALL" || spec.level === viewState.filter;
+        const text = `${spec.name} ${spec.parent ?? ""} ${spec.path} ${spec.summary}`.toLowerCase();
+        return levelMatch && (!query || text.includes(query));
+      });
+
+      $("specList").innerHTML = rows.map(spec => {
+        const def = defOf(spec);
+        return `
+          <div class="spec-row ${spec.id === viewState.selected ? "active" : ""}" data-select="${spec.id}">
+            <div class="spec-row-top">
+              <div class="spec-name">${htmlEscape(spec.name)}</div>
+              <span class="tag ${def.className}">${spec.level}</span>
+            </div>
+            <div class="spec-meta">
+              <span>${htmlEscape(spec.status)}</span>
+              <span>parent: ${htmlEscape(spec.parent ?? "null")}</span>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      document.querySelectorAll("[data-select]").forEach(row => {
+        row.addEventListener("click", () => {
+          viewState.selected = row.dataset.select;
+          viewState.draft = null;
+          render();
+        });
+      });
+    }
+
+    function selectedContext() {
+      const current = specById(viewState.selected);
+      const parent = parentOf(current);
+      const children = childrenOf(current.name);
+      const siblings = siblingsOf(current);
+      const missingParent = current.parent && !parent;
+      return { current, parent, children, siblings, missingParent };
+    }
+
+    function buildGraphNodes(ctx) {
+      const nodes = [];
+      if (ctx.parent) nodes.push({ ...ctx.parent, role: "parent", x: xByLevel[ctx.parent.level], y: 245 });
+      if (ctx.missingParent) nodes.push({
+        id: "missing-parent",
+        name: ctx.current.parent,
+        level: "L3",
+        status: "missing",
+        parent: null,
+        path: "not loaded in prototype index",
+        module: "unknown",
+        summary: "当前原型索引中没有这个 parent，真实产品应显示 missing parent 警告。",
+        role: "missing",
+        x: xByLevel.L3,
+        y: 245
+      });
+
+      nodes.push({ ...ctx.current, role: "current", x: xByLevel[ctx.current.level], y: 245 });
+
+      const siblingY = [96, 394, 468, 24];
+      ctx.siblings.slice(0, 4).forEach((s, i) => {
+        nodes.push({ ...s, role: "sibling", x: xByLevel[s.level], y: siblingY[i] });
+      });
+
+      const childY = ctx.children.length <= 2 ? [185, 305] : [118, 218, 318, 418];
+      ctx.children.slice(0, 4).forEach((c, i) => {
+        nodes.push({ ...c, role: "child", x: xByLevel[c.level], y: childY[i] ?? 470 });
+      });
+
+      const def = defOf(ctx.current);
+      if (def.child && viewState.mode !== "map") {
+        nodes.push({
+          id: "add-child",
+          name: `Add ${def.child} ${levelDefs[def.child].label.replace(/^L\\d\\s/, "")}`,
+          level: def.child,
+          status: "draft",
+          parent: ctx.current.name,
+          path: levelDefs[def.child].dir,
+          module: ctx.current.module,
+          summary: "点击生成 create-child-spec intent，不直接写入 specs/。",
+          role: "add",
+          x: xByLevel[def.child],
+          y: 510
+        });
+      }
+
+      return nodes;
+    }
+
+    function line(a, b, dashed = false) {
+      return el("line", {
+        x1: a.x + 156,
+        y1: a.y + 42,
+        x2: b.x,
+        y2: b.y + 42,
+        stroke: "#465064",
+        "stroke-width": dashed ? 1.4 : 1.8,
+        "stroke-dasharray": dashed ? "6 6" : "",
+        "marker-end": "url(#arrow)"
+      });
+    }
+
+    function nodeCard(spec) {
+      const def = spec.role === "missing" ? { color: "#e16d75", className: "warn", label: "Missing Parent" } : defOf(spec);
+      const g = el("g", {
+        class: "graph-node",
+        "data-node-id": spec.id,
+        style: "cursor:pointer"
+      });
+      const active = spec.role === "current";
+      const dashed = spec.role === "add" || spec.role === "missing";
+      const fill = spec.role === "add" ? "#10131a" : active ? "rgba(122,162,255,.18)" : "#171b24";
+
+      g.appendChild(el("rect", {
+        x: spec.x,
+        y: spec.y,
+        width: 156,
+        height: 84,
+        rx: 14,
+        fill,
+        stroke: active ? def.color : spec.role === "missing" ? "#e16d75" : "#465064",
+        "stroke-width": active ? 2.4 : 1.2,
+        "stroke-dasharray": dashed ? "6 5" : ""
+      }));
+      g.appendChild(el("rect", { x: spec.x, y: spec.y, width: 5, height: 84, rx: 3, fill: def.color }));
+
+      const label = el("text", { x: spec.x + 14, y: spec.y + 24, fill: "#eef0f5", "font-size": 12, "font-weight": 800 });
+      label.textContent = spec.name.length > 22 ? spec.name.slice(0, 21) + "…" : spec.name;
+      g.appendChild(label);
+
+      const role = el("text", { x: spec.x + 14, y: spec.y + 44, fill: def.color, "font-size": 10, "font-family": "Consolas", "font-weight": 700 });
+      role.textContent = `${spec.level} · ${spec.role}`;
+      g.appendChild(role);
+
+      const status = el("text", { x: spec.x + 14, y: spec.y + 63, fill: "#a3abb9", "font-size": 10 });
+      status.textContent = `${spec.status} · ${spec.module}`;
+      g.appendChild(status);
+
+      const path = el("text", { x: spec.x + 14, y: spec.y + 78, fill: "#6f7888", "font-size": 9 });
+      path.textContent = spec.path.replace("specs/", "");
+      g.appendChild(path);
+
+      return g;
+    }
+
+    function renderGraph() {
+      const ctx = selectedContext();
+      const graphNodes = buildGraphNodes(ctx);
+      const lanes = $("swimlanes");
+      const edges = $("edges");
+      const nodes = $("nodes");
+      const overlay = $("modeOverlay");
+      lanes.innerHTML = "";
+      edges.innerHTML = "";
+      nodes.innerHTML = "";
+      overlay.innerHTML = "";
+
+      ["L1", "L2", "L3", "L4", "L5"].forEach(level => {
+        const x = xByLevel[level] - 20;
+        lanes.appendChild(el("line", { x1: x, y1: 34, x2: x, y2: 574, stroke: "#242b38", "stroke-width": 1 }));
+        const t = el("text", { x, y: 24, fill: levelDefs[level].color, "font-size": 11, "font-family": "Consolas", "font-weight": 800 });
+        t.textContent = `${level} ${levelDefs[level].label.replace(/^L\\d\\s/, "")}`;
+        lanes.appendChild(t);
+      });
+
+      const currentNode = graphNodes.find(n => n.role === "current");
+      graphNodes.filter(n => n.role === "parent" || n.role === "missing").forEach(n => edges.appendChild(line(n, currentNode, n.role === "missing")));
+      graphNodes.filter(n => n.role === "child").forEach(n => edges.appendChild(line(currentNode, n)));
+      graphNodes.filter(n => n.role === "add").forEach(n => edges.appendChild(line(currentNode, n, true)));
+
+      if (viewState.mode === "map") {
+        const box = el("rect", { x: 42, y: 42, width: 966, height: 104, rx: 18, fill: "rgba(114,214,208,.08)", stroke: "rgba(114,214,208,.42)", "stroke-dasharray": "8 8" });
+        overlay.appendChild(box);
+        const t1 = el("text", { x: 62, y: 78, fill: "#72d6d0", "font-size": 14, "font-weight": 800 });
+        t1.textContent = "Type Map 模式：横向查看每一种 spec 类型的展示策略";
+        overlay.appendChild(t1);
+        const t2 = el("text", { x: 62, y: 106, fill: "#a3abb9", "font-size": 12 });
+        t2.textContent = "L1 是目标锚点，L2 是技术骨架，L3 是模块泳道，L4 是功能契约，L5/Implementation 是可落地实现叶子。";
+        overlay.appendChild(t2);
+      }
+
+      graphNodes.forEach(n => nodes.appendChild(nodeCard(n)));
+
+      document.querySelectorAll(".graph-node").forEach(node => {
+        node.addEventListener("click", () => {
+          const id = node.getAttribute("data-node-id");
+          if (id === "add-child") {
+            createChildDraft();
+            return;
+          }
+          if (id === "missing-parent") {
+            toast("当前 parent 不在原型索引内；真实实现应保留当前节点并显示 missing parent 警告。");
+            return;
+          }
+          const target = specById(id);
+          if (target) {
+            viewState.selected = target.id;
+            viewState.draft = null;
+            render();
+          }
+        });
+      });
+    }
+
+    function renderHeaderAndStats() {
+      const ctx = selectedContext();
+      const current = ctx.current;
+      const def = defOf(current);
+      $("currentTitle").textContent = current.name;
+      $("currentLevelTag").textContent = `${current.level} · ${def.label}`;
+      $("currentLevelTag").className = `tag ${def.className}`;
+      $("currentStatusTag").textContent = current.status;
+      $("childRuleTag").textContent = def.child ? `child: ${def.child} -> ${levelDefs[def.child].dir}` : "leaf: no child";
+      $("childRuleTag").className = `tag ${def.child ? "" : "warn"}`;
+
+      const chain = [];
+      let cursor = current;
+      const guard = new Set();
+      while (cursor && !guard.has(cursor.name)) {
+        guard.add(cursor.name);
+        chain.unshift(cursor.name);
+        cursor = parentOf(cursor);
+      }
+      $("crumbs").innerHTML = chain.map(name => `<span>${htmlEscape(name)}</span>`).join("<span>/</span>");
+      $("parentCount").textContent = String(Math.max(chain.length - 1, 0));
+      $("siblingCount").textContent = String(ctx.siblings.length);
+      $("childCount").textContent = String(ctx.children.length);
+      $("issueCount").textContent = ctx.missingParent ? "1" : "0";
+    }
+
+    function renderInspector() {
+      const ctx = selectedContext();
+      const current = ctx.current;
+      const def = defOf(current);
+      const parentText = current.parent ?? "null";
+      const childText = def.child ? `${def.child} (${levelDefs[def.child].dir})` : "none";
+
+      $("typeTitle").textContent = `${def.label} 展示方式`;
+      $("typeSubtitle").textContent = `${def.raw} · ${def.dir}`;
+      $("typeDescription").textContent = def.description;
+      $("visualRule").textContent = def.visual;
+      $("detailKv").innerHTML = `
+        <div class="kv-row"><div class="kv-key">name</div><div class="kv-val">${htmlEscape(current.name)}</div></div>
+        <div class="kv-row"><div class="kv-key">parent</div><div class="kv-val">${htmlEscape(parentText)}</div></div>
+        <div class="kv-row"><div class="kv-key">path</div><div class="kv-val">${htmlEscape(current.path)}</div></div>
+        <div class="kv-row"><div class="kv-key">module</div><div class="kv-val">${htmlEscape(current.module)}</div></div>
+        <div class="kv-row"><div class="kv-key">next</div><div class="kv-val">${htmlEscape(childText)}</div></div>
+      `;
+
+      $("contextSummary").textContent =
+        `parent=${parentText}; siblings=${ctx.siblings.length}; children=${ctx.children.length}. ` +
+        (ctx.missingParent ? "当前 parent 未在索引中找到，图谱应显示 warning 节点。" : "边来源于 YAML spec.parent 与 spec.name 匹配。");
+
+      const actions = [
+        {
+          title: def.child ? `Create ${def.child} child` : "Create child disabled",
+          detail: def.child ? `生成 create-child-spec intent，目标目录 ${levelDefs[def.child].dir}` : "L5 是叶子层，不能再新增子 spec。",
+          enabled: !!def.child,
+          handler: createChildDraft
+        },
+        {
+          title: "Preview YAML patch",
+          detail: "只生成 patch preview，不直接写盘。",
+          enabled: true,
+          handler: previewEditDraft
+        },
+        {
+          title: "Show type map",
+          detail: "切换到每种 spec 展示方式的横向说明。",
+          enabled: true,
+          handler: () => { viewState.mode = "map"; render(); }
+        }
+      ];
+
+      $("actions").innerHTML = "";
+      actions.forEach(action => {
+        const btn = document.createElement("button");
+        btn.className = "action";
+        btn.innerHTML = `<strong>${htmlEscape(action.title)}</strong><span>${htmlEscape(action.detail)}</span>`;
+        btn.disabled = !action.enabled;
+        btn.style.opacity = action.enabled ? "1" : ".52";
+        btn.addEventListener("click", () => action.enabled && action.handler());
+        $("actions").appendChild(btn);
+      });
+
+      renderPatch();
+    }
+
+    function createChildDraft() {
+      const current = specById(viewState.selected);
+      const def = defOf(current);
+      if (!def.child) {
+        toast("L5/Implementation 是叶子层，不能创建子 spec。");
+        return;
+      }
+      const childDef = levelDefs[def.child];
+      const stubName = `${def.child === "L5" ? "SLICE" : def.child === "L4" ? "FEAT" : def.child === "L3" ? "MOD" : "vibex"}-${current.name.replace(/^(FEAT|MOD|SLICE)-/, "").toLowerCase()}-next`;
+      const existingChildren = childrenOf(current.name).map(c => "  - " + c.name).join("\n") || "  []";
+      viewState.draft = {
+        kind: "create-child-spec",
+        targetLevel: def.child,
+        targetDir: childDef.dir,
+        parentName: current.name,
+        name: stubName,
+        patch:
+`intent: create-child-spec
+parent_name: ${current.name}
+parent_path: ${current.path}
+target_level: ${def.child}
+target_dir: ${childDef.dir}
+existing_children:
+${existingChildren}
+
+yaml_preview:
+  spec:
+    version: "0.1"
+    level: "${childDef.raw.split(" / ")[0]}"
+    name: "${stubName}"
+    parent: "${current.name}"
+    status: "proposal"
+  meta:
+    type: "${childDef.label.toLowerCase().replace(/^l\\d\\s/, "")}"
+    module: "${current.module}"
+  io_contract:
+    input: |
+      TODO: 由 agent 澄清后补齐
+    output: |
+      TODO: 由 agent 澄清后补齐
+    boundary: |
+      TODO: 由 agent 澄清后补齐`
+      };
+      viewState.mode = "edit";
+      render();
+      toast("已生成 create-child-spec 草稿，等待 Review Drawer 审查。");
+    }
+
+    function previewEditDraft() {
+      const current = specById(viewState.selected);
+      viewState.draft = {
+        kind: "update-status",
+        targetLevel: current.level,
+        targetDir: current.path,
+        parentName: current.parent,
+        name: current.name,
+        patch:
+`intent: update-status
+target: ${current.path}
+
+patch_preview:
+  spec:
+    name: "${current.name}"
+    status: "${current.status}"
+  lifecycle:
+    current: "${current.status}"
+
+note:
+  图形编辑只生成 patch preview。
+  Confirm Write 前必须 run validate。`
+      };
+      viewState.mode = "edit";
+      render();
+      toast("已生成编辑预览草稿。");
+    }
+
+    function renderPatch() {
+      if (viewState.draft) {
+        $("patchPreview").textContent = viewState.draft.patch;
+        return;
+      }
+      const current = specById(viewState.selected);
+      const def = defOf(current);
+      $("patchPreview").textContent =
+`No draft yet.
+
+selected: ${current.name}
+level: ${def.raw}
+path: ${current.path}
+
+点击图中的 Add card，或右侧 Create/Preview 操作生成 intent。`;
+    }
+
+    function renderModeButtons() {
+      document.querySelectorAll("[data-mode]").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.mode === viewState.mode);
+      });
+    }
+
+    function render() {
+      renderLevelFilters();
+      renderSpecList();
+      renderHeaderAndStats();
+      renderGraph();
+      renderInspector();
+      renderModeButtons();
+    }
+
+    $("search").addEventListener("input", event => {
+      viewState.search = event.target.value;
+      renderSpecList();
+    });
+
+    document.querySelectorAll("[data-mode]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        viewState.mode = btn.dataset.mode;
+        render();
+      });
+    });
+
+    $("validateBtn").addEventListener("click", () => {
+      if (!viewState.draft) {
+        toast("没有草稿可验证。先点击 Add card 或 Preview YAML patch。");
+        return;
+      }
+      toast("Prototype validate passed: parent chain + target dir + level rule 均通过。");
+    });
+
+    $("confirmBtn").addEventListener("click", () => {
+      if (!viewState.draft) {
+        toast("没有草稿可写入。");
+        return;
+      }
+      toast("原型不会真实写盘：这里应调用 specs/write，然后 make validate。");
+    });
+
+    $("resetDraftBtn").addEventListener("click", () => {
+      viewState.draft = null;
+      viewState.mode = "focus";
+      render();
+      toast("已清空草稿。");
+    });
+
+    render();
+  </script>
+</body>
+</html>
