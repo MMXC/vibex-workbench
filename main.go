@@ -126,10 +126,16 @@ func getIndexHTML() ([]byte, error) {
 type appHandler struct {
 	backendPort int
 	diskDir     string
+	app         *App
 }
 
 func (h *appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
+
+	if path == "/__vibex/native/open-directory" {
+		h.openDirectory(w, r)
+		return
+	}
 
 	// Proxy /api/* to the Go backend subprocess
 	if strings.HasPrefix(path, "/api/") {
@@ -178,6 +184,62 @@ func (h *appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write(data)
+}
+
+func (h *appHandler) openDirectory(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("[native] open-directory request")
+	origin := r.Header.Get("Origin")
+	if origin == "http://localhost:5173" ||
+		origin == "http://127.0.0.1:5173" ||
+		origin == "http://localhost:34115" ||
+		origin == "http://wails.localhost:34115" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Vary", "Origin")
+	}
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if h.app == nil {
+		http.Error(w, "App binding unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	fmt.Println("[native] opening directory dialog")
+	dir, err := dialog.Directory().
+		SetStartDir(h.app.workspaceRoot).
+		Title("选择工作区目录").
+		Browse()
+	if err != nil || dir == "" {
+		fmt.Printf("[native] directory dialog cancelled or failed: %v\n", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"path":""}`))
+		return
+	}
+	if !filepath.IsAbs(dir) {
+		abs, err := filepath.Abs(dir)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to resolve absolute path: %v", err), http.StatusInternalServerError)
+			return
+		}
+		dir = abs
+	}
+
+	h.app.workspaceRoot = dir
+	fmt.Printf("[native] selected directory: %s\n", dir)
+	if h.app.ctx != nil {
+		runtime.EventsEmit(h.app.ctx, "workspace:selected", dir)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"path": dir})
 }
 
 // App — 所有 Wails binding methods 都定义在此 struct 上
@@ -334,7 +396,7 @@ func (a *App) RunMake(ctx context.Context, target string, workspace string) (map
 	cmd.Dir = workspace
 	out, err := cmd.CombinedOutput()
 	return map[string]any{
-		"ok":    err == nil,
+		"ok":     err == nil,
 		"output": string(out),
 	}, err
 }
@@ -473,9 +535,9 @@ type WorkspaceState struct {
 
 // Signal 单个检测信号
 type Signal struct {
-	Path    string `json:"path"`
-	Exists  bool   `json:"exists"`
-	Reason  string `json:"reason"`
+	Path   string `json:"path"`
+	Exists bool   `json:"exists"`
+	Reason string `json:"reason"`
 }
 
 // DetectWorkspaceState 调用 generators/state_detector.py，返回状态结构
@@ -700,23 +762,24 @@ var theAppHandler = &appHandler{backendPort: 33338, diskDir: "frontend/build"}
 
 func main() {
 	app := &App{}
+	theAppHandler.app = app
 
 	err := wails.Run(
 		&options.App{
-			Title:     "VibeX Workbench",
-			Width:     1280,
-			Height:    800,
-			MinWidth:  800,
-			MinHeight: 600,
-			Frameless: true,
-			Menu:      menu.NewMenu(),
+			Title:           "VibeX Workbench",
+			Width:           1280,
+			Height:          800,
+			MinWidth:        800,
+			MinHeight:       600,
+			Frameless:       true,
+			Menu:            menu.NewMenu(),
 			CSSDragProperty: "--wails-draggable",
-			CSSDragValue:   "drag",
+			CSSDragValue:    "drag",
 			AssetServer: &assetserver.Options{
 				Handler: theAppHandler,
 			},
 			BackgroundColour: options.NewRGBA(15, 15, 15, 255),
-			Bind: []interface{}{app},
+			Bind:             []interface{}{app},
 			OnStartup: func(ctx context.Context) {
 				app.ctx = ctx
 			},

@@ -97,14 +97,14 @@ E4-U3: 拖拽到 Composer 注入 @artifactId
 <ArtifactPreviewModal />
 
 <style>
-  .artifact-panel { background: #111; height: 100%; overflow: hidden; display: flex; flex-direction: column; }
-  .header { padding: 12px 16px; border-bottom: 1px solid #222; color: #ccc; font-size: 13px; }
+  .artifact-panel { background: var(--wb-bg-base, #0b0c10); height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+  .header { padding: 12px 16px; border-bottom: 1px solid var(--wb-border, #303746); color: var(--wb-text, #eef0f5); font-size: 13px; }
   .search { padding: 8px; }
-  .search input { width: 100%; background: #222; border: 1px solid #444; color: #eee; padding: 6px 10px; border-radius: 6px; font-size: 12px; box-sizing: border-box; }
+  .search input { width: 100%; background: #0b0d12; border: 1px solid var(--wb-border, #303746); color: var(--wb-text, #eef0f5); padding: 6px 10px; border-radius: 6px; font-size: 12px; box-sizing: border-box; }
   .filter { display: flex; gap: 4px; padding: 0 8px 8px; }
-  .filter button { background: transparent; border: none; color: #666; font-size: 11px; cursor: pointer; padding: 3px 8px; border-radius: 4px; }
-  .filter button:hover { color: #ccc; }
-  .filter button.active { background: #333; color: #fff; }
+  .filter button { background: transparent; border: none; color: var(--wb-muted, #6f7888); font-size: 11px; cursor: pointer; padding: 3px 8px; border-radius: 4px; }
+  .filter button:hover { color: var(--wb-text, #eef0f5); }
+  .filter button.active { background: var(--wb-bg-panel-3, #242936); color: var(--wb-text, #eef0f5); }
   .items { flex: 1; overflow-y: auto; }
   .artifact-item {
     padding: 8px 16px;
@@ -113,20 +113,20 @@ E4-U3: 拖拽到 Composer 注入 @artifactId
     align-items: center;
     gap: 8px;
     font-size: 12px;
-    border-bottom: 1px solid #1a1a1a;
+    border-bottom: 1px solid var(--wb-border, #303746);
     user-select: none;
   }
-  .artifact-item:hover { background: #1a1a1a; }
-  .artifact-item.selected { background: #1e293b; border-left: 3px solid #4f46e5; }
+  .artifact-item:hover { background: var(--wb-bg-panel-2, #1c202a); }
+  .artifact-item.selected { background: rgba(122, 162, 255, .13); border-left: 3px solid var(--wb-brand, #7aa2ff); }
   .artifact-item[draggable="true"]:hover .drag-hint { opacity: 1; }
-  .type { color: #4f46e5; font-size: 11px; flex-shrink: 0; }
-  .name { color: #e2e8f0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .drag-hint { color: #444; font-size: 10px; opacity: 0; transition: opacity 0.15s; }
-  .empty { color: #555; font-size: 12px; padding: 16px; text-align: center; }
+  .type { color: var(--wb-brand, #7aa2ff); font-size: 11px; flex-shrink: 0; }
+  .name { color: var(--wb-text, #eef0f5); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .drag-hint { color: var(--wb-muted, #6f7888); font-size: 10px; opacity: 0; transition: opacity 0.15s; }
+  .empty { color: var(--wb-muted, #6f7888); font-size: 12px; padding: 16px; text-align: center; }
 
   /* 骨架屏 */
   .artifact-item.skeleton { pointer-events: none; }
-  .skel-icon, .skel-name { height: 8px; border-radius: 4px; background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%); background-size: 200% 100%; animation: shimmer 1.4s ease-in-out infinite; }
+  .skel-icon, .skel-name { height: 8px; border-radius: 4px; background: linear-gradient(90deg, #1c202a 25%, #242936 50%, #1c202a 75%); background-size: 200% 100%; animation: shimmer 1.4s ease-in-out infinite; }
   .skel-icon { width: 20px; flex-shrink: 0; }
   .skel-name { flex: 1; }
   @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
@@ -134,6 +134,6 @@ E4-U3: 拖拽到 Composer 注入 @artifactId
   /* 错误态 */
   .error-state { display: flex; flex-direction: column; align-items: center; padding: 20px; gap: 6px; }
   .error-state span { font-size: 20px; }
-  .error-state p { color: #f87171; font-size: 11px; text-align: center; margin: 0; }
-  .error-state button { background: #374151; border: none; color: #ccc; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+  .error-state p { color: var(--accent-red, #e16d75); font-size: 11px; text-align: center; margin: 0; }
+  .error-state button { background: var(--wb-bg-panel-3, #242936); border: none; color: var(--wb-text-sec, #a3abb9); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; }
 </style>

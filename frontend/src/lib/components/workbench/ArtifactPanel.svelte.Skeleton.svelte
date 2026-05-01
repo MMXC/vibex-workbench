@@ -1,7 +1,7 @@
 <!-- ============================================================
 ⚠️  此文件由 spec-to-code 自动生成
 来自: specs
-生成时间: 2026-04-22
+生成时间: 2026-04-23
 ⚠️  不要直接编辑此文件 — 改 *.svelte
 ============================================================ -->
 
@@ -45,13 +45,13 @@
 
 <style>
   .artifact-panel  { background: #111; height: 100%; overflow: hidden; display: flex; flex-direction: column; }
-  .header          { padding: 12px 16px; border-bottom: 1px solid #222; color: #ccc; font-size: 13px; }
+  .header          { padding: 12px 16px; border-bottom: 1px solid var(--wb-border, #303746); color: var(--wb-text, #eef0f5); font-size: 13px; }
   .search          { padding: 8px; }
   .search input    { width: 100%; background: #222; border: 1px solid #444; color: #eee; padding: 6px 10px; border-radius: 6px; font-size: 12px; }
   .items           { flex: 1; overflow-y: auto; }
   .artifact-item   { padding: 8px 16px; cursor: pointer; display: flex; gap: 8px; font-size: 12px; }
   .artifact-item:hover { background: #1a1a1a; }
-  .type            { color: #4f46e5; }
-  .name            { color: #e2e8f0; }
-  .empty           { color: #555; font-size: 12px; padding: 16px; text-align: center; }
+  .type            { color: var(--wb-brand, #7aa2ff); }
+  .name            { color: var(--wb-text, #eef0f5); }
+  .empty           { color: var(--wb-muted, #6f7888); font-size: 12px; padding: 16px; text-align: center; }
 </style>

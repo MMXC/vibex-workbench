@@ -5,7 +5,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { openDirectoryDialog, eventsEmit } from '$lib/wails-runtime';
+	import { eventsEmit } from '$lib/wails-runtime';
+	import { openDirectoryNativeFirst } from '$lib/wails-dialogs';
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
 
 	let { title = 'VibeX Workbench' }: { title?: string } = $props();
@@ -25,8 +26,10 @@
 
 	/** 打开项目：弹目录选择 → 同步 store → 触发事件 → 跳转 */
 	async function openProject() {
+		console.warn('[titlebar] openProject clicked');
 		fileMenuOpen = false;
-		const dir = await openDirectoryDialog();
+		const dir = await openDirectoryNativeFirst('titlebar');
+		console.warn('[titlebar] openProject result:', dir);
 		if (!dir) return;
 		localStorage.setItem('vibex-workspace-root', dir);
 		// 1. 直接更新 store → SpecExplorer 的 $effect 立即触发刷新
@@ -135,13 +138,13 @@
 		display: flex;
 		align-items: center;
 		padding: 0 0 0 6px;
-		background: #181818;
-		border-bottom: 1px solid #2b2b2b;
+		background: var(--wb-bg-base, #0b0c10);
+		border-bottom: 1px solid var(--wb-border, #303746);
 		position: relative;
 		z-index: 100;
 		font-family: var(--font-ui, 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif);
 		font-size: 12px;
-		color: #cccccc;
+		color: var(--wb-text-sec, #a3abb9);
 		user-select: none;
 		--wails-draggable: drag;
 	}
@@ -169,7 +172,7 @@
 	}
 
 	.brand:hover {
-		background: #252526;
+		background: var(--wb-bg-panel-2, #1c202a);
 	}
 
 	.brand-logo {
@@ -182,7 +185,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		color: #bdbdbd;
+		color: var(--wb-text, #eef0f5);
 		font-size: 12px;
 		font-weight: 500;
 	}
@@ -202,7 +205,7 @@
 		border: 0;
 		border-radius: 4px;
 		background: transparent;
-		color: #cccccc;
+		color: var(--wb-text-sec, #a3abb9);
 		font: inherit;
 		cursor: pointer;
 	}
@@ -213,7 +216,7 @@
 		border: 0;
 		border-radius: 4px;
 		background: transparent;
-		color: #cccccc;
+		color: var(--wb-text-sec, #a3abb9);
 		font: inherit;
 		font-size: 12px;
 		cursor: pointer;
@@ -221,7 +224,7 @@
 
 	.menu-btn:hover:not(:disabled),
 	.menu-btn.active {
-		background: #2a2d2e;
+		background: var(--wb-bg-panel-2, #1c202a);
 	}
 
 	.menu-btn:disabled {
@@ -238,8 +241,8 @@
 		top: calc(100% + 2px);
 		left: 0;
 		min-width: 200px;
-		background: #252526;
-		border: 1px solid #3c3c3c;
+		background: var(--wb-bg-panel, #151820);
+		border: 1px solid var(--wb-border-2, #465064);
 		border-radius: 6px;
 		padding: 4px;
 		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
@@ -254,7 +257,7 @@
 		border: 0;
 		border-radius: 4px;
 		background: transparent;
-		color: #cccccc;
+		color: var(--wb-text, #eef0f5);
 		font: inherit;
 		font-size: 13px;
 		text-align: left;
@@ -264,7 +267,7 @@
 	}
 
 	.dropdown-item:hover {
-		background: #094771;
+		background: rgba(122, 162, 255, 0.16);
 	}
 
 	.dropdown-item .item-icon {
@@ -274,7 +277,7 @@
 	.dropdown-item .shortcut {
 		margin-left: auto;
 		font-size: 11px;
-		color: #6c7086;
+		color: var(--wb-muted, #6f7888);
 	}
 
 	.command-center {
@@ -289,10 +292,10 @@
 		height: 24px;
 		padding: 0 12px;
 		box-sizing: border-box;
-		border: 1px solid #3b3b3b;
+		border: 1px solid var(--wb-border-2, #465064);
 		border-radius: 6px;
-		background: #242424;
-		color: #b9b9b9;
+		background: var(--wb-bg-panel-2, #1c202a);
+		color: var(--wb-text-sec, #a3abb9);
 		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 		--wails-draggable: no-drag;
 	}
@@ -305,7 +308,7 @@
 	}
 
 	.search-icon {
-		color: #858585;
+		color: var(--wb-muted, #6f7888);
 		font-size: 13px;
 	}
 
@@ -324,23 +327,23 @@
 		height: 20px;
 		padding: 0 8px;
 		border-radius: 999px;
-		background: rgba(34, 197, 94, 0.12);
-		color: #89d185;
-		border: 1px solid rgba(34, 197, 94, 0.25);
+		background: rgba(135, 207, 138, 0.12);
+		color: var(--accent-green, #87cf8a);
+		border: 1px solid rgba(135, 207, 138, 0.25);
 		font-size: 11px;
 		white-space: nowrap;
 	}
 
 	.run-pill.warn {
-		background: rgba(245, 158, 11, 0.1);
-		color: #d7ba7d;
-		border-color: rgba(245, 158, 11, 0.24);
+		background: rgba(239, 198, 107, 0.1);
+		color: var(--accent-yellow, #efc66b);
+		border-color: rgba(239, 198, 107, 0.24);
 	}
 
 	.icon-btn {
 		background: none;
 		border: none;
-		color: #858585;
+		color: var(--wb-muted, #6f7888);
 		padding: 0 10px;
 		cursor: pointer;
 		display: flex;
@@ -353,8 +356,8 @@
 	}
 
 	.icon-btn:hover {
-		color: #cccccc;
-		background: #2a2d2e;
+		color: var(--wb-text, #eef0f5);
+		background: var(--wb-bg-panel-2, #1c202a);
 	}
 
 	.ico-svg {
@@ -379,7 +382,7 @@
 		padding: 0;
 		border: none;
 		background: transparent;
-		color: #cccccc;
+		color: var(--wb-text-sec, #a3abb9);
 		cursor: pointer;
 		display: flex;
 		align-items: center;
@@ -390,13 +393,13 @@
 	}
 
 	.win:hover {
-		background: #2a2d2e;
-		color: #ffffff;
+		background: var(--wb-bg-panel-2, #1c202a);
+		color: var(--wb-text, #eef0f5);
 	}
 
 	.win-close:hover {
-		background: #e81123;
-		color: #fff;
+		background: var(--accent-red, #e16d75);
+		color: #12080a;
 	}
 
 	.win svg {

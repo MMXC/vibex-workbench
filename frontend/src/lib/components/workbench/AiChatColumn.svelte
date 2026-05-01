@@ -66,8 +66,8 @@
 <div class="ai-column" bind:this={rootEl}>
 	<div class="hdr">
 		<div>
-			<span class="hdr-title">AI Agent</span>
-			<span class="hdr-sub">当前工作区 · 自举诊断</span>
+			<span class="hdr-title">Agent Workspace</span>
+			<span class="hdr-sub">Context · Commands · Draft output</span>
 		</div>
 		<span class="hdr-dot" title="SSE / backend"></span>
 	</div>
@@ -94,8 +94,10 @@
 		flex-direction: column;
 		height: 100%;
 		min-height: 0;
-		background: var(--wb-panel-bg, #131314);
-		border-left: 1px solid #2d2d2d;
+		background:
+			radial-gradient(circle at 85% 4%, rgba(114, 214, 208, 0.08), transparent 34%),
+			#151820;
+		border-left: 1px solid #303746;
 		overflow: hidden;
 	}
 
@@ -105,25 +107,25 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 10px;
-		padding: 9px 12px;
-		border-bottom: 1px solid #2d2d2d;
-		background: #252526;
+		padding: 14px 14px 12px;
+		border-bottom: 1px solid #303746;
+		background: rgba(28, 32, 42, 0.78);
 	}
 
 	.hdr-title {
 		display: block;
-		font-size: 11px;
-		font-weight: 700;
-		letter-spacing: 0.08em;
+		font-size: 13px;
+		font-weight: 800;
+		letter-spacing: 0.02em;
 		text-transform: uppercase;
-		color: #cccccc;
+		color: #eef0f5;
 	}
 
 	.hdr-sub {
 		display: block;
 		margin-top: 2px;
 		font-size: 10.5px;
-		color: #858585;
+		color: #a3abb9;
 		white-space: nowrap;
 	}
 
@@ -142,7 +144,8 @@
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
-		border-bottom: 1px solid #2d2d2d;
+		border-bottom: 1px solid #303746;
+		background: rgba(12, 14, 19, 0.32);
 	}
 
 	.chat-region {
@@ -161,13 +164,13 @@
 		border: none;
 		cursor: row-resize;
 		touch-action: none;
-		background: #1b1b1b;
+		background: #0f1117;
 		z-index: 4;
 	}
 
 	.split-ai:hover,
 	.split-ai:active {
-		background: #007acc;
+		background: #7aa2ff;
 	}
 
 	.composer-region {
@@ -176,7 +179,7 @@
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
-		border-top: 1px solid #2d2d2d;
+		border-top: 1px solid #303746;
 	}
 
 	.composer-region :global(.composer) {

@@ -10,6 +10,7 @@
  *   3. 调用之，catch → 打出诊断信息，不静默 fallback
  */
 
+import { extractSpecDisplay, type SpecDisplay } from './workbench/spec-display';
 import { isWails } from './wails-runtime';
 
 // ── Types ─────────────────────────────────────────────────────
@@ -19,6 +20,7 @@ export interface WailsSpecFile {
 	level: number;  // 1-5
 	name: string;    // frontmatter.name 或文件名
 	status: string; // frontmatter.status
+	display?: SpecDisplay;
 }
 
 export interface WailsWorkspaceState {
@@ -33,6 +35,15 @@ function getRuntime(): any | null {
 	return (window as any).runtime ?? null;
 }
 
+function getGoApp(): any | null {
+	return (window as any).go?.main?.App ?? null;
+}
+
+function isLikelyFullPath(p: string): boolean {
+	if (!p) return false;
+	return p.includes('/') || p.includes('\\');
+}
+
 /**
  * 检查 Wails binding 方法是否存在。
  * 在 Wails runtime 完全 init 前，window.go.main.App.* 方法尚不存在。
@@ -40,6 +51,39 @@ function getRuntime(): any | null {
 function hasBinding(name: string): boolean {
 	const rt = getRuntime();
 	return !!(rt && (rt as any).ListSpecs !== undefined);
+}
+
+function levelTokenToNumber(level: string): number {
+	const match = level.match(/^L([1-5])$/);
+	return match ? Number(match[1]) : 0;
+}
+
+function inferLevelFromPath(path: string): number {
+	const match = path.match(/(?:^|\/)L([1-5])[-_]/i);
+	return match ? Number(match[1]) : 0;
+}
+
+async function enrichSpecFiles(root: string, files: WailsSpecFile[]): Promise<WailsSpecFile[]> {
+	return Promise.all(
+		files.map(async file => {
+			try {
+				const content = await wailsReadSpecFile(root, file.path);
+				const meta = extractSpecDisplay(content, file.path);
+				return {
+					...file,
+					level: file.level || levelTokenToNumber(meta.level) || inferLevelFromPath(file.path),
+					name: meta.name || file.name,
+					status: meta.status || file.status,
+					display: meta.display,
+				};
+			} catch {
+				return {
+					...file,
+					level: file.level || inferLevelFromPath(file.path),
+				};
+			}
+		})
+	);
 }
 
 // ── ListSpecs ──────────────────────────────────────────────────
@@ -50,18 +94,25 @@ function hasBinding(name: string): boolean {
  */
 export async function wailsListSpecs(root: string): Promise<WailsSpecFile[]> {
 	if (!root) return [];
+	if (!isLikelyFullPath(root)) {
+		throw new Error(`Invalid workspace root (not full path): ${root}`);
+	}
 
-	const rt = getRuntime();
+	const app = getGoApp();
 	// 优先用 Wails binding（仅在方法已注册时）
-	if (isWails() && rt && typeof (rt as any).ListSpecs === 'function') {
+	if (isWails() && app && typeof (app as any).ListSpecs === 'function') {
 		try {
 			console.log('[wails-filesystem] ListSpecs via Wails, root=', root);
-			return (await (rt as any).ListSpecs(root)) as WailsSpecFile[];
+			const files = (await (app as any).ListSpecs(root)) as WailsSpecFile[];
+			return enrichSpecFiles(root, files);
 		} catch (e) {
 			console.error('[wails-filesystem] ListSpecs Wails call failed:', e);
 			// Wails 调用失败时不应静默降级到 HTTP（在 Wails 环境里 HTTP 走不通）
 			throw e;
 		}
+	}
+	if (isWails()) {
+		throw new Error('Wails binding missing: App.ListSpecs');
 	}
 
 	// HTTP fallback for browser dev
@@ -71,12 +122,13 @@ export async function wailsListSpecs(root: string): Promise<WailsSpecFile[]> {
 	);
 	if (!r.ok) return [];
 	const j = await r.json();
-	return (j.paths ?? []).map((p: string) => ({
+	const files = (j.paths ?? []).map((p: string) => ({
 		path: p,
-		level: 0,
+		level: inferLevelFromPath(p),
 		name: p.split('/').pop() ?? p,
 		status: 'active',
 	}));
+	return enrichSpecFiles(root, files);
 }
 
 // ── ReadSpecFile ───────────────────────────────────────────────
@@ -89,15 +141,21 @@ export async function wailsReadSpecFile(
 	path: string
 ): Promise<string> {
 	if (!root || !path) throw new Error('root and path required');
+	if (!isLikelyFullPath(root)) {
+		throw new Error(`Invalid workspace root (not full path): ${root}`);
+	}
 
-	const rt = getRuntime();
-	if (isWails() && rt && typeof (rt as any).ReadSpecFile === 'function') {
+	const app = getGoApp();
+	if (isWails() && app && typeof (app as any).ReadSpecFile === 'function') {
 		try {
-			return (await (rt as any).ReadSpecFile(root, path)) as string;
+			return (await (app as any).ReadSpecFile(root, path)) as string;
 		} catch (e) {
 			console.error('[wails-filesystem] ReadSpecFile Wails call failed:', e);
 			throw e;
 		}
+	}
+	if (isWails()) {
+		throw new Error('Wails binding missing: App.ReadSpecFile');
 	}
 
 	// HTTP fallback
@@ -120,16 +178,22 @@ export async function wailsWriteSpecFile(
 	content: string
 ): Promise<void> {
 	if (!root || !path) throw new Error('root and path required');
+	if (!isLikelyFullPath(root)) {
+		throw new Error(`Invalid workspace root (not full path): ${root}`);
+	}
 
-	const rt = getRuntime();
-	if (isWails() && rt && typeof (rt as any).WriteSpecFile === 'function') {
+	const app = getGoApp();
+	if (isWails() && app && typeof (app as any).WriteSpecFile === 'function') {
 		try {
-			await (rt as any).WriteSpecFile(root, path, content);
+			await (app as any).WriteSpecFile(root, path, content);
 			return;
 		} catch (e) {
 			console.error('[wails-filesystem] WriteSpecFile Wails call failed:', e);
 			throw e;
 		}
+	}
+	if (isWails()) {
+		throw new Error('Wails binding missing: App.WriteSpecFile');
 	}
 
 	// HTTP fallback
@@ -150,15 +214,21 @@ export async function wailsDetectWorkspaceState(
 	root: string
 ): Promise<WailsWorkspaceState> {
 	if (!root) return { state: 'error', signals: [], suggestions: ['workspace root 为空'] };
+	if (!isLikelyFullPath(root)) {
+		throw new Error(`Invalid workspace root (not full path): ${root}`);
+	}
 
-	const rt = getRuntime();
-	if (isWails() && rt && typeof (rt as any).DetectWorkspaceState === 'function') {
+	const app = getGoApp();
+	if (isWails() && app && typeof (app as any).DetectWorkspaceState === 'function') {
 		try {
-			return (await (rt as any).DetectWorkspaceState(root)) as WailsWorkspaceState;
+			return (await (app as any).DetectWorkspaceState(root)) as WailsWorkspaceState;
 		} catch (e) {
 			console.error('[wails-filesystem] DetectWorkspaceState Wails call failed:', e);
 			throw e;
 		}
+	}
+	if (isWails()) {
+		throw new Error('Wails binding missing: App.DetectWorkspaceState');
 	}
 
 	// HTTP fallback
@@ -182,8 +252,10 @@ export async function wailsRunMake(
 	workspace: string
 ): Promise<{ ok: boolean; output: string }> {
 	if (!isWails()) throw new Error('wailsRunMake requires Wails mode');
-	const rt = getRuntime();
-	if (!rt) throw new Error('Wails runtime not available');
-	const result = await (rt as any).RunMake(target, workspace);
+	const app = getGoApp();
+	if (!app || typeof (app as any).RunMake !== 'function') {
+		throw new Error('Wails binding missing: App.RunMake');
+	}
+	const result = await (app as any).RunMake(target, workspace);
 	return result as { ok: boolean; output: string };
 }

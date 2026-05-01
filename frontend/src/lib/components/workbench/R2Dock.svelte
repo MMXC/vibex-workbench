@@ -107,7 +107,7 @@ PS C:\project\vibex-workbench&gt;<span class="cursor">▌</span></pre>
 		flex-direction: column;
 		flex: 1;
 		min-height: 0;
-		background: #1e1e1e;
+		background: var(--wb-bg-base, #0b0c10);
 	}
 
 	.dock-tabs {
@@ -117,8 +117,8 @@ PS C:\project\vibex-workbench&gt;<span class="cursor">▌</span></pre>
 		height: var(--dock-tab-h, 28px);
 		padding: 0 4px;
 		gap: 1px;
-		background: #252526;
-		border-bottom: 1px solid #2d2d2d;
+		background: var(--wb-bg-panel, #151820);
+		border-bottom: 1px solid var(--wb-border, #303746);
 	}
 
 	.dock-tab {
@@ -128,7 +128,7 @@ PS C:\project\vibex-workbench&gt;<span class="cursor">▌</span></pre>
 		padding: 0 10px;
 		height: 100%;
 		font-size: 11.5px;
-		color: #969696;
+		color: var(--wb-text-sec, #a3abb9);
 		border: none;
 		background: transparent;
 		cursor: pointer;
@@ -140,12 +140,12 @@ PS C:\project\vibex-workbench&gt;<span class="cursor">▌</span></pre>
 	}
 
 	.dock-tab:hover {
-		color: #cccccc;
+		color: var(--wb-text, #eef0f5);
 	}
 
 	.dock-tab.active {
-		color: #ffffff;
-		border-bottom-color: #007acc;
+		color: var(--wb-text, #eef0f5);
+		border-bottom-color: var(--wb-accent, #72d6d0);
 	}
 
 	.dock-more {
@@ -158,8 +158,8 @@ PS C:\project\vibex-workbench&gt;<span class="cursor">▌</span></pre>
 		font-size: 9px;
 		padding: 0 4px;
 		border-radius: 9px;
-		background: #c42b1c;
-		color: #fff;
+		background: var(--accent-red, #e16d75);
+		color: #12080a;
 		font-weight: 700;
 		line-height: 1.4;
 	}
@@ -183,7 +183,7 @@ PS C:\project\vibex-workbench&gt;<span class="cursor">▌</span></pre>
 
 	.muted {
 		margin: 0;
-		color: #858585;
+		color: var(--wb-muted, #6f7888);
 	}
 
 	.mono {
@@ -191,12 +191,12 @@ PS C:\project\vibex-workbench&gt;<span class="cursor">▌</span></pre>
 		font-family: var(--font-mono, 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace);
 		font-size: 11px;
 		line-height: 1.6;
-		color: #cccccc;
+		color: var(--wb-text-sec, #a3abb9);
 		white-space: pre-wrap;
 	}
 
 	.mono-term {
-		background: #1e1e1e;
+		background: var(--wb-bg-base, #0b0c10);
 		padding: 0;
 		border-radius: 0;
 	}
@@ -206,7 +206,7 @@ PS C:\project\vibex-workbench&gt;<span class="cursor">▌</span></pre>
 		align-items: flex-start;
 		gap: 9px;
 		padding: 6px 4px;
-		color: #cccccc;
+		color: var(--wb-text-sec, #a3abb9);
 	}
 
 	.problem-row > span {
@@ -222,13 +222,13 @@ PS C:\project\vibex-workbench&gt;<span class="cursor">▌</span></pre>
 	}
 
 	.problem-row.ok > span {
-		background: rgba(34, 197, 94, 0.16);
-		color: #89d185;
+		background: rgba(135, 207, 138, 0.16);
+		color: var(--accent-green, #87cf8a);
 	}
 
 	.problem-row.warn > span {
-		background: rgba(245, 158, 11, 0.16);
-		color: #d7ba7d;
+		background: rgba(239, 198, 107, 0.16);
+		color: var(--accent-yellow, #efc66b);
 	}
 
 	.problem-row p {
@@ -244,7 +244,7 @@ PS C:\project\vibex-workbench&gt;<span class="cursor">▌</span></pre>
 	}
 
 	.problem-row small {
-		color: #858585;
+		color: var(--wb-muted, #6f7888);
 		font-size: 11px;
 	}
 

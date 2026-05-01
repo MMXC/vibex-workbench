@@ -5,7 +5,7 @@
 -->
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { openDirectoryDialog } from '$lib/wails-runtime';
+  import { openDirectoryNativeFirst } from '$lib/wails-dialogs';
 
   let workspaceRoot = $state('');
   let state = $state<{state: string, signals: any[], suggestions: string[]} | null>(null);
@@ -74,23 +74,9 @@
     }
   }
 
-  /** 直接绑 Wails Go binding（Go 侧已切 sqweek/dialog，返回完整路径） */
-  async function wailsOpenDirectory(): Promise<string> {
-    const rt = (window as any).runtime;
-    if (rt && typeof rt.OpenDirectoryDialog === 'function') {
-      const result: string = await rt.OpenDirectoryDialog();
-      if (result && (result.includes('/') || result.includes('\\'))) {
-        return result;
-      }
-      console.warn('[workspace] Wails OpenDirectoryDialog returned no valid path, ignoring');
-      return '';
-    }
-    return openDirectoryDialog();
-  }
-
   async function browseDir() {
     try {
-      const dir = await wailsOpenDirectory();
+      const dir = await openDirectoryNativeFirst('workspace');
       if (!dir) return;
       workspaceRoot = dir;
       state = null;

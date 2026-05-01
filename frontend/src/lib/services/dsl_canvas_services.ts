@@ -1,9 +1,9 @@
 // ============================================================
 // ⚠️  此文件由 spec-to-code 自动生成
 //     来自: specs
-//     生成时间: 2026-04-22
+//     生成时间: 2026-04-23
 // ============================================================
-// 来源: specs/feature/dsl-canvas/dsl-canvas_service.yaml
+// 来源: specs\feature\dsl-canvas\dsl-canvas_service.yaml
 // parent: dsl-canvas
 
 /**

@@ -55,8 +55,8 @@ content:
           不得通过 eventsEmit → eventsOn 绕转。
       (2) eventsOn 只用于监听 Go backend 主动发来的事件（如 buildAppMenu 的 menu:*
           回调触发 runtime.EventsEmit，frontend 的 eventsOn 接收）。
-      (3) menu 下拉项的 openProject() 必须直接调用 openDirectoryDialog()，
-          禁止 eventsEmit('menu:open-project')。
+      (3) menu 下拉项的 openProject() 必须调用 openDirectoryNativeFirst('titlebar')，
+          禁止 eventsEmit('menu:open-project') 与直接走旧 wrapper 作为 Wails 首选路径。
   - rule: Runtime fallback ⚠
     detail: |
       ⚠ 2026-04-30 架构变更：Wails 环境下已废弃 openDirectoryDialog() wrapper，改用直接绑定。
@@ -79,6 +79,8 @@ content:
     reason: Wails frameless + CSSDragProperty 配置
   - file: frontend/src/app.html
     reason: 不能存在外层 duplicate titlebar
+  - file: specs/L5-slice/SLICE-wails-binding-guard.yaml
+    reason: 菜单类业务调用守卫（Wails 仅 go binding，禁止 Wails 内 fallback）
   behaviors:
   - id: B1
     trigger: 步骤1
@@ -117,3 +119,13 @@ changelog:
   changes:
   - 架构变更：Wails 环境改用直接绑定 window.go.main.App.OpenDirectoryDialog()，废弃 openDirectoryDialog() wrapper 作为首选路径（Go 侧已切 sqweek/dialog）
   - openDirectoryDialog() wrapper 仅保留为 Vite dev server（浏览器开发模式）的 fallback
+- version: '0.4'
+  date: '2026-04-30'
+  author: hermes
+  changes:
+  - 新增依赖：SLICE-wails-binding-guard，防止菜单链路回退到 runtime 业务判定或 Wails 内 fallback
+- version: '0.5'
+  date: '2026-04-30'
+  author: hermes
+  changes:
+  - 对齐 guard 术语：openProject 调用改写为 openDirectoryNativeFirst('titlebar')，避免与旧 wrapper 文案冲突

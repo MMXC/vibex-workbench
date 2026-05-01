@@ -183,26 +183,15 @@ Spec: workbench-layout_resize_feature + workbench-ide-chrome
 		height: 100vh;
 		min-height: 0;
 		overflow: hidden;
-		background: #1e1e1e;
-		--wb-bg-base: #1e1e1e;
-		--wb-bg-secondary: #252526;
-		--wb-panel-bg: #252526;
-		--wb-base: #1e1e1e;
-		--wb-border: #2d2d2d;
-		--wb-text: #cccccc;
-		--wb-text-sec: #a8a8a8;
-		--wb-muted: #858585;
-		--wb-brand: #007acc;
-		--wb-splitter: #1b1b1b;
-		--wb-splitter-hover: #007acc;
-		--bg-base: #1e1e1e;
-		--bg-panel: #252526;
-		--bg-surface: #2d2d30;
-		--border: #2d2d2d;
-		--brand: #007acc;
-		--text-primary: #cccccc;
-		--text-secondary: #a8a8a8;
-		--text-muted: #858585;
+		background: var(--wb-bg-base, #0b0c10);
+		--bg-base: var(--wb-bg-base, #0b0c10);
+		--bg-panel: var(--wb-bg-panel, #151820);
+		--bg-surface: var(--wb-bg-panel-2, #1c202a);
+		--border: var(--wb-border, #303746);
+		--brand: var(--wb-brand, #7aa2ff);
+		--text-primary: var(--wb-text, #eef0f5);
+		--text-secondary: var(--wb-text-sec, #a3abb9);
+		--text-muted: var(--wb-muted, #6f7888);
 		--font-ui: 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
 		--font-mono: 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
 	}
@@ -221,8 +210,8 @@ Spec: workbench-layout_resize_feature + workbench-ide-chrome
 		flex-direction: row;
 		min-width: 0;
 		overflow: hidden;
-		background: #252526;
-		border-right: 1px solid #2d2d2d;
+		background: var(--wb-bg-panel, #151820);
+		border-right: 1px solid var(--wb-border, #303746);
 	}
 
 	.wb-activity-slot {
@@ -245,8 +234,8 @@ Spec: workbench-layout_resize_feature + workbench-ide-chrome
 		display: flex;
 		flex-direction: column;
 		min-width: 0;
-		background: #252526;
-		border-left: 1px solid #2d2d2d;
+		background: var(--wb-bg-panel, #151820);
+		border-left: 1px solid var(--wb-border, #303746);
 	}
 
 	.wb-main {
@@ -265,7 +254,7 @@ Spec: workbench-layout_resize_feature + workbench-ide-chrome
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
-		border-top: 1px solid #2d2d2d;
+		border-top: 1px solid var(--wb-border, #303746);
 	}
 
 	.wb-dock-wrap :global(.dock) {

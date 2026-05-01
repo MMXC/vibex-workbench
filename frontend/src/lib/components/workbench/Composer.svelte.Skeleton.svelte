@@ -1,7 +1,7 @@
 <!-- ============================================================
 ⚠️  此文件由 spec-to-code 自动生成
 来自: specs
-生成时间: 2026-04-22
+生成时间: 2026-04-23
 ⚠️  不要直接编辑此文件 — 改 *.svelte
 ============================================================ -->
 
@@ -42,10 +42,10 @@
 
 <style>
   .composer { padding: 8px 16px; background: #1a1a1a; border-top: 1px solid #333; }
-  textarea  { width: 100%; background: #222; border: 1px solid #444; border-radius: 8px; color: #eee; padding: 8px; resize: none; }
+  textarea  { width: 100%; background: #0b0d12; border: 1px solid var(--wb-border, #303746); border-radius: 8px; color: var(--wb-text, #eef0f5); padding: 8px; resize: none; }
   .mode-tabs { display: flex; gap: 4px; margin-bottom: 6px; }
   .mode-tabs button { background: transparent; border: none; color: #888; cursor: pointer; padding: 4px 8px; border-radius: 4px; }
   .mode-tabs button.active { background: #333; color: #fff; }
   .actions  { display: flex; justify-content: flex-end; margin-top: 6px; }
-  .submit-btn { background: #4f46e5; color: white; border: none; padding: 6px 16px; border-radius: 6px; cursor: pointer; }
+  .submit-btn { background: var(--wb-accent, #72d6d0); color: #071513; border: none; padding: 6px 16px; border-radius: 999px; cursor: pointer; font-weight: 800; }
 </style>

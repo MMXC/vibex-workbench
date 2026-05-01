@@ -9,14 +9,14 @@ meta:
   module: frontend
   owner: hermes
   created: '2026-04-26'
-  updated: '2026-04-29'
+  updated: '2026-04-30'
 io_contract:
   input: |
     /workspace 路由上的路径输入框、按钮点击事件，以及 /workbench 路由中 Wails 菜单事件：
     - 输入框 Enter 或「检测」按钮
     - state=empty 时的「初始化脚手架」按钮
     - state=partial|ready 时的「校验 Spec」「生成代码」「进入 Workbench」按钮
-    - menu:open-project 事件触发的 OpenDirectoryDialog
+    - menu:open-project 事件触发的 native-first OpenDirectoryDialog
   output: |
     - detect-state 返回的 { state, signals, suggestions } 渲染到状态卡片
     - run-make/scaffold 输出渲染到 error/output 区
@@ -45,7 +45,7 @@ content:
           events: onclick → detectState()
         - selector: ".btn-browse"
           label: "📁 浏览… 按钮"
-          events: onclick → openDirectoryDialog() → workspaceRoot=dir → detectState()
+          events: onclick → openDirectoryNativeFirst('workspace') → workspaceRoot=dir → detectState()
           note: 2026-04-30 新增，无需手输路径
         - selector: ".state-card"
           label: 状态卡片（条件渲染：detectState 完成后显示）
@@ -74,10 +74,11 @@ content:
           events: onclick → toggle fileMenuOpen dropdown
         - selector: ".dropdown-item"
           label: "📂 打开项目… (⌘O)"
-          events: onclick → eventsEmit('menu:open-project')
+          events: onclick → openDirectoryNativeFirst('titlebar')
           note: |
-            触发后由 +layout.svelte 全局监听器处理：
-            openDirectoryDialog() → localStorage → eventsEmit('workspace:selected') → goto('/workbench')
+            统一走 frontend/src/lib/wails-dialogs.ts：
+            Wails 桌面端优先 window.go.main.App.OpenDirectoryDialog()，
+            仅浏览器开发模式 fallback。
         - selector: ".menu-btn:nth-child(n+3)"
           label: 编辑 / 视图 / 终端 / 帮助
           disabled: true
@@ -107,7 +108,7 @@ content:
     - "POST /api/workspace/run-make { target, workspace_root }"
     - "localStorage.setItem('vibex-workspace-root', workspaceRoot)"
     - "goto('/workbench')"
-    - "/workbench 页面：menu:open-project → openDirectoryDialog → detectWorkspaceState → eventsEmit('workspace:selected')"
+    - "/workbench 页面：menu:open-project / titlebar 打开项目 → openDirectoryNativeFirst() → detectWorkspaceState → eventsEmit('workspace:selected')"
     - "StatusBar 读取 workspaceRoot/workspaceState/backendStatus props"
     forbidden:
     - "在路径输入或目录选择时自动 scaffold"
@@ -137,11 +138,12 @@ content:
   - rule: "Workbench 菜单打开项目"
     detail: |
       收到 menu:open-project：
-      - 调用 openDirectoryDialog()
+      - 调用 openDirectoryNativeFirst()
       - 用户取消则 return
       - workspaceRoot=dir
       - detectWorkspaceState(dir)，POST /api/workspace/detect-state，body 使用 workspaceRoot
       - eventsEmit('workspace:selected', dir)
+      - Wails 环境 binding 缺失时必须报错并中止，不得 fallback 到旧 wrapper/HTTP
   behaviors:
   - id: L5-B1
     behavior: "用户检测 workspace root"
@@ -194,6 +196,8 @@ content:
     reason: "Workbench 内 menu:open-project wiring 和 StatusBar props 来源"
   - file: frontend/src/lib/wails-runtime.ts
     reason: "openDirectoryDialog / eventsOn / eventsEmit wrapper"
+  - file: specs/L5-slice/SLICE-wails-binding-guard.yaml
+    reason: "统一业务 binding 守卫：Wails 仅走 window.go.main.App.*，禁止 Wails 内 fallback"
   - file: frontend/src/lib/components/workbench/StatusBar.svelte
     reason: "展示 workspaceRoot、backendStatus、workspaceState"
   - file: agent/cmd/web/workspace_handlers.go
@@ -238,3 +242,14 @@ changelog:
   changes:
   - 架构变更：+layout.svelte 和 workspace/+page.svelte 改用直接绑 window.go.main.App.OpenDirectoryDialog()
   - B4 行为同步更新：直接绑 Go 侧方法，废弃 openDirectoryDialog() wrapper 作为 Wails 环境首选路径
+- version: '0.7'
+  date: '2026-04-30'
+  author: hermes
+  changes:
+  - 补充通用守卫引用：依赖 SLICE-wails-binding-guard，统一 Wails no-fallback 约束
+  - 清理文件菜单旧链路文案：eventsEmit/openDirectoryDialog 改为 openDirectoryNativeFirst()
+- version: '0.8'
+  date: '2026-04-30'
+  author: hermes
+  changes:
+  - 修正 UE-WORKSPACE-PAGE 的 btn-browse 事件文案：openDirectoryDialog() → openDirectoryNativeFirst('workspace')

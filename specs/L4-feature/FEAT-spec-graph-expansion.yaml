@@ -6,6 +6,14 @@ spec:
   parent: "MOD-spec-editor"
   status: "proposal"
 
+display:
+  title: "Spec 图谱展开"
+  summary: "展示 spec 父子关系，并把选中 spec 加入右侧 agent 上下文。"
+  description: |
+    中央图谱以 display.title/summary 渲染用户可理解的卡片。
+    用户点击卡片后，spec 会进入右侧 Agent Workspace 的 Context 区域；
+    Composer 输入 "/" 时展示当前层级允许的 slash command。
+
 meta:
   type: "feature"
   module: "frontend"
@@ -23,6 +31,10 @@ io_contract:
     或在中央 spec 图谱/Canvas 图谱中点击新增子 spec 的 + 卡片。
   output: |
     - 中央图形区展示当前 spec、父 spec、子 spec 的关联卡片
+    - 卡片主体展示 display.title/display.summary，避免仅显示机器名
+    - 点击 spec 卡片可将该 spec 添加到右侧 Agent Context
+    - 右侧 Context 默认收起，仅显示已附加 spec 数量，展开后显示 chips
+    - Composer 输入 "/" 时弹出当前层级允许的 slash command 列表
     - 根据当前 spec 层级展示允许新增的子 spec + 卡片
     - 点击 + 卡片后，右侧 agent 线程生成推荐草稿并进入澄清
     - 用户确认后写入 specs/ 并触发 make validate
@@ -33,6 +45,10 @@ io_contract:
   behavior:
     - "选中 spec 后读取当前 spec metadata 和 parent chain"
     - "中央图谱展示 parent/current/children/sibling context"
+    - "中央卡片优先展示 display.title/display.summary；缺失时由 agent 在下次修改 spec 时补齐"
+    - "点击 spec 卡片或元信息按钮时，将 spec 作为 Context chip 添加到右侧 Composer 上方"
+    - "Context 区默认收起，避免占用 agent 输出区域；展开时显示 spec chips 并支持移除"
+    - "Composer 输入 / 后按当前焦点 spec 层级过滤命令，并选择默认描述模板"
     - "按照 L1->L2->L3->L4->L5 的层级约束显示 + 子 spec 卡片"
     - "+ 卡片点击后把 parent spec、目标层级、相邻 specs 作为上下文发送给 agent 线程"
     - "agent 推荐草稿必须先在对话中澄清，不直接写盘"
@@ -55,6 +71,16 @@ content:
       action: "写入目标 specs/Lx-* 路径，并运行 make validate"
       expected_result: "新 spec 出现在图谱中，验证通过则卡片变为 proposal/ready 状态"
       error_handling: "验证失败时保留草稿，Problems/线程中显示失败分类"
+    - id: "B4"
+      trigger: "用户点击任意 spec 卡片或点击添加到 Context"
+      action: "将 spec 的 path/name/level/display 摘要加入 Agent Workspace Context"
+      expected_result: "右侧 Composer 上方默认只显示 Context 数量，展开后展示可移除 chip"
+      error_handling: "重复添加同一 spec 时更新焦点而不是重复插入"
+    - id: "B5"
+      trigger: "用户在 Composer 输入 /"
+      action: "展示当前焦点 spec 层级允许的 slash command 下拉"
+      expected_result: "选择命令后填入默认描述，用户可编辑后发送"
+      error_handling: "无上下文或层级未知时仅展示 analyse/validate 等安全命令"
 
   level_rules:
     - current_level: "L1"
@@ -74,6 +100,13 @@ content:
       target_dir: null
 
   integration_contract:
+    prototype:
+      file: "prototypes/spec-graph-expansion-prototype.html"
+      rule: |
+        该 HTML 原型是本 feature 的交互蓝本。实现应保持：
+        - Context 默认收起，仅显示 spec 数
+        - 输入 "/" 后显示命令下拉，而不是常驻命令网格
+        - 右侧面板保持简洁，避免无关说明挤占 agent 输出区域
     canvas_expand:
       producer: "FEAT-canvas-expand"
       intent_name: "create-child-spec"
@@ -148,6 +181,14 @@ content:
       name: "Shared graph creation contract"
       rule: "Canvas 与 SpecViewer 都必须通过 create-child-spec intent 进入同一 agent 澄清流程"
       validation: "不存在 Canvas 专属写盘路径或跨级 level 选择器"
+    - id: "C5"
+      name: "Human-readable card display"
+      rule: "spec 卡片必须优先展示 display.title/display.summary，spec.name 仅作为机器标识"
+      validation: "缺少 display 字段时 UI fallback 可用，但 agent 修改 spec 时必须补齐中文摘要"
+    - id: "C6"
+      name: "Compact agent workspace"
+      rule: "右侧 Agent Workspace 只展示 Context、焦点摘要、命令输入与输出草稿"
+      validation: "命令列表仅在输入 / 时弹出，Context 默认收起"
 
   l4_l5_lineage:
     summary: "该 feature 由图谱展示、+ 子 spec 入口、agent 澄清线程三个 slice 落地。"
@@ -158,6 +199,10 @@ content:
         generated_from: "B2"
       - file: "frontend/src/lib/components/workbench/SpecAgentClarification.svelte"
         generated_from: "B2-B3"
+      - file: "frontend/src/lib/components/workbench/Composer.svelte"
+        generated_from: "B4-B5"
+      - file: "frontend/src/lib/stores/spec-agent-context-store.ts"
+        generated_from: "B4-B5"
     generation_order:
       - "SpecGraphViewer"
       - "SpecAddChildCard"

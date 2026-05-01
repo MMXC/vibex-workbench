@@ -21,9 +21,9 @@
 	} as const;
 
 	const stateColors = {
-		empty: '#f97316',
-		partial: '#eab308',
-		ready: '#22c55e',
+		empty: 'var(--accent-orange, #f09a6a)',
+		partial: 'var(--accent-yellow, #efc66b)',
+		ready: 'var(--accent-green, #87cf8a)',
 	} as const;
 
 	const backendLabels = {
@@ -33,9 +33,9 @@
 	} as const;
 
 	const backendColors = {
-		connecting: '#eab308',
-		ready: '#22c55e',
-		error: '#ef4444',
+		connecting: 'var(--accent-yellow, #efc66b)',
+		ready: 'var(--accent-green, #87cf8a)',
+		error: 'var(--accent-red, #e16d75)',
 	} as const;
 
 	/** 截短长路径用于显示 */
@@ -84,11 +84,12 @@
 		justify-content: space-between;
 		height: var(--statusbar-h, 24px);
 		padding: 0 10px;
-		background: var(--statusbar-bg, #007acc);
+		background: var(--statusbar-bg, #10131a);
+		border-top: 1px solid var(--wb-border, #303746);
 		flex-shrink: 0;
 		font-family: var(--font-ui, 'Inter', sans-serif);
 		font-size: 12px;
-		color: #fff;
+		color: var(--wb-text-sec, #a3abb9);
 		user-select: none;
 		gap: 8px;
 	}
@@ -113,7 +114,7 @@
 	}
 
 	.sb-path {
-		color: rgba(255, 255, 255, 0.8);
+		color: var(--wb-text-sec, #a3abb9);
 		font-size: 11.5px;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -122,12 +123,12 @@
 	}
 
 	.sb-sep {
-		color: rgba(255, 255, 255, 0.3);
+		color: var(--wb-muted, #6f7888);
 		font-size: 11px;
 	}
 
 	.sb-meta {
-		color: rgba(255, 255, 255, 0.55);
+		color: var(--wb-muted, #6f7888);
 		font-size: 11px;
 		white-space: nowrap;
 	}

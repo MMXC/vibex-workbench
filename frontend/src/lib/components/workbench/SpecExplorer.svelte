@@ -4,9 +4,13 @@
 -->
 <script lang="ts">
 	import { specExplorerStore, workspaceDisplayName } from '$lib/stores/spec-explorer-store';
+	import type { SpecDisplay } from '$lib/workbench/spec-display';
+	import { fallbackDisplayTitle } from '$lib/workbench/spec-display';
 
 	// 订阅 store 中的 specs 列表
-	let specs = $state<{ path: string; level: number; name: string }[]>([]);
+	let specs = $state<
+		{ path: string; level: number; name: string; status: string; display?: SpecDisplay }[]
+	>([]);
 	let specsLoading = $state(false);
 	let specsError = $state<string | null>(null);
 	let selectedPath = $state<string | null>(null);
@@ -33,11 +37,26 @@
 	function depthIndent(path: string): number {
 		return path.split('/').length - 2;
 	}
+
+	function levelClass(level: number): string {
+		if (level <= 1) return 'goal';
+		if (level === 2) return 'skeleton';
+		if (level === 3) return 'module';
+		if (level === 4) return 'feature';
+		return 'slice';
+	}
+
+	function compactPath(path: string): string {
+		return path.replace(/^specs\//, '').replace(/\.ya?ml$/, '');
+	}
 </script>
 
 <div class="spec-explorer">
 	<div class="hdr">
-		<span class="hdr-title">资源管理器</span>
+		<div>
+			<span class="eyebrow">Spec Index</span>
+			<span class="hdr-title">资源管理器</span>
+		</div>
 		<button type="button" class="reload" title="刷新列表" onclick={reload}>↻</button>
 	</div>
 	<div class="workspace-head">
@@ -61,18 +80,30 @@
 				<span>specs</span>
 			</div>
 			{#each specs as item (item.path)}
+				{@const title = item.display?.title || fallbackDisplayTitle(item.name)}
+				{@const summary = item.display?.summary || compactPath(item.path)}
+				{@const level = item.level > 0 ? `L${item.level}` : 'SPEC'}
 				<button
 					type="button"
 					class="ws-item"
+					class:goal={item.level <= 1}
+					class:skeleton={item.level === 2}
+					class:module={item.level === 3}
+					class:feature={item.level === 4}
+					class:slice={item.level >= 5}
 					class:active={selectedPath === item.path}
-					style:padding-left="{10 + depthIndent(item.path) * 12}px"
+					style:--depth="{depthIndent(item.path)}"
 					onclick={() => specExplorerStore.selectSpec(item.path)}
 				>
-					<span class="ws-icon">◇</span>
-					{#if item.level > 0}
-						<span class="level-badge">L{item.level}</span>
-					{/if}
-					<span class="ws-name">{item.path.replace(/^specs\//, '')}</span>
+					<span class="ws-accent"></span>
+					<span class="ws-main">
+						<span class="ws-top">
+							<span class="ws-title">{title}</span>
+							<span class="level-badge {levelClass(item.level)}">{level}</span>
+						</span>
+						<span class="ws-summary">{summary}</span>
+						<span class="ws-machine">{item.status} · {compactPath(item.path)}</span>
+					</span>
 				</button>
 			{/each}
 		</div>
@@ -85,8 +116,10 @@
 		flex-direction: column;
 		height: 100%;
 		min-height: 0;
-		background: #252526;
-		border-right: 1px solid #2d2d2d;
+		background:
+			radial-gradient(circle at 18% 0%, rgba(122, 162, 255, 0.1), transparent 34%),
+			#151820;
+		border-right: 1px solid #303746;
 		font-family:
 			'Segoe UI',
 			'Microsoft YaHei',
@@ -100,16 +133,29 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 10px 12px 8px;
-		border-bottom: 1px solid #2d2d2d;
+		padding: 14px 14px 12px;
+		border-bottom: 1px solid #303746;
+		background: rgba(28, 32, 42, 0.78);
+	}
+
+	.eyebrow {
+		display: block;
+		margin-bottom: 4px;
+		color: #72d6d0;
+		font-family: 'Cascadia Code', ui-monospace, monospace;
+		font-size: 10px;
+		font-weight: 800;
+		letter-spacing: 0.13em;
+		text-transform: uppercase;
 	}
 
 	.hdr-title {
+		display: block;
 		font-size: 11px;
-		font-weight: 600;
+		font-weight: 800;
 		letter-spacing: 0.07em;
 		text-transform: uppercase;
-		color: #bbbbbb;
+		color: #eef0f5;
 	}
 
 	.workspace-head,
@@ -117,9 +163,9 @@
 		display: flex;
 		align-items: center;
 		gap: 5px;
-		height: 24px;
-		padding: 0 8px;
-		color: #cccccc;
+		min-height: 30px;
+		padding: 0 12px;
+		color: #eef0f5;
 		font-size: 11px;
 		font-weight: 700;
 		letter-spacing: 0.02em;
@@ -127,7 +173,8 @@
 	}
 
 	.workspace-head {
-		border-bottom: 1px solid #2d2d2d;
+		border-bottom: 1px solid #303746;
+		background: rgba(12, 14, 19, 0.36);
 	}
 
 	.workspace-name {
@@ -139,30 +186,33 @@
 	}
 
 	.workspace-actions {
-		color: #858585;
+		color: var(--wb-muted, #6f7888);
 		font-weight: 400;
 		letter-spacing: 0.08em;
 	}
 
 	.chevron {
-		color: #858585;
+		color: var(--wb-muted, #6f7888);
 		font-size: 10px;
 	}
 
 	.reload {
-		background: none;
-		border: none;
-		color: #858585;
+		width: 30px;
+		height: 30px;
+		background: rgba(36, 41, 54, 0.86);
+		border: 1px solid #465064;
+		color: #a3abb9;
 		cursor: pointer;
-		padding: 2px 6px;
-		border-radius: 4px;
+		padding: 0;
+		border-radius: 999px;
 		font-size: 14px;
 		line-height: 1;
 	}
 
 	.reload:hover {
-		color: #cccccc;
-		background: #2a2d2e;
+		color: #eef0f5;
+		border-color: #7aa2ff;
+		background: rgba(122, 162, 255, 0.14);
 	}
 
 	.pad {
@@ -170,7 +220,7 @@
 	}
 
 	.muted {
-		color: #858585;
+		color: var(--wb-muted, #6f7888);
 		font-size: 12px;
 	}
 
@@ -182,63 +232,153 @@
 	.tree {
 		flex: 1;
 		overflow-y: auto;
-		padding: 4px 0;
+		padding: 10px;
+		display: grid;
+		align-content: start;
+		gap: 7px;
 	}
 
 	.ws-item {
-		display: flex;
-		align-items: center;
-		gap: 5px;
+		position: relative;
+		display: grid;
+		grid-template-columns: 5px 1fr;
+		align-items: stretch;
+		gap: 0;
 		width: 100%;
-		padding: 3px 10px 3px 16px;
-		border: none;
-		background: none;
+		padding: 0;
+		border: 1px solid transparent;
+		border-radius: 13px;
+		background: rgba(28, 32, 42, 0.62);
 		cursor: pointer;
-		color: #cccccc;
+		color: #eef0f5;
 		text-align: left;
 		font: inherit;
+		overflow: hidden;
 		transition:
 			background 150ms ease,
-			color 150ms ease;
+			border-color 150ms ease,
+			transform 150ms ease;
 	}
 
 	.ws-item:hover {
-		background: #2a2d2e;
-		color: #ffffff;
+		background: rgba(36, 41, 54, 0.86);
+		border-color: #465064;
+		transform: translateY(-1px);
 	}
 
 	.ws-item.active {
-		background: #04395e;
+		background: rgba(122, 162, 255, 0.13);
+		border-color: #7aa2ff;
 		color: #ffffff;
 	}
 
-	.ws-icon {
-		flex-shrink: 0;
-		width: 12px;
-		text-align: center;
+	.ws-accent {
+		display: block;
+		background: #7aa2ff;
+	}
+
+	.ws-item.goal .ws-accent {
+		background: #72d6d0;
+	}
+
+	.ws-item.skeleton .ws-accent {
+		background: #87cf8a;
+	}
+
+	.ws-item.module .ws-accent {
+		background: #7aa2ff;
+	}
+
+	.ws-item.feature .ws-accent {
+		background: #efc66b;
+	}
+
+	.ws-item.slice .ws-accent {
+		background: #f09a6a;
+	}
+
+	.ws-main {
+		min-width: 0;
+		padding: 10px 10px 9px;
+		padding-left: calc(10px + var(--depth, 0) * 4px);
+		display: grid;
+		gap: 5px;
+	}
+
+	.ws-top {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+	}
+
+	.ws-title {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 		font-size: 12px;
-		opacity: 0.85;
-		color: #519aba;
+		font-weight: 800;
 	}
 
 	.level-badge {
 		flex-shrink: 0;
-		font-size: 9px;
-		font-weight: 700;
+		height: 21px;
+		display: inline-flex;
+		align-items: center;
+		border: 1px solid #465064;
+		font-family: 'Cascadia Code', ui-monospace, monospace;
+		font-size: 10px;
+		font-weight: 800;
 		letter-spacing: 0.02em;
 		line-height: 1;
-		padding: 2px 5px;
-		border-radius: 4px;
-		background: rgba(0, 122, 204, 0.22);
-		color: #9cdcfe;
+		padding: 0 8px;
+		border-radius: 999px;
+		background: rgba(12, 14, 19, 0.5);
+		color: #a3abb9;
 	}
 
-	.ws-name {
-		flex: 1;
+	.level-badge.goal {
+		color: #72d6d0;
+		border-color: rgba(114, 214, 208, 0.5);
+	}
+
+	.level-badge.skeleton {
+		color: #87cf8a;
+		border-color: rgba(135, 207, 138, 0.5);
+	}
+
+	.level-badge.module {
+		color: #7aa2ff;
+		border-color: rgba(122, 162, 255, 0.5);
+	}
+
+	.level-badge.feature {
+		color: #efc66b;
+		border-color: rgba(239, 198, 107, 0.5);
+	}
+
+	.level-badge.slice {
+		color: #f09a6a;
+		border-color: rgba(240, 154, 106, 0.5);
+	}
+
+	.ws-summary,
+	.ws-machine {
 		min-width: 0;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-		font-size: 12.5px;
+	}
+
+	.ws-summary {
+		color: #a3abb9;
+		font-size: 11px;
+	}
+
+	.ws-machine {
+		color: #6f7888;
+		font-family: 'Cascadia Code', ui-monospace, monospace;
+		font-size: 10px;
 	}
 </style>

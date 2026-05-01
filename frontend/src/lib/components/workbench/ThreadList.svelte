@@ -99,23 +99,23 @@ VibeX Workbench — ThreadList 组件
 </div>
 
 <style>
-  .thread-list { height: 100%; display: flex; flex-direction: column; background: #111; }
-  .header { display: flex; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #222; color: #ccc; font-size: 13px; }
-  .header button { background: #4f46e5; border: none; color: white; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+  .thread-list { height: 100%; display: flex; flex-direction: column; background: var(--wb-bg-base, #0b0c10); }
+  .header { display: flex; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--wb-border, #303746); color: var(--wb-text, #eef0f5); font-size: 13px; }
+  .header button { background: var(--wb-accent, #72d6d0); border: none; color: #071513; padding: 4px 10px; border-radius: 999px; cursor: pointer; font-size: 12px; font-weight: 800; }
   .items { flex: 1; overflow-y: auto; }
 
-  .thread-item { padding: 10px 16px; cursor: pointer; border-bottom: 1px solid #1a1a1a; display: flex; justify-content: space-between; font-size: 13px; }
-  .thread-item:hover { background: #1a1a1a; }
-  .thread-item.active { background: #1e293b; border-left: 3px solid #4f46e5; }
-  .name { color: #e2e8f0; }
-  .meta { color: #666; font-size: 11px; }
+  .thread-item { padding: 10px 16px; cursor: pointer; border-bottom: 1px solid var(--wb-border, #303746); display: flex; justify-content: space-between; font-size: 13px; }
+  .thread-item:hover { background: var(--wb-bg-panel-2, #1c202a); }
+  .thread-item.active { background: rgba(122, 162, 255, .13); border-left: 3px solid var(--wb-brand, #7aa2ff); }
+  .name { color: var(--wb-text, #eef0f5); }
+  .meta { color: var(--wb-muted, #6f7888); font-size: 11px; }
 
   /* 骨架屏 */
   .thread-item.skeleton { pointer-events: none; }
   .skel-name, .skel-meta {
     height: 8px;
     border-radius: 4px;
-    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
+    background: linear-gradient(90deg, #1c202a 25%, #242936 50%, #1c202a 75%);
     background-size: 200% 100%;
     animation: shimmer 1.4s ease-in-out infinite;
   }
@@ -126,12 +126,12 @@ VibeX Workbench — ThreadList 组件
   /* 错误态 */
   .error-state { display: flex; flex-direction: column; align-items: center; padding: 24px 16px; gap: 8px; }
   .error-icon { font-size: 24px; }
-  .error-msg { color: #f87171; font-size: 12px; text-align: center; margin: 0; }
-  .retry-btn { background: #374151; border: none; color: #ccc; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+  .error-msg { color: var(--accent-red, #e16d75); font-size: 12px; text-align: center; margin: 0; }
+  .retry-btn { background: var(--wb-bg-panel-3, #242936); border: none; color: var(--wb-text-sec, #a3abb9); padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px; }
 
   /* 空态 */
   .empty-state { display: flex; flex-direction: column; align-items: center; padding: 24px 16px; gap: 6px; }
-  .empty-msg { color: #555; font-size: 14px; margin: 0; }
-  .empty-hint { color: #444; font-size: 11px; margin: 0; }
-  .new-btn { background: #4f46e5; border: none; color: white; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-top: 8px; }
+  .empty-msg { color: var(--wb-muted, #6f7888); font-size: 14px; margin: 0; }
+  .empty-hint { color: var(--wb-muted, #6f7888); font-size: 11px; margin: 0; }
+  .new-btn { background: var(--wb-accent, #72d6d0); border: none; color: #071513; padding: 8px 16px; border-radius: 999px; cursor: pointer; font-size: 12px; margin-top: 8px; font-weight: 800; }
 </style>

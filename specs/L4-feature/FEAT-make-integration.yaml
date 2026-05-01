@@ -10,7 +10,7 @@ meta:
   module: frontend
   owner: hermes
   created: '2026-04-26'
-  updated: '2026-04-26'
+  updated: '2026-04-30'
 lifecycle:
   current: proposal
   updated: '2026-04-26'
@@ -155,6 +155,10 @@ content:
     name: 幂等可重跑
     rule: 用户可反复点击同一 target，每次清空旧输出后重新执行
     validation: Output tab 每次点击按钮时先 clearOutput()
+  - id: C5
+    name: 菜单触发与 binding 边界
+    rule: 菜单触发可使用 runtime events（menu:run-*），但业务 binding 可用性判定不得依赖 window.runtime.*
+    validation: Wails 桌面端业务调用统一走 window.go.main.App.*；若缺失则显式报错，不得 fallback 到 HTTP
   l4_l5_lineage:
     summary: 本 feature 落地 titlebar 菜单 / dock 按钮到 /api/workspace/run-make 的完整闭环。
     which_files:
@@ -166,6 +170,8 @@ content:
       note: run-pill 展示最近一次 make 结果
     - file: frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte
       note: 「lint-specs」/ 「generate」菜单按钮触发 eventsEmit
+    - file: specs/L5-slice/SLICE-wails-binding-guard.yaml
+      note: 菜单类业务调用守卫约束来源
     - file: backend/agent/cmd/web/workspace_make.go
       note: POST /api/workspace/run-make 的 backend 实现
     - file: generators/validate_specs.py
@@ -187,3 +193,8 @@ changelog:
   author: hermes
   changes:
   - 定义 make 按钮触发、API 调用、输出展示、错误摘要的完整闭环
+- version: '0.2'
+  date: '2026-04-30'
+  author: hermes
+  changes:
+  - 新增 C5：明确菜单事件通道与业务 binding 判定边界，引用 SLICE-wails-binding-guard

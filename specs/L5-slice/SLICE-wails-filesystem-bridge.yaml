@@ -9,12 +9,12 @@ meta:
   module: backend+frontend
   owner: hermes
   created: '2026-04-29'
-  updated: '2026-04-29'
+  updated: '2026-04-30'
 lifecycle:
   current: proposal
-  updated: '2026-04-29'
+  updated: '2026-04-30'
 io_contract:
-  input: '前端传入 workspaceRoot 路径字符串（来自 showDirectoryPicker / localStorage / state）'
+  input: '前端传入 workspaceRoot 完整路径字符串（来自 native dialog / localStorage / state）'
   output: 'Go method 返回 JSON-serializable 结构体，前端直接用，无 HTTP overhead'
   boundary: '只做本地文件系统读写；agent 推理/SSE 连接走独立 channel'
   behavior_summary: 共 5 个 binding method，详见 content.behaviors
@@ -78,9 +78,11 @@ content:
   file_type: typescript
   implementation_boundary:
     allowed:
-    - 封装 window.go.main.App.* 调用
-    - 生产模式用 Wails binding，开发模式 fallback 到 HTTP
+    - 封装 window.go.main.App.* 调用（业务 binding 唯一入口）
+    - 浏览器开发模式 fallback 到 HTTP
     forbidden:
+    - 在 Wails 环境下 fallback 到 HTTP
+    - 使用 window.runtime.* 判定业务 binding 是否存在
     - 在 binding 调用外包装 retry/layer（让每个 call 自己处理错误）
   generation_rules:
     - rule: Wails binding 封装函数
@@ -92,15 +94,20 @@ content:
         export async function wailsDetectWorkspaceState(root: string): Promise<{state: string, signals: string[], suggestions: string[]}>
     - rule: 生产/开发模式分支
       detail: |
-        const rt = (window as any).runtime;
-        if (rt) {
-          // 生产：Wails binding
-          return await window.go.main.App.ListSpecs(root);
-        } else {
-          // 开发：Vite proxy HTTP fallback
-          const r = await fetch(`/api/workspace/specs/list?workspaceRoot=${encodeURIComponent(root)}`);
-          return (await r.json()).specs;
+        const app = window.go?.main?.App;
+        if (isWails() && app?.ListSpecs) {
+          // Wails: 仅走 Go binding
+          return await app.ListSpecs(root);
         }
+        if (isWails()) throw new Error("Wails binding missing: App.ListSpecs");
+        // 浏览器开发模式：Vite proxy HTTP fallback
+        const r = await fetch(`/api/workspace/specs/list?workspaceRoot=${encodeURIComponent(root)}`);
+        return (await r.json()).specs;
+    - rule: workspaceRoot 完整路径约束
+      detail: |
+        root 必须是完整路径（包含 '/' 或 '\'）。
+        若 root 仅为目录名（例如 "vibex-workbench"），前端必须抛错并拒绝请求，
+        同时清理 localStorage 脏值，避免 Windows 下后续调用异常或卡死。
     - rule: RunMake 复用
       detail: 直接使用现有 window.go.main.App.RunMake(target, workspace)，无需修改
 
@@ -159,7 +166,7 @@ behaviors:
     trigger: 用户在 SpecExplorer 视图加载时
     action: store.loadList(root) → wailsListSpecs(root) → window.go.main.App.ListSpecs
     expected_result: Go 扫描 {root}/specs/ 返回文件列表，前端渲染树
-    error_handling: Wails 不可用时自动 fallback 到 HTTP
+    error_handling: 浏览器开发模式 fallback 到 HTTP；Wails 环境 binding 缺失时抛错，不得 fallback
   - id: B2
     trigger: 用户点击 spec 文件节点
     action: wailsReadSpecFile(root, path) → 显示文件内容
@@ -190,3 +197,10 @@ changelog:
       - main.go 新增 ListSpecs / ReadSpecFile / WriteSpecFile / DetectWorkspaceState
       - wails-runtime.ts 新增 Wails binding 封装 + 生产/开发模式分支
       - specExplorerStore.loadList 优先 Wails binding，fallback HTTP
+  - version: '0.2'
+    date: '2026-04-30'
+    author: hermes
+    changes:
+      - 明确 anti-regression 规则：Wails 业务 binding 统一 window.go.main.App.*，禁止 window.runtime.* 业务判定
+      - 明确 Wails 内禁止 HTTP fallback；binding 缺失应显式报错
+      - 新增 workspaceRoot 完整路径约束（拒绝仅目录名脏值）

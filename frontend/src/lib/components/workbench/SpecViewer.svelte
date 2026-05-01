@@ -15,6 +15,8 @@
 		specTypeLabel,
 	} from '$lib/workbench/spec-convention';
 	import { wailsReadSpecFile, wailsWriteSpecFile } from '$lib/wails-filesystem';
+	import { specAgentContextStore } from '$lib/stores/spec-agent-context-store';
+	import { extractSpecDisplay } from '$lib/workbench/spec-display';
 	import { get } from 'svelte/store';
 
 	let selectedPath = $state<string | null>(null);
@@ -194,6 +196,11 @@
 			saving = false;
 		}
 	}
+
+	function attachSelectedSpec() {
+		if (!selectedPath || !raw) return;
+		specAgentContextStore.addSpec(extractSpecDisplay(raw, selectedPath), raw);
+	}
 	$effect(() => {
 		if (!editMode) return;
 		const onBeforeunload = (e: BeforeUnloadEvent) => {
@@ -274,6 +281,9 @@
 						同目录主 feature
 					</button>
 				{/if}
+				<button type="button" class="meta-link" onclick={attachSelectedSpec}>
+					添加到 Context
+				</button>
 			</div>
 		{/if}
 
@@ -330,8 +340,8 @@
 		flex-direction: column;
 		height: 100%;
 		min-height: 0;
-		background: var(--wb-base, #0d0d0e);
-		color: var(--wb-text, #e8e8ed);
+		background: #0b0c10;
+		color: #eef0f5;
 	}
 
 	.empty {
@@ -362,9 +372,9 @@
 		flex-shrink: 0;
 		display: flex;
 		align-items: center;
-		height: 36px;
-		background: var(--wb-panel-bg, #131314);
-		border-bottom: 1px solid var(--wb-border, rgba(255, 255, 255, 0.07));
+		height: 40px;
+		background: rgba(18, 20, 26, 0.92);
+		border-bottom: 1px solid #303746;
 	}
 
 	.spec-tabbar button {
@@ -374,7 +384,7 @@
 		height: 100%;
 		border: none;
 		background: transparent;
-		color: var(--wb-muted, #555558);
+		color: #a3abb9;
 		font-family: inherit;
 		font-size: 13px;
 		cursor: pointer;
@@ -383,13 +393,13 @@
 	}
 
 	.spec-tabbar button:hover {
-		background: rgba(255, 255, 255, 0.05);
-		color: var(--wb-text-sec, #8a8a8e);
+		background: rgba(122, 162, 255, 0.08);
+		color: #eef0f5;
 	}
 
 	.spec-tabbar button.active {
-		color: var(--wb-text, #e8e8ed);
-		background: var(--wb-base, #0d0d0e);
+		color: #eef0f5;
+		background: #0b0c10;
 		margin-bottom: -1px;
 		border-bottom: 1px solid var(--wb-base, #0d0d0e);
 	}
@@ -401,7 +411,7 @@
 		left: 0;
 		right: 0;
 		height: 1px;
-		background: var(--wb-brand, #5856d6);
+		background: #7aa2ff;
 	}
 
 	.spec-tab-spacer {
@@ -435,8 +445,8 @@
 		padding: 6px 14px 8px;
 		font-size: 11px;
 		color: var(--wb-text-sec, #8a8a8e);
-		background: rgba(0, 0, 0, 0.2);
-		border-bottom: 1px solid var(--wb-border, rgba(255, 255, 255, 0.07));
+		background: rgba(28, 32, 42, 0.78);
+		border-bottom: 1px solid #303746;
 	}
 
 	.meta-badge {
@@ -445,8 +455,8 @@
 		font-weight: 600;
 		font-size: 10px;
 		letter-spacing: 0.02em;
-		background: rgba(88, 86, 214, 0.25);
-		color: #c4b5fd;
+		background: rgba(122, 162, 255, 0.12);
+		color: #9fc0ff;
 		max-width: 220px;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -482,17 +492,17 @@
 	.meta-link {
 		padding: 3px 10px;
 		border-radius: 5px;
-		border: 1px solid rgba(88, 86, 214, 0.35);
-		background: rgba(88, 86, 214, 0.12);
-		color: #c4b5fd;
+		border: 1px solid rgba(114, 214, 208, 0.45);
+		background: rgba(114, 214, 208, 0.1);
+		color: #bdf7f3;
 		font-size: 11px;
 		cursor: pointer;
 		font-family: inherit;
 	}
 
 	.meta-link:hover {
-		background: rgba(88, 86, 214, 0.22);
-		color: var(--wb-text, #e8e8ed);
+		background: rgba(114, 214, 208, 0.18);
+		color: #eef0f5;
 	}
 
 	.spec-body {

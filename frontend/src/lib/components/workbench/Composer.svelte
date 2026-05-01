@@ -7,6 +7,12 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
 
 <script lang="ts">
   import { runStore, activeRun } from '$lib/stores/run-store';
+  import {
+    getAvailableSpecCommands,
+    specAgentContextStore,
+    type SpecCommand,
+    type SpecContextItem,
+  } from '$lib/stores/spec-agent-context-store';
 
   interface Props {
     onsubmit?: (content: string, mode: string) => Promise<void> | void;
@@ -28,6 +34,24 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
 
   // E4-U3: Composer drag-over + drop 支持
   let dragOver = $state(false);
+  let textareaEl = $state<HTMLTextAreaElement | undefined>(undefined);
+  let contextState = $state<{ items: SpecContextItem[]; expanded: boolean; focusedPath: string | null }>({
+    items: [],
+    expanded: false,
+    focusedPath: null,
+  });
+  let showCommandPalette = $state(false);
+  let commandQuery = $state('');
+
+  const focusedSpec = $derived.by(() => {
+    return contextState.items.find(item => item.path === contextState.focusedPath) ?? contextState.items[0] ?? null;
+  });
+
+  const commandOptions = $derived.by(() => {
+    const commands = getAvailableSpecCommands(focusedSpec?.level ?? null);
+    if (!commandQuery) return commands;
+    return commands.filter(command => command.name.startsWith(commandQuery));
+  });
 
   function handleDragOver(e: DragEvent) {
     if (e.dataTransfer?.types.includes('text/vibex-artifact')) {
@@ -60,6 +84,13 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
     return unsub;
   });
 
+  $effect(() => {
+    const unsub = specAgentContextStore.subscribe(s => {
+      contextState = s;
+    });
+    return unsub;
+  });
+
   // 监听 activeRun 状态变化，显示状态条
   $effect(() => {
     const run = activeRunData;
@@ -87,12 +118,35 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
   async function submit() {
     if (!content.trim() || submitting) return;
     submitting = true;
+    showCommandPalette = false;
     try {
       await onsubmit?.(content, mode);
       content = '';
     } finally {
       submitting = false;
     }
+  }
+
+  function syncCommandPalette() {
+    const trimmed = content.trimStart();
+    if (!trimmed.startsWith('/')) {
+      showCommandPalette = false;
+      commandQuery = '';
+      return;
+    }
+    commandQuery = trimmed.split(/\s+/)[0].toLowerCase();
+    showCommandPalette = true;
+  }
+
+  function selectCommand(command: SpecCommand) {
+    content = command.sample;
+    showCommandPalette = false;
+    commandQuery = command.name;
+    queueMicrotask(() => textareaEl?.focus());
+  }
+
+  function removeContext(path: string) {
+    specAgentContextStore.removeSpec(path);
   }
 </script>
 
@@ -117,20 +171,62 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
     </div>
   {/if}
 
+  <div class="context-shell">
+    <button type="button" class="context-toggle" onclick={() => specAgentContextStore.toggleExpanded()}>
+      <span>Context</span>
+      <strong>{contextState.items.length} spec{contextState.items.length === 1 ? '' : 's'} {contextState.expanded ? '▴' : '▾'}</strong>
+    </button>
+    {#if contextState.expanded}
+      <div class="context-list">
+        {#if contextState.items.length === 0}
+          <div class="context-empty">点击中央 spec 卡片可添加上下文。</div>
+        {:else}
+          {#each contextState.items as item (item.path)}
+            <div class="context-chip" class:focused={item.path === contextState.focusedPath}>
+              <div>
+                <strong>{item.display.title}</strong>
+                <span>{item.level} · {item.name}</span>
+              </div>
+              <button type="button" title="移除上下文" onclick={() => removeContext(item.path)}>×</button>
+            </div>
+          {/each}
+        {/if}
+      </div>
+    {/if}
+  </div>
+
   <div class="mode-tabs">
     <button class:active={mode==='text'} onclick={() => mode='text'}>文本</button>
     <button class:active={mode==='image'} onclick={() => mode='image'}>图片</button>
     <button class:active={mode==='file'} onclick={() => mode='file'}>文件</button>
     <button class:active={mode==='url'} onclick={() => mode='url'}>URL</button>
   </div>
-  <textarea
-    bind:value={content}
-    placeholder="输入消息，或 @ 引用 Artifact..."
-    rows={3}
-    onkeydown={(e) => { if (e.key === 'Enter' && e.ctrlKey) submit(); }}
-  ></textarea>
+  <div class="input-wrap">
+    {#if showCommandPalette && commandOptions.length > 0}
+      <div class="command-palette">
+        {#each commandOptions as command (command.name)}
+          <button type="button" class="command-option" onclick={() => selectCommand(command)}>
+            <strong>{command.name}</strong>
+            <span>{command.description} · {command.sample}</span>
+          </button>
+        {/each}
+      </div>
+    {/if}
+    <textarea
+      bind:this={textareaEl}
+      bind:value={content}
+      placeholder='输入消息，或输入 / 选择 spec 指令...'
+      rows={3}
+      oninput={syncCommandPalette}
+      onfocus={syncCommandPalette}
+      onkeydown={(e) => {
+        if (e.key === 'Enter' && e.ctrlKey) submit();
+        if (e.key === 'Escape') showCommandPalette = false;
+      }}
+    ></textarea>
+  </div>
   <div class="actions">
-    <span class="hint">Ctrl+Enter 发送 · {toolCount} tools · 拖拽 Artifact 到此</span>
+    <span class="hint">Ctrl+Enter 发送 · / 打开命令 · {toolCount} tools</span>
     <button class="submit-btn" onclick={submit} disabled={submitting}>
       {submitting ? '发送中…' : '发送 ⌘↵'}
     </button>
@@ -139,24 +235,45 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
 
 <style>
   .composer {
-    padding: 8px 16px;
-    background: #1a1a1a;
-    border-top: 1px solid #333;
+    padding: 12px;
+    background: #151820;
+    border-top: 1px solid #303746;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
   }
-  textarea { background: #222; border: 1px solid #444; border-radius: 8px; color: #eee; padding: 8px; resize: none; box-sizing: border-box; }
+  textarea { background: #0b0d12; border: 1px solid #303746; border-radius: 12px; color: #eef0f5; padding: 10px; resize: none; box-sizing: border-box; line-height: 1.45; outline: none; }
+  textarea:focus { border-color: #7aa2ff; box-shadow: 0 0 0 1px rgba(122,162,255,.18); }
   .mode-tabs { display: flex; gap: 4px; }
-  .mode-tabs button { background: transparent; border: none; color: #888; cursor: pointer; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
-  .mode-tabs button.active { background: #333; color: #fff; }
+  .mode-tabs button { background: transparent; border: 1px solid transparent; color: #a3abb9; cursor: pointer; padding: 4px 9px; border-radius: 999px; font-size: 12px; }
+  .mode-tabs button:hover { border-color: #465064; color: #eef0f5; }
+  .mode-tabs button.active { background: #7aa2ff; border-color: #7aa2ff; color: #08111d; font-weight: 700; }
+  .context-shell { border: 1px solid #303746; border-radius: 14px; background: rgba(28,32,42,.72); overflow: hidden; }
+  .context-toggle { width: 100%; display: flex; justify-content: space-between; align-items: center; border: none; background: transparent; color: #eef0f5; padding: 9px 11px; cursor: pointer; font-size: 12px; }
+  .context-toggle span { color: #eef0f5; font-weight: 800; }
+  .context-toggle strong { color: #a3abb9; font: 700 11px/1 'Cascadia Code', ui-monospace, monospace; }
+  .context-list { display: grid; gap: 6px; padding: 0 6px 6px; max-height: 96px; overflow: auto; }
+  .context-chip { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 7px 9px; border: 1px solid #465064; border-radius: 11px; background: #10131a; }
+  .context-chip.focused { border-color: #7aa2ff; background: rgba(122,162,255,.13); }
+  .context-chip strong { display: block; color: #eef0f5; font-size: 12px; margin-bottom: 2px; }
+  .context-chip span { display: block; color: #a3abb9; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .context-chip button { border: 1px solid #303746; background: transparent; color: #6f7888; cursor: pointer; width: 22px; height: 22px; border-radius: 999px; }
+  .context-chip button:hover { background: #242936; color: #eef0f5; }
+  .context-empty { color: #6f7888; font-size: 11px; padding: 6px 8px; }
+  .input-wrap { position: relative; display: flex; flex-direction: column; }
+  .command-palette { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); z-index: 10; border: 1px solid #465064; border-radius: 14px; background: rgba(16,19,26,.98); box-shadow: 0 18px 60px rgba(0,0,0,.42); overflow: hidden; }
+  .command-option { display: block; width: 100%; border: none; border-bottom: 1px solid #303746; background: transparent; color: #eef0f5; text-align: left; padding: 10px 12px; cursor: pointer; }
+  .command-option:last-child { border-bottom: none; }
+  .command-option:hover { background: rgba(122,162,255,.14); }
+  .command-option strong { display: block; color: #72d6d0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; margin-bottom: 3px; }
+  .command-option span { display: block; color: #a3abb9; font-size: 11px; line-height: 1.35; }
   .actions { display: flex; justify-content: space-between; align-items: center; }
-  .hint { color: #555; font-size: 11px; }
-  .submit-btn { background: #4f46e5; color: white; border: none; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .hint { color: #6f7888; font-size: 11px; }
+  .submit-btn { background: #72d6d0; color: #071513; border: none; padding: 7px 16px; border-radius: 999px; cursor: pointer; font-size: 13px; font-weight: 800; }
   .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
   /* E4-U3: drag-over highlight */
-  .composer.drag-over { border-color: #4f46e5; background: #1e1a2e; }
+  .composer.drag-over { border-color: #7aa2ff; background: #1e2433; }
 
   /* E3-U2: RunStatusBar styles */
   .run-status-bar {
@@ -172,9 +289,9 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
     from { opacity: 0; transform: translateY(4px); }
     to { opacity: 1; transform: translateY(0); }
   }
-  .run-status-bar.running { background: #1e3a5f; color: #60a5fa; border: 1px solid #2563eb; }
-  .run-status-bar.completed { background: #1a3a2a; color: #4ade80; border: 1px solid #22c55e; }
-  .run-status-bar.failed { background: #3a1a1a; color: #f87171; border: 1px solid #ef4444; }
+  .run-status-bar.running { background: rgba(122,162,255,.12); color: #9fc0ff; border: 1px solid rgba(122,162,255,.4); }
+  .run-status-bar.completed { background: rgba(135,207,138,.12); color: #87cf8a; border: 1px solid rgba(135,207,138,.4); }
+  .run-status-bar.failed { background: rgba(225,109,117,.12); color: #e16d75; border: 1px solid rgba(225,109,117,.4); }
   .status-icon { font-size: 14px; }
   .status-msg { flex: 1; }
   .run-status-bar.running .status-icon { animation: spin 1s linear infinite; }

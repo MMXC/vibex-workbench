@@ -1,0 +1,121 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-wails-binding-guard"
+  parent: "FEAT-workspace-selector"
+  status: "ready"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-04-30"
+  updated: "2026-04-30"
+  description: |
+    定义 Wails 前端业务 binding 的统一守卫策略，防止 runtime/go 混用导致
+    错误 fallback、路径污染和 Windows 卡死类问题。
+
+io_contract:
+  input: |
+    前端 bridge 层的业务调用请求（例如目录选择、spec 文件读写、agent run/kill）。
+  output: |
+    - Wails 桌面端：仅通过 window.go.main.App.* 调用业务 binding
+    - Wails JS 注入缺失时：可使用同源 Wails host native endpoint 作为桌面 fallback
+    - 浏览器开发模式：允许降级到 wrapper/HTTP fallback
+    - 非完整路径 workspaceRoot 被拒绝并终止后续请求
+  boundary: |
+    本 slice 只定义调用守卫与降级边界，不定义具体 UI 行为或后端实现细节。
+
+content:
+  implementation_boundary:
+    allowed:
+      - "在 bridge 层统一实现 native-first 判定"
+      - "Wails 环境检查 window.go.main.App.<Method> 是否存在"
+      - "Wails host native endpoint 兜底桌面能力（如 /__vibex/native/open-directory）"
+      - "浏览器开发模式使用 wrapper/HTTP fallback"
+      - "对 workspaceRoot 做完整路径校验和脏值清理"
+      - "启动时清理历史 Service Worker 与 vibex-* cache"
+    forbidden:
+      - "使用 window.runtime.* 作为业务 binding 的存在性判定"
+      - "Wails 环境下静默 fallback 到 wrapper/HTTP"
+      - "接受仅目录名（如 vibex-workbench）并继续发请求"
+      - "Service Worker cache-first 缓存 /workbench 或旧 JS bundle"
+      - "使用 <input webkitdirectory> 作为目录选择 fallback"
+
+  generation_rules:
+    - rule: "Business binding source of truth"
+      detail: "业务方法统一走 window.go.main.App.*；window.runtime 仅用于事件系统/窗口控制。"
+    - rule: "Wails no-fallback rule"
+      detail: "若 App.Method 缺失，允许先尝试同源 Wails host native endpoint；仍失败时必须显式报错，不得 fallback 到浏览器 picker。"
+    - rule: "Browser-only fallback rule"
+      detail: "只有非 Wails 环境可回退到 wrapper 或 HTTP。"
+    - rule: "Workspace root integrity"
+      detail: "workspaceRoot/workspace_root 必须为完整路径（包含 '/' 或 '\\'）；非法值必须拒绝并清理。"
+    - rule: "No stale shell cache"
+      detail: "Wails desktop 不启用 PWA offline cache；历史 sw.js 只允许清理旧 vibex-* cache，不得拦截 fetch。"
+    - rule: "No webkitdirectory fallback"
+      detail: "webkitdirectory 只能返回相对路径且在 Windows WebView2 会弹文件选择器；目录选择不得使用该 fallback。"
+
+  behaviors:
+    - id: "B1"
+      trigger: "Wails 桌面环境执行业务调用"
+      action: "优先调用 window.go.main.App.Method；缺失时尝试同源 Wails host native endpoint"
+      expected_result: "调用成功返回业务结果；失败显式抛错"
+      error_handling: "Method 和 host endpoint 均缺失时返回 binding missing 错误，不进行浏览器 fallback"
+    - id: "B2"
+      trigger: "浏览器开发模式执行业务调用"
+      action: "走 wrapper/HTTP fallback"
+      expected_result: "本地调试可继续工作"
+      error_handling: "fallback 失败时返回错误并由上层提示"
+    - id: "B3"
+      trigger: "读取 localStorage/workspace:selected 的 workspaceRoot"
+      action: "执行完整路径校验"
+      expected_result: "仅完整路径进入 store 和 API 请求"
+      error_handling: "非法值记录 warn 并清理，阻断后续请求"
+
+verification:
+  manual_checks:
+    - "Wails 模式下断开某个 App binding：前端应报 binding missing，不应出现 HTTP fallback 日志"
+    - "浏览器模式下无 go binding：功能通过 fallback 正常工作"
+    - "localStorage 写入目录名脏值后重启：应被清理且不触发 specs/list 请求"
+    - "重启后不应由 Service Worker 返回旧 /workbench HTML 或旧 JS bundle"
+    - "点击文件-打开项目只出现一次目录选择器，不出现文件选择器"
+  failure_conditions:
+    - "Wails 模式下出现 'via HTTP' 业务调用日志"
+    - "workspaceRoot 为目录名时仍进入请求体/查询参数"
+    - "业务调用依赖 window.runtime.* 判定是否可用"
+    - "出现 webkitdirectory 文件选择弹窗"
+    - "sw.js cache-first 返回旧 bundle"
+
+dependencies:
+  - file: "frontend/src/lib/wails-dialogs.ts"
+    reason: "native-first + Wails no-fallback 目录选择守卫"
+  - file: "frontend/src/lib/wails-filesystem.ts"
+    reason: "ListSpecs/Read/Write/Detect 业务调用守卫"
+  - file: "frontend/src/lib/wails-agent.ts"
+    reason: "RunAgent/KillAgent 业务调用守卫"
+  - file: "frontend/static/sw.js"
+    reason: "历史 PWA cache 清理，避免旧 bundle 复活旧 fallback"
+  - file: "main.go"
+    reason: "提供同源 Wails host native endpoint 兜底目录选择"
+
+changelog:
+  - version: "0.1"
+    date: "2026-04-30"
+    author: "hermes"
+    changes:
+      - "新增通用 Wails binding guard 规范，沉淀 runtime/go 混用防回归规则"
+      - "明确 Wails no-fallback、browser-only fallback、workspaceRoot 完整路径约束"
+  - version: "0.2"
+    date: "2026-04-30"
+    author: "hermes"
+    changes:
+      - "补充 stale Service Worker 根因防线：Wails desktop 禁止 cache-first 缓存 /workbench 与旧 bundle"
+      - "补充 no-webkitdirectory fallback 规则，避免 Windows 二次文件选择弹窗"
+  - version: "0.3"
+    date: "2026-04-30"
+    author: "hermes"
+    changes:
+      - "补充 Wails JS 注入缺失时的同源 host native endpoint 兜底策略"
+      - "明确桌面 fallback 仍必须返回完整路径，禁止退回浏览器 picker"

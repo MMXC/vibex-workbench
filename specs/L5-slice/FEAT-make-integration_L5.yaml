@@ -9,7 +9,7 @@ meta:
   module: frontend
   owner: hermes
   created: '2026-04-26'
-  updated: '2026-04-26'
+  updated: '2026-04-30'
 io_contract:
   input: '用户点击 titlebar「lint-specs」或「generate」按钮，或在 Output tab 点击「重新运行」。
 
@@ -48,6 +48,10 @@ content:
       stdout/stderr 通过 SSE 或轮询推送到前端
 
       '
+  - rule: Wails binding guard
+    detail: |
+      菜单触发可以继续通过 runtime events 传递，但业务 binding 调用判定必须遵循
+      SLICE-wails-binding-guard：Wails 环境仅允许 window.go.main.App.*，禁止 Wails 内 fallback。
   - rule: Output tab 实时展示
     detail: 'workspace_output_store.ts 维护输出行数组
 
@@ -118,12 +122,19 @@ content:
     reason: Output tab 展示组件，订阅 workspace_output_store
   - file: Makefile
     reason: lint-specs / generate / validate targets 的实际实现
+  - file: specs/L5-slice/SLICE-wails-binding-guard.yaml
+    reason: 菜单触发链的 Wails binding 判定与 fallback 边界约束
 lifecycle:
   current: proposal
-  updated: '2026-04-26'
+  updated: '2026-04-30'
 changelog:
 - version: '0.1'
   date: '2026-04-26'
   author: hermes
   changes:
   - 初始版本，含 behaviors + verification + constraints
+- version: '0.2'
+  date: '2026-04-30'
+  author: hermes
+  changes:
+  - 新增 Wails binding guard 规则与依赖，防止菜单触发链出现 runtime/go 混用回归

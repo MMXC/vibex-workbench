@@ -100,17 +100,17 @@ E4-U2: 支持图片预览 / 代码高亮
     align-items: center;
     gap: 10px;
     padding: 14px 16px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--wb-border, #303746);
   }
-  .modal-title { color: #e2e8f0; font-size: 14px; font-weight: 500; flex: 1; }
-  .modal-type { color: #4f46e5; font-size: 12px; }
-  .close-btn { background: none; border: none; color: #666; font-size: 20px; cursor: pointer; padding: 0 4px; }
-  .close-btn:hover { color: #fff; }
+  .modal-title { color: var(--wb-text, #eef0f5); font-size: 14px; font-weight: 500; flex: 1; }
+  .modal-type { color: var(--wb-brand, #7aa2ff); font-size: 12px; }
+  .close-btn { background: none; border: none; color: var(--wb-muted, #6f7888); font-size: 20px; cursor: pointer; padding: 0 4px; }
+  .close-btn:hover { color: var(--wb-text, #eef0f5); }
   .modal-body { flex: 1; overflow: auto; padding: 16px; }
   .image-preview { max-width: 100%; max-height: 60vh; object-fit: contain; border-radius: 6px; }
   .code-preview {
-    background: #111;
-    border: 1px solid #222;
+    background: #0b0d12;
+    border: 1px solid var(--wb-border, #303746);
     border-radius: 6px;
     padding: 12px;
     overflow: auto;

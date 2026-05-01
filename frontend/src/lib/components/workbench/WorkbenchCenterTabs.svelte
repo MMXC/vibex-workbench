@@ -68,7 +68,7 @@
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
-		background: #1e1e1e;
+		background: var(--wb-bg-base, #0b0c10);
 	}
 
 	.tab-bar {
@@ -76,8 +76,8 @@
 		height: var(--tab-h, 35px);
 		display: flex;
 		align-items: flex-end;
-		background: #252526;
-		border-bottom: 1px solid #2d2d2d;
+		background: var(--wb-bg-panel, #151820);
+		border-bottom: 1px solid var(--wb-border, #303746);
 		overflow-x: auto;
 	}
 
@@ -87,11 +87,11 @@
 		padding: 0 13px;
 		height: 34px;
 		font-size: 12.5px;
-		color: #969696;
+		color: var(--wb-text-sec, #a3abb9);
 		border: none;
 		background: transparent;
 		cursor: pointer;
-		border-right: 1px solid #2d2d2d;
+		border-right: 1px solid var(--wb-border, #303746);
 		transition:
 			background 150ms ease,
 			color 150ms ease;
@@ -101,14 +101,14 @@
 	}
 
 	.editor-tab:hover {
-		background: #2a2d2e;
-		color: #cccccc;
+		background: var(--wb-bg-panel-2, #1c202a);
+		color: var(--wb-text, #eef0f5);
 	}
 
 	.editor-tab.active {
-		color: #ffffff;
-		background: #1e1e1e;
-		border-bottom: 1px solid #1e1e1e;
+		color: var(--wb-text, #eef0f5);
+		background: var(--wb-bg-base, #0b0c10);
+		border-bottom: 1px solid var(--wb-bg-base, #0b0c10);
 		margin-bottom: -1px;
 	}
 
@@ -119,7 +119,7 @@
 		left: 0;
 		right: 0;
 		height: 1px;
-		background: #007acc;
+		background: var(--wb-accent, #72d6d0);
 	}
 
 	.pane-stack {
@@ -138,7 +138,7 @@
 	}
 
 	.canvas-pane {
-		background: #1e1e1e;
+		background: var(--wb-bg-base, #0b0c10);
 	}
 
 	.prototype-pane {

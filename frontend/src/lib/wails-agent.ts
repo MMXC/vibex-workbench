@@ -50,6 +50,11 @@ export function runAgent(
 		onError('Agent 模式需要 Wails 桌面环境（浏览器开发模式不支持）');
 		return { pid: 0, kill: () => {} };
 	}
+	const app = (window as any).go?.main?.App;
+	if (!app || typeof app.RunAgent !== 'function' || typeof app.KillAgent !== 'function') {
+		onError('Wails binding missing: App.RunAgent/KillAgent');
+		return { pid: 0, kill: () => {} };
+	}
 
 	// 订阅 agent event（由 main.go RunAgent 转发）
 	const offStdout = eventsOn('agent:stdout', (line: string) => {
@@ -78,9 +83,8 @@ export function runAgent(
 	});
 
 	// 调用 Wails binding spawn agent
-	const rt = (window as any).runtime;
 	const req: AgentGoalRequest = { goal, workspaceRoot };
-	rt.RunAgent(JSON.stringify(req))
+	app.RunAgent(undefined, JSON.stringify(req))
 		.then((result: any) => {
 			currentPid = result.pid;
 		})
@@ -93,7 +97,7 @@ export function runAgent(
 
 	const kill: () => void = () => {
 		if (currentPid !== null) {
-			rt.KillAgent(currentPid);
+			app.KillAgent(undefined, currentPid);
 			currentPid = null;
 		}
 	};

@@ -1,0 +1,113 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-agent-context-panel"
+  parent: "FEAT-spec-graph-expansion"
+  status: "proposal"
+
+display:
+  title: "Agent 上下文面板"
+  summary: "在 Composer 上方折叠展示已附加 spec，并提供 / 命令下拉。"
+  description: |
+    让 spec 图谱与右侧 agent 对话协作。
+    用户点击 spec 后，右侧仅以紧凑 Context 条显示附加数量；
+    输入 "/" 时才弹出当前层级可用命令。
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-05-02"
+  updated: "2026-05-02"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-02"
+
+io_contract:
+  input: |
+    - spec 图谱或 SpecViewer 提供的 spec path/name/level/display 摘要
+    - Composer 当前输入内容
+    - 当前焦点 spec 的层级
+  output: |
+    - Composer 上方默认收起的 Context 区，仅显示已附加 spec 数量
+    - 展开后展示可移除的 spec chips
+    - 输入 "/" 后显示层级可用 slash command 下拉
+    - 发送消息时将精简 Spec Context 附加到 prompt
+  boundary: |
+    本 slice 只负责前端上下文 UI、命令候选和 prompt context 拼接。
+    不直接写 spec，不直接调用 make，不直接实现 LLM provider。
+  behavior:
+    - "点击 spec 卡片或添加按钮时，将 spec 加入 spec-agent-context-store"
+    - "Context 默认收起，避免挤占 agent 输出区域"
+    - "Context 展开后显示 title/name/level，并支持移除"
+    - "Composer 输入 / 时按当前焦点 spec 层级过滤命令"
+    - "选择命令后填入默认描述，用户可继续编辑"
+    - "提交时追加精简 Spec Context，供 agent 使用"
+
+content:
+  files:
+    - path: "frontend/src/lib/stores/spec-agent-context-store.ts"
+      role: "保存附加 spec、折叠状态、焦点 spec 和命令定义"
+    - path: "frontend/src/lib/components/workbench/Composer.svelte"
+      role: "展示 Context 条和 slash command palette"
+    - path: "frontend/src/routes/workbench/+page.svelte"
+      role: "提交对话时附加精简 Spec Context"
+    - path: "frontend/src/lib/workbench/spec-display.ts"
+      role: "从 YAML 提取 display 字段和 fallback 摘要"
+
+  command_rules:
+    - command: "/add"
+      levels: ["L1", "L2", "L3", "L4"]
+      meaning: "添加唯一合法下一层子 spec"
+    - command: "/validate"
+      levels: ["L1", "L2", "L3", "L4", "L5", "IMPL"]
+      meaning: "校验输入输出、层级、parent chain 与边界"
+    - command: "/deduce"
+      levels: ["L1", "L2", "L3", "L4"]
+      meaning: "根据当前 spec 与 children 推导缺失子 spec"
+    - command: "/analyse"
+      levels: ["L1", "L2", "L3", "L4", "L5", "IMPL"]
+      meaning: "只分析，不修改文件"
+    - command: "/confirm"
+      levels: ["L1", "L2", "L3", "L4", "L5", "IMPL"]
+      meaning: "确认草稿并进入写盘前检查"
+    - command: "/implement"
+      levels: ["L3", "L4", "L5", "IMPL"]
+      meaning: "实现当前 spec 或实现切片"
+    - command: "/implement-loop"
+      levels: ["L4", "L5", "IMPL"]
+      meaning: "实现、验证、修复循环直到通过或阻塞"
+
+  generation_rules:
+    - rule: "Compact by default"
+      detail: "Context 默认收起，仅显示 spec 数量；展开才显示完整 chips。"
+    - rule: "Slash commands are demand-driven"
+      detail: "命令列表只在输入框以 / 开头时出现，不常驻堆叠展示。"
+    - rule: "Context prompt is concise"
+      detail: "提交时只附加 title/name/level/path/summary，避免无关内容影响 agent 输出。"
+    - rule: "Display fields are user-facing"
+      detail: "spec.display 默认中文，由 agent 创建或修改 spec 时生成/维护。"
+
+  verification:
+    commands:
+      - "npm --prefix frontend run check"
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - "Context 初始收起，只显示 N specs"
+      - "展开 Context 后可看到 spec chips 并移除"
+      - "输入 / 后出现命令下拉，选择后填入默认描述"
+      - "L5 当前焦点不显示 /add 和 /deduce"
+      - "发送消息时 prompt 包含精简 [Spec Context]"
+    failure_conditions:
+      - "右侧面板常驻展示大量命令说明"
+      - "Context 展开内容挤占对话输出区域"
+      - "点击 spec 直接触发 agent 或写盘"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-02"
+    author: "hermes"
+    changes:
+      - "新增 Agent Context 折叠面板与 slash command palette slice"

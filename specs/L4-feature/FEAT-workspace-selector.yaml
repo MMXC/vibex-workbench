@@ -35,7 +35,9 @@ io_contract:
     - "state=empty 时显示「初始化脚手架」"
     - "state=partial|ready 时显示「校验 Spec」「生成代码」「进入 Workbench」"
     - "点击「进入 Workbench」保存 localStorage['vibex-workspace-root'] 并跳转 /workbench"
-    - "Workbench 内 menu:open-project 直接绑 Go 侧 window.go.main.App.OpenDirectoryDialog()（Go 使用 sqweek/dialog native dialog，返回完整路径）"
+    - "Workbench 内 menu:open-project 与标题栏文件菜单统一走 frontend/src/lib/wails-dialogs.ts 的 openDirectoryNativeFirst()"
+    - "Wails 环境必须优先调用 window.go.main.App.*；仅浏览器开发模式允许 fallback 到 wrapper/HTTP"
+    - "workspaceRoot 必须是完整路径（含 / 或 \\）；仅文件夹名视为非法并拒绝落库/请求"
 
 content:
   behaviors:
@@ -56,9 +58,9 @@ content:
       error_handling: "run-make 输出写入 error-box，跳转前不要求 make 成功"
     - id: "B4"
       trigger: "Workbench 内收到 menu:open-project"
-      action: "直接绑 window.go.main.App.OpenDirectoryDialog() → Go 侧使用 sqweek/dialog（完整路径）→ 设置 workspaceRoot → detect-state → emit workspace:selected"
+      action: "openDirectoryNativeFirst() → window.go.main.App.OpenDirectoryDialog()（Go sqweek/dialog）→ 校验完整路径 → 设置 workspaceRoot → detect-state → emit workspace:selected"
       expected_result: "StatusBar 显示新路径和新状态"
-      error_handling: "用户取消目录选择时不改变当前 workspaceRoot"
+      error_handling: "用户取消目录选择时不改变当前 workspaceRoot；Wails 内 binding 缺失时直接报错并中止（禁止回退旧链路）"
 
   user_stories:
     - id: "US-1"
@@ -89,8 +91,8 @@ content:
       scenario: "Workbench 内菜单打开目录"
       given: "用户已经在 /workbench 页面"
       when: "触发 menu:open-project 并选择目录"
-      then: "OpenDirectoryDialog 返回路径，StatusBar 更新 workspaceRoot 和 workspaceState"
-      evaluation: "workspace:selected 事件被 emit，取消选择不会改变当前状态"
+      then: "OpenDirectoryDialog 返回完整路径，StatusBar 更新 workspaceRoot 和 workspaceState"
+      evaluation: "workspace:selected 事件被 emit，取消选择不会改变当前状态；不得出现仅目录名 workspaceRoot"
     - id: "TC-4"
       scenario: "detect-state 或 run-make 失败"
       given: "backend 请求失败或 run-make 返回失败 output"
@@ -111,6 +113,14 @@ content:
       name: "Persist only on enter"
       rule: "/workspace 入口页在点击「进入 Workbench」时写入 localStorage"
       validation: "仅检测目录不应改变已进入工作台的持久化 root"
+    - id: "C4"
+      name: "Wails binding source of truth"
+      rule: "Wails 桌面模式业务调用统一使用 window.go.main.App.*，不得以 window.runtime.* 作为业务 binding 判定"
+      validation: "Wails 模式下若 App.OpenDirectoryDialog 缺失，前端应报错并停止，不得 fallback 到 webkitdirectory/HTTP"
+    - id: "C5"
+      name: "Workspace root must be full path"
+      rule: "进入 localStorage、store、API body/query 的 workspaceRoot/workspace_root 必须是完整路径"
+      validation: "仅文件夹名（如 vibex-workbench）必须被拒绝并清理，避免后续卡死"
 
 changelog:
   - version: "0.2"
@@ -139,3 +149,9 @@ changelog:
     changes:
       - "架构变更：B4 改用直接绑 window.go.main.App.OpenDirectoryDialog()，废弃 openDirectoryDialog() wrapper 作为 Wails 环境首选路径"
       - "Go 侧使用 github.com/sqweek/dialog（native Win32 API，返回完整路径）"
+  - version: "0.6"
+    date: "2026-04-30"
+    author: "hermes"
+    changes:
+      - "补充防回归约束：Wails 业务 binding 统一走 window.go.main.App.*，Wails 内禁止 fallback 到旧 wrapper/HTTP"
+      - "新增路径完整性约束：workspaceRoot 必须为完整路径，拒绝仅目录名并要求清理脏 localStorage"

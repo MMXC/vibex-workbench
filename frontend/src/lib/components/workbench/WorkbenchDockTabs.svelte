@@ -101,8 +101,8 @@
 
 	.dock-tabs button.active {
 		color: var(--wb-text, #e8e8ed);
-		background: rgba(88, 86, 214, 0.12);
-		box-shadow: inset 0 -2px 0 var(--wb-brand, #5856d6);
+		background: rgba(122, 162, 255, 0.12);
+		box-shadow: inset 0 -2px 0 var(--wb-brand, #7aa2ff);
 	}
 
 	.dock-body {

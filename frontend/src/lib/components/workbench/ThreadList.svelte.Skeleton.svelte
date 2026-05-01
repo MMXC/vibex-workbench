@@ -1,7 +1,7 @@
 <!-- ============================================================
 ⚠️  此文件由 spec-to-code 自动生成
 来自: specs
-生成时间: 2026-04-22
+生成时间: 2026-04-23
 ⚠️  不要直接编辑此文件 — 改 *.svelte
 ============================================================ -->
 
@@ -48,14 +48,14 @@
 </div>
 
 <style>
-  .thread-list  { height: 100%; display: flex; flex-direction: column; background: #111; }
-  .header       { display: flex; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #222; color: #ccc; font-size: 13px; }
-  .header button { background: #4f46e5; border: none; color: white; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+  .thread-list  { height: 100%; display: flex; flex-direction: column; background: var(--wb-bg-base, #0b0c10); }
+  .header       { display: flex; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--wb-border, #303746); color: var(--wb-text, #eef0f5); font-size: 13px; }
+  .header button { background: var(--wb-accent, #72d6d0); border: none; color: #071513; padding: 4px 10px; border-radius: 999px; cursor: pointer; font-size: 12px; font-weight: 800; }
   .items        { flex: 1; overflow-y: auto; }
-  .thread-item  { padding: 10px 16px; cursor: pointer; border-bottom: 1px solid #1a1a1a; display: flex; justify-content: space-between; font-size: 13px; }
-  .thread-item:hover   { background: #1a1a1a; }
-  .thread-item.active  { background: #1e293b; border-left: 3px solid #4f46e5; }
-  .name         { color: #e2e8f0; }
-  .meta         { color: #666; font-size: 11px; }
-  .empty        { color: #555; font-size: 12px; padding: 16px; text-align: center; }
+  .thread-item  { padding: 10px 16px; cursor: pointer; border-bottom: 1px solid var(--wb-border, #303746); display: flex; justify-content: space-between; font-size: 13px; }
+  .thread-item:hover   { background: var(--wb-bg-panel-2, #1c202a); }
+  .thread-item.active  { background: rgba(122, 162, 255, .13); border-left: 3px solid var(--wb-brand, #7aa2ff); }
+  .name         { color: var(--wb-text, #eef0f5); }
+  .meta         { color: var(--wb-muted, #6f7888); font-size: 11px; }
+  .empty        { color: var(--wb-muted, #6f7888); font-size: 12px; padding: 16px; text-align: center; }
 </style>

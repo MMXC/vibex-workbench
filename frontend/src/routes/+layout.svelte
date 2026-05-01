@@ -11,29 +11,15 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { openDirectoryDialog, eventsOn } from '$lib/wails-runtime';
+	import { eventsOn } from '$lib/wails-runtime';
+	import { openDirectoryNativeFirst } from '$lib/wails-dialogs';
 	import '../app.css';
 	let { children } = $props();
-
-	/** 直接绑 Wails Go binding，跳过 openDirectoryDialog() wrapper */
-	async function wailsOpenDirectory(): Promise<string> {
-		const rt = (window as any).runtime;
-		if (rt && typeof rt.OpenDirectoryDialog === 'function') {
-			const result: string = await rt.OpenDirectoryDialog();
-			if (result && (result.includes('/') || result.includes('\\'))) {
-				return result;
-			}
-			console.warn('[layout] Wails OpenDirectoryDialog returned no valid path, ignoring');
-			return '';
-		}
-		// Fallback: 浏览器开发模式（Vite dev server）
-		return openDirectoryDialog();
-	}
 
 	/** 处理"打开项目"：弹目录选择 → 保存 → 跳转 workbench */
 	async function handleOpenProject() {
 		try {
-			const dir = await wailsOpenDirectory();
+			const dir = await openDirectoryNativeFirst('layout');
 			if (!dir) return;
 			localStorage.setItem('vibex-workspace-root', dir);
 			goto('/workbench');
@@ -44,7 +30,14 @@
 
 	onMount(() => {
 		if ('serviceWorker' in navigator) {
-			navigator.serviceWorker.register('/sw.js').catch(() => {});
+			navigator.serviceWorker.getRegistrations()
+				.then((registrations) => Promise.all(registrations.map((r) => r.unregister())))
+				.catch(() => {});
+		}
+		if ('caches' in window) {
+			caches.keys()
+				.then((keys) => Promise.all(keys.filter((key) => key.startsWith('vibex-')).map((key) => caches.delete(key))))
+				.catch(() => {});
 		}
 
 		// 接收 Go backend 发出的 menu:open-project（通过 Wails event system）

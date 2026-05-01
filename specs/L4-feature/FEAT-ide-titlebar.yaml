@@ -11,7 +11,7 @@ meta:
   module: "frontend"
   owner: "hermes"
   created: "2026-04-26"
-  updated: "2026-04-26"
+  updated: "2026-04-30"
 
 lifecycle:
   current: "proposal"
@@ -97,6 +97,10 @@ content:
       name: "拖拽可用"
       rule: "titlebar 根节点必须设置 --wails-draggable: drag"
       validation: "Wails frameless 模式下可拖动窗口"
+    - id: "C3"
+      name: "菜单业务调用守卫"
+      rule: "Wails 桌面端菜单相关业务调用统一使用 window.go.main.App.*；window.runtime.* 仅用于事件/窗口控制"
+      validation: "Wails 环境 binding 缺失时显式报错并停止，禁止 fallback 到 wrapper/HTTP"
 
   l4_l5_lineage:
     summary: "该 feature 由 WorkbenchTitlebar.svelte 与 main.go Wails options 落地。"
@@ -107,6 +111,8 @@ content:
         generated_from: "C1"
       - file: "main.go"
         generated_from: "C1"
+      - file: "specs/L5-slice/SLICE-wails-binding-guard.yaml"
+        generated_from: "C3"
     generation_order:
       - "main.go Wails options"
       - "app.html shell cleanup"
@@ -118,3 +124,8 @@ changelog:
     author: "hermes"
     changes:
       - "定义 IDE 内层顶部导航、窗口按钮和单层壳约束"
+  - version: "0.2"
+    date: "2026-04-30"
+    author: "hermes"
+    changes:
+      - "新增菜单业务调用守卫约束（C3），并关联 SLICE-wails-binding-guard 防回归"

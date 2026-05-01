@@ -199,8 +199,8 @@
     left: 50%;
     transform: translate(-50%, -50%);
     width: min(520px, calc(100vw - 40px));
-    background: #1e1e2e;
-    border: 1px solid #5856d6;
+    background: var(--wb-bg-panel, #151820);
+    border: 1px solid var(--wb-brand, #7aa2ff);
     border-radius: 12px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.5);
     z-index: 101;
@@ -227,13 +227,13 @@
   .btn-close {
     background: none;
     border: none;
-    color: #5856d6;
+    color: var(--wb-brand, #7aa2ff);
     cursor: pointer;
     font-size: 16px;
     padding: 4px 8px;
     border-radius: 4px;
   }
-  .btn-close:hover { background: rgba(88,86,214,0.2); }
+  .btn-close:hover { background: rgba(122, 162, 255, 0.18); }
 
   .wizard-body {
     padding: 16px 20px;
@@ -279,7 +279,7 @@
   .field input:focus,
   .field textarea:focus {
     outline: none;
-    border-color: #5856d6;
+    border-color: var(--wb-brand, #7aa2ff);
   }
   .field input.err { border-color: #f38ba8; }
   .field input::placeholder,
@@ -320,7 +320,7 @@
 
   .btn-create {
     padding: 7px 18px;
-    background: #5856d6;
+    background: var(--wb-brand, #7aa2ff);
     border: none;
     border-radius: 6px;
     color: #fff;
@@ -328,6 +328,6 @@
     cursor: pointer;
     font-size: 13px;
   }
-  .btn-create:hover:not(:disabled) { background: #6e6bdb; }
+  .btn-create:hover:not(:disabled) { background: var(--accent-hover, #9fc0ff); }
   .btn-create:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

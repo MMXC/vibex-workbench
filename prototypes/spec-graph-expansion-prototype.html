@@ -390,6 +390,159 @@
       line-height: 1.55;
     }
 
+    .context-shell {
+      border: 1px solid var(--stroke);
+      border-radius: 15px;
+      background: rgba(28, 32, 42, .72);
+      overflow: hidden;
+    }
+
+    .context-toggle {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 11px 12px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .context-toggle span {
+      color: var(--muted);
+      font: 700 11px/1 var(--mono);
+    }
+
+    .context-list {
+      display: grid;
+      gap: 8px;
+      padding: 0 10px 10px;
+    }
+
+    .context-list.collapsed {
+      display: none;
+    }
+
+    .context-chip {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      border: 1px solid var(--stroke-2);
+      border-radius: 13px;
+      padding: 9px 10px;
+      background: #10131a;
+    }
+
+    .context-chip strong {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 3px;
+    }
+
+    .context-chip span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .context-chip button {
+      border: 1px solid var(--stroke);
+      background: transparent;
+      color: var(--faint);
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    .chat-box {
+      position: relative;
+      display: grid;
+      gap: 8px;
+    }
+
+    .chat-input {
+      min-height: 68px;
+      resize: vertical;
+      border: 1px solid var(--stroke);
+      border-radius: 12px;
+      background: #0b0d12;
+      color: var(--ink);
+      outline: none;
+      padding: 10px;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .command-palette {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: calc(100% + 8px);
+      z-index: 5;
+      display: none;
+      border: 1px solid var(--stroke-2);
+      border-radius: 14px;
+      overflow: hidden;
+      background: rgba(16, 19, 26, .98);
+      box-shadow: var(--shadow);
+    }
+
+    .command-palette.open {
+      display: block;
+    }
+
+    .command-option {
+      width: 100%;
+      border: 0;
+      border-bottom: 1px solid var(--stroke);
+      background: transparent;
+      color: var(--ink);
+      text-align: left;
+      padding: 10px 12px;
+      cursor: pointer;
+    }
+
+    .command-option:last-child {
+      border-bottom: 0;
+    }
+
+    .command-option:hover,
+    .command-option.active {
+      background: rgba(122, 162, 255, .14);
+    }
+
+    .command-option strong {
+      display: block;
+      color: var(--cyan);
+      font: 800 12px/1.2 var(--mono);
+      margin-bottom: 4px;
+    }
+
+    .command-option span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .command-output {
+      min-height: 70px;
+      border: 1px solid var(--stroke);
+      border-radius: 12px;
+      background: rgba(11, 13, 18, .72);
+      color: var(--muted);
+      padding: 10px;
+      font: 11px/1.5 var(--mono);
+      white-space: pre-wrap;
+    }
+
     .kv {
       display: grid;
       gap: 7px;
@@ -570,29 +723,31 @@
 
       <aside class="panel drawer">
         <div class="panel-head">
-          <h2 class="panel-title">Spec Type Inspector</h2>
-          <p class="panel-subtitle" id="typeSubtitle">展示当前 spec 类型该怎么读、怎么展开、怎么编辑。</p>
+          <h2 class="panel-title">Agent Workspace</h2>
+          <p class="panel-subtitle">右侧只保留 agent 需要的上下文、命令输入和输出草稿。</p>
         </div>
         <div class="drawer-body">
-          <div class="card">
-            <h3 id="typeTitle">L4 Feature 展示方式</h3>
-            <p id="typeDescription"></p>
-            <div class="kv" id="detailKv"></div>
+          <div class="context-shell">
+            <button class="context-toggle" id="contextToggle" type="button">
+              <strong>Context</strong>
+              <span id="contextCount">1 spec</span>
+            </button>
+            <div class="context-list" id="contextList"></div>
           </div>
 
           <div class="card">
-            <h3>当前类型的图形化展示</h3>
-            <p id="visualRule"></p>
+            <h3 id="focusTitle">当前焦点</h3>
+            <p id="focusSummary"></p>
+            <div class="kv" id="focusMeta"></div>
           </div>
 
           <div class="card">
-            <h3>允许操作</h3>
-            <div class="action-grid" id="actions"></div>
-          </div>
-
-          <div class="card">
-            <h3>一跳关系上下文</h3>
-            <p id="contextSummary"></p>
+            <div class="chat-box">
+              <div class="command-palette" id="commandPalette"></div>
+              <textarea id="commandInput" class="chat-input" placeholder='输入 / 选择命令，例如 /add "新增右侧上下文能力"'></textarea>
+              <button class="btn intent" id="runCommandBtn">Run Command</button>
+              <div class="command-output" id="commandOutput">输入 “/” 查看当前层级可用命令。</div>
+            </div>
           </div>
         </div>
 
@@ -706,12 +861,52 @@
       { id: "slice-output-store", name: "SLICE-command-output-problems-store", level: "L5", status: "proposal", parent: "FEAT-command-output-problems-panel", path: "specs/L5-slice/SLICE-command-output-problems-store.yaml", module: "frontend", summary: "命令输出和 Problems store 的实现切片，示例中父节点未加载。" }
     ];
 
+    const displayOverrides = {
+      "vibex-workbench-mvp": { title: "工作台 MVP", summary: "定义从空仓库到可运行项目的最小闭环。", description: "项目目标层，承载整体使命、验收标准和 MVP 边界。" },
+      "vibex-workbench-skeleton": { title: "工作台技术骨架", summary: "拆解技术栈、模块矩阵和运行入口。", description: "L2 骨架层，解释系统由哪些模块组成，以及模块之间如何协作。" },
+      "MOD-spec-editor": { title: "Spec 编辑模块", summary: "负责 spec 读写、展示、图谱和治理入口。", description: "L3 模块层，聚合 spec editor 相关的 L4 功能。" },
+      "MOD-ide-chrome": { title: "IDE 外壳模块", summary: "承载标题栏、活动栏、面板、dock 和状态栏。", description: "L3 模块层，定义 workbench 的 IDE 框架和交互外壳。" },
+      "MOD-workspace-root": { title: "工作区根模块", summary: "管理工作区选择、持久化和路径安全。", description: "L3 模块层，保证所有读写和命令都绑定到正确 workspaceRoot。" },
+      "MOD-build-panel": { title: "构建面板模块", summary: "连接 make 命令、输出流和 Problems 面板。", description: "L3 模块层，管理 validate/build/run 的用户反馈闭环。" },
+      "FEAT-spec-graph-expansion": { title: "Spec 图谱展开", summary: "展示父子关系，并从图谱创建合法子 spec。", description: "L4 功能层，定义一跳图谱、Add 子节点和 agent 澄清流程。" },
+      "FEAT-spec-editor": { title: "Spec YAML 编辑", summary: "提供 YAML 编辑、保存和校验反馈体验。", description: "L4 功能层，定义用户直接编辑 spec 的交互边界。" },
+      "FEAT-spec-governance-viewer": { title: "Spec 治理视图", summary: "展示治理状态、历史、详情和树状关系。", description: "L4 功能层，帮助用户理解 spec 的状态和一致性。" },
+      "FEAT-canvas-expand": { title: "Canvas 子图展开", summary: "在 Canvas 中展开子节点并处理创建冲突。", description: "L4 功能层，定义图形画布里的展开和 Add 触发行为。" },
+      "FEAT-ide-titlebar": { title: "IDE 顶栏菜单", summary: "提供文件菜单、窗口控制和桌面能力入口。", description: "L4 功能层，封装 Wails 桌面菜单和标题栏交互。" },
+      "FEAT-workspace-selector": { title: "工作区选择", summary: "通过原生目录选择器绑定完整 workspaceRoot。", description: "L4 功能层，保证打开项目不会降级到错误的浏览器目录选择逻辑。" },
+      "FEAT-workspace-runtime-safety": { title: "工作区运行安全", summary: "清理脏路径并守护工作区生命周期。", description: "L4 功能层，防止非完整路径进入业务请求。" },
+      "FEAT-make-integration": { title: "Make 命令集成", summary: "把 validate/build/run 接入工作台交互。", description: "L4 功能层，定义命令触发、输出展示和错误反馈。" },
+      "SLICE-spec-graph-viewer": { title: "图谱关系组件", summary: "渲染 parent/current/children/siblings 卡片。", description: "L5 切片，落到 SpecGraphViewer 组件的关系展示和导航。" },
+      "SLICE-spec-add-child-card": { title: "新增子节点卡片", summary: "按层级规则生成 create-child-spec intent。", description: "L5 切片，负责 Add 卡片的启用、禁用和草稿生成。" },
+      "SLICE-spec-agent-clarification-thread": { title: "Agent 澄清线程", summary: "让新增 spec 先澄清再确认写入。", description: "L5 切片，模拟右侧对话如何拿到图谱上下文并产出草稿。" },
+      "SLICE-canvas-expand-add-child-trigger": { title: "Canvas Add 触发器", summary: "在 Canvas 上复用图谱新增子 spec 意图。", description: "L5 切片，保证 Canvas 和 SpecViewer 使用同一套 intent 协议。" },
+      "SLICE-ide-titlebar-component": { title: "标题栏组件", summary: "实现 WorkbenchTitlebar 和文件菜单行为。", description: "L5 切片，包含打开项目、菜单状态和 Wails 能力入口。" },
+      "SLICE-wails-binding-guard": { title: "Wails Binding 守卫", summary: "确保桌面能力只走可靠的 Go binding 或 host fallback。", description: "L5 切片，防止 webkitdirectory、旧 Service Worker 和 runtime 误判复发。" },
+      "SLICE-wails-filesystem-bridge": { title: "Wails 文件桥接", summary: "通过 App binding 读写 spec 并拒绝脏 workspaceRoot。", description: "L5 切片，落实前端到 Go 侧文件系统能力的边界。" },
+      "FEAT-workspace-selector_L5": { title: "工作区选择实现", summary: "记录 workspace selector 的历史 L5 实现约束。", description: "L5 implementation，兼容早期 FEAT_*_L5 形态。" },
+      "FEAT-make-integration_L5": { title: "Make 集成实现", summary: "记录 make integration 的历史 L5 实现约束。", description: "L5 implementation，兼容早期 FEAT_*_L5 形态。" },
+      "SLICE-command-output-problems-store": { title: "命令输出 Store", summary: "保存命令输出和 Problems 数据。", description: "L5 切片，示例用于展示 missing parent 的警告形态。" }
+    };
+
+    const commandDefs = [
+      { name: "/add", levels: ["L1", "L2", "L3", "L4"], sample: "/add \"新增一个图谱右侧上下文面板\"", description: "添加唯一合法下一层子 spec", run: "add" },
+      { name: "/validate", levels: ["L1", "L2", "L3", "L4", "L5", "IMPL"], sample: "/validate \"校验输入输出和 parent chain 是否合理\"", description: "校验现有输入输出、层级和父子链", run: "validate" },
+      { name: "/deduce", levels: ["L1", "L2", "L3", "L4"], sample: "/deduce \"根据已有子 spec 推导缺失切片\"", description: "根据当前 spec 与子 spec 推导新子 spec", run: "deduce" },
+      { name: "/analyse", levels: ["L1", "L2", "L3", "L4", "L5", "IMPL"], sample: "/analyse \"分析当前 spec 的边界是否清晰\"", description: "只分析，不修改文件", run: "analyse" },
+      { name: "/confirm", levels: ["L1", "L2", "L3", "L4", "L5", "IMPL"], sample: "/confirm \"确认当前草稿可写入\"", description: "确认草稿，进入写盘前检查", run: "confirm" },
+      { name: "/implement", levels: ["L3", "L4", "L5", "IMPL"], sample: "/implement \"实现当前 spec 的最小可用版本\"", description: "实现当前 spec 或 L5 slice", run: "implement" },
+      { name: "/implement-loop", levels: ["L4", "L5", "IMPL"], sample: "/implement-loop \"循环实现直到 validate 通过\"", description: "实现、验证、修复循环", run: "implement-loop" }
+    ];
+
     const viewState = {
       selected: "feat-graph",
       filter: "ALL",
       mode: "focus",
       search: "",
-      draft: null
+      draft: null,
+      contextIds: ["feat-graph"],
+      contextExpanded: false,
+      commandOutput: "输入 “/” 查看当前层级可用命令。"
     };
 
     const xByLevel = { L1: 80, L2: 250, L3: 430, L4: 635, L5: 840, IMPL: 840 };
@@ -747,6 +942,47 @@
       }[ch]));
     }
 
+    function truncate(value, max) {
+      const text = String(value ?? "");
+      return text.length > max ? text.slice(0, max - 1) + "…" : text;
+    }
+
+    function displayOf(spec) {
+      if (spec.role === "add") {
+        return {
+          title: spec.name,
+          summary: spec.summary,
+          description: "点击后进入 agent 澄清，而不是直接写入文件。"
+        };
+      }
+      if (spec.role === "missing") {
+        return {
+          title: "缺失父节点",
+          summary: spec.name,
+          description: spec.summary
+        };
+      }
+      return displayOverrides[spec.name] ?? {
+        title: spec.name,
+        summary: spec.summary || "缺少 display.summary，agent 应在下次修改 spec 时自动补齐。",
+        description: spec.summary || "暂无描述。"
+      };
+    }
+
+    function addContext(specId) {
+      if (!specId || specId === "add-child" || specId === "missing-parent") return;
+      if (!viewState.contextIds.includes(specId)) {
+        viewState.contextIds.push(specId);
+        const spec = specById(specId);
+        if (spec) toast(`已添加到 Context：${displayOf(spec).title}`);
+      }
+    }
+
+    function removeContext(specId) {
+      viewState.contextIds = viewState.contextIds.filter(id => id !== specId);
+      render();
+    }
+
     function renderLevelFilters() {
       const root = $("levelFilters");
       root.innerHTML = "";
@@ -767,21 +1003,23 @@
       const query = viewState.search.trim().toLowerCase();
       const rows = specs.filter(spec => {
         const levelMatch = viewState.filter === "ALL" || spec.level === viewState.filter;
-        const text = `${spec.name} ${spec.parent ?? ""} ${spec.path} ${spec.summary}`.toLowerCase();
+        const display = displayOf(spec);
+        const text = `${spec.name} ${display.title} ${display.summary} ${spec.parent ?? ""} ${spec.path} ${spec.summary}`.toLowerCase();
         return levelMatch && (!query || text.includes(query));
       });
 
       $("specList").innerHTML = rows.map(spec => {
         const def = defOf(spec);
+        const display = displayOf(spec);
         return `
           <div class="spec-row ${spec.id === viewState.selected ? "active" : ""}" data-select="${spec.id}">
             <div class="spec-row-top">
-              <div class="spec-name">${htmlEscape(spec.name)}</div>
+              <div class="spec-name">${htmlEscape(display.title)}</div>
               <span class="tag ${def.className}">${spec.level}</span>
             </div>
             <div class="spec-meta">
-              <span>${htmlEscape(spec.status)}</span>
-              <span>parent: ${htmlEscape(spec.parent ?? "null")}</span>
+              <span>${htmlEscape(display.summary)}</span>
+              <span>${htmlEscape(spec.name)}</span>
             </div>
           </div>
         `;
@@ -790,6 +1028,7 @@
       document.querySelectorAll("[data-select]").forEach(row => {
         row.addEventListener("click", () => {
           viewState.selected = row.dataset.select;
+          addContext(viewState.selected);
           viewState.draft = null;
           render();
         });
@@ -877,6 +1116,7 @@
       const active = spec.role === "current";
       const dashed = spec.role === "add" || spec.role === "missing";
       const fill = spec.role === "add" ? "#10131a" : active ? "rgba(122,162,255,.18)" : "#171b24";
+      const display = displayOf(spec);
 
       g.appendChild(el("rect", {
         x: spec.x,
@@ -892,19 +1132,19 @@
       g.appendChild(el("rect", { x: spec.x, y: spec.y, width: 5, height: 84, rx: 3, fill: def.color }));
 
       const label = el("text", { x: spec.x + 14, y: spec.y + 24, fill: "#eef0f5", "font-size": 12, "font-weight": 800 });
-      label.textContent = spec.name.length > 22 ? spec.name.slice(0, 21) + "…" : spec.name;
+      label.textContent = truncate(display.title, 13);
       g.appendChild(label);
 
-      const role = el("text", { x: spec.x + 14, y: spec.y + 44, fill: def.color, "font-size": 10, "font-family": "Consolas", "font-weight": 700 });
-      role.textContent = `${spec.level} · ${spec.role}`;
-      g.appendChild(role);
+      const summary = el("text", { x: spec.x + 14, y: spec.y + 43, fill: "#a3abb9", "font-size": 10 });
+      summary.textContent = truncate(display.summary, 18);
+      g.appendChild(summary);
 
-      const status = el("text", { x: spec.x + 14, y: spec.y + 63, fill: "#a3abb9", "font-size": 10 });
-      status.textContent = `${spec.status} · ${spec.module}`;
+      const status = el("text", { x: spec.x + 14, y: spec.y + 62, fill: def.color, "font-size": 10, "font-family": "Consolas", "font-weight": 700 });
+      status.textContent = `${spec.level} · ${spec.role} · ${spec.status}`;
       g.appendChild(status);
 
       const path = el("text", { x: spec.x + 14, y: spec.y + 78, fill: "#6f7888", "font-size": 9 });
-      path.textContent = spec.path.replace("specs/", "");
+      path.textContent = truncate(spec.name, 23);
       g.appendChild(path);
 
       return g;
@@ -962,6 +1202,7 @@
           const target = specById(id);
           if (target) {
             viewState.selected = target.id;
+            addContext(target.id);
             viewState.draft = null;
             render();
           }
@@ -973,7 +1214,8 @@
       const ctx = selectedContext();
       const current = ctx.current;
       const def = defOf(current);
-      $("currentTitle").textContent = current.name;
+      const display = displayOf(current);
+      $("currentTitle").textContent = `${display.title} · ${current.name}`;
       $("currentLevelTag").textContent = `${current.level} · ${def.label}`;
       $("currentLevelTag").className = `tag ${def.className}`;
       $("currentStatusTag").textContent = current.status;
@@ -995,62 +1237,242 @@
       $("issueCount").textContent = ctx.missingParent ? "1" : "0";
     }
 
+    function renderContextPanel() {
+      const contextSpecs = viewState.contextIds.map(specById).filter(Boolean);
+      $("contextCount").textContent = `${contextSpecs.length} spec${contextSpecs.length === 1 ? "" : "s"}`;
+      $("contextToggle").innerHTML = `<strong>Context</strong><span>${contextSpecs.length} spec${contextSpecs.length === 1 ? "" : "s"} ${viewState.contextExpanded ? "▴" : "▾"}</span>`;
+      $("contextList").classList.toggle("collapsed", !viewState.contextExpanded);
+      $("contextList").innerHTML = contextSpecs.map(spec => {
+        const display = displayOf(spec);
+        return `
+          <div class="context-chip">
+            <div>
+              <strong>${htmlEscape(display.title)}</strong>
+              <span>${htmlEscape(spec.level)} · ${htmlEscape(spec.name)}</span>
+              <span>${htmlEscape(display.summary)}</span>
+            </div>
+            <button data-remove-context="${htmlEscape(spec.id)}" title="Remove context">×</button>
+          </div>
+        `;
+      }).join("") || `<div class="context-chip"><div><strong>暂无上下文</strong><span>点击任意 spec 卡片添加。</span></div></div>`;
+
+      document.querySelectorAll("[data-remove-context]").forEach(btn => {
+        btn.addEventListener("click", () => removeContext(btn.getAttribute("data-remove-context")));
+      });
+    }
+
+    function commandEnabled(command, spec) {
+      return command.levels.includes(spec.level);
+    }
+
+    function visibleCommands() {
+      const current = specById(viewState.selected);
+      const raw = $("commandInput")?.value.trim() ?? "";
+      const typed = raw.startsWith("/") ? raw.split(/\s+/)[0].toLowerCase() : "";
+      return commandDefs
+        .filter(command => commandEnabled(command, current))
+        .filter(command => !typed || command.name.startsWith(typed));
+    }
+
+    function renderCommandPanel() {
+      const current = specById(viewState.selected);
+      const display = displayOf(current);
+      const raw = $("commandInput").value.trim();
+      const shouldOpen = raw.startsWith("/");
+      const commands = shouldOpen ? visibleCommands() : [];
+      $("commandPalette").classList.toggle("open", shouldOpen && commands.length > 0);
+      $("commandPalette").innerHTML = commands.map(command => {
+        return `
+          <button class="command-option" data-command="${command.name}" type="button">
+            <strong>${command.name}</strong>
+            <span>${htmlEscape(command.description)} · ${htmlEscape(command.sample)}</span>
+          </button>
+        `;
+      }).join("");
+      $("commandOutput").textContent = viewState.commandOutput;
+
+      document.querySelectorAll("[data-command]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const command = commandDefs.find(c => c.name === btn.getAttribute("data-command"));
+          if (!command) return;
+          $("commandInput").value = command.sample;
+          $("commandPalette").classList.remove("open");
+          viewState.commandOutput = `${display.title} 已选择 ${command.name}，可继续修改描述后执行。`;
+          $("commandOutput").textContent = viewState.commandOutput;
+          $("commandInput").focus();
+        });
+      });
+    }
+
+    function commandFromInput() {
+      const raw = $("commandInput").value.trim();
+      const name = raw.split(/\s+/)[0];
+      return commandDefs.find(c => c.name === name);
+    }
+
+    function executeCommand(forcedName) {
+      const current = specById(viewState.selected);
+      const command = forcedName ? commandDefs.find(c => c.name === forcedName) : commandFromInput();
+      if (!command) {
+        viewState.commandOutput = "未识别命令。可用命令：" + commandDefs.map(c => c.name).join(", ");
+        renderCommandPanel();
+        return;
+      }
+      if (!commandEnabled(command, current)) {
+        viewState.commandOutput = `${command.name} 不适用于 ${current.level}。请切换到允许层级或选择其他命令。`;
+        renderCommandPanel();
+        return;
+      }
+
+      const contextSpecs = viewState.contextIds.map(specById).filter(Boolean);
+      const lines = contextSpecs.map(spec => {
+        const display = displayOf(spec);
+        return `- ${spec.level} ${display.title} (${spec.name})`;
+      }).join("\n");
+
+      if (command.run === "add") createChildDraft(false);
+      if (command.run === "validate") previewValidateDraft();
+      if (command.run === "deduce") previewDeduceDraft();
+      if (command.run === "analyse") previewAnalyseDraft();
+      if (command.run === "confirm") previewEditDraft();
+      if (command.run === "implement" || command.run === "implement-loop") previewImplementDraft(command.name);
+
+      viewState.commandOutput =
+`${command.name} ready
+focus: ${displayOf(current).title} (${current.name})
+context:
+${lines || "- none"}
+
+next:
+${command.description}
+结果已同步到下方 patch / intent 预览区。`;
+      render();
+    }
+
     function renderInspector() {
       const ctx = selectedContext();
       const current = ctx.current;
       const def = defOf(current);
+      const display = displayOf(current);
       const parentText = current.parent ?? "null";
       const childText = def.child ? `${def.child} (${levelDefs[def.child].dir})` : "none";
 
-      $("typeTitle").textContent = `${def.label} 展示方式`;
-      $("typeSubtitle").textContent = `${def.raw} · ${def.dir}`;
-      $("typeDescription").textContent = def.description;
-      $("visualRule").textContent = def.visual;
-      $("detailKv").innerHTML = `
+      $("focusTitle").textContent = `${display.title}`;
+      $("focusSummary").textContent = display.summary;
+      $("focusMeta").innerHTML = `
+        <div class="kv-row"><div class="kv-key">level</div><div class="kv-val">${htmlEscape(current.level)} · ${htmlEscape(def.label)}</div></div>
         <div class="kv-row"><div class="kv-key">name</div><div class="kv-val">${htmlEscape(current.name)}</div></div>
         <div class="kv-row"><div class="kv-key">parent</div><div class="kv-val">${htmlEscape(parentText)}</div></div>
-        <div class="kv-row"><div class="kv-key">path</div><div class="kv-val">${htmlEscape(current.path)}</div></div>
-        <div class="kv-row"><div class="kv-key">module</div><div class="kv-val">${htmlEscape(current.module)}</div></div>
         <div class="kv-row"><div class="kv-key">next</div><div class="kv-val">${htmlEscape(childText)}</div></div>
+        <div class="kv-row"><div class="kv-key">context</div><div class="kv-val">${viewState.contextIds.length} specs attached</div></div>
       `;
 
-      $("contextSummary").textContent =
-        `parent=${parentText}; siblings=${ctx.siblings.length}; children=${ctx.children.length}. ` +
-        (ctx.missingParent ? "当前 parent 未在索引中找到，图谱应显示 warning 节点。" : "边来源于 YAML spec.parent 与 spec.name 匹配。");
-
-      const actions = [
-        {
-          title: def.child ? `Create ${def.child} child` : "Create child disabled",
-          detail: def.child ? `生成 create-child-spec intent，目标目录 ${levelDefs[def.child].dir}` : "L5 是叶子层，不能再新增子 spec。",
-          enabled: !!def.child,
-          handler: createChildDraft
-        },
-        {
-          title: "Preview YAML patch",
-          detail: "只生成 patch preview，不直接写盘。",
-          enabled: true,
-          handler: previewEditDraft
-        },
-        {
-          title: "Show type map",
-          detail: "切换到每种 spec 展示方式的横向说明。",
-          enabled: true,
-          handler: () => { viewState.mode = "map"; render(); }
-        }
-      ];
-
-      $("actions").innerHTML = "";
-      actions.forEach(action => {
-        const btn = document.createElement("button");
-        btn.className = "action";
-        btn.innerHTML = `<strong>${htmlEscape(action.title)}</strong><span>${htmlEscape(action.detail)}</span>`;
-        btn.disabled = !action.enabled;
-        btn.style.opacity = action.enabled ? "1" : ".52";
-        btn.addEventListener("click", () => action.enabled && action.handler());
-        $("actions").appendChild(btn);
-      });
-
       renderPatch();
+    }
+
+    function previewValidateDraft() {
+      const ctx = selectedContext();
+      const current = ctx.current;
+      const display = displayOf(current);
+      viewState.draft = {
+        kind: "validate",
+        name: current.name,
+        patch:
+`intent: validate-spec-context
+focus:
+  name: "${current.name}"
+  display_title: "${display.title}"
+  level: "${current.level}"
+  parent: "${current.parent ?? "null"}"
+
+checks:
+  - parent_chain_resolvable: ${ctx.missingParent ? "false" : "true"}
+  - io_contract_complete: warning
+  - display_summary_present: true
+  - level_allows_child: ${defOf(current).child ? "true" : "false"}
+  - children_count: ${ctx.children.length}
+
+result:
+  status: "${ctx.missingParent ? "warning" : "pass"}"
+  note: "原型校验：真实实现应调用 make validate 并回填 Problems。"`
+      };
+    }
+
+    function previewDeduceDraft() {
+      const current = specById(viewState.selected);
+      const def = defOf(current);
+      if (!def.child) {
+        viewState.draft = {
+          kind: "deduce-disabled",
+          name: current.name,
+          patch: `intent: deduce-child-spec\nstatus: disabled\nreason: "${current.level} 是叶子层，不能推导子 spec。"`
+        };
+        return;
+      }
+      const childDef = levelDefs[def.child];
+      viewState.draft = {
+        kind: "deduce",
+        name: current.name,
+        patch:
+`intent: deduce-child-spec
+parent: "${current.name}"
+target_level: "${def.child}"
+target_dir: "${childDef.dir}"
+input_context:
+${childrenOf(current.name).map(c => "  - " + c.name).join("\n") || "  []"}
+
+deduced_candidate:
+  display:
+    title: "待推导子能力"
+    summary: "根据现有 children 的缺口生成一个新 ${def.child} 草稿。"
+  reason: "根据当前 spec 与已有子 spec 的职责空白推导。"`
+      };
+    }
+
+    function previewAnalyseDraft() {
+      const ctx = selectedContext();
+      const current = ctx.current;
+      const display = displayOf(current);
+      viewState.draft = {
+        kind: "analyse",
+        name: current.name,
+        patch:
+`intent: analyse-spec
+focus: "${display.title}"
+machine_name: "${current.name}"
+scope:
+  parent: "${current.parent ?? "null"}"
+  siblings: ${ctx.siblings.length}
+  children: ${ctx.children.length}
+
+analysis_targets:
+  - display.title 是否能让用户看懂
+  - io_contract input/output/boundary 是否闭环
+  - children 是否覆盖 feature 行为
+  - 是否存在跨层级职责泄漏`
+      };
+    }
+
+    function previewImplementDraft(commandName) {
+      const current = specById(viewState.selected);
+      const display = displayOf(current);
+      viewState.draft = {
+        kind: commandName,
+        name: current.name,
+        patch:
+`intent: ${commandName.replace("/", "")}
+focus: "${current.name}"
+display_title: "${display.title}"
+level: "${current.level}"
+context_files:
+${viewState.contextIds.map(specById).filter(Boolean).map(s => "  - " + s.path).join("\n")}
+
+execution_rule:
+  - 先读取 context spec
+  - 生成或修改实现文件
+  - 运行 validate/build
+  - ${commandName === "/implement-loop" ? "失败后继续修复，直到通过或遇到阻塞" : "失败时返回问题，不自动循环"}`
+      };
     }
 
     function createChildDraft() {
@@ -1062,6 +1484,7 @@
       }
       const childDef = levelDefs[def.child];
       const stubName = `${def.child === "L5" ? "SLICE" : def.child === "L4" ? "FEAT" : def.child === "L3" ? "MOD" : "vibex"}-${current.name.replace(/^(FEAT|MOD|SLICE)-/, "").toLowerCase()}-next`;
+      const parentDisplay = displayOf(current);
       const existingChildren = childrenOf(current.name).map(c => "  - " + c.name).join("\n") || "  []";
       viewState.draft = {
         kind: "create-child-spec",
@@ -1085,6 +1508,12 @@ yaml_preview:
     name: "${stubName}"
     parent: "${current.name}"
     status: "proposal"
+  display:
+    title: "待命名子能力"
+    summary: "围绕「${parentDisplay.title}」新增一个 ${childDef.label}。"
+    description: |
+      由 agent 根据父 spec、现有子 spec 和用户描述生成。
+      默认中文，写盘前必须允许用户编辑。
   meta:
     type: "${childDef.label.toLowerCase().replace(/^l\\d\\s/, "")}"
     module: "${current.module}"
@@ -1157,6 +1586,8 @@ path: ${current.path}
       renderSpecList();
       renderHeaderAndStats();
       renderGraph();
+      renderContextPanel();
+      renderCommandPanel();
       renderInspector();
       renderModeButtons();
     }
@@ -1166,12 +1597,31 @@ path: ${current.path}
       renderSpecList();
     });
 
+    $("contextToggle").addEventListener("click", () => {
+      viewState.contextExpanded = !viewState.contextExpanded;
+      renderContextPanel();
+    });
+
     document.querySelectorAll("[data-mode]").forEach(btn => {
       btn.addEventListener("click", () => {
         viewState.mode = btn.dataset.mode;
         render();
       });
     });
+
+    $("commandInput").addEventListener("input", () => renderCommandPanel());
+    $("commandInput").addEventListener("focus", () => renderCommandPanel());
+    $("commandInput").addEventListener("keydown", event => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        executeCommand();
+      }
+      if (event.key === "Escape") {
+        $("commandPalette").classList.remove("open");
+      }
+    });
+
+    $("runCommandBtn").addEventListener("click", () => executeCommand());
 
     $("validateBtn").addEventListener("click", () => {
       if (!viewState.draft) {

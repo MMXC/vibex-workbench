@@ -80,8 +80,8 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 6px 0;
-		background: #181818;
-		border-right: 1px solid #2b2b2b;
+		background: var(--wb-bg-base, #0b0c10);
+		border-right: 1px solid var(--wb-border, #303746);
 	}
 
 	.activity-top,
@@ -100,7 +100,7 @@
 		justify-content: center;
 		border: none;
 		background: none;
-		color: #858585;
+		color: var(--wb-muted, #6f7888);
 		cursor: pointer;
 		border-radius: 0;
 		position: relative;
@@ -110,12 +110,12 @@
 	}
 
 	.activity-bar button:hover {
-		background: #2a2d2e;
-		color: #cccccc;
+		background: var(--wb-bg-panel-2, #1c202a);
+		color: var(--wb-text-sec, #a3abb9);
 	}
 
 	.activity-bar button.active {
-		color: #ffffff;
+		color: var(--wb-text, #eef0f5);
 	}
 
 	.activity-bar button.active::before {
@@ -126,7 +126,7 @@
 		transform: translateY(-50%);
 		width: 2px;
 		height: 28px;
-		background: #007acc;
+		background: var(--wb-accent, #72d6d0);
 		border-radius: 0 2px 2px 0;
 	}
 
@@ -138,8 +138,8 @@
 		height: 15px;
 		padding: 0 3px;
 		border-radius: 999px;
-		background: #007acc;
-		color: #fff;
+		background: var(--wb-brand, #7aa2ff);
+		color: #08111d;
 		font-size: 9px;
 		font-weight: 700;
 		line-height: 15px;

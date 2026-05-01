@@ -132,7 +132,7 @@ E5-U4: SSE → canvasStore → 渲染层同步
 
 <style>
   .canvas-renderer { width: 100%; height: 100%; position: relative; }
-  :global(.svelte-flow) { background: #0a0a0a; }
+  :global(.svelte-flow) { background: var(--wb-bg-base, #0b0c10); }
   :global(.svelte-flow .node) { border-radius: 6px; }
 
   /* 详情面板 */
@@ -146,8 +146,8 @@ E5-U4: SSE → canvasStore → 渲染层同步
     z-index: 100;
   }
   .detail-panel {
-    background: #1a1a1a;
-    border: 1px solid #333;
+    background: var(--wb-bg-panel, #151820);
+    border: 1px solid var(--wb-border, #303746);
     border-radius: 10px;
     width: 480px;
     max-height: 70vh;
@@ -158,30 +158,30 @@ E5-U4: SSE → canvasStore → 渲染层同步
     align-items: center;
     gap: 8px;
     padding: 12px 14px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--wb-border, #303746);
   }
-  .detail-type { color: #4f46e5; font-size: 12px; }
-  .detail-label { color: #e2e8f0; font-size: 13px; flex: 1; font-weight: 500; }
-  .detail-header button { background: none; border: none; color: #666; font-size: 18px; cursor: pointer; }
-  .detail-header button:hover { color: #fff; }
+  .detail-type { color: var(--wb-brand, #7aa2ff); font-size: 12px; }
+  .detail-label { color: var(--wb-text, #eef0f5); font-size: 13px; flex: 1; font-weight: 500; }
+  .detail-header button { background: none; border: none; color: var(--wb-muted, #6f7888); font-size: 18px; cursor: pointer; }
+  .detail-header button:hover { color: var(--wb-text, #eef0f5); }
   .detail-body { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
   .detail-section { display: flex; flex-direction: column; gap: 4px; }
-  .detail-key { color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
-  .detail-key.error { color: #f87171; }
+  .detail-key { color: var(--wb-muted, #6f7888); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .detail-key.error { color: var(--accent-red, #e16d75); }
   .detail-code {
-    background: #111;
-    border: 1px solid #222;
+    background: #0b0d12;
+    border: 1px solid var(--wb-border, #303746);
     border-radius: 6px;
     padding: 8px;
     font-size: 11px;
-    color: #ccc;
+    color: var(--wb-text-sec, #a3abb9);
     white-space: pre-wrap;
     word-break: break-all;
     max-height: 200px;
     overflow: auto;
     margin: 0;
   }
-  .detail-code.error { border-color: #ef4444; color: #f87171; }
+  .detail-code.error { border-color: var(--accent-red, #e16d75); color: var(--accent-red, #e16d75); }
   .detail-status { font-size: 12px; padding: 2px 8px; border-radius: 10px; }
   .detail-status.running { background: #1e3a5f; color: #60a5fa; }
   .detail-status.completed { background: #1a3a2a; color: #4ade80; }

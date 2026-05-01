@@ -23,6 +23,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 	import SpecViewer from '$lib/components/workbench/SpecViewer.svelte';
 	import StatusBar from '$lib/components/workbench/StatusBar.svelte';
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
+	import { formatSpecContextForPrompt } from '$lib/stores/spec-agent-context-store';
 	import { eventsOn } from '$lib/wails-runtime';
 	import { appendOutput, clearOutput } from '$lib/stores/workspace-output-store';
 
@@ -36,15 +37,21 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 	let workspaceState = $state<'empty' | 'partial' | 'ready'>('empty');
 
 	let prevThreadId: string | null = null;
+	function isLikelyFullPath(p: string): boolean {
+		return !!p && (p.includes('/') || p.includes('\\'));
+	}
 
 	// 监听 Wails backend 事件
 	// 启动时从 localStorage 恢复 workspaceRoot
 	onMount(() => {
 		const saved = localStorage.getItem('vibex-workspace-root');
-		if (saved) {
+		if (saved && isLikelyFullPath(saved)) {
 			workspaceRoot = saved;
 			specExplorerStore.setWorkspaceRoot(saved);
 			detectWorkspaceState(saved);
+		} else if (saved) {
+			console.warn('[Workbench] Ignore invalid workspace root in localStorage:', saved);
+			localStorage.removeItem('vibex-workspace-root');
 		}
 
 		const rt = (window as any).runtime;
@@ -58,6 +65,10 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 			backendStatus = 'error';
 		});
 		rt.EventsOn('workspace:selected', (path: string) => {
+			if (!isLikelyFullPath(path)) {
+				console.warn('[Workbench] Ignore invalid workspace:selected path:', path);
+				return;
+			}
 			workspaceRoot = path;
 			specExplorerStore.setWorkspaceRoot(path);
 			detectWorkspaceState(path);
@@ -165,6 +176,8 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 			prevThreadId = t.id;
 		}
 
+		const inputWithContext = `${content}${formatSpecContextForPrompt()}`;
+
 		// 用户消息通过 SSE message.delta(role='user') 由后端回显，作为唯一来源。
 		// 不再本地提前创建，避免 SSE bridge echo 时 ID 不同导致重复/排队混乱。
 		try {
@@ -173,13 +186,13 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 				await fetch(`${SSE_URL}/api/runs`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ threadId: threadKey, goal: content }),
+					body: JSON.stringify({ threadId: threadKey, goal: inputWithContext }),
 				});
 			} else {
 				await fetch(`${SSE_URL}/api/chat`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ threadId: threadKey, input: content }),
+					body: JSON.stringify({ threadId: threadKey, input: inputWithContext }),
 				});
 			}
 		} catch (e) {
