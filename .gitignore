@@ -48,3 +48,4 @@ backend/vibex-backend.exe
 .gstack/
 verify_specs
 vibex-workbench
+.claude/
