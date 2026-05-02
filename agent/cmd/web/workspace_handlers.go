@@ -354,6 +354,111 @@ type workspaceRunMakeRequest struct {
 	Target        string `json:"target"`
 }
 
+// workspaceVerifySpecsRequest is the POST body for /api/workspace/verify-specs.
+type workspaceVerifySpecsRequest struct {
+	WorkspaceRoot string            `json:"workspace_root"`
+	Format        string            `json:"format"`  // summary | json | short (default: summary)
+	Checks        string            `json:"checks"`  // comma-separated: file_existence,parent_chain,completeness,behaviors
+	Levels        string            `json:"levels"`  // comma-separated: 4_feature,5_slice,etc.
+	ShowPass      bool              `json:"show_pass"`
+}
+
+// workspaceVerifySpecsHandler POST /api/workspace/verify-specs
+// Runs verify_specs CLI and returns the report as JSON.
+// The verify_specs binary must be built at the vibex-workbench repo root:
+//   cd /root/vibex-workbench && go build -o verify_specs ./cmd/verify_specs/
+func workspaceVerifySpecsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req workspaceVerifySpecsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+		http.Error(w, "bad json: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	wsRoot := req.WorkspaceRoot
+	if wsRoot == "" {
+		wsRoot = cfg.WorkspaceDir
+	}
+	if wsRoot == "" {
+		wsRoot = os.Getenv("WORKSPACE_ROOT")
+	}
+	if wsRoot == "" {
+		http.Error(w, "workspaceRoot required", http.StatusBadRequest)
+		return
+	}
+
+	// Find the verify_specs binary relative to the repo root.
+	// Agent runs from vibex-workbench repo root, so binary is at ./verify_specs.
+	exe, err := os.Executable()
+	binPath := "./verify_specs"
+	if err == nil {
+		// exe might be the agent binary; look for verify_specs in the same dir
+		binPath = filepath.Join(filepath.Dir(exe), "verify_specs")
+	}
+
+	// Try both relative and absolute paths
+	for _, candidate := range []string{binPath, "./verify_specs"} {
+		if _, err := os.Stat(candidate); err == nil {
+			binPath = candidate
+			break
+		}
+	}
+
+	args := []string{"--workspace", wsRoot, "--format", "json"}
+	if req.Checks != "" {
+		args = append(args, "--check", req.Checks)
+	}
+	if req.Levels != "" {
+		args = append(args, "--level", req.Levels)
+	}
+	if req.ShowPass {
+		args = append(args, "--show-pass")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, binPath, args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+	output := stdout.String()
+	if stderr.Len() > 0 {
+		output = strings.TrimSpace(output) + "\n[stderr]\n" + stderr.String()
+	}
+
+	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			http.Error(w, `{"error":"verify-specs timed out after 120s"}`, http.StatusGatewayTimeout)
+			return
+		}
+		// If binary not found, return a helpful error
+		if os.IsNotExist(err) {
+			http.Error(w, `{"error":"verify_specs binary not found. Build it with: cd /root/vibex-workbench && go build -o verify_specs ./cmd/verify_specs/"}`, http.StatusServiceUnavailable)
+			return
+		}
+		// Return JSON even on failure (the binary outputs JSON with exit code 1)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if output != "" {
+			w.Write([]byte(output))
+		} else {
+			fmt.Fprintf(w, `{"error":%q}`, err.Error())
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(output))
+}
+
 // workspaceRunMakeHandler POST /api/workspace/run-make
 // Body: { "workspaceRoot": "...", "target": "lint-specs"|"generate" }
 // Response: { "ok": true, "output": "...", "exitCode": 0, "timeout": false }

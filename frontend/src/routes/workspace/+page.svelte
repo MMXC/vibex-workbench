@@ -74,6 +74,57 @@
     }
   }
 
+  let verifyResult = $state('');
+  let verifyLoading = $state(false);
+
+  async function runVerify() {
+    if (!workspaceRoot) return;
+    verifyLoading = true;
+    verifyResult = '';
+    error = '';
+    try {
+      const res = await fetch('/api/workspace/verify-specs', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          workspace_root: workspaceRoot,
+          format: 'summary',
+          checks: 'file_existence,parent_chain,completeness,behaviors',
+        })
+      });
+      const data = await res.json();
+      if (data.error) {
+        verifyResult = '❌ ' + data.error;
+      } else if (typeof data === 'object' && data.results) {
+        // Reconstruct summary text from JSON
+        const lines: string[] = [];
+        lines.push('📋 Spec Verification — ' + workspaceRoot);
+        lines.push('   ' + data.total_specs + ' specs, ' + data.total_checks + ' checks (' + data.pass_count + ' pass, ' + data.fail_count + ' fail, ' + data.warn_count + ' warn)\n');
+        for (const r of data.results) {
+          if (r.status === 'pass' && !showPass) continue;
+          const icon = r.severity === 'error' ? '❌' : r.severity === 'warning' ? '⚠️' : '✅';
+          const loc = r.file_path ? '  [' + r.file_path + ']' : '';
+          lines.push(icon + ' ' + r.spec_level + '/' + r.spec_name + ' | ' + r.check_type + ' | ' + r.message + loc);
+          if (r.suggestion && r.severity !== 'info') {
+            lines.push('  💡 ' + r.suggestion);
+          }
+        }
+        if (data.fail_count === 0 && data.warn_count === 0) {
+          lines.push('✅ All checks passed!');
+        }
+        verifyResult = lines.join('\n');
+      } else {
+        verifyResult = JSON.stringify(data, null, 2);
+      }
+    } catch (e: any) {
+      verifyResult = '❌ ' + e.message;
+    } finally {
+      verifyLoading = false;
+    }
+  }
+
+  let showPass = $state(false);
+
   async function browseDir() {
     try {
       const dir = await openDirectoryNativeFirst('workspace');
@@ -174,9 +225,22 @@
           <button onclick={() => runMake('generate')} disabled={loading} class="btn-secondary">
             ⚙️ 生成代码
           </button>
+          <button onclick={runVerify} disabled={verifyLoading} class="btn-verify">
+            {verifyLoading ? '🔍 验证中…' : '🔎 验证 Spec 对齐'}
+          </button>
           <button onclick={enterWorkbench} disabled={loading} class="btn-enter">
             → 进入 Workbench
           </button>
+        </div>
+      {/if}
+
+      {#if verifyResult}
+        <div class="verify-result">
+          <pre>{verifyResult}</pre>
+          <label class="show-pass-toggle">
+            <input type="checkbox" bind:checked={showPass} onchange={() => runVerify()} />
+            显示通过的检查
+          </label>
         </div>
       {/if}
     {:else if !loading}
@@ -368,6 +432,49 @@
     margin-left: auto;
   }
   .btn-enter:hover { background: #94d2bd; }
+
+  .btn-verify {
+    padding: 9px 18px;
+    background: #cba6f7;
+    border: none;
+    border-radius: 6px;
+    color: #11111b;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .btn-verify:hover:not(:disabled) { background: #b689d6; }
+  .btn-verify:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .verify-result {
+    background: #11111b;
+    border: 1px solid #313244;
+    border-radius: 8px;
+    padding: 14px;
+    margin-top: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+  .verify-result pre {
+    margin: 0;
+    font-size: 12px;
+    color: #cdd6f4;
+    white-space: pre-wrap;
+    word-break: break-all;
+    line-height: 1.6;
+  }
+  .show-pass-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #6c7086;
+    margin-top: 10px;
+    cursor: pointer;
+  }
+  .show-pass-toggle input {
+    accent-color: #89b4fa;
+  }
 
   .hint {
     font-size: 12px;
