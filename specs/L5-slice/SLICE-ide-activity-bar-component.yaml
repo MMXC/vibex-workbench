@@ -13,6 +13,40 @@ meta:
 lifecycle:
   current: proposal
   updated: '2026-04-26'
+
+display:
+  title: ide activity bar component
+  summary: ActivityBar.svelte 更新 leftActivity 或展示静态图标状态。
+  description: ActivityBar.svelte 更新 leftActivity 或展示静态图标状态。
+
+structure:
+  parent: FEAT-ide-activity-sidebar
+  children: []
+  dependencies:
+  - 'frontend/src/lib/stores/spec-explorer-store.ts: 保存 leftActivity'
+  - 'frontend/src/lib/components/workbench/SpecExplorer.svelte: explorer panel 内容'
+  impacted_files:
+  - frontend/src/lib/components/workbench/ActivityBar.svelte
+
+io:
+  input:
+  - 用户点击左侧 ActivityBar 中的 explorer/search/git/extensions/account/settings 图标。
+  output:
+  - ActivityBar.svelte 更新 leftActivity 或展示静态图标状态。
+  boundary: 只管 ActivityBar.svelte。左侧 panel 内容由 SpecExplorer 或占位组件负责。
+
+constraints:
+  rules: []
+  forbidden:
+  - 在 ActivityBar 中直接加载 spec 文件
+  - 在 ActivityBar 中执行 git 命令
+  - 在 ActivityBar 中维护复杂 panel 状态
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: '用户点击左侧 ActivityBar 中的 explorer/search/git/extensions/account/settings 图标。
 

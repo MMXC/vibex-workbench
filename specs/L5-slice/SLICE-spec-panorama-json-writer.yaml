@@ -17,6 +17,39 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-28"
 
+display:
+  title: spec panorama json writer
+  summary: specs/_governance/panorama.json，以及可选的 coverage-report.md 更新。
+  description: specs/_governance/panorama.json，以及可选的 coverage-report.md 更新。
+
+structure:
+  parent: FEAT-spec-governance-view-model
+  children: []
+  dependencies:
+  - 'specs/L5-slice/SLICE-spec-view-model-builder.yaml: per spec view source'
+  - 'scripts/spec_coverage.py: legacy coverage report generator to replace or wrap'
+  impacted_files:
+  - agent/vibex/domain/spec/panorama_writer.go
+
+io:
+  input:
+  - SpecIndex、所有 SpecViewModel、coverage matrix、consistency issues、runtime summaries。
+  output:
+  - specs/_governance/panorama.json，以及可选的 coverage-report.md 更新。
+  boundary: 只负责全仓库 panorama 聚合和原子写入，不负责 UI 展示。
+
+constraints:
+  rules: []
+  forbidden:
+  - 扫描 workspace 外路径
+  - 把 panorama.json 当 spec YAML 参与 parent chain
+  - 写入未脱敏命令日志或 secret
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     SpecIndex、所有 SpecViewModel、coverage matrix、consistency issues、runtime summaries。

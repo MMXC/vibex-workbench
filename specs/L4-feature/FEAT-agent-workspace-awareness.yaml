@@ -17,6 +17,43 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: agent workspace awareness
+  summary: 注入 agent 的 workspace awareness block，以及 empty/partial/ready 下的下一步建议。
+  description: 注入 agent 的 workspace awareness block，以及 empty/partial/ready 下的下一步建议。
+
+structure:
+  parent: MOD-workspace-root
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - workspace root、state detector 结果、selected spec、最近 make 结果、最近 spec write/journal 摘要。
+  output:
+  - 注入 agent 的 workspace awareness block，以及 empty/partial/ready 下的下一步建议。
+  boundary: '只定义 workspace 状态到 agent prompt 的注入和建议规则。
+
+    不直接写文件、不执行 scaffold、不替代用户确认。'
+
+constraints:
+  rules:
+  - id: C1
+    name: Awareness only
+    rule: agent awareness 只产生上下文和建议，不绕过确认写盘
+    validation: empty 态不直接调用 scaffold/write
+  - id: C2
+    name: Fresh state
+    rule: 注入前必须使用最新 detect-state 或明确标记 stale_state
+    validation: 超过 TTL 的状态不能无标记注入
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     workspace root、state detector 结果、selected spec、最近 make 结果、最近 spec write/journal 摘要。

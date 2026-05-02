@@ -17,6 +17,52 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-26"
 
+display:
+  title: ide editor tabs
+  summary: 中央区显示对应编辑器面板
+  description: 中央区显示对应编辑器面板
+
+structure:
+  parent: MOD-ide-chrome
+  children: []
+  dependencies: []
+  impacted_files:
+  - frontend/src/lib/components/workbench/WorkbenchCenterTabs.svelte
+  - frontend/src/lib/components/workbench/SpecViewer.svelte
+  - frontend/src/lib/components/workbench/WorkbenchBootstrapPrototype.svelte
+
+io:
+  input:
+  - '用户在中央编辑器区点击 canvas/artifacts/spec_text/diff/bootstrap tabs，
+
+    或从左侧 explorer 选择某个 spec 文件。'
+  output:
+  - '- 中央区显示对应编辑器面板
+
+    - 选中 spec 时显示 SpecViewer 的图谱/文本切换
+
+    - 自举原型 tab 展示当前产品边界与阻塞项'
+  boundary: '本 feature 只定义中央 editor shell 的 tab 与占位/视图切换。
+
+    不负责 CanvasRenderer 内部布局算法或 YAML 编辑器完整能力。'
+
+constraints:
+  rules:
+  - id: C1
+    name: 中心区不溢出
+    rule: pane-stack 使用 absolute inset + overflow hidden，内部自行滚动
+    validation: 窗口缩小时不会撑破右栏或底部 dock
+  - id: C2
+    name: 自举原型非默认业务功能
+    rule: 自举原型作为 tab 存在，但默认进入主工作视图
+    validation: active 初始值为 canvas
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户在中央编辑器区点击 canvas/artifacts/spec_text/diff/bootstrap tabs，

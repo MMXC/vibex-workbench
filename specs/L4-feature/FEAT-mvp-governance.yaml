@@ -17,6 +17,47 @@ lifecycle:
   current: proposal
   updated: "2026-04-27"
 
+display:
+  title: mvp governance
+  summary: implementation_phases 表中对应 spec 的 status 字段更新，
+  description: implementation_phases 表中对应 spec 的 status 字段更新，
+
+structure:
+  parent: vibex-workbench-skeleton
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - 'spec 实现状态变更事件：
+
+    - agent 完成一个 P0/P1/P2 spec 的代码实现
+
+    - 用户在评审中接受了某个 spec 的实现
+
+    - 代码评审发现 spec 与实现不符'
+  output:
+  - 'implementation_phases 表中对应 spec 的 status 字段更新，
+
+    spec_status 表同步更新，
+
+    更新记录写入 changelog。'
+  boundary: '本 feature 只维护 L1 中的 implementation_phases 和 spec_status 表。
+
+    不修改 spec 的 content/behavior/io_contract 等实质内容。
+
+    不做自动检测——由 owner 手动触发。'
+
+constraints:
+  rules: []
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     spec 实现状态变更事件：

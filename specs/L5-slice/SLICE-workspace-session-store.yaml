@@ -17,6 +17,39 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: workspace session store
+  summary: local persisted session and restored workspace state on app boot。
+  description: local persisted session and restored workspace state on app boot。
+
+structure:
+  parent: FEAT-workspace-session-persistence
+  children: []
+  dependencies:
+  - 'specs/L4-feature/FEAT-workspace-session-persistence.yaml: session persistence feature contract'
+  - 'specs/L5-slice/SLICE-workspace-path-safety-contract.yaml: path safety validation'
+  impacted_files:
+  - frontend/src/lib/stores/workspace-session-store.ts
+
+io:
+  input:
+  - workspace root、selected spec、center view、state detector result。
+  output:
+  - local persisted session and restored workspace state on app boot。
+  boundary: 只实现单 workspace session store，不实现 workspace history。
+
+constraints:
+  rules: []
+  forbidden:
+  - 保存多个 workspace 列表
+  - 绕过 backend path guard
+  - 把 last_workspace_state 当最新事实
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     workspace root、selected spec、center view、state detector result。

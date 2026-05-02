@@ -13,6 +13,43 @@ meta:
   created: "2026-04-24"
   updated: "2026-04-24"
 
+display:
+  title: build panel
+  summary: '{stdout: string, stderr: string, exit_code: number}'
+  description: '{stdout: string, stderr: string, exit_code: number}'
+
+structure:
+  parent: MOD-build-panel
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - 用户点击「校验 Spec」或「生成代码」按钮
+  output:
+  - '{stdout: string, stderr: string, exit_code: number}
+
+    成功：绿色状态，失败：红色浮层 + 错误摘要'
+  boundary: 只展示结果，不做自动修复
+
+constraints:
+  rules:
+  - id: C1
+    name: 超时保护
+    rule: make 执行超时 60s，强制终止进程
+    validation: 超时后显示 '执行超时，请检查目录'
+  - id: C2
+    name: 输出截断
+    rule: stdout/stderr 只返回前 500 字符
+    validation: 超过 500 字符时显示 '...' 并提示查看终端
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户点击「校验 Spec」或「生成代码」按钮

@@ -17,6 +17,39 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: agent workspace context provider
+  summary: workspace awareness block injected into agent thread/task prompt。
+  description: workspace awareness block injected into agent thread/task prompt。
+
+structure:
+  parent: FEAT-agent-workspace-awareness
+  children: []
+  dependencies:
+  - 'specs/L4-feature/FEAT-agent-workspace-awareness.yaml: workspace awareness feature contract'
+  - 'specs/L5-slice/SLICE-agent-context-injection-reader.yaml: implementation context summary source'
+  impacted_files:
+  - agent/internal/workspace/context_provider.go
+
+io:
+  input:
+  - workspace state detector result、selected spec、last make result、implementation context summary。
+  output:
+  - workspace awareness block injected into agent thread/task prompt。
+  boundary: 只提供上下文 block 和建议，不执行 scaffold/write/make。
+
+constraints:
+  rules: []
+  forbidden:
+  - 直接写入 scaffold 或 spec
+  - 在没有用户确认时执行命令
+  - 注入过期状态且不标记 stale_state
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     workspace state detector result、selected spec、last make result、implementation context summary。

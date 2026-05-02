@@ -17,6 +17,40 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: workspace path safety contract
+  summary: 安全规范化后的 root/path/cwd，或结构化错误。
+  description: 安全规范化后的 root/path/cwd，或结构化错误。
+
+structure:
+  parent: FEAT-workspace-runtime-safety
+  children: []
+  dependencies:
+  - 'agent/cmd/web/workspace_handlers.go: workspace API handler'
+  - 'agent/internal/common/config.go: workspace root config 来源'
+  - 'frontend/src/lib/stores/workspace-store.ts: 前端 workspaceRoot 来源'
+  impacted_files:
+  - agent/cmd/web/workspace_handlers.go + agent/internal/common/config.go
+
+io:
+  input:
+  - workspaceRoot 参数、spec relative path、make target。
+  output:
+  - 安全规范化后的 root/path/cwd，或结构化错误。
+  boundary: 只管 workspace path normalize/guard，不管具体业务 handler 内容。
+
+constraints:
+  rules: []
+  forbidden:
+  - 硬编码 /root/v-test 或 C:\project\vibex-workbench
+  - 允许 specs/write 写出 workspace
+  - 忽略 workspaceRoot 参数回退到进程 cwd
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     workspaceRoot 参数、spec relative path、make target。

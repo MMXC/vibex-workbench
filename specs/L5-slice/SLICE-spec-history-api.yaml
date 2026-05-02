@@ -17,6 +17,47 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-28"
 
+display:
+  title: spec history api
+  summary: /api/workspace/specs/tree 的完整 spec 树 JSON
+  description: /api/workspace/specs/tree 的完整 spec 树 JSON
+
+structure:
+  parent: FEAT-spec-governance-viewer
+  children: []
+  dependencies:
+  - 'agent/vibex/domain/spec/governance_handlers.go: API 端点实现'
+  - 'agent/cmd/web/workspace_handlers.go: 路由注册'
+  impacted_files:
+  - agent/vibex/domain/spec/governance_handlers.go
+
+io:
+  input:
+  - WORKSPACE_ROOT（当前仓库根）+ spec 相对路径 + git commit hash
+  output:
+  - '- /api/workspace/specs/tree 的完整 spec 树 JSON
+
+    - /api/workspace/specs/history 的 commit 列表
+
+    - /api/workspace/specs/diff 的 unified diff
+
+    - /api/workspace/specs/rollback 的回滚结果'
+  boundary: '只实现 Go agent 端的 API 端点。
+
+    不实现前端 UI 组件（由 SLICE-spec-tree-map 和 SLICE-spec-history-rollback 负责）。'
+
+constraints:
+  rules: []
+  forbidden:
+  - 修改 git 历史（git rebase/reset/amend）
+  - 强制 push
+  - 跨 WORKSPACE_ROOT 操作
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     WORKSPACE_ROOT（当前仓库根）+ spec 相对路径 + git commit hash

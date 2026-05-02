@@ -17,6 +17,47 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-28"
 
+display:
+  title: spec panorama auto update
+  summary: 自动刷新 specs/_governance/panorama.json、coverage-report.md、受影响 spec 的 view.json/view.md。
+  description: 自动刷新 specs/_governance/panorama.json、coverage-report.md、受影响 spec 的 view.json/view.md。
+
+structure:
+  parent: MOD-spec-editor
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - spec write、agent confirmed spec draft、rollback、generate、drift check、validate 完成事件。
+  output:
+  - 自动刷新 specs/_governance/panorama.json、coverage-report.md、受影响 spec 的 view.json/view.md。
+  boundary: '只定义治理视图刷新触发与缓存失效。
+
+    不改变业务 spec 内容，不自动提交 git，不执行用户未确认的写入动作。'
+
+constraints:
+  rules:
+  - id: C1
+    name: No write rollback
+    rule: 治理视图刷新失败不得自动回滚已经确认的 spec 写入
+    validation: 失败只标记 stale_governance
+  - id: C2
+    name: Atomic governance files
+    rule: view.json/panorama.json 写入必须使用 temp file + rename
+    validation: 中断不会留下半截 JSON
+  - id: C3
+    name: Affected-first refresh
+    rule: 优先刷新当前 spec 相关 view，再异步刷新全景
+    validation: 大仓库保存不阻塞 UI 超过阈值
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     spec write、agent confirmed spec draft、rollback、generate、drift check、validate 完成事件。

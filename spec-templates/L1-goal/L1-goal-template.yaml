@@ -22,6 +22,37 @@ lifecycle:
       trigger: "user:manual"
       note: "初始提出"
 
+display:
+  title: "{中文项目目标标题}"
+  summary: "{一句话说明这个项目/目标解决什么问题}"
+  description: "{面向用户和 agent 的完整目标说明}"
+
+structure:
+  parent: null
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+    - "{用户输入、参考资料或上游 spec}"
+  output:
+    - "{确认后的 L1 goal spec}"
+  boundary: "L1 只定义做什么、不做什么、成功标准，不描述具体技术实现。"
+
+constraints:
+  rules:
+    - id: "C1"
+      name: "{约束名称}"
+      rule: "{具体的约束规则}"
+      verification: "{如何验证这条约束}"
+  forbidden: []
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
 # ── io_contract ─────────────────────────────────
 io_contract:
   input: |

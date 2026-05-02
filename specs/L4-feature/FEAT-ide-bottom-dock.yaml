@@ -17,6 +17,55 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-26"
 
+display:
+  title: ide bottom dock
+  summary: Problems 显示校验和阻塞摘要
+  description: Problems 显示校验和阻塞摘要
+
+structure:
+  parent: MOD-ide-chrome
+  children: []
+  dependencies: []
+  impacted_files:
+  - frontend/src/lib/components/workbench/R2Dock.svelte
+  - frontend/src/lib/components/workbench/StatusBar.svelte
+  - frontend/src/lib/stores/workspace-output-store.ts
+  - frontend/src/lib/components/workbench/WorkbenchLayoutResizable.svelte
+
+io:
+  input:
+  - '用户点击底部 dock 的 Problems / Output / Terminal / Debug / More tab，
+
+    或通过菜单/按钮触发 make validate / generate 等命令。'
+  output:
+  - '- Problems 显示校验和阻塞摘要
+
+    - Output 显示 workspace-output-store 的命令输出
+
+    - Terminal 显示当前命令行上下文或占位
+
+    - Debug/More 显示可扩展占位
+
+    - StatusBar 显示 workspace/backend/spec 状态'
+  boundary: 本 feature 只负责底部信息面板与状态展示，不负责真实终端 PTY 实现。
+
+constraints:
+  rules:
+  - id: C1
+    name: Dock 可调整
+    rule: 底部 dock 高度由 workbenchLayoutStore.bottomDockPx 控制
+    validation: 拖拽横向分隔条后高度保持
+  - id: C2
+    name: 状态栏常驻
+    rule: StatusBar 固定在最底部，不随 dock tab 切换隐藏
+    validation: 任何 tab 下底部均可看到 workspace/backend 状态
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户点击底部 dock 的 Problems / Output / Terminal / Debug / More tab，

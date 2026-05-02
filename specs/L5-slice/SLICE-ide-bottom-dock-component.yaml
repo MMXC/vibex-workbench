@@ -13,6 +13,42 @@ meta:
 lifecycle:
   current: proposal
   updated: '2026-04-26'
+
+display:
+  title: ide bottom dock component
+  summary: R2Dock.svelte 展示对应底部 panel。
+  description: R2Dock.svelte 展示对应底部 panel。
+
+structure:
+  parent: FEAT-ide-bottom-dock
+  children: []
+  dependencies:
+  - 'frontend/src/lib/stores/workspace-output-store.ts: Output panel 的唯一数据源'
+  - 'frontend/src/lib/components/workbench/WorkbenchLayoutResizable.svelte: Dock 高度和分隔条'
+  impacted_files:
+  - frontend/src/lib/components/workbench/R2Dock.svelte
+
+io:
+  input:
+  - '用户点击底部 Problems/Output/Terminal/Debug/More tabs，
+
+    或 workspace-output-store 产生命令输出。'
+  output:
+  - R2Dock.svelte 展示对应底部 panel。
+  boundary: 只管底部 dock tab 与只读内容展示。不实现真实 PTY、debug adapter 或问题扫描器。
+
+constraints:
+  rules: []
+  forbidden:
+  - 启动真实 shell 进程
+  - 直接执行 make 命令
+  - 写入 workspace-output-store
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: '用户点击底部 Problems/Output/Terminal/Debug/More tabs，
 

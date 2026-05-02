@@ -23,6 +23,41 @@ lifecycle:
       trigger: "user:manual"
       note: "定义技术骨架与模块划分"
 
+display:
+  title: vibex workbench skeleton
+  summary: 技术骨架 spec，含：
+  description: 技术骨架 spec，含：
+
+structure:
+  parent: vibex-workbench-mvp
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - L1 goal spec（vibex-workbench-mvp）
+  output:
+  - '技术骨架 spec，含：
+
+    - tech_stack（Go agent / SvelteKit frontend / Python generators）
+
+    - modules_matrix（agent / backend / frontend / generators / spec-templates）
+
+    - api_design（workspace API endpoints）
+
+    - entry_points（agent web server / frontend dev server）'
+  boundary: L2 定义技术选型和模块划分，不定义模块内部实现（L3 职责）。
+
+constraints:
+  rules: []
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     L1 goal spec（vibex-workbench-mvp）

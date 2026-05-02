@@ -17,6 +17,57 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-28"
 
+display:
+  title: spec governance view model
+  summary: Go 后端生成的 spec governance view model：
+  description: Go 后端生成的 spec governance view model：
+
+structure:
+  parent: MOD-spec-editor
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - 'WORKSPACE_ROOT/specs 下的 YAML spec、validator 结果、coverage matrix、drift state、
+
+    implementation journal、git history、最近命令结果。'
+  output:
+  - 'Go 后端生成的 spec governance view model：
+
+    - 单 spec 的 .view.json / .view.md
+
+    - 全仓库 panorama.json / coverage-report.md
+
+    - 可被 UI 渲染、agent 注入、用户确认的 action/link/button 元数据'
+  boundary: 'YAML spec 是事实源，只保存稳定契约。
+
+    view model 是动态治理中间层，不反写业务事实到 spec YAML。
+
+    前端只消费 view model，不重复实现 coverage/consistency 计算。'
+
+constraints:
+  rules:
+  - id: C1
+    name: YAML remains stable
+    rule: coverage/runtime/journal/drift 等动态信息不得写回业务 spec YAML
+    validation: view model 生成只写 specs/_governance
+  - id: C2
+    name: Backend owns governance
+    rule: coverage/consistency/panorama 计算必须在 Go 后端或同等后端工具中完成
+    validation: 前端只渲染 view model
+  - id: C3
+    name: Actions require policy
+    rule: action URI 只是声明，写盘/rollback/generate 必须经过确认和权限检查
+    validation: 危险 action 有 requires_confirmation=true
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     WORKSPACE_ROOT/specs 下的 YAML spec、validator 结果、coverage matrix、drift state、

@@ -17,6 +17,39 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: implementation journal viewer
+  summary: SpecViewer/Graph 卡片旁展示实现历史、最近失败、当前风险和上次验证结果。
+  description: SpecViewer/Graph 卡片旁展示实现历史、最近失败、当前风险和上次验证结果。
+
+structure:
+  parent: FEAT-agent-implementation-context-injection
+  children: []
+  dependencies:
+  - 'frontend/src/lib/components/workbench/SpecGraphViewer.svelte: journal panel entry'
+  - 'agent/internal/specjournal/context_reader.go: summary API source'
+  impacted_files:
+  - frontend/src/lib/components/workbench/ImplementationJournalPanel.svelte
+
+io:
+  input:
+  - selectedSpecPath 和该 spec 的 implementation journal summary。
+  output:
+  - SpecViewer/Graph 卡片旁展示实现历史、最近失败、当前风险和上次验证结果。
+  boundary: 只展示 journal 摘要，不编辑 journal，不替代 agent context injection。
+
+constraints:
+  rules: []
+  forbidden:
+  - 前端直接写 journal 文件
+  - 展示完整长日志作为默认视图
+  - 把 stale_journal 当作当前事实
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     selectedSpecPath 和该 spec 的 implementation journal summary。

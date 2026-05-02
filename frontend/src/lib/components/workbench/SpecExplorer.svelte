@@ -4,12 +4,12 @@
 -->
 <script lang="ts">
 	import { specExplorerStore, workspaceDisplayName } from '$lib/stores/spec-explorer-store';
-	import type { SpecDisplay } from '$lib/workbench/spec-display';
+	import type { SpecDisplay, SpecSlotModel, SpecSlotSummary } from '$lib/workbench/spec-display';
 	import { fallbackDisplayTitle } from '$lib/workbench/spec-display';
 
 	// 订阅 store 中的 specs 列表
 	let specs = $state<
-		{ path: string; level: number; name: string; status: string; display?: SpecDisplay }[]
+		{ path: string; level: number; name: string; status: string; display?: SpecDisplay; slots?: SpecSlotModel }[]
 	>([]);
 	let specsLoading = $state(false);
 	let specsError = $state<string | null>(null);
@@ -48,6 +48,14 @@
 
 	function compactPath(path: string): string {
 		return path.replace(/^specs\//, '').replace(/\.ya?ml$/, '');
+	}
+
+	function slotText(slot: SpecSlotSummary | undefined): string {
+		if (!slot) return '待补充';
+		if (slot.status === 'present') return slot.count > 1 ? String(slot.count) : '✓';
+		if (slot.status === 'empty') return '无';
+		if (slot.status === 'na') return '不适用';
+		return '待补';
 	}
 </script>
 
@@ -102,6 +110,14 @@
 							<span class="level-badge {levelClass(item.level)}">{level}</span>
 						</span>
 						<span class="ws-summary">{summary}</span>
+						{#if item.slots}
+							<span class="slot-row" aria-label="spec 槽位完整度">
+								<span class="slot-chip" class:ok={item.slots.structure.status === 'present'}>结构 {slotText(item.slots.structure)}</span>
+								<span class="slot-chip" class:ok={item.slots.input.status === 'present' && item.slots.output.status === 'present'}>I/O {item.slots.input.status === 'present' && item.slots.output.status === 'present' ? '✓' : '待补'}</span>
+								<span class="slot-chip" class:ok={item.slots.constraints.status === 'present'}>约束 {slotText(item.slots.constraints)}</span>
+								<span class="slot-chip" class:ok={item.slots.prototype.status === 'present'}>原型 {slotText(item.slots.prototype)}</span>
+							</span>
+						{/if}
 						<span class="ws-machine">{item.status} · {compactPath(item.path)}</span>
 					</span>
 				</button>
@@ -374,6 +390,36 @@
 	.ws-summary {
 		color: #a3abb9;
 		font-size: 11px;
+	}
+
+	.slot-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+		min-width: 0;
+	}
+
+	.slot-chip {
+		display: inline-flex;
+		align-items: center;
+		height: 18px;
+		max-width: 72px;
+		padding: 0 6px;
+		border-radius: 999px;
+		border: 1px solid rgba(70, 80, 100, 0.82);
+		background: rgba(12, 14, 19, 0.34);
+		color: #858fa1;
+		font-size: 9px;
+		font-weight: 700;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.slot-chip.ok {
+		color: #72d6d0;
+		border-color: rgba(114, 214, 208, 0.44);
+		background: rgba(114, 214, 208, 0.08);
 	}
 
 	.ws-machine {

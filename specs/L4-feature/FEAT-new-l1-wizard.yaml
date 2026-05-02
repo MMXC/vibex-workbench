@@ -17,6 +17,47 @@ lifecycle:
   current: proposal
   updated: "2026-04-27"
 
+display:
+  title: new l1 wizard
+  summary: 生成 L1 spec 文件（如 specs/L1-goal/{projectName}.yaml）
+  description: 生成 L1 spec 文件（如 specs/L1-goal/{projectName}.yaml）
+
+structure:
+  parent: MOD-spec-editor
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - 用户点击「新建 L1 Spec」按钮，填写表单（项目名、描述、类型）。
+  output:
+  - '- 生成 L1 spec 文件（如 specs/L1-goal/{projectName}.yaml）
+
+    - 自动打开新创建的 spec 进入编辑模式
+
+    - 保存后触发 state 检测（状态应变为 partial 或 ready）'
+  boundary: '只负责新建 L1 spec 文件（level=1_project-goal）。
+
+    不负责创建 L2–L5，不负责生成代码。'
+
+constraints:
+  rules:
+  - id: C1
+    name: L1 parent 必须为 null
+    rule: L1 spec 的 parent 字段必须为 null
+    validation: scaffold 生成时强制设为 null
+  - id: C2
+    name: 文件名唯一
+    rule: specs/L1-goal/{projectName}.yaml 不能已存在
+    validation: 写前检查，存在则拒绝
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户点击「新建 L1 Spec」按钮，填写表单（项目名、描述、类型）。

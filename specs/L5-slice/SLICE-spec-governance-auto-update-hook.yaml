@@ -17,6 +17,40 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-28"
 
+display:
+  title: spec governance auto update hook
+  summary: governance refresh job result、SSE governance_refreshed event、stale_governance marker on failure。
+  description: governance refresh job result、SSE governance_refreshed event、stale_governance marker on failure。
+
+structure:
+  parent: FEAT-spec-panorama-auto-update
+  children: []
+  dependencies:
+  - 'specs/L4-feature/FEAT-spec-panorama-auto-update.yaml: auto update feature contract'
+  - 'specs/L5-slice/SLICE-spec-view-model-builder.yaml: affected spec view refresh'
+  - 'specs/L5-slice/SLICE-spec-panorama-json-writer.yaml: panorama refresh'
+  impacted_files:
+  - agent/vibex/domain/spec/governance_auto_update.go
+
+io:
+  input:
+  - spec mutation events and runtime result events from workspace APIs。
+  output:
+  - governance refresh job result、SSE governance_refreshed event、stale_governance marker on failure。
+  boundary: 只实现刷新触发与任务编排，不实现 view model 具体构建逻辑。
+
+constraints:
+  rules: []
+  forbidden:
+  - 在未确认时触发业务写盘
+  - 刷新失败后回滚 spec 写入
+  - 阻塞用户保存直到全仓库 panorama 完成
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     spec mutation events and runtime result events from workspace APIs。

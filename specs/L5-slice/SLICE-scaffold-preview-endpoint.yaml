@@ -17,6 +17,45 @@ lifecycle:
   current: proposal
   updated: "2026-04-27"
 
+display:
+  title: scaffold preview endpoint
+  summary: confirmed_preview_id、每个文件的 action=create|skip|conflict 列表、模板摘要。
+  description: confirmed_preview_id、每个文件的 action=create|skip|conflict 列表、模板摘要。
+
+structure:
+  parent: FEAT-scaffold-preview-recovery
+  children: []
+  dependencies:
+  - 'specs/L4-feature/FEAT-scaffold-preview-recovery.yaml: feature contract，定义 preview_schema 和 action 语义'
+  - 'generators/scaffolder.py: 模板定义来源，preview 从 scaffolder 的 required_canonical_paths 计算 action'
+  - 'specs/L5-slice/SLICE-workspace-path-safety-contract.yaml: workspace root 必须通过 path safety 检查'
+  - 'specs/L4-feature/FEAT-command-output-problems-panel.yaml: dependency: scaffold preview 完成后写入 last_scaffold_result，供 awareness
+    注入'
+  impacted_files:
+  - agent/cmd/web/workspace_handlers.go
+
+io:
+  input:
+  - workspace root（来自 normalizeWorkspaceRoot）、scaffold options（template/overwrite/skip）。
+  output:
+  - confirmed_preview_id、每个文件的 action=create|skip|conflict 列表、模板摘要。
+  boundary: '只生成预览，不写入磁盘。不执行 scaffold 本身。
+
+    不改变 workspace 状态（scaffold 确认后才改）。'
+
+constraints:
+  rules: []
+  forbidden:
+  - 确认前写入磁盘
+  - 返回完整模板文件内容
+  - 缓存 preview 结果超过 10 分钟
+  - 缓存 preview 结果超过 10 分钟
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     workspace root（来自 normalizeWorkspaceRoot）、scaffold options（template/overwrite/skip）。    

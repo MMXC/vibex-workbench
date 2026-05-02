@@ -17,6 +17,61 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-28"
 
+display:
+  title: spec governance viewer
+  summary: SpecTreeMap：全仓库 spec 层级树（可折叠/展开）
+  description: SpecTreeMap：全仓库 spec 层级树（可折叠/展开）
+
+structure:
+  parent: MOD-spec-editor
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - '用户点击 SpecExplorer 工具栏的「图谱」图标，或在 SpecViewer 中点击「查看图谱」。
+
+    输入：WORKSPACE_ROOT/specs/ 下所有 spec YAML 文件 + git history。'
+  output:
+  - '- SpecTreeMap：全仓库 spec 层级树（可折叠/展开）
+
+    - SpecDetailPanel：选中 spec 的完整 YAML 编辑器（Monaco）+ 元信息侧栏
+
+    - SpecHistoryPanel：选中 spec 的 git commit 历史 + diff 视图 + rollback
+
+    - SpecValidateBar：选中 spec 的 validate 结果 + 重新验证按钮
+
+    - SpecCoverageBadge：每个 L4 节点显示 L5 覆盖率'
+  boundary: '本 feature 定义 spec 全景视图的交互协议：树导航 + 编辑 + 回滚 + 验证。
+
+    不定义 git 操作实现（走 git 命令），不定义 Monaco 编辑器组件（FEAT-spec-write 已定义）。'
+
+constraints:
+  rules:
+  - id: C1
+    name: Read-only tree structure
+    rule: SpecTreeMap 的树结构由 spec YAML 的 parent 字段决定，不支持在树视图内拖拽重排 parent
+    validation: 移动节点只能通过修改 spec YAML 的 parent 字段实现
+  - id: C2
+    name: Rollback always saves
+    rule: Rollback 操作必须立即保存，不允许'回滚到历史但不保存'的中间态
+    validation: Rollback 后 git status 显示文件已修改
+  - id: C3
+    name: Validate is non-destructive
+    rule: Validate 操作只读 spec 文件，不修改任何内容
+    validation: Validate 前后的 git status 相同
+  - id: C4
+    name: Tree is lazy-loaded
+    rule: SpecTreeMap 初始只加载 L1/L2，展开时再加载子节点
+    validation: 大仓库（100+ spec）初始渲染 < 2s
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户点击 SpecExplorer 工具栏的「图谱」图标，或在 SpecViewer 中点击「查看图谱」。

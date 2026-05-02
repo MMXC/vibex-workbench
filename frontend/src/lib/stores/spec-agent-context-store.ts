@@ -120,12 +120,16 @@ export function formatSpecContextForPrompt(): string {
 	if (state.items.length === 0) return '';
 	const lines = state.items.map(item => {
 		const focus = item.path === state.focusedPath ? 'focus' : 'context';
+		const slots = item.slots.all
+			.map(slot => `${slot.label}:${slot.status}${slot.count ? `(${slot.count})` : ''}`)
+			.join(', ');
 		return [
 			`- ${focus}: ${item.display.title}`,
 			`  name: ${item.name}`,
 			`  level: ${item.level}`,
 			`  path: ${item.path}`,
 			`  summary: ${item.display.summary}`,
+			`  slots: ${slots}`,
 		].join('\n');
 	});
 	return `\n\n[Spec Context]\n${lines.join('\n')}\n[/Spec Context]\n`;

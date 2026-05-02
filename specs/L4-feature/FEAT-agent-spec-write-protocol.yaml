@@ -17,6 +17,43 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: agent spec write protocol
+  summary: 经用户确认后的 spec YAML 写入请求，以及 validate 结果摘要。
+  description: 经用户确认后的 spec YAML 写入请求，以及 validate 结果摘要。
+
+structure:
+  parent: MOD-spec-editor
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - create-child-spec intent、用户澄清回答、agent 推荐草稿、目标 workspace。
+  output:
+  - 经用户确认后的 spec YAML 写入请求，以及 validate 结果摘要。
+  boundary: '本 feature 定义 agent 推荐 spec 到写盘的协议。
+
+    不定义底层模型 provider、不绕过用户确认、不允许 agent 静默写盘。'
+
+constraints:
+  rules:
+  - id: C1
+    name: Explicit confirmation
+    rule: 任何 agent 推荐都不能替代用户确认
+    validation: 未确认前 specs/write 不被调用
+  - id: C2
+    name: Canonical directory
+    rule: target_dir 必须来自 FEAT-spec-graph-expansion.level_rules
+    validation: 禁止 agent 自行拼接 specs/{level}/
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     create-child-spec intent、用户澄清回答、agent 推荐草稿、目标 workspace。

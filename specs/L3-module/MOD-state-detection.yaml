@@ -17,6 +17,41 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-24"
 
+display:
+  title: state detection
+  summary: 状态对象：
+  description: 状态对象：
+
+structure:
+  parent: vibex-workbench-skeleton
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - 仓库根目录路径（WORKSPACE_ROOT）
+  output:
+  - '状态对象：
+
+    - state: "empty" | "partial" | "ready"
+
+    - signals: [{path, reason}]  # 触发判断的文件/目录列表
+
+    - suggestions: [string]       # 下一步建议文案'
+  boundary: '只做只读探测，不做写操作。
+
+    不提供自动修复建议，只给文案。'
+
+constraints:
+  rules: []
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     仓库根目录路径（WORKSPACE_ROOT）

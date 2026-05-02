@@ -23,6 +23,37 @@ lifecycle:
       trigger: bugfix:mvp-评估
       note: 修复 state_detector.py 返回 "half" 与 spec/frontend 期望 "partial" 不一致的 bug
 
+display:
+  title: state detection fix partial state
+  summary: 'JSON: {state: "empty"|"partial"|"ready", signals: [...], suggestions: [...], workspaceRoot: "..."}'
+  description: 'JSON: {state: "empty"|"partial"|"ready", signals: [...], suggestions: [...], workspaceRoot: "..."}'
+
+structure:
+  parent: FEAT-state-detection-fix
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - WORKSPACE_ROOT 路径（字符串），通过 GET /api/workspace/detect-state 接收。
+  output:
+  - 'JSON: {state: "empty"|"partial"|"ready", signals: [...], suggestions: [...], workspaceRoot: "..."}
+
+    注意：不再返回 "half"，统一用 "partial"。'
+  boundary: '只读目录，不写任何文件。
+
+    本次修改只修状态名，不改探测逻辑。'
+
+constraints:
+  rules: []
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     WORKSPACE_ROOT 路径（字符串），通过 GET /api/workspace/detect-state 接收。

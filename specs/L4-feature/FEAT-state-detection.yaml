@@ -13,6 +13,41 @@ meta:
   created: "2026-04-24"
   updated: "2026-04-26"
 
+display:
+  title: state detection
+  summary: 'JSON: {state: "empty"|"partial"|"ready", signals: [], suggestions: []}'
+  description: 'JSON: {state: "empty"|"partial"|"ready", signals: [], suggestions: []}'
+
+structure:
+  parent: MOD-state-detection
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - WORKSPACE_ROOT 路径（字符串）
+  output:
+  - 'JSON: {state: "empty"|"partial"|"ready", signals: [], suggestions: []}'
+  boundary: 只读探测，不做写操作，不做自动修复
+
+constraints:
+  rules:
+  - id: C1
+    name: 只读探测
+    rule: detect-state 只读目录，不写任何文件
+    validation: 调用前后目标目录内容一致
+  - id: C2
+    name: 状态覆盖互斥
+    rule: state 只能是 'empty' | 'partial' | 'ready' 三者之一
+    validation: API 不会返回其他状态值
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     WORKSPACE_ROOT 路径（字符串）

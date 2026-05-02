@@ -16,6 +16,45 @@ lifecycle:
   current: proposal
   updated: "2026-04-29"
 
+display:
+  title: qa playwright scenario runner
+  summary: 每个 scenario 执行结果：status（pass/fail/error）+ screenshot 路径 + results.json。
+  description: 每个 scenario 执行结果：status（pass/fail/error）+ screenshot 路径 + results.json。
+
+structure:
+  parent: FEAT-spec-qa-playwright-integration
+  children: []
+  dependencies:
+  - 'specs/L4-feature/FEAT-canvas-expand.yaml: 首个有 test_scenarios 的 L4，驱动 QA runner'
+  - 'agents/skills/playwright-cli: playwright-cli 命令参考'
+  impacted_files:
+  - agent/cmd/web/qa_runner.go
+
+io:
+  input:
+  - 'POST /api/workspace/qa/run {workspace_root, spec_path, scenario_ids[]}
+
+    spec YAML 含 test_scenarios[].given/when/then/evaluation。'
+  output:
+  - '每个 scenario 执行结果：status（pass/fail/error）+ screenshot 路径 + results.json。
+
+    通过 SSE 推送 qa_completed 事件。'
+  boundary: 'playwright-cli 运行在 Go agent 所在机器。
+
+    不修改 spec YAML，不自动修复失败。'
+
+constraints:
+  rules: []
+  forbidden:
+  - 修改 spec YAML
+  - 自动修复失败场景
+  - 访问 workspace_root 之外的路径
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     POST /api/workspace/qa/run {workspace_root, spec_path, scenario_ids[]}

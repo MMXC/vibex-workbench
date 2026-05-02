@@ -17,6 +17,39 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: spec write refresh conflict contract
+  summary: write success/conflict response and refresh hints for frontend graph/list/current file。
+  description: write success/conflict response and refresh hints for frontend graph/list/current file。
+
+structure:
+  parent: FEAT-spec-write-refresh-and-conflict
+  children: []
+  dependencies:
+  - 'specs/L4-feature/FEAT-spec-write-refresh-and-conflict.yaml: refresh and conflict feature contract'
+  - 'specs/L5-slice/SLICE-agent-spec-write-api-contract.yaml: agent confirmed draft write path'
+  impacted_files:
+  - agent/cmd/web/workspace_handlers.go
+
+io:
+  input:
+  - specs/read response and specs/write request with base_hash or mtime。
+  output:
+  - write success/conflict response and refresh hints for frontend graph/list/current file。
+  boundary: 只实现 spec 写入版本保护和刷新契约，不实现 Git merge。
+
+constraints:
+  rules: []
+  forbidden:
+  - 静默覆盖变化后的文件
+  - 允许 workspace 外路径
+  - 在 backend 自动合并 YAML
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     specs/read response and specs/write request with base_hash or mtime。

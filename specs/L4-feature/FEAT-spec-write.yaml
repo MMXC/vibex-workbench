@@ -26,6 +26,51 @@ lifecycle:
       by: hermes
       note: "Monaco Editor 替代 CodeMirror，本地打包"
 
+display:
+  title: spec write
+  summary: 编辑模式：显示 Monaco Editor（VS Code 同款），YAML 语法高亮
+  description: 编辑模式：显示 Monaco Editor（VS Code 同款），YAML 语法高亮
+
+structure:
+  parent: MOD-spec-editor
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - 用户在 SpecViewer 点击「编辑」按钮，或在 SpecExplorer 点击 spec 文件。
+  output:
+  - '- 编辑模式：显示 Monaco Editor（VS Code 同款），YAML 语法高亮
+
+    - 保存：POST /api/workspace/specs/write → {success, error}
+
+    - 取消：放弃修改，恢复原内容'
+  boundary: '只负责 spec YAML 读写和 UI 状态切换。
+
+    不负责 YAML 语法校验（由 make validate 负责）。
+
+    不负责 spec 内容语义校验。
+
+    Monaco Editor 走本地打包，不走 CDN。由 Vite `?worker` 静态导入打包进 bundle。'
+
+constraints:
+  rules:
+  - id: C1
+    name: 只写 specs/ 目录
+    rule: 禁止通过 spec write API 写入 specs/ 以外的任何路径
+    validation: backend workspaceSpecWriteHandler 检查 path 必须以 SPEC_ROOT/specs/ 开头
+  - id: C2
+    name: Monaco 本地打包
+    rule: Monaco Editor 不走 CDN，由 vite-plugin-monaco-editor 打包进 bundle
+    validation: npm install @monaco-editor/loader 后配置 vite 插件
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户在 SpecViewer 点击「编辑」按钮，或在 SpecExplorer 点击 spec 文件。

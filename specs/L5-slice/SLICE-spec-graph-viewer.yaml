@@ -24,6 +24,42 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-26"
 
+structure:
+  parent: FEAT-spec-graph-expansion
+  children: []
+  dependencies:
+  - 'frontend/src/lib/stores/spec-explorer-store.ts: 保存 selectedSpecPath 和 selectSpec 行为'
+  - 'frontend/src/lib/workbench/spec-convention.ts: 推断层级与目录显示'
+  - 'frontend/src/lib/workbench/spec-display.ts: 解析 display 字段和 fallback 摘要'
+  - 'frontend/src/lib/stores/spec-agent-context-store.ts: 右侧 Agent Context 共享状态'
+  - 'agent/cmd/web/workspace_handlers.go: 提供 specs/list 与 specs/read API'
+  impacted_files:
+  - frontend/src/lib/components/workbench/GenericSpecGraph.svelte
+
+io:
+  input:
+  - 'selectedSpecPath、/api/workspace/specs/list 返回的 spec paths、
+
+    /api/workspace/specs/read 返回的 YAML 文本，以及 validator 认可的 spec.name/spec.parent 字段。'
+  output:
+  - 'GenericSpecGraph.svelte 在中央图形区展示当前 spec 摘要卡片和顶层 YAML section 卡片；
+
+    当前 spec 卡片可加入右侧 Agent Context。'
+  boundary: 只管图谱关系展示和卡片选中交互。不负责写 spec、不负责 agent 草稿生成、不负责完整图布局引擎。
+
+constraints:
+  rules: []
+  forbidden:
+  - 写入 spec 文件
+  - 调用 make 命令
+  - 直接调用 agent/LLM API
+  - 修改 SpecExplorer 的文件树加载策略
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     selectedSpecPath、/api/workspace/specs/list 返回的 spec paths、

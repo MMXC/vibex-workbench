@@ -17,6 +17,38 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-28"
 
+display:
+  title: spec layer view schema
+  summary: 每个层级对应的 view model schema，供 Go builder、UI renderer、agent context 共用。
+  description: 每个层级对应的 view model schema，供 Go builder、UI renderer、agent context 共用。
+
+structure:
+  parent: FEAT-spec-governance-view-model
+  children: []
+  dependencies:
+  - 'specs/L4-feature/FEAT-spec-governance-view-model.yaml: view model feature contract'
+  impacted_files:
+  - agent/vibex/domain/spec/governance_view_schema.go
+
+io:
+  input:
+  - L1/L2/L3/L4/L5 spec metadata and computed governance facts。
+  output:
+  - 每个层级对应的 view model schema，供 Go builder、UI renderer、agent context 共用。
+  boundary: 只定义 schema，不实现扫描、写文件或 UI 渲染。
+
+constraints:
+  rules: []
+  forbidden:
+  - 读取磁盘 spec
+  - 执行 validate/generate/rollback
+  - 在 schema 中存储 secret 或完整命令日志
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     L1/L2/L3/L4/L5 spec metadata and computed governance facts。

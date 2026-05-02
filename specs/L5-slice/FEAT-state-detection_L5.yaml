@@ -110,6 +110,41 @@ content:
 lifecycle:
   current: proposal
   updated: '2026-04-26'
+
+display:
+  title: state detection
+  summary: 'JSON: {state: "empty"|"partial"|"ready", signals: [...], suggestions: [...], workspaceRoot: "..."}'
+  description: 'JSON: {state: "empty"|"partial"|"ready", signals: [...], suggestions: [...], workspaceRoot: "..."}'
+
+structure:
+  parent: FEAT-state-detection
+  children: []
+  dependencies:
+  - 'Makefile: 读取 lint-specs target 是否存在'
+  - 'specs/: 检查目录是否存在'
+  impacted_files:
+  - generators/state_detector.py
+
+io:
+  input:
+  - WORKSPACE_ROOT 路径（字符串），通过 GET /api/workspace/detect-state 接收。
+  output:
+  - 'JSON: {state: "empty"|"partial"|"ready", signals: [...], suggestions: [...], workspaceRoot: "..."}'
+  boundary: 只读目录，不写任何文件，不做自动修复。
+
+constraints:
+  rules: []
+  forbidden:
+  - 禁止创建目录或文件
+  - 禁止调用生成器
+  - 禁止修改 workspace 任意内容
+  - 禁止网络请求
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 changelog:
 - version: '0.1'
   date: '2026-04-26'

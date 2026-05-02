@@ -16,6 +16,47 @@ lifecycle:
   current: proposal
   updated: "2026-04-29"
 
+display:
+  title: canvas expand spec exists conflict
+  summary: 文件存在：弹出确认对话框，显示「spec 已存在，是否覆盖？」+ 取消/覆盖按钮。
+  description: 文件存在：弹出确认对话框，显示「spec 已存在，是否覆盖？」+ 取消/覆盖按钮。
+
+structure:
+  parent: FEAT-canvas-expand
+  children: []
+  dependencies:
+  - 'frontend/src/lib/components/workbench/ClarificationPanel.svelte: 写盘入口，集成 ConflictDialog'
+  - 'agent/cmd/web/workspace_handlers.go: GET /api/workspace/spec 存在性检测 + POST /api/workspace/specs/write'
+  impacted_files:
+  - frontend/src/lib/components/workbench/ClarificationPanel.svelte
+
+io:
+  input:
+  - '用户在 ClarificationPanel 内点击「写盘」，传入 spec 文件路径。
+
+    系统检测该路径是否已存在文件。'
+  output:
+  - '文件存在：弹出确认对话框，显示「spec 已存在，是否覆盖？」+ 取消/覆盖按钮。
+
+    文件不存在：直接写入。'
+  boundary: '只检测 workspace_root 子树内的 spec 文件，不检测外部路径。
+
+    不自动覆盖，必须用户显式确认。
+
+    覆盖操作只写一次，不重复覆盖。'
+
+constraints:
+  rules: []
+  forbidden:
+  - 静默覆盖已有文件
+  - 检测 workspace_root 之外的文件
+  - 自动重命名文件
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户在 ClarificationPanel 内点击「写盘」，传入 spec 文件路径。

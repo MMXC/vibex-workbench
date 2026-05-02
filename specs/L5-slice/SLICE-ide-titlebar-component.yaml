@@ -13,6 +13,41 @@ meta:
 lifecycle:
   current: proposal
   updated: '2026-04-26'
+
+display:
+  title: ide titlebar component
+  summary: WorkbenchTitlebar.svelte 渲染唯一 IDE 顶部导航，并调用 Wails runtime 完成窗口控制。
+  description: WorkbenchTitlebar.svelte 渲染唯一 IDE 顶部导航，并调用 Wails runtime 完成窗口控制。
+
+structure:
+  parent: FEAT-ide-titlebar
+  children: []
+  dependencies:
+  - 'main.go: Wails frameless + CSSDragProperty 配置'
+  - 'frontend/src/app.html: 不能存在外层 duplicate titlebar'
+  - 'specs/L5-slice/SLICE-wails-binding-guard.yaml: 菜单类业务调用守卫（Wails 仅 go binding，禁止 Wails 内 fallback）'
+  impacted_files:
+  - frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte
+
+io:
+  input:
+  - 用户点击 WebView 内层 titlebar 菜单、命令中心、状态 chip、设置或窗口按钮。
+  output:
+  - WorkbenchTitlebar.svelte 渲染唯一 IDE 顶部导航，并调用 Wails runtime 完成窗口控制。
+  boundary: 只管 WorkbenchTitlebar.svelte。菜单具体弹层、command palette 和设置页可为占位。
+
+constraints:
+  rules: []
+  forbidden:
+  - 直接访问 filesystem
+  - 发起 spec read/write 请求
+  - 在 titlebar 内实现完整 command palette
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: '用户点击 WebView 内层 titlebar 菜单、命令中心、状态 chip、设置或窗口按钮。
 

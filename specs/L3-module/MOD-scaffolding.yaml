@@ -17,6 +17,51 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-24"
 
+display:
+  title: scaffolding
+  summary: 在目标目录生成最小可跑骨架：
+  description: 在目标目录生成最小可跑骨架：
+
+structure:
+  parent: vibex-workbench-skeleton
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - '- WORKSPACE_ROOT（目标目录）
+
+    - options: {includeAgent: bool, includeFrontend: bool, includePython: bool}'
+  output:
+  - '在目标目录生成最小可跑骨架：
+
+    - specs/ 目录（含一份入口 L1 spec）
+
+    - generators/gen.py
+
+    - generators/validate_specs.py
+
+    - spec-engine/validate_chain.py
+
+    - Makefile（含 lint-specs / validate / generate target）
+
+    - frontend/package.json（可选）
+
+    - agent/.env.example（可选）'
+  boundary: '只做首次脚手架生成，不做增量更新。
+
+    不覆盖已有文件（幂等检查）。'
+
+constraints:
+  rules: []
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     - WORKSPACE_ROOT（目标目录）

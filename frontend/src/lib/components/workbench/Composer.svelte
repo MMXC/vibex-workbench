@@ -186,6 +186,7 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
               <div>
                 <strong>{item.display.title}</strong>
                 <span>{item.level} · {item.name}</span>
+                <small>{item.slots.all.filter(slot => slot.status === 'present').length}/{item.slots.all.length} 槽位已定义</small>
               </div>
               <button type="button" title="移除上下文" onclick={() => removeContext(item.path)}>×</button>
             </div>
@@ -257,6 +258,7 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
   .context-chip.focused { border-color: #7aa2ff; background: rgba(122,162,255,.13); }
   .context-chip strong { display: block; color: #eef0f5; font-size: 12px; margin-bottom: 2px; }
   .context-chip span { display: block; color: #a3abb9; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .context-chip small { display: block; margin-top: 2px; color: #72d6d0; font-size: 10px; }
   .context-chip button { border: 1px solid #303746; background: transparent; color: #6f7888; cursor: pointer; width: 22px; height: 22px; border-radius: 999px; }
   .context-chip button:hover { background: #242936; color: #eef0f5; }
   .context-empty { color: #6f7888; font-size: 11px; padding: 6px 8px; }

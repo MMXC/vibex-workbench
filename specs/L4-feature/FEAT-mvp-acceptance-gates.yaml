@@ -17,6 +17,43 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: mvp acceptance gates
+  summary: 一个明确的 MVP 验收面板/命令结果，覆盖空仓库完整链路、spec 校验、生成器烟测和 UI 手动检查。
+  description: 一个明确的 MVP 验收面板/命令结果，覆盖空仓库完整链路、spec 校验、生成器烟测和 UI 手动检查。
+
+structure:
+  parent: MOD-build-panel
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - 用户或 agent 准备判断 vibex-workbench 是否达到 MVP 可用状态。
+  output:
+  - 一个明确的 MVP 验收面板/命令结果，覆盖空仓库完整链路、spec 校验、生成器烟测和 UI 手动检查。
+  boundary: '本 feature 只定义 MVP release gate，不替代各功能内部测试。
+
+    不要求多 workspace、历史迁移、全量图谱编辑或自动修复进入 MVP。'
+
+constraints:
+  rules:
+  - id: C1
+    name: Critical first
+    rule: MVP 判断只被 critical failure 阻塞
+    validation: warning 不影响 usable 标记
+  - id: C2
+    name: No hidden manual gate
+    rule: 手动检查必须明示名称、步骤和预期结果
+    validation: manual gate 不得只写 '人工确认'
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户或 agent 准备判断 vibex-workbench 是否达到 MVP 可用状态。

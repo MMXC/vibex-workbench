@@ -17,6 +17,65 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-28"
 
+display:
+  title: spec code bidirectional
+  summary: spec 节点 → 点击可展示它生成的文件列表
+  description: spec 节点 → 点击可展示它生成的文件列表
+
+structure:
+  parent: MOD-spec-editor
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - '- spec YAML 文件（含 generates[] 声明）
+
+    - 已生成的代码文件（WORKSPACE_ROOT 下）
+
+    - 用户在 spec 图谱或 spec 编辑器中的操作'
+  output:
+  - '- spec 节点 → 点击可展示它生成的文件列表
+
+    - 文件节点 → 点击可展示它由哪个 spec 生成
+
+    - SpecGraphViewer 展示 spec↔code 双向边
+
+    - DriftIndicator：spec 变更后标红对应文件节点
+
+    - GenerateButton：点击触发 spec→代码生成'
+  boundary: '本 feature 只定义 spec 与生成代码之间的关联展示和变更检测。
+
+    不定义生成器执行逻辑（FEAT-scaffolding 负责 make generate）。
+
+    不定义 spec 父子链关系展示（FEAT-spec-graph-expansion 负责）。'
+
+constraints:
+  rules:
+  - id: C1
+    name: generates[] is declarative only
+    rule: spec 的 generates[] 是声明，不是执行。生成动作由 make generate 触发
+    validation: 本 feature 不实现代码生成，只实现关联展示和 drift 检测
+  - id: C2
+    name: Drift detection is advisory
+    rule: drift 状态仅提示，不阻止任何操作
+    validation: drifted 文件仍可编辑、提交、运行，无强制修复
+  - id: C3
+    name: Single source of truth per file
+    rule: 一个 generated file 必须且只能由一个 spec generates[] 声明
+    validation: 多 spec 声明同一文件时前端显示冲突，后端 log warning
+  - id: C4
+    name: generates[] is opt-in
+    rule: spec 可不声明 generates[]，此类 spec 不参与 drift 检测
+    validation: 无 generates[] 的 spec 在图谱中无 outgoing 边
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     - spec YAML 文件（含 generates[] 声明）

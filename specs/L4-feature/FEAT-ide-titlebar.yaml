@@ -17,6 +17,55 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-26"
 
+display:
+  title: ide titlebar
+  summary: 菜单按钮触发对应 workbench event
+  description: 菜单按钮触发对应 workbench event
+
+structure:
+  parent: MOD-ide-chrome
+  children: []
+  dependencies: []
+  impacted_files:
+  - frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte
+  - frontend/src/app.html
+  - main.go
+  - specs/L5-slice/SLICE-wails-binding-guard.yaml
+
+io:
+  input:
+  - 用户在 IDE 顶部内层 titlebar 上点击菜单、命令中心、状态 chip、设置或窗口控制按钮。
+  output:
+  - '- 菜单按钮触发对应 workbench event
+
+    - 命令中心展示当前 workspace / self-bootstrap 状态
+
+    - 状态 chip 展示 validate/backend 当前摘要
+
+    - 窗口按钮调用 Wails runtime'
+  boundary: 只负责 WebView 内层 titlebar。不得再在 app.html 或原生菜单层渲染重复标题栏。
+
+constraints:
+  rules:
+  - id: C1
+    name: 单层导航
+    rule: app.html 不得渲染任何全局 titlebar；原生 menu 默认为空
+    validation: 搜索 app.html 不存在 '空仓库 → 边做边长' 和窗口按钮
+  - id: C2
+    name: 拖拽可用
+    rule: 'titlebar 根节点必须设置 --wails-draggable: drag'
+    validation: Wails frameless 模式下可拖动窗口
+  - id: C3
+    name: 菜单业务调用守卫
+    rule: Wails 桌面端菜单相关业务调用统一使用 window.go.main.App.*；window.runtime.* 仅用于事件/窗口控制
+    validation: Wails 环境 binding 缺失时显式报错并停止，禁止 fallback 到 wrapper/HTTP
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户在 IDE 顶部内层 titlebar 上点击菜单、命令中心、状态 chip、设置或窗口控制按钮。

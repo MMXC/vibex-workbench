@@ -17,6 +17,41 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: agent spec write api contract
+  summary: specs/write 请求、validate 命令结果、分类后的反馈消息。
+  description: specs/write 请求、validate 命令结果、分类后的反馈消息。
+
+structure:
+  parent: FEAT-agent-spec-write-protocol
+  children: []
+  dependencies:
+  - 'specs/L4-feature/FEAT-agent-spec-write-protocol.yaml: 协议来源'
+  - 'agent/skills/spec-first-workflow/validation-and-failure.md: 失败分类标准'
+  - 'agent/cmd/web/workspace_handlers.go: specs/write 与 run-make handler'
+  impacted_files:
+  - agent/cmd/web/workspace_handlers.go + frontend/src/lib/components/workbench/SpecAgentClarification.svelte
+
+io:
+  input:
+  - Agent 线程中的 confirmed_spec_draft payload。
+  output:
+  - specs/write 请求、validate 命令结果、分类后的反馈消息。
+  boundary: 只定义 API payload 和错误分类，不实现 LLM 推理。
+
+constraints:
+  rules: []
+  forbidden:
+  - 未确认时调用 specs/write
+  - 允许 path 包含 ../
+  - 绕过 make validate
+  - 把长日志直接塞进 chat，不做摘要
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     Agent 线程中的 confirmed_spec_draft payload。

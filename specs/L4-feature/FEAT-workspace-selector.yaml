@@ -15,6 +15,65 @@ meta:
   ui_elements_ref: "FEAT-workspace-selector_L5.yaml#content/ui_elements"
   # L4 定义行为和约束；L5 精确到 UI 元素和 CSS selector
 
+display:
+  title: workspace selector
+  summary: /workspace 页面显示 detect-state 返回的 empty / partial / ready 状态、signals、suggestions
+  description: /workspace 页面显示 detect-state 返回的 empty / partial / ready 状态、signals、suggestions
+
+structure:
+  parent: MOD-workspace-root
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - '用户在 /workspace 入口页输入本地目录路径并点击「检测」，或在 Workbench 内通过菜单事件
+
+    menu:open-project 打开原生目录选择器。'
+  output:
+  - '- /workspace 页面显示 detect-state 返回的 empty / partial / ready 状态、signals、suggestions
+
+    - empty 状态显示「初始化脚手架」按钮
+
+    - partial 或 ready 状态显示「校验 Spec」「生成代码」「进入 Workbench」按钮
+
+    - 点击「进入 Workbench」后将 workspaceRoot 写入 localStorage 并跳转 /workbench
+
+    - Workbench 内 menu:open-project 选择目录后更新 StatusBar 的 workspaceRoot 与 workspaceState'
+  boundary: '本 feature 只负责 workspace root 选择、状态探测入口、进入 Workbench 的前置绑定。
+
+    不负责脚手架内容生成、不负责 make 命令实现、不负责路径安全细则。'
+
+constraints:
+  rules:
+  - id: C1
+    name: Detect before enter
+    rule: 入口页只有 state=partial 或 state=ready 时才显示「进入 Workbench」
+    validation: state=null 或 state=empty 时不显示 enter 按钮
+  - id: C2
+    name: No implicit write on select
+    rule: 输入路径或打开目录只触发 detect-state；只有点击「初始化脚手架」才调用 scaffold
+    validation: detect-state 请求不创建文件
+  - id: C3
+    name: Persist only on enter
+    rule: /workspace 入口页在点击「进入 Workbench」时写入 localStorage
+    validation: 仅检测目录不应改变已进入工作台的持久化 root
+  - id: C4
+    name: Wails binding source of truth
+    rule: Wails 桌面模式业务调用统一使用 window.go.main.App.*，不得以 window.runtime.* 作为业务 binding 判定
+    validation: Wails 模式下若 App.OpenDirectoryDialog 缺失，前端应报错并停止，不得 fallback 到 webkitdirectory/HTTP
+  - id: C5
+    name: Workspace root must be full path
+    rule: 进入 localStorage、store、API body/query 的 workspaceRoot/workspace_root 必须是完整路径
+    validation: 仅文件夹名（如 vibex-workbench）必须被拒绝并清理，避免后续卡死
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户在 /workspace 入口页输入本地目录路径并点击「检测」，或在 Workbench 内通过菜单事件

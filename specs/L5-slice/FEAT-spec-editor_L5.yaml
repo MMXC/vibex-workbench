@@ -112,6 +112,47 @@ content:
 lifecycle:
   current: proposal
   updated: '2026-04-26'
+
+display:
+  title: spec editor
+  summary: 读取：GET /api/workspace/specs/read/{path} → YAML 文本
+  description: 读取：GET /api/workspace/specs/read/{path} → YAML 文本
+
+structure:
+  parent: FEAT-spec-editor
+  children: []
+  dependencies:
+  - 'agent/cmd/web/workspace_handlers.go: specs_read_handler 和 specs_write_handler 实现在此文件'
+  - 'generators/validate_specs.py: make lint-specs 实际调用 validate_specs.py'
+  - 'frontend/src/lib/components/workbench/SpecViewer.svelte: spec YAML 内容展示和编辑组件'
+  impacted_files:
+  - frontend/src/lib/components/workbench/SpecExplorer.svelte
+
+io:
+  input:
+  - '用户在 SpecExplorer 点击一个 spec 文件节点，或在 SpecViewer 点击「编辑」按钮。
+
+    POST /api/workspace/specs/write { path, content } — 写入 spec YAML。'
+  output:
+  - '读取：GET /api/workspace/specs/read/{path} → YAML 文本
+
+    写入：POST /api/workspace/specs/write { path, content } → { success, error }
+
+    保存后：触发 make lint-specs → 显示验证结果'
+  boundary: 只读写 specs/ 目录下的 YAML 文件，不读写其他目录。
+
+constraints:
+  rules: []
+  forbidden:
+  - 禁止读写 specs/ 目录外的文件
+  - 禁止在 SpecViewer 保存后不触发 lint-specs
+  - 禁止前端直接调用 make 命令
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 changelog:
 - version: '0.1'
   date: '2026-04-26'

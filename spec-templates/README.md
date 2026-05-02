@@ -91,6 +91,51 @@ python3 ~/.hermes/spec-governance/scripts/validate_specs.py \
 # exit_code: 0=通过, 2=格式错误
 ```
 
+## Canonical 槽位规则
+
+所有 L1–L5 spec 都应在顶层包含以下 canonical 槽位，供图谱、列表、详情面板和 agent context 统一读取：
+
+```yaml
+display:
+  title: "中文短标题"
+  summary: "一句话说明"
+  description: "更完整说明"
+
+structure:
+  parent: ""
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input: []
+  output: []
+  boundary: ""
+
+constraints:
+  rules: []
+  forbidden: []
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+```
+
+填写规则：
+
+- `display` 面向人类阅读，默认使用中文，由 agent 在创建或修改 spec 时同步维护。
+- `structure` 描述图谱结构，`parent` 应与 `spec.parent` 保持一致，`impacted_files` 用于实现影响面展示。
+- `io` 是新的输入输出权威字段；旧 `io_contract` 保留用于兼容和迁移，但 UI 优先读取 `io`。
+- `constraints` 是新的约束权威字段；旧 `content.constraints` 保留用于兼容和迁移。
+- `prototype.status` 可取 `none`、`draft`、`reviewed`、`implemented`。没有原型时写 `none`，不要省略字段。
+
+缺省语义：
+
+- 明确没有内容：写空数组、空字符串或 `status: none`，UI 显示“无”。
+- 当前层级不适用：写空值，并在描述中说明“不适用”，UI 显示“不适用”。
+- 应该补但尚未补：保留空值，UI 显示“待补充”。
+
 ### 迁移现有 YAML 文件
 
 ```python

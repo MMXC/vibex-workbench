@@ -1,18 +1,9 @@
-<!-- 非 L1 总目标时的轻量「图谱」：中心为 spec 标识，周围为顶层段落卡片 -->
+<!-- 非 L1 总目标时的轻量「图谱」：中心为 spec，周围为 canonical 槽位卡片 -->
 <script lang="ts">
-	import { parse as parseYaml } from 'yaml';
 	import { specAgentContextStore } from '$lib/stores/spec-agent-context-store';
-	import { extractSpecDisplay } from '$lib/workbench/spec-display';
+	import { extractSpecDisplay, type SpecSlotSummary } from '$lib/workbench/spec-display';
 
 	let { specPath, content }: { specPath: string; content: string } = $props();
-
-	const parsed = $derived.by(() => {
-		try {
-			return parseYaml(content) as Record<string, unknown>;
-		} catch {
-			return null;
-		}
-	});
 
 	const specMeta = $derived.by(() => extractSpecDisplay(content, specPath));
 
@@ -25,17 +16,10 @@
 	}
 
 	const level = $derived.by(() => {
-		const p = parsed;
-		const spec = p?.spec as Record<string, unknown> | undefined;
-		const l = spec?.level;
-		return typeof l === 'string' ? l : '';
+		return specMeta.rawLevel;
 	});
 
-	const sectionKeys = $derived.by(() => {
-		const p = parsed;
-		if (!p) return [] as string[];
-		return Object.keys(p).filter(k => k !== 'spec');
-	});
+	const slotCards = $derived.by(() => specMeta.slots.all);
 
 	function levelShort(raw: string): string {
 		if (raw.includes('1')) return 'L1';
@@ -56,6 +40,13 @@
 	const currentLeft = $derived.by(() => laneLeft(currentLane));
 	const parentLeft = $derived.by(() => Math.max(8, currentLeft - 21));
 	const childLeft = $derived.by(() => Math.min(92, currentLeft + 21));
+
+	function slotValue(slot: SpecSlotSummary): string {
+		if (slot.status === 'present') return slot.count > 0 ? `${slot.count}` : '✓';
+		if (slot.status === 'empty') return '无';
+		if (slot.status === 'na') return '不适用';
+		return '待补充';
+	}
 </script>
 
 <div class="generic-graph">
@@ -80,10 +71,16 @@
 			<span class="edge parent-edge" style:left="{parentLeft + 9}%" style:width="{currentLeft - parentLeft - 13}%"></span>
 		{/if}
 
-		{#each sectionKeys.slice(0, 5) as key, i (key)}
-			<div class="orbit-card" style:left="{childLeft}%" style:top="{18 + i * 14}%">
-				<span class="k">section</span>
-				<strong>{key}</strong>
+		{#each slotCards as slot, i (slot.id)}
+			<div
+				class="orbit-card slot-card {slot.status}"
+				style:left="{childLeft}%"
+				style:top="{15 + i * 12}%"
+				title={slot.summary}
+			>
+				<span class="k">{slot.label}</span>
+				<strong>{slotValue(slot)}</strong>
+				<small>{slot.summary}</small>
 			</div>
 		{/each}
 
@@ -120,7 +117,7 @@
 		</div>
 	</div>
 	<div class="graph-foot">
-		<div><strong>{sectionKeys.length}</strong><span>yaml sections</span></div>
+		<div><strong>{slotCards.filter(slot => slot.status === 'present').length}</strong><span>ready slots</span></div>
 		<div><strong>{specMeta.status}</strong><span>status</span></div>
 		<div><strong>{specMeta.parent ?? 'root'}</strong><span>parent</span></div>
 	</div>
@@ -347,6 +344,37 @@
 		color: #d4d4d8;
 		text-align: left;
 		pointer-events: none;
+	}
+
+	.slot-card {
+		display: grid;
+		gap: 3px;
+	}
+
+	.slot-card.present {
+		border-color: rgba(114, 214, 208, 0.58);
+		background: rgba(114, 214, 208, 0.08);
+	}
+
+	.slot-card.empty,
+	.slot-card.na {
+		border-color: rgba(111, 120, 136, 0.46);
+		opacity: 0.78;
+	}
+
+	.slot-card.missing {
+		border-color: rgba(239, 198, 107, 0.58);
+		background: rgba(239, 198, 107, 0.08);
+	}
+
+	.slot-card small {
+		display: block;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		color: #858fa1;
+		font-size: 9px;
 	}
 
 	.relation-card {

@@ -16,6 +16,44 @@ meta:
     定义 Wails 前端业务 binding 的统一守卫策略，防止 runtime/go 混用导致
     错误 fallback、路径污染和 Windows 卡死类问题。
 
+display:
+  title: wails binding guard
+  summary: Wails 桌面端：仅通过 window.go.main.App.* 调用业务 binding
+  description: Wails 桌面端：仅通过 window.go.main.App.* 调用业务 binding
+
+structure:
+  parent: FEAT-workspace-selector
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - 前端 bridge 层的业务调用请求（例如目录选择、spec 文件读写、agent run/kill）。
+  output:
+  - '- Wails 桌面端：仅通过 window.go.main.App.* 调用业务 binding
+
+    - Wails JS 注入缺失时：可使用同源 Wails host native endpoint 作为桌面 fallback
+
+    - 浏览器开发模式：允许降级到 wrapper/HTTP fallback
+
+    - 非完整路径 workspaceRoot 被拒绝并终止后续请求'
+  boundary: 本 slice 只定义调用守卫与降级边界，不定义具体 UI 行为或后端实现细节。
+
+constraints:
+  rules: []
+  forbidden:
+  - 使用 window.runtime.* 作为业务 binding 的存在性判定
+  - Wails 环境下静默 fallback 到 wrapper/HTTP
+  - 接受仅目录名（如 vibex-workbench）并继续发请求
+  - Service Worker cache-first 缓存 /workbench 或旧 JS bundle
+  - 使用 <input webkitdirectory> 作为目录选择 fallback
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     前端 bridge 层的业务调用请求（例如目录选择、spec 文件读写、agent run/kill）。

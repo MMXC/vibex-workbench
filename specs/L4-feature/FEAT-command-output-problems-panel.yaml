@@ -17,6 +17,43 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: command output problems panel
+  summary: Problems/Output 区域展示命令状态、错误摘要、完整日志入口和下一步建议。
+  description: Problems/Output 区域展示命令状态、错误摘要、完整日志入口和下一步建议。
+
+structure:
+  parent: MOD-build-panel
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - make validate/generate/smoke/run target 的 stdout、stderr、exit_code、duration、timeout。
+  output:
+  - Problems/Output 区域展示命令状态、错误摘要、完整日志入口和下一步建议。
+  boundary: '只负责命令结果展示和问题摘要。
+
+    不解释所有编译器错误、不自动修改文件、不替代 agent 修复。'
+
+constraints:
+  rules:
+  - id: C1
+    name: No silent command
+    rule: 用户触发的 make 命令必须进入 Output/Problems
+    validation: run-make 返回后 UI 有可见 entry
+  - id: C2
+    name: Preserve full log
+    rule: UI 可截断摘要，但必须保留完整日志入口
+    validation: 500 字符摘要之外仍可查看完整 stdout/stderr
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     make validate/generate/smoke/run target 的 stdout、stderr、exit_code、duration、timeout。

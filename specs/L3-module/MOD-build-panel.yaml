@@ -17,6 +17,41 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-24"
 
+display:
+  title: build panel
+  summary: 执行 make lint-specs / make validate / make generate
+  description: 执行 make lint-specs / make validate / make generate
+
+structure:
+  parent: vibex-workbench-skeleton
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - 用户点击「校验 Spec」或「生成代码」按钮
+  output:
+  - '执行 make lint-specs / make validate / make generate
+
+    返回 stdout/stderr 前 500 字符 + exit code
+
+    成功：绿色提示 "✅ lint-specs 通过"
+
+    失败：红色浮层，显示错误摘要'
+  boundary: '只负责"调用"和"展示结果"，不负责自动修复。
+
+    执行在 backend 进程（WORKSPACE_ROOT 环境变量注入）。'
+
+constraints:
+  rules: []
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户点击「校验 Spec」或「生成代码」按钮

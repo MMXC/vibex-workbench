@@ -17,6 +17,48 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-26"
 
+display:
+  title: ide activity sidebar
+  summary: 左侧 panel 在 explorer/search/git/extensions 间切换
+  description: 左侧 panel 在 explorer/search/git/extensions 间切换
+
+structure:
+  parent: MOD-ide-chrome
+  children: []
+  dependencies: []
+  impacted_files:
+  - frontend/src/lib/components/workbench/ActivityBar.svelte
+  - frontend/src/lib/components/workbench/SpecExplorer.svelte
+  - frontend/src/lib/stores/spec-explorer-store.ts
+
+io:
+  input:
+  - 用户点击左侧 activity bar 图标，或点击资源管理器中的 spec 文件。
+  output:
+  - '- 左侧 panel 在 explorer/search/git/extensions 间切换
+
+    - explorer panel 展示 workspace/spec 文件树
+
+    - 点击 spec 文件后更新 selectedSpecPath，中央区切到 SpecViewer'
+  boundary: 本 feature 只负责左侧导航和文件树交互，不负责 spec 内容解析与编辑保存。
+
+constraints:
+  rules:
+  - id: C1
+    name: IDE 左栏密度
+    rule: activity bar 宽度固定 48px，panel 宽度由 WorkbenchLayoutResizable 控制
+    validation: 窗口缩放时左栏不挤压中央编辑器
+  - id: C2
+    name: spec 路径归一
+    rule: 选中的 spec path 使用 specs/... 相对路径，不使用绝对路径
+    validation: 调用 /api/workspace/specs/read 时只传相对路径
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户点击左侧 activity bar 图标，或点击资源管理器中的 spec 文件。

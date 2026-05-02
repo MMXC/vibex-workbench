@@ -17,6 +17,34 @@ lifecycle:
   current: "proposal"
   updated: "{YYYY-MM-DD}"
 
+display:
+  title: "{中文模块标题}"
+  summary: "{一句话说明该模块的职责和边界}"
+  description: "{面向用户和 agent 的完整模块说明}"
+
+structure:
+  parent: "{l2-spec-name}"
+  children: []
+  dependencies:
+    - "{依赖的模块或外部库，可为空}"
+  impacted_files: []
+
+io:
+  input:
+    - "{L2 skeleton 中该模块的定义}"
+  output:
+    - "{公开 API、状态定义和模块依赖}"
+  boundary: "L3 只定义模块对外接口和内部状态，不定义具体用户流程。"
+
+constraints:
+  rules: []
+  forbidden: []
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
 io_contract:
   input: |
     L2 skeleton spec 的 modules_matrix 中该模块的定义

@@ -17,6 +17,45 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-28"
 
+display:
+  title: spec tree map
+  summary: SpecTreeMap.svelte 组件：可折叠层级树 + 搜索过滤 + 覆盖率 badge + 节点选中高亮
+  description: SpecTreeMap.svelte 组件：可折叠层级树 + 搜索过滤 + 覆盖率 badge + 节点选中高亮
+
+structure:
+  parent: FEAT-spec-governance-viewer
+  children: []
+  dependencies:
+  - 'frontend/src/lib/stores/spec-explorer-store.ts: selectedSpecPath 状态 + selectSpec action'
+  - 'agent/cmd/web/workspace_handlers.go: /api/workspace/specs/tree API'
+  impacted_files:
+  - frontend/src/lib/components/workbench/SpecTreeMap.svelte
+
+io:
+  input:
+  - 'GET /api/workspace/specs/tree 的 JSON 响应，
+
+    selectedSpecPath（当前选中节点路径），
+
+    用户在树视图中的交互事件（click/expand/search）。'
+  output:
+  - SpecTreeMap.svelte 组件：可折叠层级树 + 搜索过滤 + 覆盖率 badge + 节点选中高亮
+  boundary: '只实现前端树组件渲染。不涉及 API 调用实现（Go agent 负责）、
+
+    不涉及 spec 编辑（SpecDetailPanel 负责）。'
+
+constraints:
+  rules: []
+  forbidden:
+  - 直接读写 spec YAML 文件
+  - 调用 git 命令
+  - 调用 validate
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     GET /api/workspace/specs/tree 的 JSON 响应，

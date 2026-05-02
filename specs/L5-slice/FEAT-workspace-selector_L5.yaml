@@ -205,6 +205,62 @@ content:
 lifecycle:
   current: implementation
   updated: '2026-04-30'
+
+display:
+  title: workspace selector
+  summary: detect-state 返回的 { state, signals, suggestions } 渲染到状态卡片
+  description: detect-state 返回的 { state, signals, suggestions } 渲染到状态卡片
+
+structure:
+  parent: FEAT-workspace-selector
+  children: []
+  dependencies:
+  - 'frontend/src/routes/workspace/+page.svelte: 当前真实入口页按钮和状态卡片实现'
+  - 'frontend/src/routes/workbench/+page.svelte: Workbench 内 menu:open-project wiring 和 StatusBar props 来源'
+  - 'frontend/src/lib/wails-runtime.ts: openDirectoryDialog / eventsOn / eventsEmit wrapper'
+  - 'specs/L5-slice/SLICE-wails-binding-guard.yaml: 统一业务 binding 守卫：Wails 仅走 window.go.main.App.*，禁止 Wails 内 fallback'
+  - 'frontend/src/lib/components/workbench/StatusBar.svelte: 展示 workspaceRoot、backendStatus、workspaceState'
+  - 'agent/cmd/web/workspace_handlers.go: detect-state / scaffold / run-make workspace API'
+  impacted_files:
+  - frontend/src/routes/workspace/+page.svelte
+
+io:
+  input:
+  - '/workspace 路由上的路径输入框、按钮点击事件，以及 /workbench 路由中 Wails 菜单事件：
+
+    - 输入框 Enter 或「检测」按钮
+
+    - state=empty 时的「初始化脚手架」按钮
+
+    - state=partial|ready 时的「校验 Spec」「生成代码」「进入 Workbench」按钮
+
+    - menu:open-project 事件触发的 native-first OpenDirectoryDialog'
+  output:
+  - '- detect-state 返回的 { state, signals, suggestions } 渲染到状态卡片
+
+    - run-make/scaffold 输出渲染到 error/output 区
+
+    - 进入 Workbench 时 localStorage[''vibex-workspace-root''] 持久化
+
+    - Workbench StatusBar 显示 workspaceRoot、backendStatus、workspaceState'
+  boundary: '本 slice 精确描述当前前端入口页面和 Workbench 菜单 wiring。
+
+    不实现 path guard、不实现 scaffolder、不实现 make runner、不实现 agent context injection。'
+
+constraints:
+  rules: []
+  forbidden:
+  - 在路径输入或目录选择时自动 scaffold
+  - 在 selector 内实现 path traversal 判断
+  - 在 selector 内实现 make target allowlist
+  - 在 selector 内直接读写 specs 文件
+  - 把 Git commit/push/pull 纳入 workspace selector
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 changelog:
 - version: '0.1'
   date: '2026-04-26'

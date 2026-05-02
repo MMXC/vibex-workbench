@@ -23,6 +23,33 @@ lifecycle:
       trigger: "user:manual"
       note: "初始骨架"
 
+display:
+  title: "{中文架构骨架标题}"
+  summary: "{一句话说明 L2 如何承接 L1 目标}"
+  description: "{面向用户和 agent 的完整架构说明}"
+
+structure:
+  parent: "{l1-spec-name}"
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+    - "{L1 goal spec}"
+  output:
+    - "{模块划分、技术栈和入口设计}"
+  boundary: "L2 定义技术骨架和模块边界，不定义模块内部实现细节。"
+
+constraints:
+  rules: []
+  forbidden: []
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
 # ── io_contract ─────────────────────────────────
 io_contract:
   input: |

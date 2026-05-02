@@ -17,6 +17,40 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: mvp acceptance gate runner
+  summary: MVP gate summary：{ usable, critical_failures, warnings, manual_checks }。
+  description: MVP gate summary：{ usable, critical_failures, warnings, manual_checks }。
+
+structure:
+  parent: FEAT-mvp-acceptance-gates
+  children: []
+  dependencies:
+  - 'Makefile: 增加 mvp-gate target'
+  - 'generators/validate_specs.py: 结构校验输入'
+  - 'generators/spec_criteria_validator.py: criteria critical gate 输入'
+  impacted_files:
+  - generators/mvp_acceptance_gate.py
+
+io:
+  input:
+  - make validate 输出、criteria validator 输出、空仓库烟测结果、Wails 手动检查结果。
+  output:
+  - MVP gate summary：{ usable, critical_failures, warnings, manual_checks }。
+  boundary: 只负责聚合与分类，不自动修复 spec/code，不启动长期 dev server。
+
+constraints:
+  rules: []
+  forbidden:
+  - 修改已有 spec 内容
+  - 自动提交或推送
+  - 启动 make wails-dev 作为阻塞步骤
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     make validate 输出、criteria validator 输出、空仓库烟测结果、Wails 手动检查结果。

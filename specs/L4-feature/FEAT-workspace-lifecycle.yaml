@@ -14,6 +14,70 @@ meta:
 lifecycle:
   current: proposal
   updated: '2026-04-26'
+
+display:
+  title: workspace lifecycle
+  summary: 五条能力串联成一条可闭合的链路：
+  description: 五条能力串联成一条可闭合的链路：
+
+structure:
+  parent: MOD-workspace-root
+  children: []
+  dependencies: []
+  impacted_files:
+  - frontend/src/routes/workbench/+page.svelte
+  - frontend/src/lib/components/workbench/StatusBar.svelte
+  - frontend/src/lib/components/workbench/WorkspaceSelector.svelte
+  - frontend/src/lib/components/workbench/SpecExplorer.svelte
+
+io:
+  input:
+  - '用户打开 VibeX Workbench → 选定一个 WORKSPACE_ROOT →
+
+    系统探测状态 → 空仓库引导脚手架 → 半成品/就绪后开放 spec 读写 → make 校验/生成'
+  output:
+  - '五条能力串联成一条可闭合的链路：
+
+    1. WORKSPACE_ROOT 绑定 → 所有 API/agent 统一用该根路径
+
+    2. 状态探测 → UI 显示 empty/partial/ready + 下一步建议
+
+    3. 脚手架生成（需确认）→ 目录+specs+生成器+Makefile
+
+    4. Spec 读写 → 列表/读取/写入 L1 spec + 保存触发校验
+
+    5. make 按钮 → lint-specs / validate / generate → Output tab 展示结果'
+  boundary: '本 feature 定义五条能力的编排顺序与状态机转换，
+
+    不定义各能力的内部实现（那是 FEAT-workspace-selector / FEAT-state-detection /
+
+    FEAT-scaffolding / FEAT-spec-editor / FEAT-make-integration 的职责）。'
+
+constraints:
+  rules:
+  - id: C1
+    name: WORKSPACE_ROOT 全链路统一
+    rule: 选定后所有 API 请求（detect-state / scaffold / specs/* / run-make）均以该目录为根
+    validation: backend 每个 endpoint 从请求头或 body 读取 workspace_root，不使用硬编码路径
+  - id: C2
+    name: 状态探测先于操作
+    rule: scaffold / spec-write / make 按钮均需在状态已探测后才能触发
+    validation: 未探测状态时按钮 disabled，不发送请求
+  - id: C3
+    name: scaffold 确认门槛
+    rule: 写入前必须展示预览并得到用户显式确认（不可静默覆盖）
+    validation: 预览中显示将要创建的所有文件列表
+  - id: C4
+    name: 五条能力缺一不可作为产品边界
+    rule: 当前 MVP 版本不包含：多 workspace 并行、历史版本回溯、spec 自动生成、agent 自主执行
+    validation: 上述功能无对应 spec，代码中无相关实现
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: '用户打开 VibeX Workbench → 选定一个 WORKSPACE_ROOT →
 

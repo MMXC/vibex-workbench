@@ -201,6 +201,13 @@
 		if (!selectedPath || !raw) return;
 		specAgentContextStore.addSpec(extractSpecDisplay(raw, selectedPath), raw);
 	}
+
+	function slotLabel(status: string, count: number): string {
+		if (status === 'present') return count > 1 ? String(count) : '✓';
+		if (status === 'empty') return '无';
+		if (status === 'na') return '不适用';
+		return '待补充';
+	}
 	$effect(() => {
 		if (!editMode) return;
 		const onBeforeunload = (e: BeforeUnloadEvent) => {
@@ -245,6 +252,7 @@
 		</div>
 
 		{#if !loading && !fetchErr && raw}
+			{@const displayMeta = extractSpecDisplay(raw, selectedPath ?? '')}
 			<div class="spec-meta" aria-label="规格类型与关联">
 				{#if typeId}
 					<span class="meta-badge" title={convention ? specTypeLabel(convention, typeId) ?? typeId : typeId}
@@ -284,6 +292,14 @@
 				<button type="button" class="meta-link" onclick={attachSelectedSpec}>
 					添加到 Context
 				</button>
+			</div>
+			<div class="slot-strip" aria-label="canonical spec 槽位">
+				{#each displayMeta.slots.all as slot (slot.id)}
+					<span class="slot-pill {slot.status}" title={slot.summary}>
+						<span>{slot.label}</span>
+						<strong>{slotLabel(slot.status, slot.count)}</strong>
+					</span>
+				{/each}
 			</div>
 		{/if}
 
@@ -503,6 +519,47 @@
 	.meta-link:hover {
 		background: rgba(114, 214, 208, 0.18);
 		color: #eef0f5;
+	}
+
+	.slot-strip {
+		flex-shrink: 0;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+		padding: 7px 14px;
+		border-bottom: 1px solid #303746;
+		background: rgba(12, 14, 19, 0.62);
+	}
+
+	.slot-pill {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		min-height: 22px;
+		padding: 0 8px;
+		border: 1px solid rgba(70, 80, 100, 0.78);
+		border-radius: 999px;
+		color: #858fa1;
+		font-size: 10px;
+		font-weight: 700;
+	}
+
+	.slot-pill strong {
+		color: #c4c4cc;
+		font-family: 'Cascadia Code', ui-monospace, monospace;
+		font-size: 10px;
+	}
+
+	.slot-pill.present {
+		color: #72d6d0;
+		border-color: rgba(114, 214, 208, 0.5);
+		background: rgba(114, 214, 208, 0.07);
+	}
+
+	.slot-pill.missing {
+		color: #efc66b;
+		border-color: rgba(239, 198, 107, 0.5);
+		background: rgba(239, 198, 107, 0.07);
 	}
 
 	.spec-body {

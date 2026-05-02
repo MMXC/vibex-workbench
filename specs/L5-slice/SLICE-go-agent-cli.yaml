@@ -13,6 +13,38 @@ meta:
 lifecycle:
   current: proposal
   updated: '2026-04-29'
+
+display:
+  title: go agent cli
+  summary: agent 进程 stdout 输出 JSON lines，Wails 前端逐行解析 SSE event
+  description: agent 进程 stdout 输出 JSON lines，Wails 前端逐行解析 SSE event
+
+structure:
+  parent: FEAT-workspace-selector
+  children: []
+  dependencies:
+  - 'main.go: App.RunAgent / App.KillAgent Wails binding'
+  - 'agent/cmd/agent/main.go: agent binary 和 --goal flag'
+  impacted_files:
+  - frontend/src/lib/wails-agent.ts
+
+io:
+  input:
+  - 前端通过 Wails binding 调用 `window.go.main.App.RunAgent(goal, workspaceRoot)`，传入 JSON goal payload
+  output:
+  - agent 进程 stdout 输出 JSON lines，Wails 前端逐行解析 SSE event
+  boundary: 只管 agent 进程生命周期（spawn/kill/stdout→前端）；SSE 连接仍由前端维护
+
+constraints:
+  rules: []
+  forbidden:
+  - agent 输出不做二次缓存（前端实时消费）
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: '前端通过 Wails binding 调用 `window.go.main.App.RunAgent(goal, workspaceRoot)`，传入 JSON goal payload'
   output: 'agent 进程 stdout 输出 JSON lines，Wails 前端逐行解析 SSE event'

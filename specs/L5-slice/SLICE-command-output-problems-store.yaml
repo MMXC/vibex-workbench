@@ -17,6 +17,39 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: command output problems store
+  summary: Output/Problems store entry with command status、summary、full log reference。
+  description: Output/Problems store entry with command status、summary、full log reference。
+
+structure:
+  parent: FEAT-command-output-problems-panel
+  children: []
+  dependencies:
+  - 'specs/L4-feature/FEAT-command-output-problems-panel.yaml: command output feature contract'
+  - 'specs/L5-slice/FEAT-make-integration_L5.yaml: run make API source'
+  impacted_files:
+  - frontend/src/lib/stores/command-output-store.ts
+
+io:
+  input:
+  - run-make API lifecycle event and final command result。
+  output:
+  - Output/Problems store entry with command status、summary、full log reference。
+  boundary: 只实现前端结果存储和展示数据模型，不实现 backend command runner。
+
+constraints:
+  rules: []
+  forbidden:
+  - 只保存 500 字符而丢弃完整日志
+  - 把 timeout 当普通 failure
+  - 自动修改失败文件
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     run-make API lifecycle event and final command result。

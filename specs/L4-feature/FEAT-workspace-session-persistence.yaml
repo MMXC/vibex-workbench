@@ -17,6 +17,43 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: workspace session persistence
+  summary: App 重启后恢复上次 workspace root、最近选中 spec、center view、last workspace state。
+  description: App 重启后恢复上次 workspace root、最近选中 spec、center view、last workspace state。
+
+structure:
+  parent: MOD-workspace-root
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - 用户选择 workspace root、打开 spec、切换 view mode、运行状态探测。
+  output:
+  - App 重启后恢复上次 workspace root、最近选中 spec、center view、last workspace state。
+  boundary: '只负责单 workspace session 的持久化和恢复。
+
+    不负责多 workspace 并行、不持久化仓库外文件、不替代 workspace path safety。'
+
+constraints:
+  rules:
+  - id: C1
+    name: Single workspace only
+    rule: MVP 只恢复一个最近 workspace，不维护 workspace 列表
+    validation: session store 只有 currentWorkspace
+  - id: C2
+    name: Validate on restore
+    rule: 恢复 session 后必须重新执行 path guard 和 detect-state
+    validation: 不直接信任持久化的 last state
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户选择 workspace root、打开 spec、切换 view mode、运行状态探测。

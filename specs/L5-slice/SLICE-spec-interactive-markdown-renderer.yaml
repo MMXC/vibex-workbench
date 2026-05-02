@@ -17,6 +17,39 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-28"
 
+display:
+  title: spec interactive markdown renderer
+  summary: SpecViewer/SpecDetailPanel 中可交互的 Markdown 视图，支持 action URI、按钮和确认流程。
+  description: SpecViewer/SpecDetailPanel 中可交互的 Markdown 视图，支持 action URI、按钮和确认流程。
+
+structure:
+  parent: FEAT-spec-governance-view-model
+  children: []
+  dependencies:
+  - 'specs/L5-slice/SLICE-spec-view-model-builder.yaml: view.md/view.json source'
+  - 'specs/L5-slice/SLICE-agent-spec-write-api-contract.yaml: confirmed write action path'
+  impacted_files:
+  - frontend/src/lib/components/workbench/SpecInteractiveMarkdown.svelte
+
+io:
+  input:
+  - Go 后端生成的 .view.md 和 .view.json 中的 links/buttons/action metadata。
+  output:
+  - SpecViewer/SpecDetailPanel 中可交互的 Markdown 视图，支持 action URI、按钮和确认流程。
+  boundary: 只负责渲染和 dispatch action，不在前端重新计算 governance。
+
+constraints:
+  rules: []
+  forbidden:
+  - 前端直接写 spec 文件
+  - 前端直接执行 git rollback
+  - 前端重新实现 coverage/consistency 计算
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     Go 后端生成的 .view.md 和 .view.json 中的 links/buttons/action metadata。

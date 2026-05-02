@@ -13,6 +13,40 @@ meta:
 lifecycle:
   current: proposal
   updated: '2026-04-26'
+
+display:
+  title: ide spec explorer component
+  summary: 左侧资源管理器展示 workspace 名、specs section、文件列表、层级 badge 和选中态。
+  description: 左侧资源管理器展示 workspace 名、specs section、文件列表、层级 badge 和选中态。
+
+structure:
+  parent: FEAT-ide-activity-sidebar
+  children: []
+  dependencies:
+  - 'frontend/src/lib/wails-runtime.ts: wailsListSpecs 封装（Wails binding + HTTP fallback）'
+  - 'frontend/src/lib/stores/spec-explorer-store.ts: 保存 selectedSpecPath 和 workspaceRoot'
+  impacted_files:
+  - frontend/src/lib/components/workbench/SpecExplorer.svelte
+
+io:
+  input:
+  - wailsListSpecs(root) 返回 spec 文件列表（window.go.main.App.ListSpecs），browser dev 模式 fallback 到 HTTP GET /api/workspace/specs/list
+  output:
+  - 左侧资源管理器展示 workspace 名、specs section、文件列表、层级 badge 和选中态。
+  boundary: 只管 SpecExplorer.svelte 的列表读取和选中交互。不负责读取文件内容、编辑保存或图谱渲染。
+
+constraints:
+  rules: []
+  forbidden:
+  - 直接调用 os.ReadDir / filesystem API
+  - 写入 spec 文件
+  - 在组件内做 YAML parse
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: 'wailsListSpecs(root) 返回 spec 文件列表（window.go.main.App.ListSpecs），browser dev 模式 fallback 到 HTTP GET /api/workspace/specs/list'
   output: '左侧资源管理器展示 workspace 名、specs section、文件列表、层级 badge 和选中态。'

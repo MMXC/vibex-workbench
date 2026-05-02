@@ -17,6 +17,40 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: bootstrap generator smoke runner
+  summary: smoke report：created_files、missing_files、command_results、idempotency_result。
+  description: smoke report：created_files、missing_files、command_results、idempotency_result。
+
+structure:
+  parent: FEAT-bootstrap-generator-smoke
+  children: []
+  dependencies:
+  - 'generators/scaffolder.py: 实际脚手架写入逻辑'
+  - 'spec-templates/: 模板来源'
+  - 'Makefile: validate/generate target'
+  impacted_files:
+  - generators/bootstrap_smoke.py
+
+io:
+  input:
+  - 临时空目录路径、scaffold 命令或 API、预期 canonical files 列表。
+  output:
+  - smoke report：created_files、missing_files、command_results、idempotency_result。
+  boundary: 只验证 scaffold/generator 最小闭环，不生成真实产品业务代码。
+
+constraints:
+  rules: []
+  forbidden:
+  - 修改当前仓库 specs/
+  - 删除用户目录
+  - 联网安装依赖
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     临时空目录路径、scaffold 命令或 API、预期 canonical files 列表。

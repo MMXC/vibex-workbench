@@ -25,6 +25,40 @@ lifecycle:
   current: "proposal"
   updated: "2026-05-02"
 
+structure:
+  parent: FEAT-spec-graph-expansion
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - '- spec 图谱或 SpecViewer 提供的 spec path/name/level/display 摘要
+
+    - Composer 当前输入内容
+
+    - 当前焦点 spec 的层级'
+  output:
+  - '- Composer 上方默认收起的 Context 区，仅显示已附加 spec 数量
+
+    - 展开后展示可移除的 spec chips
+
+    - 输入 "/" 后显示层级可用 slash command 下拉
+
+    - 发送消息时将精简 Spec Context 附加到 prompt'
+  boundary: '本 slice 只负责前端上下文 UI、命令候选和 prompt context 拼接。
+
+    不直接写 spec，不直接调用 make，不直接实现 LLM provider。'
+
+constraints:
+  rules: []
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     - spec 图谱或 SpecViewer 提供的 spec path/name/level/display 摘要

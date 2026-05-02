@@ -17,6 +17,51 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-28"
 
+display:
+  title: drift panel
+  summary: DriftPanel：drifted 文件列表 + 操作按钮
+  description: DriftPanel：drifted 文件列表 + 操作按钮
+
+structure:
+  parent: FEAT-spec-code-bidirectional
+  children: []
+  dependencies:
+  - 'frontend/src/lib/components/workbench/DriftPanel.svelte: 主容器组件'
+  - 'frontend/src/lib/components/workbench/SpecGraphViewer.svelte: DriftIndicator 注入目标'
+  - 'frontend/src/lib/components/workbench/SpecViewer.svelte: DriftChip 注入目标'
+  - 'frontend/src/lib/stores/drift-store.ts: drift 状态 store'
+  impacted_files:
+  - frontend/src/lib/components/workbench/DriftPanel.svelte
+
+io:
+  input:
+  - '- drift-state.json（通过 GET /api/spec/drift/list）
+
+    - SSE drift_result 事件流
+
+    - 用户在 DriftPanel 中的操作（Regenerate/Accept/Ignore）'
+  output:
+  - '- DriftPanel：drifted 文件列表 + 操作按钮
+
+    - DriftIndicator：SpecGraphViewer 节点颜色
+
+    - DriftChip：spec 详情面板中的状态 chip'
+  boundary: '只实现前端 UI 展示和操作触发。
+
+    不执行业务逻辑，所有检测/比较操作由 Go agent 完成。'
+
+constraints:
+  rules: []
+  forbidden:
+  - YAML 解析（Go agent 负责）
+  - make generate 执行（Go agent 负责）
+  - drift 检测逻辑
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     - drift-state.json（通过 GET /api/spec/drift/list）

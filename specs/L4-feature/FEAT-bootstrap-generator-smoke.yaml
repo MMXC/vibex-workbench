@@ -17,6 +17,43 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: bootstrap generator smoke
+  summary: 一个可运行 make validate / make generate 的最小项目骨架。
+  description: 一个可运行 make validate / make generate 的最小项目骨架。
+
+structure:
+  parent: MOD-scaffolding
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - 一个空目录，以及用户确认后的脚手架选项。
+  output:
+  - 一个可运行 make validate / make generate 的最小项目骨架。
+  boundary: '本 feature 只验证脚手架和生成器的最小可用输出。
+
+    不要求生成完整业务应用，不覆盖已有用户文件。'
+
+constraints:
+  rules:
+  - id: C1
+    name: Canonical dirs only
+    rule: 新脚手架只生成 L1-goal/L2-skeleton/L3-module/L4-feature/L5-slice
+    validation: 不依赖旧 project-goal/architecture/module/feature 目录
+  - id: C2
+    name: Idempotent scaffold
+    rule: 已有文件默认不覆盖，除非用户显式确认覆盖单个文件
+    validation: 重复运行后用户文件 hash 不变
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     一个空目录，以及用户确认后的脚手架选项。

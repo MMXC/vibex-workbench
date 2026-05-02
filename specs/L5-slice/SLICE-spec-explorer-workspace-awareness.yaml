@@ -20,6 +20,51 @@ lifecycle:
   current: "ready"
   updated: "2026-04-30"
 
+display:
+  title: spec explorer workspace awareness
+  summary: SpecExplorer 头部显示当前 workspace 名称，列表刷新为当前 workspace 的 specs/ 内容；
+  description: SpecExplorer 头部显示当前 workspace 名称，列表刷新为当前 workspace 的 specs/ 内容；
+
+structure:
+  parent: FEAT-workspace-selector
+  children: []
+  dependencies:
+  - 'frontend/src/lib/stores/spec-explorer-store.ts: workspaceRoot/specs/loading/error/setWorkspaceRoot/loadList/workspaceDisplayName'
+  - 'frontend/src/lib/components/workbench/SpecExplorer.svelte: 资源管理器 UI 消费 store 状态'
+  - 'frontend/src/routes/workbench/+page.svelte: localStorage 恢复和 workspace:selected 同步到 store'
+  - 'frontend/src/lib/wails-filesystem.ts: wailsListSpecs Wails/HTTP fallback'
+  - 'agent/cmd/web/workspace_handlers.go: HTTP fallback specs/list 支持 workspaceRoot 参数'
+  impacted_files:
+  - frontend/src/lib/stores/spec-explorer-store.ts
+
+io:
+  input:
+  - '用户通过 /workspace 进入 Workbench、从 localStorage 恢复 workspaceRoot，
+
+    或在 Workbench 内通过 workspace:selected/menu:open-project 切换 workspace。'
+  output:
+  - 'SpecExplorer 头部显示当前 workspace 名称，列表刷新为当前 workspace 的 specs/ 内容；
+
+    无 workspace 时显示空态，加载失败时显示错误态。'
+  boundary: '只管 SpecExplorer 的 workspace 感知与 specs 列表刷新。
+
+    不负责图谱刷新、不实现全量文件资源管理器、不处理多 workspace 并行。'
+
+constraints:
+  rules: []
+  forbidden:
+  - 在 SpecExplorer 组件内重复实现 HTTP specs/list 扫描逻辑
+  - 跨 workspace 保留旧 selectedSpecPath
+  - workspaceRoot 为空时请求 specs/list
+  - workspaceRoot 仅目录名（如 vibex-workbench）时继续进入 store/loadList
+  - 在本 slice 中实现图谱数据刷新或文件系统 watch
+  - 在本 slice 中执行 scaffold、make、git 操作
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户通过 /workspace 进入 Workbench、从 localStorage 恢复 workspaceRoot，

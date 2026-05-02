@@ -13,6 +13,39 @@ meta:
 lifecycle:
   current: proposal
   updated: '2026-04-26'
+
+display:
+  title: ide app html shell
+  summary: frontend/src/app.html 只提供 SvelteKit 挂载容器，不渲染任何全局 titlebar。
+  description: frontend/src/app.html 只提供 SvelteKit 挂载容器，不渲染任何全局 titlebar。
+
+structure:
+  parent: FEAT-ide-titlebar
+  children: []
+  dependencies:
+  - 'frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte: 唯一可见 titlebar'
+  impacted_files:
+  - frontend/src/app.html
+
+io:
+  input:
+  - L4 FEAT-ide-titlebar 的单层导航约束。
+  output:
+  - frontend/src/app.html 只提供 SvelteKit 挂载容器，不渲染任何全局 titlebar。
+  boundary: 只管 app.html 的 HTML 壳。不得把业务 UI、窗口按钮或菜单写入 app.html。
+
+constraints:
+  rules: []
+  forbidden:
+  - 任何 header#titlebar
+  - 任何包含 VibeX Workbench / 空仓库 → 边做边长 的外层标题
+  - 任何 window.wails / window.runtime 的按钮 wiring
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: 'L4 FEAT-ide-titlebar 的单层导航约束。
 

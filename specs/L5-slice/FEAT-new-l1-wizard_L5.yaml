@@ -23,6 +23,40 @@ lifecycle:
       trigger: mvp-评估
       note: 实现「新建 L1」wizard modal，从 spec-templates/L1-goal/ 加载模板，写入磁盘后自动打开
 
+display:
+  title: new l1 wizard
+  summary: '成功: 文件写入 → modal 关闭 → 新 spec 高亮选中'
+  description: '成功: 文件写入 → modal 关闭 → 新 spec 高亮选中'
+
+structure:
+  parent: FEAT-new-l1-wizard
+  children: []
+  dependencies: []
+  impacted_files:
+  - frontend/src/lib/components/workbench/SpecExplorer.svelte
+
+io:
+  input:
+  - '用户填写 wizard 表单（projectName, description, owner）后点击「生成」。
+
+    POST /api/workspace/specs/write { workspaceRoot, path, content }'
+  output:
+  - '成功: 文件写入 → modal 关闭 → 新 spec 高亮选中
+
+    失败: 显示错误信息，modal 保持打开'
+  boundary: '只实现前端 wizard UI 和 API 调用。
+
+    模板内容来自 spec-templates/L1-goal/L1-goal-template.yaml（通过 fetch 加载）。'
+
+constraints:
+  rules: []
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户填写 wizard 表单（projectName, description, owner）后点击「生成」。

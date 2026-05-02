@@ -17,6 +17,43 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: workspace runtime safety
+  summary: 标准化后的 workspace root、安全的路径校验、backend/agent/make 使用同一根目录。
+  description: 标准化后的 workspace root、安全的路径校验、backend/agent/make 使用同一根目录。
+
+structure:
+  parent: MOD-workspace-root
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - Windows/Linux/macOS 用户选择的 workspace path，以及所有 workspace API 请求。
+  output:
+  - 标准化后的 workspace root、安全的路径校验、backend/agent/make 使用同一根目录。
+  boundary: '本 feature 只定义路径与 runtime 安全契约。
+
+    不定义目录选择 UI 细节，也不修复业务命令失败。'
+
+constraints:
+  rules:
+  - id: C1
+    name: Single root
+    rule: workspaceRoot store、backend config、agent env、make cwd 必须一致
+    validation: 任一 API 返回不同 root 即失败
+  - id: C2
+    name: No path traversal
+    rule: 所有 spec path 参数必须保持在 WORKSPACE_ROOT/specs 下
+    validation: 规范化后路径不以 workspace specs dir 开头则拒绝
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     Windows/Linux/macOS 用户选择的 workspace path，以及所有 workspace API 请求。

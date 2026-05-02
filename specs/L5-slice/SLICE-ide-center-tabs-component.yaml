@@ -13,6 +13,41 @@ meta:
 lifecycle:
   current: proposal
   updated: '2026-04-26'
+
+display:
+  title: ide center tabs component
+  summary: WorkbenchCenterTabs.svelte 渲染对应中心 pane。
+  description: WorkbenchCenterTabs.svelte 渲染对应中心 pane。
+
+structure:
+  parent: FEAT-ide-editor-tabs
+  children: []
+  dependencies:
+  - 'frontend/src/lib/components/workbench/CanvasRenderer.svelte: canvas tab'
+  - 'frontend/src/lib/components/workbench/ArtifactPanel.svelte: artifacts tab'
+  - 'frontend/src/lib/components/workbench/WorkbenchBootstrapPrototype.svelte: bootstrap tab'
+  impacted_files:
+  - frontend/src/lib/components/workbench/WorkbenchCenterTabs.svelte
+
+io:
+  input:
+  - 用户点击中央 editor tabs：canvas、artifacts、spec_text、diff、bootstrap。
+  output:
+  - WorkbenchCenterTabs.svelte 渲染对应中心 pane。
+  boundary: 只管 tab 壳和组件挂载。Canvas、ArtifactPanel、SpecViewer 内部逻辑不在本 slice。
+
+constraints:
+  rules: []
+  forbidden:
+  - 修改 CanvasRenderer 内部
+  - 修改 ArtifactPanel 内部
+  - 在 center tabs 中读取 spec 文件内容
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: '用户点击中央 editor tabs：canvas、artifacts、spec_text、diff、bootstrap。
 

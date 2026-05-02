@@ -14,6 +14,73 @@ meta:
 lifecycle:
   current: proposal
   updated: '2026-04-26'
+
+display:
+  title: make integration
+  summary: POST /api/workspace/run-make → backend 在 WORKSPACE_ROOT 执行 make target
+  description: POST /api/workspace/run-make → backend 在 WORKSPACE_ROOT 执行 make target
+
+structure:
+  parent: MOD-build-panel
+  children: []
+  dependencies: []
+  impacted_files:
+  - frontend/src/routes/workbench/+page.svelte
+  - frontend/src/lib/components/workbench/R2Dock.svelte
+  - frontend/src/lib/components/workbench/StatusBar.svelte
+  - frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte
+  - specs/L5-slice/SLICE-wails-binding-guard.yaml
+  - backend/agent/cmd/web/workspace_make.go
+  - generators/validate_specs.py
+
+io:
+  input:
+  - '用户点击 titlebar 菜单「lint-specs」/ 「generate」按钮，
+
+    或在 R2Dock Output tab 点击「重新运行」。'
+  output:
+  - '- POST /api/workspace/run-make → backend 在 WORKSPACE_ROOT 执行 make target
+
+    - stdout/stderr 追加到 workspace-output-store
+
+    - Output tab 自动展示实时输出
+
+    - 完成后显示 exit code 摘要 + Problems tab 更新（如有阻塞项）'
+  boundary: '本 feature 只定义 UI 触发、API 调用、输出展示的闭环。
+
+    不定义 backend 实际执行 make 的 shell 逻辑（那是 backend/go 层的职责）。
+
+    不定义真实 PTY 终端（那是 future L4 terminal feature 的职责）。'
+
+constraints:
+  rules:
+  - id: C1
+    name: WORKSPACE_ROOT 先行
+    rule: make 按钮在 workspaceRoot 未绑定时 disabled
+    validation: 检测到 workspaceState === 'empty' 且 workspaceRoot === '—' 时按钮不可点击
+  - id: C2
+    name: 输出不溢出
+    rule: workspace-output-store 追加时超过 1MB 截断，末尾追加「[output truncated]」
+    validation: 长时间运行不会导致内存爆炸
+  - id: C3
+    name: 可读错误摘要
+    rule: 非零退出时，Output tab 末尾必须追加一行人类可读摘要（不是原始堆栈）
+    validation: error 字段为 YAML 解析错误时，显示「specs/xxx.yaml 第 N 行：...」格式
+  - id: C4
+    name: 幂等可重跑
+    rule: 用户可反复点击同一 target，每次清空旧输出后重新执行
+    validation: Output tab 每次点击按钮时先 clearOutput()
+  - id: C5
+    name: 菜单触发与 binding 边界
+    rule: 菜单触发可使用 runtime events（menu:run-*），但业务 binding 可用性判定不得依赖 window.runtime.*
+    validation: Wails 桌面端业务调用统一走 window.go.main.App.*；若缺失则显式报错，不得 fallback 到 HTTP
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: '用户点击 titlebar 菜单「lint-specs」/ 「generate」按钮，
 

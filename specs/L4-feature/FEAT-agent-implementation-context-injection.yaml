@@ -17,6 +17,43 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: agent implementation context injection
+  summary: 一段短上下文注入摘要，供 agent 在实现前读取，避免重复搜索和重复失败。
+  description: 一段短上下文注入摘要，供 agent 在实现前读取，避免重复搜索和重复失败。
+
+structure:
+  parent: MOD-spec-editor
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - 当前要实现的 spec、parent spec、direct child/sibling specs、implementation journal、memplace/memlace 摘要。
+  output:
+  - 一段短上下文注入摘要，供 agent 在实现前读取，避免重复搜索和重复失败。
+  boundary: '只定义实现前上下文组装和压缩规则。
+
+    不允许把完整日志无筛选塞入上下文，不允许用过期 journal 覆盖当前 spec。'
+
+constraints:
+  rules:
+  - id: C1
+    name: Bounded injection
+    rule: 注入摘要必须有数量和长度上限
+    validation: 不会把完整 journal 直接注入
+  - id: C2
+    name: Spec wins
+    rule: 当前 spec 与注入摘要冲突时，当前 spec 优先
+    validation: 摘要中必须显示 stale_journal 或 memory_only
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     当前要实现的 spec、parent spec、direct child/sibling specs、implementation journal、memplace/memlace 摘要。

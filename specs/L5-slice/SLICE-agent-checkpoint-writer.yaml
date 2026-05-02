@@ -17,6 +17,40 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: agent checkpoint writer
+  summary: append-only checkpoint 写入目标 spec 的 implementation journal。
+  description: append-only checkpoint 写入目标 spec 的 implementation journal。
+
+structure:
+  parent: FEAT-spec-implementation-journal
+  children: []
+  dependencies:
+  - 'specs/L5-slice/SLICE-implementation-journal-schema.yaml: checkpoint schema'
+  - 'specs/L5-slice/SLICE-workspace-path-safety-contract.yaml: workspace path guard'
+  - 'agent/skills/spec-first-workflow/validation-and-failure.md: failure category vocabulary'
+  impacted_files:
+  - agent/internal/specjournal/checkpoint_writer.go
+
+io:
+  input:
+  - agent step event：read/edit/decision/failure/verification/final_summary。
+  output:
+  - append-only checkpoint 写入目标 spec 的 implementation journal。
+  boundary: 只负责写 checkpoint，不负责上下文注入和 UI 展示。
+
+constraints:
+  rules: []
+  forbidden:
+  - 覆盖整个 journal
+  - 绕过 workspace path guard
+  - 写入 specs/ 外路径
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     agent step event：read/edit/decision/failure/verification/final_summary。

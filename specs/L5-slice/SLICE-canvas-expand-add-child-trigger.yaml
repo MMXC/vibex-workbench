@@ -16,6 +16,49 @@ lifecycle:
   current: proposal
   updated: "2026-04-29"
 
+display:
+  title: canvas expand add child trigger
+  summary: ClarificationPanel 打开，显示 agent 推荐的子 spec（name + level + description）。
+  description: ClarificationPanel 打开，显示 agent 推荐的子 spec（name + level + description）。
+
+structure:
+  parent: FEAT-canvas-expand
+  children: []
+  dependencies:
+  - 'frontend/src/lib/components/workbench/ClarificationPanel.svelte: 接收 create-child-spec intent，显示 agent 推荐'
+  - 'specs/L5-slice/SLICE-spec-graph-viewer.yaml: level_rules 来自图谱展开 spec'
+  - 'specs/L4-feature/FEAT-spec-write.yaml: 写盘后 SSE canvas.refresh 事件'
+  - 'agents/skills/spec-first-workflow: agent 推荐子 spec 名称/描述的 skill'
+  impacted_files:
+  - frontend/src/lib/components/workbench/GoalSpecCanvas.svelte
+
+io:
+  input:
+  - '用户点击节点展开后的 + 卡片，传入目标 level 和 parent spec name。
+
+    ClarificationPanel 接收 create-child-spec intent。'
+  output:
+  - 'ClarificationPanel 打开，显示 agent 推荐的子 spec（name + level + description）。
+
+    用户确认后写入 spec 文件（FEAT-spec-write）。'
+  boundary: 'Canvas 只发出 intent，不直接写盘。
+
+    层级规则（level_rules）来自 FEAT-spec-graph-expansion，不在 Canvas 层硬编码。
+
+    线程澄清复用 AI Composer（右侧栏），不在 Canvas 新建组件。'
+
+constraints:
+  rules: []
+  forbidden:
+  - Canvas 直接写 spec 文件
+  - 在 Canvas 层硬编码 level 数字
+  - 新建 Canvas 专属的澄清 UI 组件
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户点击节点展开后的 + 卡片，传入目标 level 和 parent spec name。

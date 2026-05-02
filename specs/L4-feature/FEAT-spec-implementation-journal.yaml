@@ -17,6 +17,43 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: spec implementation journal
+  summary: 写入或追加 spec 绑定的 implementation journal，作为可审计事实源。
+  description: 写入或追加 spec 绑定的 implementation journal，作为可审计事实源。
+
+structure:
+  parent: MOD-spec-editor
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - agent 正在实现某个 L4/L5 spec，期间发生文件阅读、决策、编辑、验证、失败或人工确认。
+  output:
+  - 写入或追加 spec 绑定的 implementation journal，作为可审计事实源。
+  boundary: 'Journal 只记录实现事实，不改变 spec 的产品契约。
+
+    当前 spec 与 journal 冲突时，以当前 spec 为准，并标记 stale_journal。'
+
+constraints:
+  rules:
+  - id: C1
+    name: Journal is fact, not contract
+    rule: journal 不得覆盖 spec 的 implementation_boundary 或 acceptance criteria
+    validation: 冲突时必须标记 stale_journal
+  - id: C2
+    name: No secrets
+    rule: journal 不记录 token、环境变量值、完整私有路径以外的敏感数据
+    validation: checkpoint writer 过滤常见 secret key
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     agent 正在实现某个 L4/L5 spec，期间发生文件阅读、决策、编辑、验证、失败或人工确认。

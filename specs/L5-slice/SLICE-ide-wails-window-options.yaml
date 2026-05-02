@@ -13,6 +13,41 @@ meta:
 lifecycle:
   current: proposal
   updated: '2026-04-26'
+
+display:
+  title: ide wails window options
+  summary: main.go 中 Wails App options 与 startup 行为满足 frameless + empty native menu。
+  description: main.go 中 Wails App options 与 startup 行为满足 frameless + empty native menu。
+
+structure:
+  parent: FEAT-ide-titlebar
+  children: []
+  dependencies:
+  - 'frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte: WebView 内层 titlebar 负责可见导航和窗口控制'
+  impacted_files:
+  - main.go
+
+io:
+  input:
+  - L4 FEAT-ide-titlebar 对单层 WebView IDE chrome 的约束。
+  output:
+  - main.go 中 Wails App options 与 startup 行为满足 frameless + empty native menu。
+  boundary: '只允许修改 main.go 中 Wails options 与原生菜单挂载逻辑。
+
+    不处理 backend spawn、asset server、workspace API。'
+
+constraints:
+  rules: []
+  forbidden:
+  - 修改 appHandler 的静态资源代理逻辑
+  - 修改 SpawnGoBackend 的启动流程
+  - 引入新的窗口框架库
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: 'L4 FEAT-ide-titlebar 对单层 WebView IDE chrome 的约束。
 

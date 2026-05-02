@@ -17,6 +17,45 @@ lifecycle:
   current: proposal
   updated: "2026-04-27"
 
+display:
+  title: state detection fix
+  summary: state 只能是 "empty" | "partial" | "ready" 三者之一，
+  description: state 只能是 "empty" | "partial" | "ready" 三者之一，
+
+structure:
+  parent: MOD-state-detection
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - state_detector.py 返回的 state 字符串。
+  output:
+  - 'state 只能是 "empty" | "partial" | "ready" 三者之一，
+
+    suggestions["partial"] 能正确返回 partial 态建议文案。'
+  boundary: '只修复状态名和字典 key，不改探测逻辑本身。
+
+    不做自动修复。'
+
+constraints:
+  rules:
+  - id: C1
+    name: 状态名不变原则
+    rule: L3/L4/L5 spec 中定义的状态名（empty/partial/ready）是规范，Python 返回值必须与之对齐
+    validation: spec L3/L4/L5 和 Python state_detector.py 使用同一套状态名
+  - id: C2
+    name: 不引入新状态
+    rule: state 只能是 empty/partial/ready，禁止增加第4种状态
+    validation: linter 检查 state_detector.py 不含 'half'/'quarter'/其他状态名
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     state_detector.py 返回的 state 字符串。

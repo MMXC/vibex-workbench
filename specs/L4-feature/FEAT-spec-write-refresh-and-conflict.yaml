@@ -17,6 +17,43 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: spec write refresh and conflict
+  summary: 安全写入结果、冲突提示、spec list/graph/current view 刷新。
+  description: 安全写入结果、冲突提示、spec list/graph/current view 刷新。
+
+structure:
+  parent: MOD-spec-editor
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - spec read response 的 base_hash/mtime、用户编辑内容、agent confirmed spec draft。
+  output:
+  - 安全写入结果、冲突提示、spec list/graph/current view 刷新。
+  boundary: '扩展已有 FEAT-spec-write 的保存后同步和并发保护。
+
+    不定义 spec YAML 语义校验，不处理 Git merge。'
+
+constraints:
+  rules:
+  - id: C1
+    name: No silent overwrite
+    rule: write 请求必须带 base_hash 或 mtime
+    validation: 缺失版本字段时返回 400 或 legacy warning
+  - id: C2
+    name: Refresh after write
+    rule: 写入成功后必须刷新列表、当前文件和图谱边
+    validation: UI 不显示旧 parent/children
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     spec read response 的 base_hash/mtime、用户编辑内容、agent confirmed spec draft。

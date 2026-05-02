@@ -125,6 +125,48 @@ content:
 lifecycle:
   current: proposal
   updated: '2026-04-26'
+
+display:
+  title: scaffolding
+  summary: 创建目录：specs/L1-goal/, specs/L2-skeleton/, generators/, frontend/
+  description: 创建目录：specs/L1-goal/, specs/L2-skeleton/, generators/, frontend/
+
+structure:
+  parent: FEAT-scaffolding
+  children: []
+  dependencies:
+  - 'generators/scaffold_generator.py: scaffolder.py 调用 scaffold_generator 生成文件内容'
+  - 'agent/cmd/web/workspace_handlers.go: scaffold handler（POST /api/workspace/scaffold）实现在此文件'
+  impacted_files:
+  - generators/scaffolder.py
+
+io:
+  input:
+  - 'WORKSPACE_ROOT 路径（字符串，来自 confirm 后用户确认操作）。
+
+    POST /api/workspace/scaffold { workspaceRoot, options: { withAgent, confirm: true } }'
+  output:
+  - '创建目录：specs/L1-goal/, specs/L2-skeleton/, generators/, frontend/
+
+    创建文件：specs/L1-goal/entry.yaml（最小 L1）
+
+    创建文件：Makefile（含 lint-specs / generate / validate targets）
+
+    返回 { success, created, errors }'
+  boundary: 仅在用户显式确认后执行，不自动触发。
+
+constraints:
+  rules: []
+  forbidden:
+  - 禁止覆盖已存在的文件
+  - 禁止在 confirm 之外创建文件
+  - 禁止创建 frontend/src 等应用代码文件
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 changelog:
 - version: '0.1'
   date: '2026-04-26'

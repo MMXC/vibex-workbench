@@ -17,6 +17,43 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: agent implementation memory
+  summary: 写入 memplace/memlace 的压缩记忆摘要，用于后续检索和上下文注入。
+  description: 写入 memplace/memlace 的压缩记忆摘要，用于后续检索和上下文注入。
+
+structure:
+  parent: MOD-spec-editor
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - implementation journal checkpoint、spec name、files touched、failure categories、validation summaries。
+  output:
+  - 写入 memplace/memlace 的压缩记忆摘要，用于后续检索和上下文注入。
+  boundary: 'memplace/memlace 是检索缓存和长期记忆索引，不是事实源。
+
+    事实源始终是当前 spec 与 specs/journal/*.implementation.yaml。'
+
+constraints:
+  rules:
+  - id: C1
+    name: Memory is cache
+    rule: memplace/memlace 不作为最终事实源
+    validation: 读取 memory 后必须回读 journal 或 spec 验证
+  - id: C2
+    name: Secret hygiene
+    rule: memory 摘要不得包含 token、secret、完整 env value
+    validation: 写入前执行 secret pattern filter
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     implementation journal checkpoint、spec name、files touched、failure categories、validation summaries。

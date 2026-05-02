@@ -13,6 +13,47 @@ meta:
   created: "2026-04-24"
   updated: "2026-04-24"
 
+display:
+  title: spec editor
+  summary: 文件内容渲染到 CodeMirror
+  description: 文件内容渲染到 CodeMirror
+
+structure:
+  parent: MOD-spec-editor
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - 用户点击 spec 文件列表项，或点击「新建 L1」
+  output:
+  - '- 文件内容渲染到 CodeMirror
+
+    - 保存后触发 validate，结果显示在状态栏'
+  boundary: MVP 只支持新建/编辑 L1 goal spec
+
+constraints:
+  rules:
+  - id: C1
+    name: YAML 前端解析
+    rule: 保存前做一次客户端 YAML 解析，避免语法错误
+    validation: 无效 YAML 阻止提交，显示错误位置
+  - id: C2
+    name: 写后校验
+    rule: 保存成功后自动触发 make lint-specs
+    validation: 校验结果在 Problems tab 显示
+  - id: C3
+    name: 只写目标仓库
+    rule: 写入路径必须以 WORKSPACE_ROOT 为前缀，不允许路径穿越
+    validation: 写入路径不包含 ../ 且在 workspaceRoot 子树下
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户点击 spec 文件列表项，或点击「新建 L1」

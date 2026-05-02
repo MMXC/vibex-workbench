@@ -17,6 +17,39 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-28"
 
+display:
+  title: spec view model builder
+  summary: 单个 spec 的 SpecViewModel 对象，以及 .view.json/.view.md 内容。
+  description: 单个 spec 的 SpecViewModel 对象，以及 .view.json/.view.md 内容。
+
+structure:
+  parent: FEAT-spec-governance-view-model
+  children: []
+  dependencies:
+  - 'specs/L5-slice/SLICE-spec-layer-view-schema.yaml: view model schema'
+  - 'specs/L5-slice/SLICE-spec-governance-consistency-engine.yaml: consistency facts source'
+  impacted_files:
+  - agent/vibex/domain/spec/governance_view_builder.go
+
+io:
+  input:
+  - target spec path/name、SpecIndex、coverage facts、consistency facts、runtime state。
+  output:
+  - 单个 spec 的 SpecViewModel 对象，以及 .view.json/.view.md 内容。
+  boundary: 只构建单 spec view model，不负责全仓库 panorama 聚合和 HTTP 渲染。
+
+constraints:
+  rules: []
+  forbidden:
+  - 修改业务 spec YAML
+  - 执行 action URI
+  - 直接调用 git rollback 或 make generate
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     target spec path/name、SpecIndex、coverage facts、consistency facts、runtime state。

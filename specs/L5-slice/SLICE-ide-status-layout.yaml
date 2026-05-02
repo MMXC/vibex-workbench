@@ -13,6 +13,40 @@ meta:
 lifecycle:
   current: proposal
   updated: '2026-04-26'
+
+display:
+  title: ide status layout
+  summary: StatusBar.svelte 与 WorkbenchLayoutResizable.svelte 共同维持 IDE 外壳底部状态和可调整布局。
+  description: StatusBar.svelte 与 WorkbenchLayoutResizable.svelte 共同维持 IDE 外壳底部状态和可调整布局。
+
+structure:
+  parent: FEAT-ide-bottom-dock
+  children: []
+  dependencies:
+  - 'frontend/src/lib/stores/workbench-layout-store.ts: 布局尺寸状态'
+  - 'frontend/src/routes/workbench/+page.svelte: 向 StatusBar 传递 workspace/backend/spec 状态'
+  impacted_files:
+  - frontend/src/lib/components/workbench/StatusBar.svelte + frontend/src/lib/components/workbench/WorkbenchLayoutResizable.svelte
+
+io:
+  input:
+  - workspaceRoot、backendStatus、workspaceState、workbenchLayoutStore dimensions。
+  output:
+  - StatusBar.svelte 与 WorkbenchLayoutResizable.svelte 共同维持 IDE 外壳底部状态和可调整布局。
+  boundary: 只管状态栏显示与布局尺寸变量。不负责实际 workspace 探测、backend 启动或 store 业务逻辑。
+
+constraints:
+  rules: []
+  forbidden:
+  - 在 StatusBar 中 fetch backend
+  - 在 Layout 组件中写业务状态
+  - 在 Layout 组件中硬编码隐藏业务 panel
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: 'workspaceRoot、backendStatus、workspaceState、workbenchLayoutStore dimensions。
 

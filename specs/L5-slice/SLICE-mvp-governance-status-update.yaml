@@ -16,6 +16,47 @@ lifecycle:
   current: proposal
   updated: "2026-04-29"
 
+display:
+  title: mvp governance status update
+  summary: spec YAML 的 lifecycle.status 字段从 proposal -> implementation -> done。
+  description: spec YAML 的 lifecycle.status 字段从 proposal -> implementation -> done。
+
+structure:
+  parent: FEAT-mvp-governance
+  children: []
+  dependencies:
+  - 'agent/cmd/web/governance_status.go: status update handler'
+  - 'specs/L4-feature/FEAT-state-detection-fix.yaml: 首个完成 implementation 的 spec'
+  - 'specs/L5-slice/SLICE-spec-history-api.yaml: changelog 读写 API'
+  impacted_files:
+  - agent/cmd/web/governance_status.go
+
+io:
+  input:
+  - 'coord agent 完成一个 P0/P1/P2 spec 的代码实现，或用户在评审中接受了某个 spec。
+
+    触发条件：team-tasks 任务标记为 done，或用户在 governance UI 点击「标记完成」。'
+  output:
+  - 'spec YAML 的 lifecycle.status 字段从 proposal -> implementation -> done。
+
+    changelog[] 追加状态变更记录（at, by, trigger, note）。
+
+    governance-viewer UI 实时反映新状态。'
+  boundary: '只更新 MVP 涉及的 6 个 MOD 的 spec，不处理外部项目 spec。
+
+    状态变更通过写 spec YAML 实现，不使用独立数据库表。'
+
+constraints:
+  rules: []
+  forbidden:
+  - 独立 governance 数据库
+  - 修改非 MVP spec
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     coord agent 完成一个 P0/P1/P2 spec 的代码实现，或用户在评审中接受了某个 spec。

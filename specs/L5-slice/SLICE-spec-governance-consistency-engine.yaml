@@ -17,6 +17,40 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-28"
 
+display:
+  title: spec governance consistency engine
+  summary: ConsistencyIssue 列表，进入 view.json、panorama.json、coverage-report.md 和 UI Problems。
+  description: ConsistencyIssue 列表，进入 view.json、panorama.json、coverage-report.md 和 UI Problems。
+
+structure:
+  parent: FEAT-spec-governance-view-model
+  children: []
+  dependencies:
+  - 'specs/L4-feature/FEAT-spec-code-bidirectional.yaml: generates[] ownership contract'
+  - 'specs/L5-slice/SLICE-spec-panorama-json-writer.yaml: consistency issues output consumer'
+  impacted_files:
+  - agent/vibex/domain/spec/governance_consistency.go
+
+io:
+  input:
+  - SpecIndex、L5 file_path、generates[]、capability tags、parent chain、status metadata。
+  output:
+  - ConsistencyIssue 列表，进入 view.json、panorama.json、coverage-report.md 和 UI Problems。
+  boundary: 只检测治理一致性，不自动修复 spec，不执行生成器。
+
+constraints:
+  rules: []
+  forbidden:
+  - 自动改写 parent
+  - 自动删除重复 spec
+  - 运行 make generate
+  - 跨 workspace 读取文件
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     SpecIndex、L5 file_path、generates[]、capability tags、parent chain、status metadata。

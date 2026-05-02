@@ -17,6 +17,37 @@ lifecycle:
   current: "proposal"
   updated: "{YYYY-MM-DD}"
 
+display:
+  title: "{中文实现切片标题}"
+  summary: "{一句话说明这个文件/切片要实现什么}"
+  description: "{面向用户和 agent 的完整实现说明}"
+
+structure:
+  parent: "{l4-spec-name}"
+  children: []
+  dependencies:
+    - "{依赖的文件或模块，可为空}"
+  impacted_files:
+    - "{src/generated/ComponentName.skeleton.svelte}"
+
+io:
+  input:
+    - "{对应 L4 behavior 或详细 spec}"
+  output:
+    - "{生成或修改的具体文件}"
+  boundary: "L5 只管当前文件/切片内容，不跨越到其他 slice 的职责。"
+
+constraints:
+  rules:
+    - rule: "幂等性"
+      detail: "重复生成不应破坏开发者手写代码。"
+  forbidden: []
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
 io_contract:
   input: |
     对应 L4 behavior 的输出（spec snippet 或 detailed spec）

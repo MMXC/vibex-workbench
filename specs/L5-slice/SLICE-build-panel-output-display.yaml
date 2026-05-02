@@ -16,6 +16,47 @@ lifecycle:
   current: proposal
   updated: "2026-04-29"
 
+display:
+  title: build panel output display
+  summary: 成功：绿色 badge，stdout 显示前 500 字符。
+  description: 成功：绿色 badge，stdout 显示前 500 字符。
+
+structure:
+  parent: FEAT-build-panel
+  children: []
+  dependencies:
+  - 'specs/L5-slice/FEAT-make-integration_L5.yaml: run-make API backend 已实现'
+  - 'frontend/src/lib/components/workbench/GoalSpecCanvas.svelte: Action bar 中集成 BuildPanel'
+  impacted_files:
+  - frontend/src/lib/components/workbench/BuildPanel.svelte
+
+io:
+  input:
+  - 'POST /api/workspace/run-make {workspace, target} 返回 {exitCode, stdout, stderr}。
+
+    前端展示 stdout/stderr，失败时红色 badge + 错误摘要浮层。'
+  output:
+  - '成功：绿色 badge，stdout 显示前 500 字符。
+
+    失败：红色浮层，stderr 前 500 字符 + 错误摘要。
+
+    超时：显示「执行超时，请检查目录」。'
+  boundary: '不处理 make 命令本身（backend 职责）。
+
+    不截断文件名路径（只截断 stdout/stderr 文本）。'
+
+constraints:
+  rules: []
+  forbidden:
+  - 超过 500 字符的输出显示
+  - 执行 make 命令（backend 职责）
+  - 持久化 build 输出
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     POST /api/workspace/run-make {workspace, target} 返回 {exitCode, stdout, stderr}。

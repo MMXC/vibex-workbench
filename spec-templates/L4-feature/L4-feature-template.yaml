@@ -17,6 +17,38 @@ lifecycle:
   current: "proposal"
   updated: "{YYYY-MM-DD}"
 
+display:
+  title: "{中文功能标题}"
+  summary: "{一句话说明这个功能的用户价值和触发场景}"
+  description: "{面向用户和 agent 的完整功能说明}"
+
+structure:
+  parent: "{l3-spec-name}"
+  children: []
+  dependencies: []
+  impacted_files:
+    - "{可能被 L5 实现影响的文件，可为空}"
+
+io:
+  input:
+    - "{用户操作或系统事件}"
+  output:
+    - "{用户可见结果或系统副作用}"
+  boundary: "L4 描述功能行为和验收，不直接规定单个文件内容。"
+
+constraints:
+  rules:
+    - id: "C1"
+      name: "{约束名}"
+      rule: "{约束规则}"
+      verification: "{如何验证}"
+  forbidden: []
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户操作（如：点击按钮、提交表单、发送 API 请求）

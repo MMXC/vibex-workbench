@@ -17,6 +17,43 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-24"
 
+display:
+  title: spec editor
+  summary: spec 内容渲染到 CodeMirror 编辑器
+  description: spec 内容渲染到 CodeMirror 编辑器
+
+structure:
+  parent: vibex-workbench-skeleton
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - '- 用户点击 spec 列表中的某一项
+
+    - 用户编辑 YAML 内容并点击保存
+
+    - 用户点击「新建 L1」触发向导'
+  output:
+  - '- spec 内容渲染到 CodeMirror 编辑器
+
+    - 保存后写入 SPEC_ROOT/specs/ 目录
+
+    - 触发 validate 校验，结果显示在浮层'
+  boundary: '只负责 spec 文件的读/写/列表。
+
+    不负责 spec 内容校验（L4 spec-editor 职责）。'
+
+constraints:
+  rules: []
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     - 用户点击 spec 列表中的某一项

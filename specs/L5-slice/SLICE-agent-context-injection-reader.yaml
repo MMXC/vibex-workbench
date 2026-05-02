@@ -17,6 +17,40 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: agent context injection reader
+  summary: bounded implementation_context block for agent prompt。
+  description: bounded implementation_context block for agent prompt。
+
+structure:
+  parent: FEAT-agent-implementation-context-injection
+  children: []
+  dependencies:
+  - 'specs/L4-feature/FEAT-agent-implementation-context-injection.yaml: context injection policy'
+  - 'specs/L5-slice/SLICE-implementation-journal-schema.yaml: journal schema'
+  - 'specs/L5-slice/SLICE-memplace-implementation-memory-adapter.yaml: memory hits source'
+  impacted_files:
+  - agent/internal/specjournal/context_reader.go
+
+io:
+  input:
+  - target spec name/path、spec index、journal files、memplace/memlace search result。
+  output:
+  - bounded implementation_context block for agent prompt。
+  boundary: 只负责读取和压缩上下文，不执行代码修改，不写 journal。
+
+constraints:
+  rules: []
+  forbidden:
+  - 把完整 journal 原样注入
+  - 让 memory_only 覆盖 journal/spec
+  - 读取 workspace 外文件
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     target spec name/path、spec index、journal files、memplace/memlace search result。

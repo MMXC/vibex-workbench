@@ -16,6 +16,48 @@ lifecycle:
   current: proposal
   updated: "2026-04-29"
 
+display:
+  title: workspace lifecycle binding
+  summary: 目录绑定成功：POST /api/workspace/detect-state 更新全局 workspaceRoot。
+  description: 目录绑定成功：POST /api/workspace/detect-state 更新全局 workspaceRoot。
+
+structure:
+  parent: FEAT-workspace-lifecycle
+  children: []
+  dependencies:
+  - 'frontend/src/lib/stores/workspace-root.ts: 全局 workspaceRoot 状态'
+  - 'specs/L5-slice/SLICE-workspace-session-store.yaml: workspace session 持久化'
+  - 'agent/cmd/web/workspace_handlers.go: POST /api/workspace/detect-state'
+  impacted_files:
+  - frontend/src/lib/components/workbench/GoalSpecCanvas.svelte
+
+io:
+  input:
+  - '用户选择一个目录路径（或通过 URL 参数传入 WORKSPACE_ROOT）。
+
+    已有正在编辑的 spec 时，记录 unsavedChanges = true。'
+  output:
+  - '目录绑定成功：POST /api/workspace/detect-state 更新全局 workspaceRoot。
+
+    切换前若有未保存内容：弹出「有未保存内容，是否切换？」确认。
+
+    绑定后 UI 更新 workspace badge + state badge。'
+  boundary: '不验证目录是否真实存在（由 detect-state 后端负责）。
+
+    不处理跨机器路径（WORKSPACE_ROOT 必须在本地可访问）。'
+
+constraints:
+  rules: []
+  forbidden:
+  - 静默丢弃未保存编辑
+  - 修改 backend 目录结构
+  - WORKSPACE_ROOT 验证逻辑（backend 职责）
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户选择一个目录路径（或通过 URL 参数传入 WORKSPACE_ROOT）。

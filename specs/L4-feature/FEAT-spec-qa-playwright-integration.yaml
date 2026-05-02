@@ -17,6 +17,53 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-29"
 
+display:
+  title: spec qa playwright integration
+  summary: 每个 scenario 的执行结果：pass/fail/error + screenshot 路径 + trace 路径（可选）
+  description: 每个 scenario 的执行结果：pass/fail/error + screenshot 路径 + trace 路径（可选）
+
+structure:
+  parent: MOD-spec-editor
+  children: []
+  dependencies:
+  - 'specs/L4-feature/FEAT-spec-editor.yaml: 「运行测试」按钮在 SpecViewer 界面'
+  - 'specs/L4-feature/FEAT-scaffolding.yaml: test_scenarios given 常用 scaffold 后的 partial 状态'
+  impacted_files: []
+
+io:
+  input:
+  - 'spec YAML（含 test_scenarios[]）、目标前端 URL（通常 http://localhost:5173）、
+
+    工作区路径 workspace_root。'
+  output:
+  - '每个 scenario 的执行结果：pass/fail/error + screenshot 路径 + trace 路径（可选）
+
+    + results.json（汇总文件）。UI 展示测试结果面板。'
+  boundary: '不修改 spec YAML，不自动提交 git。
+
+    只运行测试，不自动修复失败。
+
+    playwright-cli 运行在 Go agent 所在机器，测试同一台机器上的前端服务。'
+
+constraints:
+  rules:
+  - id: C1
+    name: 只读执行
+    rule: 测试不修改 spec YAML 和代码文件
+    validation: playwright-cli 脚本不含 write_file/patch/rm
+  - id: C2
+    name: 证据留存
+    rule: 每次运行生成 screenshot + results.json，不自动清理
+  - id: C3
+    name: 超时保护
+    rule: 单个 scenario 60s 后强制关闭 browser session
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     spec YAML（含 test_scenarios[]）、目标前端 URL（通常 http://localhost:5173）、

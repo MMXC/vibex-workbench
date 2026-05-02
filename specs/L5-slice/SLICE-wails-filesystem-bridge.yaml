@@ -13,6 +13,37 @@ meta:
 lifecycle:
   current: proposal
   updated: '2026-04-30'
+
+display:
+  title: wails filesystem bridge
+  summary: Go method 返回 JSON-serializable 结构体，前端直接用，无 HTTP overhead
+  description: Go method 返回 JSON-serializable 结构体，前端直接用，无 HTTP overhead
+
+structure:
+  parent: FEAT-workspace-selector
+  children: []
+  dependencies:
+  - 'frontend/src/lib/wails-runtime.ts: wailsListSpecs 等封装函数'
+  impacted_files:
+  - frontend/src/lib/stores/spec-explorer-store.ts
+
+io:
+  input:
+  - 前端传入 workspaceRoot 完整路径字符串（来自 native dialog / localStorage / state）
+  output:
+  - Go method 返回 JSON-serializable 结构体，前端直接用，无 HTTP overhead
+  boundary: 只做本地文件系统读写；agent 推理/SSE 连接走独立 channel
+
+constraints:
+  rules: []
+  forbidden:
+  - 在 store 层直接写 Wails 调用（统一由 wails-runtime.ts 封装）
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: '前端传入 workspaceRoot 完整路径字符串（来自 native dialog / localStorage / state）'
   output: 'Go method 返回 JSON-serializable 结构体，前端直接用，无 HTTP overhead'

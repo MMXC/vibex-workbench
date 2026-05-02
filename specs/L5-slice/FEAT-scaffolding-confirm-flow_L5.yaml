@@ -23,6 +23,40 @@ lifecycle:
       trigger: mvp-评估
       note: 为 scaffold 流程添加 preview + confirm 两步确认，避免静默写入
 
+display:
+  title: scaffolding confirm flow
+  summary: 'Step 1 (Preview): 显示将要创建的文件列表（只读），含「确认」和「取消」按钮。'
+  description: 'Step 1 (Preview): 显示将要创建的文件列表（只读），含「确认」和「取消」按钮。'
+
+structure:
+  parent: FEAT-scaffolding
+  children: []
+  dependencies: []
+  impacted_files:
+  - frontend/src/routes/workspace/+page.svelte
+
+io:
+  input:
+  - 用户在 empty 状态点击「初始化脚手架」按钮。
+  output:
+  - 'Step 1 (Preview): 显示将要创建的文件列表（只读），含「确认」和「取消」按钮。
+
+    Step 2 (Confirm): 用户确认 → POST /api/workspace/scaffold → 写入文件 → 成功后关闭 drawer。
+
+    用户取消: 关闭 drawer，无任何写入。'
+  boundary: '只实现前端 preview + confirm 两步流程。
+
+    后端 scaffold 逻辑已在 workspace_handlers.go 实现。'
+
+constraints:
+  rules: []
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户在 empty 状态点击「初始化脚手架」按钮。

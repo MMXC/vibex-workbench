@@ -17,6 +17,69 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-28"
 
+display:
+  title: ide agent panel
+  summary: ThreadList：会话列表 + 当前线程
+  description: ThreadList：会话列表 + 当前线程
+
+structure:
+  parent: MOD-ide-chrome
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - '用户在右侧 AI Agent panel 中：
+
+    - 输入自然语言目标（文字 / 图片 / 文件 / URL）
+
+    - 或从 spec 图谱选中一个 spec 节点后点击 "Ask Agent"
+
+    - 或从 spec 编辑器中选中一段文字后 Cmd+Shift+L（发给 agent）
+
+    - agent 返回：消息 / Diff 提议 / Terminal 输出 / Artifacts'
+  output:
+  - '- ThreadList：会话列表 + 当前线程
+
+    - ConversationPanel：消息气泡 + Diff 卡片 + Artifact 卡片
+
+    - Composer：底部输入区，支持 text/image/file/url mode
+
+    - DiffPreview：agent 提议的文件修改，用户可接受/拒绝/修改后接受
+
+    - RunStatusBar：当前 run 的 tool 调用数 + 状态'
+  boundary: '本 feature 只定义 Agent Panel 的交互协议：
+
+    消息↔Diff↔Terminal↔Artifact 的状态机。
+
+    不定义 agent 推理策略、tool 选择算法、model provider。'
+
+constraints:
+  rules:
+  - id: C1
+    name: No silent write
+    rule: agent 对 workspace 的所有写入必须经过 DiffPreview → Apply 流程
+    validation: grep agent 代码不存在不带 diff_proposal 的 file_write 调用
+  - id: C2
+    name: Context window management
+    rule: 每条消息的 context injection 不超过 token 上限（按 model 动态）
+    validation: workspace_awareness 结果做截断，不发送完整文件列表
+  - id: C3
+    name: Thread isolation
+    rule: 每个 thread 独立 context，不跨线程共享对话历史
+    validation: threadStore 以 threadId 为 key 隔离
+  - id: C4
+    name: Spec-aware context
+    rule: 当有 active_spec 时，context injection 必须包含该 spec 完整内容
+    validation: Ask Agent 触发时 AI 响应必须引用 active_spec 的字段
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户在右侧 AI Agent panel 中：

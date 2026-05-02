@@ -17,6 +17,53 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-26"
 
+display:
+  title: ide chrome
+  summary: 一个单层 WebView IDE chrome：
+  description: 一个单层 WebView IDE chrome：
+
+structure:
+  parent: vibex-workbench-skeleton
+  children: []
+  dependencies:
+  - 'Wails runtime: 窗口控制、目录选择、事件桥'
+  - 'specExplorerStore: 左侧 activity、选中 spec、中心视图状态'
+  - 'workbenchLayoutStore: 侧栏、右栏、底部 dock 尺寸'
+  - 'workspace-output-store: run-make 输出在底部 dock 中展示'
+  impacted_files: []
+
+io:
+  input:
+  - '用户打开 VibeX Workbench 桌面应用或 /workbench 路由。
+
+    当前目标是把参考截图中的 Cursor/VS Code 式 IDE 外壳作为产品主框架。'
+  output:
+  - '一个单层 WebView IDE chrome：
+
+    - 顶部内层 titlebar/command center/window controls
+
+    - 左侧 activity bar + explorer panel
+
+    - 中央 editor tabs / canvas / spec viewer
+
+    - 右侧 AI Agent panel
+
+    - 底部 dock + terminal/problems/output
+
+    - 底部 status bar'
+  boundary: '本模块只定义 IDE 外壳与 panel 编排，不定义具体 agent 推理能力、
+
+    spec 解析算法或生成器业务逻辑。'
+
+constraints:
+  rules: []
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户打开 VibeX Workbench 桌面应用或 /workbench 路由。

@@ -17,6 +17,39 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: scaffold preview recovery panel
+  summary: drawer panel showing create/skip/conflict items and recovery actions。
+  description: drawer panel showing create/skip/conflict items and recovery actions。
+
+structure:
+  parent: FEAT-scaffold-preview-recovery
+  children: []
+  dependencies:
+  - 'specs/L4-feature/FEAT-scaffold-preview-recovery.yaml: preview and recovery feature contract'
+  - 'specs/L5-slice/FEAT-scaffolding_L5.yaml: existing scaffolding implementation boundary'
+  impacted_files:
+  - frontend/src/lib/components/workspace/ScaffoldPreviewRecoveryPanel.svelte
+
+io:
+  input:
+  - scaffold preview response and scaffold execution result。
+  output:
+  - drawer panel showing create/skip/conflict items and recovery actions。
+  boundary: 只实现 UI panel 与 preview/result 展示，不实现模板生成器。
+
+constraints:
+  rules: []
+  forbidden:
+  - 确认前写入磁盘
+  - 默认覆盖已有文件
+  - 把失败状态误设为 ready
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     scaffold preview response and scaffold execution result。

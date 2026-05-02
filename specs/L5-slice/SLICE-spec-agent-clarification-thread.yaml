@@ -17,6 +17,47 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-26"
 
+display:
+  title: spec agent clarification thread
+  summary: 右侧 agent 线程展示推荐 spec 草稿、澄清问题、确认写入动作和验证结果摘要。
+  description: 右侧 agent 线程展示推荐 spec 草稿、澄清问题、确认写入动作和验证结果摘要。
+
+structure:
+  parent: FEAT-spec-graph-expansion
+  children: []
+  dependencies:
+  - 'frontend/src/lib/components/workbench/AiChatColumn.svelte: 右侧 agent 线程承载区域'
+  - 'frontend/src/lib/components/workbench/Composer.svelte: 用户补充澄清和确认动作'
+  - 'agent/cmd/web/workspace_handlers.go: specs/write 与 run-make API'
+  - 'agent/skills/spec-first-workflow/SKILL.md: agent 生成子 spec 时遵循 L1-L5 工作流'
+  - 'agent/skills/spec-first-workflow/validation-and-failure.md: 验证失败分类规则'
+  impacted_files:
+  - frontend/src/lib/components/workbench/SpecAgentClarification.svelte
+
+io:
+  input:
+  - 'SpecAddChildCard 发出的 create-child-spec intent：
+
+    parent_name、parent_path、target_level、target_dir、existing_children、current_workspace。'
+  output:
+  - 右侧 agent 线程展示推荐 spec 草稿、澄清问题、确认写入动作和验证结果摘要。
+  boundary: '只管从图谱 intent 到 agent 澄清线程的上下文组装和确认流程。
+
+    不负责 agent 模型实现、不负责完整聊天存储、不负责所有 spec 模板字段穷举。'
+
+constraints:
+  rules: []
+  forbidden:
+  - 未确认时写入 specs/
+  - 绕过 agent 线程直接静默创建文件
+  - 在前端硬编码完整 L1-L5 模板内容
+  - 修改底层 chat streaming protocol
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     SpecAddChildCard 发出的 create-child-spec intent：

@@ -17,6 +17,42 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-26"
 
+display:
+  title: spec add child card
+  summary: SpecAddChildCard.svelte 在图谱中展示合法的 + 子 spec 卡片，并把点击事件转换为 create-child-spec intent。
+  description: SpecAddChildCard.svelte 在图谱中展示合法的 + 子 spec 卡片，并把点击事件转换为 create-child-spec intent。
+
+structure:
+  parent: FEAT-spec-graph-expansion
+  children: []
+  dependencies:
+  - 'frontend/src/lib/components/workbench/SpecGraphViewer.svelte: 承载 + 卡片并处理 create-child-spec intent'
+  - 'frontend/src/lib/stores/spec-explorer-store.ts: 提供当前 selectedSpecPath 上下文'
+  impacted_files:
+  - frontend/src/lib/components/workbench/SpecAddChildCard.svelte
+
+io:
+  input:
+  - 当前 spec 的 level/name/path/status、已有 children 列表、L4 FEAT-spec-graph-expansion.level_rules。
+  output:
+  - SpecAddChildCard.svelte 在图谱中展示合法的 + 子 spec 卡片，并把点击事件转换为 create-child-spec intent。
+  boundary: '只管 + 卡片可见性、目标层级推断、点击 intent。
+
+    不负责 agent 推荐文案、不负责写文件、不负责 validate。'
+
+constraints:
+  rules: []
+  forbidden:
+  - 直接创建 YAML 文件
+  - 直接调用 /api/workspace/specs/write
+  - 直接调用 agent chat endpoint
+  - 允许 L5 继续新增子 spec
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     当前 spec 的 level/name/path/status、已有 children 列表、L4 FEAT-spec-graph-expansion.level_rules。

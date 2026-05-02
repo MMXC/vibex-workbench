@@ -17,6 +17,43 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: scaffold preview recovery
+  summary: 可确认的写入预览、跳过/创建/冲突列表、失败恢复建议。
+  description: 可确认的写入预览、跳过/创建/冲突列表、失败恢复建议。
+
+structure:
+  parent: MOD-scaffolding
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - workspace state、scaffold options、模板清单、已有文件状态、scaffold 执行结果。
+  output:
+  - 可确认的写入预览、跳过/创建/冲突列表、失败恢复建议。
+  boundary: '扩展已有 FEAT-scaffolding 的 preview 和 failure recovery。
+
+    不覆盖已有文件，不执行 Git 操作，不管理模板内容长期演进。'
+
+constraints:
+  rules:
+  - id: C1
+    name: Preview before write
+    rule: 没有 preview 和用户确认不得写入磁盘
+    validation: scaffold API 接收 confirmed_preview_id
+  - id: C2
+    name: No overwrite
+    rule: 已有文件默认 skip，冲突必须用户明确处理
+    validation: 重复运行 scaffold 不改变已有文件 hash
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     workspace state、scaffold options、模板清单、已有文件状态、scaffold 执行结果。

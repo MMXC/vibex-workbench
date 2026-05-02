@@ -27,6 +27,63 @@ lifecycle:
       trigger: system:e2e-validated
       note: 五项最小能力端到端验证通过，进入 implementation phase
 
+display:
+  title: vibex workbench mvp
+  summary: 一个完整可运行的项目，含：
+  description: 一个完整可运行的项目，含：
+
+structure:
+  parent: null
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - '用户选定一个空目录，描述产品意图（如"我想做一个笔记应用"），
+
+    系统从零开始完成：脚手架 → spec 编写 → 校验/生成 → 可运行项目。'
+  output:
+  - '一个完整可运行的项目，含：
+
+    - specs/L1–L5 规格文件
+
+    - 最小可跑骨架（目录结构、生成器、配置）
+
+    - spec → 代码的校验/生成闭环'
+  boundary: 'MVP 只支持"空仓库 → 边做边长"单链路。
+
+    不支持：多 workspace 并行、历史 spec 迁移、图谱全量编辑。'
+
+constraints:
+  rules:
+  - id: C1
+    name: 仓库根唯一性
+    rule: 所有读写/命令统一在用户选定的仓库根下执行，不允许跨目录
+    maps_to: AC1
+  - id: C2
+    name: 三态探测
+    rule: 系统能区分空目录/半就绪/就绪三种状态，UI 展示状态 badge 和建议
+    maps_to: AC2
+  - id: C3
+    name: 显式确认门槛
+    rule: 首次写入脚手架必须经过用户确认，不能静默污染磁盘
+    maps_to: AC3
+  - id: C4
+    name: spec 写闭环
+    rule: 用户能读 spec 也能写 spec，保存后能触发校验
+    maps_to: AC4
+  - id: C5
+    name: 可验证链路
+    rule: make validate/generate 在 UI 可触发，失败时显示错误摘要
+    maps_to: AC5
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户选定一个空目录，描述产品意图（如"我想做一个笔记应用"），

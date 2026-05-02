@@ -17,6 +17,40 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: memplace implementation memory adapter
+  summary: memplace/memlace memory record，用于按 spec、file、failure category 检索。
+  description: memplace/memlace memory record，用于按 spec、file、failure category 检索。
+
+structure:
+  parent: FEAT-agent-implementation-memory
+  children: []
+  dependencies:
+  - 'specs/L4-feature/FEAT-agent-implementation-memory.yaml: memory role contract'
+  - 'agent/internal/common/config.go: memlace/memplace 配置来源'
+  - 'specs/L5-slice/SLICE-agent-checkpoint-writer.yaml: checkpoint summary source'
+  impacted_files:
+  - agent/internal/specjournal/memory_adapter.go
+
+io:
+  input:
+  - journal checkpoint summary and spec metadata。
+  output:
+  - memplace/memlace memory record，用于按 spec、file、failure category 检索。
+  boundary: 只负责 memory 写入/检索适配，不把 memory 当事实源。
+
+constraints:
+  rules: []
+  forbidden:
+  - 写入完整 journal 内容
+  - 写入 secret/env value
+  - memory 覆盖 journal/spec 判断
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     journal checkpoint summary and spec metadata。

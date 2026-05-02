@@ -11,6 +11,65 @@ meta:
   owner: hermes
   created: '2026-04-26'
   updated: '2026-04-26'
+
+display:
+  title: canvas expand
+  summary: 展开该节点的直接子节点（按 level 分组）
+  description: 展开该节点的直接子节点（按 level 分组）
+
+structure:
+  parent: MOD-spec-editor
+  children: []
+  dependencies: []
+  impacted_files:
+  - frontend/src/lib/components/workbench/GoalSpecCanvas.svelte
+
+io:
+  input:
+  - 用户在 Canvas 图谱视图中点击某个 spec 节点。
+  output:
+  - '- 展开该节点的直接子节点（按 level 分组）
+
+    - 在可添加子 spec 的位置渲染 "+" 卡片
+
+    - 点击 "+" 触发 FEAT-spec-graph-expansion 定义的受控新增子 spec 流程'
+  boundary: 'MVP 只支持在图谱视图（viewMode=mermaid 或 canvas）中操作。
+
+    不做：图谱缩放拖拽、全量 DAG 渲染、多选批量操作。
+
+    展开层级限制：每次点击只展开当前节点的一跳子节点（避免图谱爆炸）。
+
+    子 spec 创建的层级规则、agent 澄清、写盘验证由 FEAT-spec-graph-expansion 负责。'
+
+constraints:
+  rules:
+  - id: C1
+    name: 只写目标仓库
+    rule: spec 写盘路径必须以 WORKSPACE_ROOT 为前缀，不允许路径穿越
+    validation: 路径中不包含 ../ 且在 workspaceRoot 子树下
+  - id: C2
+    name: agent 推荐不可替代用户确认
+    rule: agent 推荐必须经过用户确认（clarify）后才能写盘
+    validation: 写盘操作前必须有用户的显式确认动作
+  - id: C2a
+    name: 新增子 spec 委托受控工作流
+    rule: Canvas 只发出 create-child-spec intent；层级规则、目标目录、写盘验证以 FEAT-spec-graph-expansion 为准
+    validation: Canvas 不维护独立 L2/L3/L4/L5 任意选择器
+  - id: C3
+    name: 图谱不影响 spec 内容
+    rule: 图谱交互（展开/收起）不修改任何 spec 文件
+    validation: 展开前后，磁盘上的 spec 文件 MD5 一致
+  - id: C4
+    name: 线程对话不影响主流程
+    rule: 澄清线程可独立关闭/开启，不阻塞图谱操作
+    validation: 打开线程后，点击图谱其他节点仍可正常响应
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: '用户在 Canvas 图谱视图中点击某个 spec 节点。
 

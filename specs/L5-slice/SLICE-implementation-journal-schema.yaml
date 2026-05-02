@@ -17,6 +17,38 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-27"
 
+display:
+  title: implementation journal schema
+  summary: specs/journal/<spec-name>.implementation.yaml，包含可验证实现事实。
+  description: specs/journal/<spec-name>.implementation.yaml，包含可验证实现事实。
+
+structure:
+  parent: FEAT-spec-implementation-journal
+  children: []
+  dependencies:
+  - 'specs/L4-feature/FEAT-spec-implementation-journal.yaml: journal feature contract'
+  impacted_files:
+  - specs/journal/<spec-name>.implementation.yaml
+
+io:
+  input:
+  - 一个 target spec name 和该 spec 实现过程中的 checkpoints。
+  output:
+  - specs/journal/<spec-name>.implementation.yaml，包含可验证实现事实。
+  boundary: 只定义 journal YAML schema，不定义写入时机和 UI 展示。
+
+constraints:
+  rules: []
+  forbidden:
+  - 把 journal 当 spec parent chain 的一部分
+  - 在 journal 中修改 spec status
+  - 记录 secret 或完整 env value
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     一个 target spec name 和该 spec 实现过程中的 checkpoints。

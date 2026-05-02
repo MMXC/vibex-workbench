@@ -13,6 +13,41 @@ meta:
   created: "2026-04-24"
   updated: "2026-04-24"
 
+display:
+  title: scaffolding
+  summary: 在目录生成最小骨架文件，写入结果摘要
+  description: 在目录生成最小骨架文件，写入结果摘要
+
+structure:
+  parent: MOD-scaffolding
+  children: []
+  dependencies: []
+  impacted_files: []
+
+io:
+  input:
+  - WORKSPACE_ROOT + scaffolding options
+  output:
+  - 在目录生成最小骨架文件，写入结果摘要
+  boundary: 不覆盖已有文件，只生成缺失部分
+
+constraints:
+  rules:
+  - id: C1
+    name: 确认门槛
+    rule: 写入前必须展示预览，用户点击确认
+    validation: 没有确认步骤则不写入磁盘
+  - id: C2
+    name: 幂等写入
+    rule: 已有文件跳过，不覆盖
+    validation: 重复运行不破坏已有内容
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     WORKSPACE_ROOT + scaffolding options

@@ -17,6 +17,43 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-28"
 
+display:
+  title: spec history rollback
+  summary: SpecHistoryPanel.svelte：git log 列表 + SpecDiffView + Rollback 确认对话框
+  description: SpecHistoryPanel.svelte：git log 列表 + SpecDiffView + Rollback 确认对话框
+
+structure:
+  parent: FEAT-spec-governance-viewer
+  children: []
+  dependencies:
+  - 'frontend/src/lib/components/workbench/MonacoEditor.svelte: Monaco diff editor 用于 diff 展示'
+  - 'agent/cmd/web/workspace_handlers.go: /api/workspace/specs/history|diff|rollback 端点'
+  impacted_files:
+  - frontend/src/lib/components/workbench/SpecHistoryPanel.svelte
+
+io:
+  input:
+  - '用户点击 History 按钮，
+
+    GET /api/workspace/specs/history 的 commit 列表，
+
+    GET /api/workspace/specs/diff 的 old/new 内容。'
+  output:
+  - SpecHistoryPanel.svelte：git log 列表 + SpecDiffView + Rollback 确认对话框
+  boundary: git 操作由 Go agent 调用 git 命令实现，本 slice 只处理前端展示和交互。
+
+constraints:
+  rules: []
+  forbidden:
+  - 直接调用 git 命令
+  - 修改 git 历史
+  - 强制 push
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户点击 History 按钮，

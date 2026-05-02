@@ -16,6 +16,48 @@ lifecycle:
   current: proposal
   updated: "2026-04-29"
 
+display:
+  title: canvas expand children render
+  summary: 节点展开：子节点以动画方式出现在节点周围，按 level badge 着色。
+  description: 节点展开：子节点以动画方式出现在节点周围，按 level badge 着色。
+
+structure:
+  parent: FEAT-canvas-expand
+  children: []
+  dependencies:
+  - 'frontend/src/lib/stores/graph-store.ts: 读取 nodes/edges 和 selectedNodePath，emit loadGraphData'
+  - 'specs/L5-slice/SLICE-spec-graph-viewer.yaml: 共享 SVG 连线渲染逻辑（复用 stroke-dashoffset 动画）'
+  - 'specs/L4-feature/FEAT-spec-write.yaml: 写盘成功后 SSE canvas.refresh 事件由 spec-write 触发'
+  impacted_files:
+  - frontend/src/lib/components/workbench/GoalSpecCanvas.svelte
+
+io:
+  input:
+  - '用户在 GoalSpecCanvas 上点击某个 spec 节点。
+
+    传入该节点的 spec.name 和 spec.level。'
+  output:
+  - '节点展开：子节点以动画方式出现在节点周围，按 level badge 着色。
+
+    无子节点时显示「暂无子 spec」空态。
+
+    写盘成功后 SSE canvas.refresh 事件触发图谱重渲染。'
+  boundary: '只修改前端 UI 状态（isExpanded、expandedChildren），不直接写任何 spec 文件。
+
+    动画时长 300ms（CSS transition），不支持禁用动画。'
+
+constraints:
+  rules: []
+  forbidden:
+  - 直接写盘或调用 spec write API
+  - 修改 DependencyGraph store 的核心数据
+  - 动画禁用或缩短到 100ms 以下
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户在 GoalSpecCanvas 上点击某个 spec 节点。

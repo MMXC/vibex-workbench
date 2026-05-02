@@ -10,7 +10,7 @@
  *   3. 调用之，catch → 打出诊断信息，不静默 fallback
  */
 
-import { extractSpecDisplay, type SpecDisplay } from './workbench/spec-display';
+import { extractSpecDisplay, type SpecDisplay, type SpecSlotModel } from './workbench/spec-display';
 import { isWails } from './wails-runtime';
 
 // ── Types ─────────────────────────────────────────────────────
@@ -21,6 +21,7 @@ export interface WailsSpecFile {
 	name: string;    // frontmatter.name 或文件名
 	status: string; // frontmatter.status
 	display?: SpecDisplay;
+	slots?: SpecSlotModel;
 }
 
 export interface WailsWorkspaceState {
@@ -75,6 +76,7 @@ async function enrichSpecFiles(root: string, files: WailsSpecFile[]): Promise<Wa
 					name: meta.name || file.name,
 					status: meta.status || file.status,
 					display: meta.display,
+					slots: meta.slots,
 				};
 			} catch {
 				return {

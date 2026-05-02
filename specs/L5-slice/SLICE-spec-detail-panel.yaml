@@ -17,6 +17,46 @@ lifecycle:
   current: "proposal"
   updated: "2026-04-28"
 
+display:
+  title: spec detail panel
+  summary: SpecDetailPanel.svelte：元信息侧栏 + Monaco Editor + Validate Bar
+  description: SpecDetailPanel.svelte：元信息侧栏 + Monaco Editor + Validate Bar
+
+structure:
+  parent: FEAT-spec-governance-viewer
+  children: []
+  dependencies:
+  - 'frontend/src/lib/components/workbench/MonacoEditor.svelte: FEAT-spec-write 已集成的 Monaco 组件'
+  - 'frontend/src/lib/components/workbench/SpecHistoryPanel.svelte: History 按钮触发'
+  - 'frontend/src/lib/wails-runtime.ts: wailsReadSpecFile / wailsWriteSpecFile 封装（Wails binding + HTTP fallback）'
+  impacted_files:
+  - frontend/src/lib/components/workbench/SpecDetailPanel.svelte
+
+io:
+  input:
+  - 'selectedSpecPath（当前选中节点路径），
+
+    MonacoEditor 组件（FEAT-spec-write 已集成），
+
+    validate 结果。'
+  output:
+  - SpecDetailPanel.svelte：元信息侧栏 + Monaco Editor + Validate Bar
+  boundary: 'Monaco Editor 集成由 FEAT-spec-write 定义，本 slice 只负责布局和交互协议。
+
+    Validate Bar 触发 validate 结果展示，不实现验证逻辑（Go agent 负责）。'
+
+constraints:
+  rules: []
+  forbidden:
+  - Monaco Editor 内部实现（FEAT-spec-write 负责）
+  - validate 逻辑实现（Go agent 负责）
+  - git 操作
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     selectedSpecPath（当前选中节点路径），

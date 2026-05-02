@@ -1,6 +1,6 @@
 import { writable, derived, get } from 'svelte/store';
 import { wailsListSpecs, type WailsSpecFile } from '$lib/wails-filesystem';
-import type { SpecDisplay } from '$lib/workbench/spec-display';
+import type { SpecDisplay, SpecSlotModel } from '$lib/workbench/spec-display';
 
 /** 与 Cursor/R2 对齐：左侧活动栏视图（资源管理器 / Git / 搜索 / 扩展） */
 export type LeftActivity = 'explorer' | 'git' | 'search' | 'extensions';
@@ -15,7 +15,7 @@ export type SpecExplorerState = {
 	/** 当前 workspace 根路径，切换时驱动 SpecExplorer 刷新文件树 */
 	workspaceRoot: string;
 	/** 规格文件列表（从 store 加载） */
-	specs: { path: string; level: number; name: string; status: string; display?: SpecDisplay }[];
+	specs: { path: string; level: number; name: string; status: string; display?: SpecDisplay; slots?: SpecSlotModel }[];
 	/** 列表加载中 */
 	specsLoading: boolean;
 	/** 列表加载错误 */
@@ -57,6 +57,7 @@ function createSpecExplorerStore() {
 					name: f.name,
 					status: f.status,
 					display: f.display,
+					slots: f.slots,
 				})),
 				specsLoading: false,
 			}));

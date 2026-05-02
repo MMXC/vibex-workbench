@@ -48,6 +48,11 @@ content:
         - spec.level
         - spec.name
         - spec.parent          # L1 固定 null
+        - display
+        - structure
+        - io
+        - constraints
+        - prototype
         - meta.owner
         - lifecycle
         - io_contract
@@ -69,6 +74,11 @@ content:
         - spec.level
         - spec.name
         - spec.parent          # 必须指向某个 L1 spec.name
+        - display
+        - structure
+        - io
+        - constraints
+        - prototype
         - meta.module
         - lifecycle
         - io_contract
@@ -88,6 +98,11 @@ content:
         - spec.level
         - spec.name
         - spec.parent          # 必须指向某个 L2 spec.name
+        - display
+        - structure
+        - io
+        - constraints
+        - prototype
         - meta.module
         - lifecycle
         - io_contract
@@ -107,6 +122,11 @@ content:
         - spec.level
         - spec.name
         - spec.parent          # 必须指向某个 L3 spec.name
+        - display
+        - structure
+        - io
+        - constraints
+        - prototype
         - meta.module
         - lifecycle
         - io_contract
@@ -127,6 +147,11 @@ content:
         - spec.level
         - spec.name
         - spec.parent          # 必须指向某个 L4 spec.name
+        - display
+        - structure
+        - io
+        - constraints
+        - prototype
         - meta.module
         - lifecycle
         - io_contract
@@ -159,6 +184,7 @@ content:
 
   # mixin 合并语义（同层 mixin，无 diamond）
   mixin_merge_rules:
+    - rule: "canonical 槽位：display / structure / io / constraints / prototype 优先于旧字段"
     - rule: "io_contract 字段：基础 + mixin 并集，后者 override 前者"
     - rule: "behaviors 列表：拼接，不去重"
     - rule: "constraints 列表：拼接，不去重"
@@ -186,6 +212,24 @@ content:
       to: "L5 slice"
       content: "which_files / generation_order"
 
+  # 图谱展示用 canonical 槽位
+  canonical_slots:
+    - field: "display"
+      purpose: "为卡片、列表和 agent context 提供中文标题、摘要和描述"
+      empty_value: "缺失则显示 待补充"
+    - field: "structure"
+      purpose: "描述 parent、children、dependencies、impacted_files 等结构关系"
+      empty_value: "无结构信息时填空数组或 null"
+    - field: "io"
+      purpose: "以 input、output、boundary 表达当前 spec 的输入输出和边界"
+      empty_value: "缺失则从 io_contract fallback，但新 spec 必须显式填写"
+    - field: "constraints"
+      purpose: "以 rules、forbidden 表达必须遵守和禁止事项"
+      empty_value: "无约束时 rules/forbidden 为空数组"
+    - field: "prototype"
+      purpose: "引用交互原型或声明无原型，支撑 UI 验收"
+      empty_value: "无原型时 status=none、file 为空、validates 为空数组"
+
   # 验证工具
   validation:
     script: "validate_specs.py"
@@ -201,6 +245,9 @@ content:
         exit_code_on_fail: 2
       - name: "io_contract_present"
         description: "验证 io_contract 存在于 frontmatter"
+        exit_code_on_fail: 2
+      - name: "canonical_slots_present"
+        description: "验证 display / structure / io / constraints / prototype 存在于 frontmatter"
         exit_code_on_fail: 2
       - name: "yaml_frontmatter_valid"
         description: "YAML frontmatter 可被 safe_load 解析"

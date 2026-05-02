@@ -16,6 +16,44 @@ lifecycle:
   current: implementation
   updated: '2026-04-30'
 
+display:
+  title: workspace lifecycle partial scaffold
+  summary: 只补全缺失文件，不覆盖已有 specs/ 目录。
+  description: 只补全缺失文件，不覆盖已有 specs/ 目录。
+
+structure:
+  parent: FEAT-workspace-lifecycle
+  children: []
+  dependencies:
+  - 'generators/scaffolder.py: scaffold 逻辑实现'
+  - 'agent/cmd/web/workspace_handlers.go: scaffold API handler 传入 mode 参数'
+  impacted_files:
+  - generators/scaffolder.py
+
+io:
+  input:
+  - '用户在 partial 状态（有 specs/ 但无 gen.py/Makefile）点击「补全脚手架」。
+
+    POST /api/workspace/scaffold {workspace_root, confirm: true, mode: "partial"}.'
+  output:
+  - '只补全缺失文件，不覆盖已有 specs/ 目录。
+
+    返回落地文件列表 + 新状态 ready。'
+  boundary: '不删除或覆盖已有 spec 文件。
+
+    不在 specs/ 外创建多余目录。'
+
+constraints:
+  rules: []
+  forbidden:
+  - 覆盖已有 spec 文件
+  - 删除用户手动创建的目录
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     用户在 partial 状态（有 specs/ 但无 gen.py/Makefile）点击「补全脚手架」。

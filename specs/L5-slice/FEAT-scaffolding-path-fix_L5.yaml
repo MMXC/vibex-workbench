@@ -23,6 +23,38 @@ lifecycle:
       trigger: mvp-评估
       note: 修复 scaffolder.py 路径依赖 os.Args[0]，改用 GENERATORS_DIR 环境变量
 
+display:
+  title: scaffolding path fix
+  summary: 通过 GENERATORS_DIR 环境变量（绝对路径）定位脚本，而非 os.Args[0]。
+  description: 通过 GENERATORS_DIR 环境变量（绝对路径）定位脚本，而非 os.Args[0]。
+
+structure:
+  parent: FEAT-scaffolding
+  children: []
+  dependencies: []
+  impacted_files:
+  - agent/cmd/web/workspace_handlers.go
+
+io:
+  input:
+  - workspace_handlers.go 调用 scaffolder.py 或 state_detector.py。
+  output:
+  - '通过 GENERATORS_DIR 环境变量（绝对路径）定位脚本，而非 os.Args[0]。
+
+    Fallback: 仍支持基于 os.Args[0] 的相对路径推导（向后兼容）。'
+  boundary: '只修改 backend Go 代码的路径推导逻辑。
+
+    不修改 Python 脚本。'
+
+constraints:
+  rules: []
+  forbidden: []
+
+prototype:
+  file: ''
+  validates: []
+  status: none
+
 io_contract:
   input: |
     workspace_handlers.go 调用 scaffolder.py 或 state_detector.py。
