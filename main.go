@@ -28,6 +28,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"vibex-workbench/pkg/verify"
 )
 
 //go:embed all:frontend/build
@@ -382,6 +383,117 @@ func (a *App) KillGoBackend(ctx context.Context) error {
 		a.backendCmd = nil
 	}
 	return nil
+}
+
+// VerifySpecs runs spec verification checks on the workspace.
+// Returns a JSON-encoded verify.Report.
+//
+// Options (passed as map keys):
+//   - format: "summary" (default) | "json" | "short"
+//   - checks: comma-separated list: file_existence,parent_chain,completeness,behaviors,go_struct,svelte_props
+//   - levels: comma-separated list: 1_concept,2_skeleton,3_module,4_feature,5_slice
+//   - show_pass: "true" to include passing checks (default: false)
+func (a *App) VerifySpecs(ctx context.Context, workspace string, opts map[string]string) (string, error) {
+	if workspace == "" {
+		workspace = a.workspaceRoot
+	}
+	if workspace == "" {
+		return "", fmt.Errorf("workspace root is empty — set it first with SetWorkspaceRoot or OpenDirectoryDialog")
+	}
+
+	loader := verify.NewLoader(workspace)
+	specs, err := loader.LoadAll()
+	if err != nil {
+		return "", fmt.Errorf("load specs: %w", err)
+	}
+
+	vOpts := verify.DefaultVerifierOptions()
+	if opts != nil {
+		if checks, ok := opts["checks"]; ok && checks != "" {
+			vOpts.CheckFileExistence = false
+			vOpts.CheckParentChain = false
+			vOpts.CheckCompleteness = false
+			vOpts.CheckBehaviors = false
+			vOpts.CheckGoStructFields = false
+			vOpts.CheckSvelteProps = false
+			for _, c := range strings.Split(checks, ",") {
+				switch strings.TrimSpace(c) {
+				case "file_existence":
+					vOpts.CheckFileExistence = true
+				case "parent_chain":
+					vOpts.CheckParentChain = true
+				case "completeness":
+					vOpts.CheckCompleteness = true
+				case "behaviors":
+					vOpts.CheckBehaviors = true
+				case "go_struct":
+					vOpts.CheckGoStructFields = true
+				case "svelte_props":
+					vOpts.CheckSvelteProps = true
+				}
+			}
+		}
+		if levels, ok := opts["levels"]; ok && levels != "" {
+			vOpts.OnlySpecLevels = nil
+			for _, l := range strings.Split(levels, ",") {
+				if l = strings.TrimSpace(l); l != "" {
+					vOpts.OnlySpecLevels = append(vOpts.OnlySpecLevels, l)
+				}
+			}
+		}
+	}
+
+	report := verify.NewVerifier(workspace, specs).WithOptions(vOpts).Run()
+
+	format := "summary"
+	if opts != nil {
+		if f, ok := opts["format"]; ok {
+			format = f
+		}
+	}
+
+	// If format is json, return raw JSON report
+	if format == "json" {
+		data, _ := json.Marshal(report)
+		return string(data), nil
+	}
+
+	// summary or short: build human-readable text
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("📋 Spec Verification — %s\n", workspace))
+	b.WriteString(fmt.Sprintf("   %s\n\n", report.Summary))
+
+	showPass := opts != nil && opts["show_pass"] == "true"
+
+	failCount := 0
+	warnCount := 0
+	for _, res := range report.Results {
+		if res.Status == "pass" && !showPass {
+			continue
+		}
+		icon := "✅"
+		if res.Severity == "error" {
+			icon = "❌"
+			failCount++
+		} else if res.Severity == "warning" {
+			icon = "⚠️"
+			warnCount++
+		}
+		loc := ""
+		if res.FilePath != "" {
+			loc = fmt.Sprintf("  [%s]", res.FilePath)
+		}
+		b.WriteString(fmt.Sprintf("%s %s/%s | %s | %s%s\n", icon, res.SpecLevel, res.SpecName, res.CheckType, res.Message, loc))
+		if res.Suggestion != "" && res.Severity != "info" {
+			b.WriteString(fmt.Sprintf("  💡 %s\n", res.Suggestion))
+		}
+	}
+
+	if failCount == 0 && warnCount == 0 {
+		b.WriteString("✅ All checks passed!\n")
+	}
+
+	return b.String(), nil
 }
 
 // RunMake 在 workspace 执行 make target

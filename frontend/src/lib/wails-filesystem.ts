@@ -261,3 +261,29 @@ export async function wailsRunMake(
 	const result = await (app as any).RunMake(target, workspace);
 	return result as { ok: boolean; output: string };
 }
+
+// ── VerifySpecs ─────────────────────────────────────────────────
+
+export type VerifySpecsOptions = {
+	format?: 'summary' | 'json' | 'short';
+	checks?: string;       // comma-separated: file_existence,parent_chain,completeness,behaviors
+	levels?: string;       // comma-separated: 4_feature,5_slice
+	show_pass?: string;    // 'true' | 'false'
+};
+
+/**
+ * Run spec → code alignment verification via the Go verify package.
+ * Returns human-readable text (summary/short) or raw JSON.
+ */
+export async function wailsVerifySpecs(
+	workspace: string,
+	opts?: VerifySpecsOptions
+): Promise<string> {
+	if (!isWails()) throw new Error('wailsVerifySpecs requires Wails mode');
+	const app = getGoApp();
+	if (!app || typeof (app as any).VerifySpecs !== 'function') {
+		throw new Error('Wails binding missing: App.VerifySpecs');
+	}
+	const result = await (app as any).VerifySpecs(workspace, opts ?? {});
+	return result as string;
+}

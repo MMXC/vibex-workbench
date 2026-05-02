@@ -53,6 +53,13 @@ validate: lint-specs
 	@cd "$(ROOT)" && $(PYTHON) spec-engine/validate_chain.py specs
 	@echo "[validate] OK."
 
+# verify-specs: spec → code alignment checks (Go CLI, built from pkg/verify)
+verify-specs:
+	@echo "[verify-specs] Checking spec→code alignment..."
+	@cd "$(ROOT)" && go build -o .bin/verify_specs ./cmd/verify_specs/
+	@cd "$(ROOT)" && .bin/verify_specs --workspace "$(ROOT)" --format short
+	@echo "[verify-specs] Done."
+
 gen-graph:
 	@echo "[gen-graph] Writing dependency graph..."
 	@cd "$(ROOT)" && $(PYTHON) spec-engine/mermaid_gen.py specs \
