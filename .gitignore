@@ -46,3 +46,5 @@ agent/cmd/web/vibex-agent-web
 backend/vibex-backend
 backend/vibex-backend.exe
 .gstack/
+verify_specs
+vibex-workbench
