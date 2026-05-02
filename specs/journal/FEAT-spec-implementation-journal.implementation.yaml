@@ -1,0 +1,4 @@
+# Implementation Journal
+# Schema: see SLICE-implementation-journal-schema
+# Placeholder — actual journal files are generated per-spec by checkpoint_writer.go
+# Pattern: specs/journal/<spec-name>.implementation.yaml

@@ -198,50 +198,61 @@ func (v *Verifier) checkImpactedFiles(spec *Spec) []Result {
 		return results
 	}
 	for _, fp := range spec.ImpactedFiles {
-		abs := spec.AbsPath(v.workspaceRoot, fp)
-		_, err := os.Stat(abs)
-		if err != nil {
-			if os.IsNotExist(err) {
-				results = append(results, Result{
-					SpecName:  spec.Name,
-					SpecLevel: spec.Level,
-					SpecFile:  spec.SourceFile,
-					CheckType: "impacted_file",
-					CheckID:   fp,
-					FilePath:  fp,
-					AbsPath:   abs,
-					Status:    "fail",
-					Severity:  "error",
-					Message:   fmt.Sprintf("impacted file does not exist: %s", fp),
-					Suggestion: fmt.Sprintf("Create the file or remove it from impacted_files if it's generated later"),
-				})
+		// Handle "file1 + file2 + ..." syntax (multi-file spec entries)
+		fpList := fp
+		if strings.Contains(fp, " + ") {
+			fpList = strings.Join(strings.Split(fp, " + "), ",")
+		}
+		for _, singleFile := range strings.Split(fpList, ",") {
+			singleFile = strings.TrimSpace(singleFile)
+			if singleFile == "" {
+				continue
+			}
+			abs := spec.AbsPath(v.workspaceRoot, singleFile)
+			_, err := os.Stat(abs)
+			if err != nil {
+				if os.IsNotExist(err) {
+					results = append(results, Result{
+						SpecName:  spec.Name,
+						SpecLevel: spec.Level,
+						SpecFile:  spec.SourceFile,
+						CheckType: "impacted_file",
+						CheckID:   singleFile,
+						FilePath:  singleFile,
+						AbsPath:   abs,
+						Status:    "fail",
+						Severity:  "error",
+						Message:   fmt.Sprintf("impacted file does not exist: %s", singleFile),
+						Suggestion: fmt.Sprintf("Create the file or remove it from impacted_files if it's generated later"),
+					})
+				} else {
+					results = append(results, Result{
+						SpecName:  spec.Name,
+						SpecLevel: spec.Level,
+						SpecFile:  spec.SourceFile,
+						CheckType: "impacted_file",
+						CheckID:   singleFile,
+						FilePath:  singleFile,
+						AbsPath:   abs,
+						Status:    "fail",
+						Severity:  "error",
+						Message:   fmt.Sprintf("error checking impacted file %s: %v", singleFile, err),
+					})
+				}
 			} else {
 				results = append(results, Result{
 					SpecName:  spec.Name,
 					SpecLevel: spec.Level,
 					SpecFile:  spec.SourceFile,
 					CheckType: "impacted_file",
-					CheckID:   fp,
-					FilePath:  fp,
+					CheckID:   singleFile,
+					FilePath:  singleFile,
 					AbsPath:   abs,
-					Status:    "fail",
-					Severity:  "error",
-					Message:   fmt.Sprintf("error checking impacted file %s: %v", fp, err),
+					Status:    "pass",
+					Severity:  "info",
+					Message:   fmt.Sprintf("impacted file exists: %s", singleFile),
 				})
 			}
-		} else {
-			results = append(results, Result{
-				SpecName:  spec.Name,
-				SpecLevel: spec.Level,
-				SpecFile:  spec.SourceFile,
-				CheckType: "impacted_file",
-				CheckID:   fp,
-				FilePath:  fp,
-				AbsPath:   abs,
-				Status:    "pass",
-				Severity:  "info",
-				Message:   fmt.Sprintf("impacted file exists: %s", fp),
-			})
 		}
 	}
 	return results
@@ -252,37 +263,48 @@ func (v *Verifier) checkContentFilePath(spec *Spec) []Result {
 	if spec.FilePath == "" || spec.LevelNum() < 5 {
 		return results
 	}
-	abs := spec.AbsPath(v.workspaceRoot, spec.FilePath)
-	_, err := os.Stat(abs)
-	if err != nil {
-		if os.IsNotExist(err) {
+	// Handle "file1 + file2 + ..." syntax
+	fpList := spec.FilePath
+	if strings.Contains(spec.FilePath, " + ") {
+		fpList = strings.Join(strings.Split(spec.FilePath, " + "), ",")
+	}
+	for _, singleFile := range strings.Split(fpList, ",") {
+		singleFile = strings.TrimSpace(singleFile)
+		if singleFile == "" {
+			continue
+		}
+		abs := spec.AbsPath(v.workspaceRoot, singleFile)
+		_, err := os.Stat(abs)
+		if err != nil {
+			if os.IsNotExist(err) {
+				results = append(results, Result{
+					SpecName:  spec.Name,
+					SpecLevel: spec.Level,
+					SpecFile:  spec.SourceFile,
+					CheckType: "content_file_path",
+					CheckID:   singleFile,
+					FilePath:  singleFile,
+					AbsPath:   abs,
+					Status:    "fail",
+					Severity:  "error",
+					Message:   fmt.Sprintf("content.file_path does not exist: %s", singleFile),
+					Suggestion: "Create this file or update content.file_path if it will be generated",
+				})
+			}
+		} else {
 			results = append(results, Result{
 				SpecName:  spec.Name,
 				SpecLevel: spec.Level,
 				SpecFile:  spec.SourceFile,
 				CheckType: "content_file_path",
-				CheckID:   spec.FilePath,
-				FilePath:  spec.FilePath,
+				CheckID:   singleFile,
+				FilePath:  singleFile,
 				AbsPath:   abs,
-				Status:    "fail",
-				Severity:  "error",
-				Message:   fmt.Sprintf("content.file_path does not exist: %s", spec.FilePath),
-				Suggestion: "Create this file or update content.file_path if it will be generated",
+				Status:    "pass",
+				Severity:  "info",
+				Message:   fmt.Sprintf("content.file_path exists: %s", singleFile),
 			})
 		}
-	} else {
-		results = append(results, Result{
-			SpecName:  spec.Name,
-			SpecLevel: spec.Level,
-			SpecFile:  spec.SourceFile,
-			CheckType: "content_file_path",
-			CheckID:   spec.FilePath,
-			FilePath:  spec.FilePath,
-			AbsPath:   abs,
-			Status:    "pass",
-			Severity:  "info",
-			Message:   fmt.Sprintf("content.file_path exists: %s", spec.FilePath),
-		})
 	}
 	return results
 }

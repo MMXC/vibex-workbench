@@ -28,7 +28,7 @@ structure:
   dependencies:
   - 'specs/L4-feature/FEAT-spec-implementation-journal.yaml: journal feature contract'
   impacted_files:
-  - specs/journal/<spec-name>.implementation.yaml
+  - specs/journal/FEAT-spec-implementation-journal.implementation.yaml
 
 io:
   input:
@@ -58,7 +58,7 @@ io_contract:
     只定义 journal YAML schema，不定义写入时机和 UI 展示。
 
 content:
-  file_path: "specs/journal/<spec-name>.implementation.yaml"
+  file_path: "specs/journal/FEAT-spec-implementation-journal.implementation.yaml"
   file_type: "yaml"
 
   implementation_boundary:
