@@ -125,6 +125,121 @@
 
   let showPass = $state(false);
 
+  // ── Spec list ────────────────────────────────────────────
+  interface SpecInfo {
+    path: string;
+    level: number;
+    name: string;
+    phase: string;
+    checks: { fail: number; warn: number; pass: number };
+    status: 'pass' | 'warn' | 'fail' | 'unknown';
+    errors: string[];
+  }
+
+  let specList = $state<SpecInfo[]>([]);
+  let specListLoading = $state(false);
+  let expandedSpec = $state<string | null>(null);
+  let specDetailContent = $state<string | null>(null);
+  let specDetailLoading = $state(false);
+
+  async function fetchSpecList() {
+    if (!workspaceRoot) return;
+    specListLoading = true;
+    try {
+      const res = await fetch(`/api/workspace/specs/list?workspaceRoot=${encodeURIComponent(workspaceRoot)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const paths: string[] = data.paths || [];
+
+      // Fetch verify results in parallel
+      let verifyBySpec: Record<string, any> = {};
+      try {
+        const vr = await fetch('/api/workspace/verify-specs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspace_root: workspaceRoot, format: 'json', checks: 'file_existence,parent_chain,completeness,behaviors' })
+        });
+        if (vr.ok) {
+          const vdata = await vr.json();
+          if (vdata.results) {
+            for (const r of vdata.results) {
+              const key = `${r.spec_level}/${r.spec_name}`;
+              if (!verifyBySpec[key]) verifyBySpec[key] = [];
+              verifyBySpec[key].push(r);
+            }
+          }
+        }
+      } catch { /* verify is optional */ }
+
+      specList = paths.map(p => {
+        const parts = p.replace(/^specs\//, '').replace(/\.ya?ml$/, '').split('/');
+        const levelPart = parts[0] || '';
+        const levelNum = parseInt(levelPart.replace(/\D/g, '') || '0');
+        const name = parts.slice(1).join('/') || levelPart;
+        const key = `${levelPart}/${name}`;
+        const checks = verifyBySpec[key] || [];
+        const fail = checks.filter((c: any) => c.severity === 'error').length;
+        const warn = checks.filter((c: any) => c.severity === 'warning').length;
+        const pass = checks.filter((c: any) => c.severity === 'info').length;
+        const status: SpecInfo['status'] = fail > 0 ? 'fail' : warn > 0 ? 'warn' : pass > 0 ? 'pass' : 'unknown';
+        const errors = checks.filter((c: any) => c.severity === 'error').map((c: any) => c.message);
+        return { path: p, level: levelNum, name, phase: '', checks: { fail, warn, pass }, status, errors };
+      });
+    } catch { /* ignore */ } finally {
+      specListLoading = false;
+    }
+  }
+
+  async function toggleSpecDetail(path: string) {
+    if (expandedSpec === path) {
+      expandedSpec = null;
+      specDetailContent = null;
+      return;
+    }
+    expandedSpec = path;
+    specDetailLoading = true;
+    specDetailContent = null;
+    try {
+      const res = await fetch(`/api/workspace/specs/read?workspaceRoot=${encodeURIComponent(workspaceRoot)}&path=${encodeURIComponent(path)}`);
+      if (res.ok) {
+        const data = await res.json();
+        specDetailContent = data.content || '';
+      }
+    } catch { /* ignore */ } finally {
+      specDetailLoading = false;
+    }
+  }
+
+  function levelLabel(level: number) {
+    if (level <= 1) return 'L1';
+    if (level === 2) return 'L2';
+    if (level === 3) return 'L3';
+    if (level === 4) return 'L4';
+    return 'L5';
+  }
+
+  function levelColor(level: number) {
+    if (level <= 1) return '#72d6d0';
+    if (level === 2) return '#87cf8a';
+    if (level === 3) return '#7aa2ff';
+    if (level === 4) return '#efc66b';
+    return '#f09a6a';
+  }
+
+  function statusIcon(s: SpecInfo['status']) {
+    if (s === 'pass') return '✅';
+    if (s === 'warn') return '⚠️';
+    if (s === 'fail') return '❌';
+    return '⬜';
+  }
+
+  // Auto-fetch spec list when workspace is ready
+  $effect(() => {
+    if (state?.state === 'ready' || state?.state === 'partial') {
+      fetchSpecList();
+    }
+  });
+
   async function browseDir() {
     try {
       const dir = await openDirectoryNativeFirst('workspace');
@@ -241,6 +356,70 @@
             <input type="checkbox" bind:checked={showPass} onchange={() => runVerify()} />
             显示通过的检查
           </label>
+        </div>
+      {/if}
+
+      <!-- Spec 列表卡片 -->
+      {#if specList.length > 0 || specListLoading}
+        <div class="spec-list-card">
+          <div class="spec-list-head">
+            <span class="spec-list-title">📋 Spec 列表</span>
+            <span class="spec-count">{specList.length} 个规格</span>
+            <button type="button" class="reload-btn" onclick={fetchSpecList} title="刷新">↻</button>
+          </div>
+          {#if specListLoading}
+            <div class="spec-loading">加载中…</div>
+          {:else}
+            <div class="spec-grid">
+              {#each specList as spec (spec.path)}
+                <div class="spec-card" class:card-fail={spec.status === 'fail'} class:card-warn={spec.status === 'warn'} class:card-pass={spec.status === 'pass'} onclick={() => toggleSpecDetail(spec.path)}>
+                  <div class="card-top">
+                    <span class="card-level" style:color={levelColor(spec.level)}>{levelLabel(spec.level)}</span>
+                    <span class="card-icon">{statusIcon(spec.status)}</span>
+                  </div>
+                  <div class="card-name" title={spec.name}>{spec.name}</div>
+                  <div class="card-meta">
+                    {#if spec.checks.fail > 0}
+                      <span class="badge badge-fail">❌ {spec.checks.fail}</span>
+                    {/if}
+                    {#if spec.checks.warn > 0}
+                      <span class="badge badge-warn">⚠️ {spec.checks.warn}</span>
+                    {/if}
+                    {#if spec.checks.pass > 0 && spec.status !== 'fail' && spec.status !== 'warn'}
+                      <span class="badge badge-pass">✅ {spec.checks.pass}</span>
+                    {/if}
+                    {#if spec.status === 'unknown'}
+                      <span class="badge badge-unknown">⬜ 未验证</span>
+                    {/if}
+                  </div>
+                  {#if spec.errors.length > 0}
+                    <div class="card-errors">
+                      {#each spec.errors.slice(0, 2) as err}
+                        <div class="card-err-item">⚠️ {err}</div>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+
+            <!-- 展开的 spec 详情 -->
+            {#if expandedSpec}
+              <div class="spec-detail">
+                <div class="spec-detail-head">
+                  <span class="spec-detail-title">{expandedSpec}</span>
+                  <button type="button" class="close-btn" onclick={() => { expandedSpec = null; specDetailContent = null; }}>×</button>
+                </div>
+                {#if specDetailLoading}
+                  <div class="spec-loading">加载中…</div>
+                {:else if specDetailContent}
+                  <pre class="spec-detail-content">{specDetailContent}</pre>
+                {:else}
+                  <div class="spec-loading">无内容</div>
+                {/if}
+              </div>
+            {/if}
+          {/if}
         </div>
       {/if}
     {:else if !loading}
@@ -482,4 +661,204 @@
     text-align: center;
     margin: 8px 0 0;
   }
+
+  /* ── Spec List Card ─────────────────────────────────────── */
+  .spec-list-card {
+    margin-top: 12px;
+    background: #11111b;
+    border: 1px solid #313244;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .spec-list-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #313244;
+    background: #1a1a2e;
+  }
+
+  .spec-list-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #cdd6f4;
+  }
+
+  .spec-count {
+    font-size: 11px;
+    color: #6c7086;
+    margin-left: auto;
+  }
+
+  .reload-btn {
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    color: #6c7086;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0;
+    line-height: 1;
+  }
+
+  .reload-btn:hover {
+    color: #cdd6f4;
+    border-color: #89b4fa;
+  }
+
+  .spec-loading {
+    padding: 12px 14px;
+    font-size: 12px;
+    color: #6c7086;
+  }
+
+  .spec-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px;
+    padding: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .spec-card {
+    background: #1a1a2e;
+    border: 1px solid #313244;
+    border-radius: 6px;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: background 120ms, border-color 120ms, transform 120ms;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .spec-card:hover {
+    background: #252540;
+    border-color: #45475a;
+    transform: translateY(-1px);
+  }
+
+  .spec-card.card-fail { border-color: #f38ba840; background: #1e1e2e; }
+  .spec-card.card-warn { border-color: #f9e2af30; background: #1e1e2a; }
+  .spec-card.card-pass { border-color: #a6e3a120; }
+
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .card-level {
+    font-family: 'Cascadia Code', monospace;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+  }
+
+  .card-icon {
+    font-size: 12px;
+  }
+
+  .card-name {
+    font-size: 11px;
+    color: #cdd6f4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+  }
+
+  .card-meta {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  .badge-fail { background: #f38ba820; color: #f38ba8; }
+  .badge-warn { background: #f9e2af20; color: #f9e2af; }
+  .badge-pass { background: #a6e3a120; color: #a6e3a1; }
+  .badge-unknown { background: #31324440; color: #6c7086; }
+
+  .card-errors {
+    border-top: 1px solid #31324440;
+    padding-top: 4px;
+    margin-top: 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .card-err-item {
+    font-size: 9px;
+    color: #f38ba8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Spec detail panel */
+  .spec-detail {
+    border-top: 1px solid #45475a;
+    background: #0d0d12;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .spec-detail-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    border-bottom: 1px solid #313244;
+    background: #1a1a2e;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  .spec-detail-title {
+    font-family: monospace;
+    font-size: 11px;
+    color: #89b4fa;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .spec-detail-content {
+    margin: 0;
+    padding: 12px 14px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: #cdd6f4;
+    white-space: pre-wrap;
+    word-break: break-all;
+    background: transparent;
+    border: none;
+  }
+
+  .close-btn {
+    background: transparent;
+    border: none;
+    color: #6c7086;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 4px;
+    line-height: 1;
+  }
+
+  .close-btn:hover { color: #cdd6f4; }
 </style>
