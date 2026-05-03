@@ -22,6 +22,8 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 	import R2Dock from '$lib/components/workbench/R2Dock.svelte';
 	import SpecViewer from '$lib/components/workbench/SpecViewer.svelte';
 	import StatusBar from '$lib/components/workbench/StatusBar.svelte';
+	import SpecSlotDrawer from '$lib/components/workbench/SpecSlotDrawer.svelte';
+	import WindowResizeFrame from '$lib/components/workbench/WindowResizeFrame.svelte';
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
 	import { formatSpecContextForPrompt } from '$lib/stores/spec-agent-context-store';
 	import { eventsOn } from '$lib/wails-runtime';
@@ -41,6 +43,22 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 		return !!p && (p.includes('/') || p.includes('\\'));
 	}
 
+	async function restoreBackendWorkspaceRoot() {
+		try {
+			const res = await fetch('/api/workspace/detect-state');
+			if (!res.ok) return;
+			const data = await res.json();
+			const root = data.workspaceRoot ?? data.workspace_root;
+			if (!isLikelyFullPath(root)) return;
+			localStorage.setItem('vibex-workspace-root', root);
+			workspaceRoot = root;
+			specExplorerStore.setWorkspaceRoot(root);
+			workspaceState = data.state === 'ready' ? 'ready' : data.state === 'half' ? 'partial' : 'empty';
+		} catch (e) {
+			console.warn('[Workbench] failed to restore backend workspace root:', e);
+		}
+	}
+
 	// 监听 Wails backend 事件
 	// 启动时从 localStorage 恢复 workspaceRoot
 	onMount(() => {
@@ -52,6 +70,9 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 		} else if (saved) {
 			console.warn('[Workbench] Ignore invalid workspace root in localStorage:', saved);
 			localStorage.removeItem('vibex-workspace-root');
+			void restoreBackendWorkspaceRoot();
+		} else {
+			void restoreBackendWorkspaceRoot();
 		}
 
 		const rt = (window as any).runtime;
@@ -250,6 +271,8 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 			/>
 		{/snippet}
 	</WorkbenchLayoutResizable>
+	<SpecSlotDrawer />
+	<WindowResizeFrame />
 </div>
 
 <style>

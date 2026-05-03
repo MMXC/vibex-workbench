@@ -9,21 +9,22 @@ meta:
   module: frontend
   owner: hermes
   created: '2026-04-26'
-  updated: '2026-04-26'
+  updated: '2026-05-04'
 lifecycle:
   current: proposal
   updated: '2026-04-26'
 
 display:
   title: ide wails window options
-  summary: main.go 中 Wails App options 与 startup 行为满足 frameless + empty native menu。
-  description: main.go 中 Wails App options 与 startup 行为满足 frameless + empty native menu。
+  summary: main.go 中 Wails App options 与 native window host 行为满足 frameless、自定义 titlebar 和 resize 控制。
+  description: main.go 中 Wails App options 与 native window host 行为满足 frameless、自定义 titlebar 和 resize 控制。
 
 structure:
   parent: FEAT-ide-titlebar
   children: []
   dependencies:
   - 'frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte: WebView 内层 titlebar 负责可见导航和窗口控制'
+  - 'frontend/src/lib/components/workbench/WindowResizeFrame.svelte: 无边框窗口边缘 resize 命中区'
   impacted_files:
   - main.go
 
@@ -31,15 +32,15 @@ io:
   input:
   - L4 FEAT-ide-titlebar 对单层 WebView IDE chrome 的约束。
   output:
-  - main.go 中 Wails App options 与 startup 行为满足 frameless + empty native menu。
-  boundary: '只允许修改 main.go 中 Wails options 与原生菜单挂载逻辑。
+  - main.go 中 Wails App options 与 native window host 行为满足 frameless、自定义 titlebar 和 resize 控制。
+  boundary: '只允许修改 main.go 中 Wails options、原生菜单挂载逻辑，以及 /__vibex/native/window-* host fallback。
 
     不处理 backend spawn、asset server、workspace API。'
 
 constraints:
   rules: []
   forbidden:
-  - 修改 appHandler 的静态资源代理逻辑
+  - 修改 appHandler 的静态资源代理逻辑（新增 /__vibex/native/window-* fallback 除外）
   - 修改 SpawnGoBackend 的启动流程
   - 引入新的窗口框架库
 
@@ -52,10 +53,10 @@ io_contract:
   input: 'L4 FEAT-ide-titlebar 对单层 WebView IDE chrome 的约束。
 
     '
-  output: 'main.go 中 Wails App options 与 startup 行为满足 frameless + empty native menu。
+  output: 'main.go 中 Wails App options 与 native window host 行为满足 frameless、自定义 titlebar 和 resize 控制。
 
     '
-  boundary: '只允许修改 main.go 中 Wails options 与原生菜单挂载逻辑。
+  boundary: '只允许修改 main.go 中 Wails options、原生菜单挂载逻辑，以及 /__vibex/native/window-* host fallback。
 
     不处理 backend spawn、asset server、workspace API。
 
@@ -68,8 +69,9 @@ content:
     allowed:
     - options.App 中的 Frameless/Menu/CSSDragProperty/CSSDragValue 字段
     - OnStartup 中与原生菜单挂载有关的逻辑
+    - appHandler 中 /__vibex/native/window-action 与 /__vibex/native/window-state fallback
     forbidden:
-    - 修改 appHandler 的静态资源代理逻辑
+    - 修改 appHandler 的静态资源代理逻辑（新增 /__vibex/native/window-* fallback 除外）
     - 修改 SpawnGoBackend 的启动流程
     - 引入新的窗口框架库
   generation_rules:
@@ -81,6 +83,8 @@ content:
     detail: OnStartup 不得默认调用 runtime.MenuSetApplicationMenu
   - rule: Drag contract
     detail: CSSDragProperty 使用 --wails-draggable，CSSDragValue 使用 drag
+  - rule: Native window fallback
+    detail: 当 window.runtime 缺失但页面运行在 wails.localhost/34115 时，/__vibex/native/window-* host fallback 必须能执行最小化、最大化、关闭、读取状态和 resize
   verification:
     commands:
     - go build .
@@ -89,13 +93,19 @@ content:
     - 运行 make wails-dev 后，不显示 Wails 原生菜单栏
     - 窗口顶部只显示 WebView 内 WorkbenchTitlebar
     - 拖动 titlebar 空白处可移动窗口
+    - 点击右上角窗口按钮有响应
+    - 拖拽窗口四边/四角可调整大小
     failure_conditions:
     - 出现 File/Edit/View 等原生菜单栏
     - app 启动时报 options/Menu 相关编译错误
     - titlebar 拖拽失效
+    - window.runtime 缺失时窗口按钮点击无反应
+    - 无边框窗口无法 resize
   dependencies:
   - file: frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte
     reason: WebView 内层 titlebar 负责可见导航和窗口控制
+  - file: frontend/src/lib/components/workbench/WindowResizeFrame.svelte
+    reason: 无边框窗口边缘 resize 命中区
   behaviors:
   - id: B1
     trigger: 步骤1
@@ -117,9 +127,19 @@ content:
     action: 保留 CSSDragProperty / CSSDragValue 配置
     expected_result: 正确执行，无异常
     error_handling: 出错时显示 toast 提示，不阻塞其他交互
+  - id: B5
+    trigger: 步骤5
+    action: 提供 /__vibex/native/window-action 与 /__vibex/native/window-state
+    expected_result: runtime 缺失时窗口按钮和 resize 仍可通过 Go runtime 执行
+    error_handling: Wails context 不可用时返回 503，不静默伪成功
 changelog:
 - version: '0.1'
   date: '2026-04-26'
   author: hermes
   changes:
   - 新增 Wails window options 文件级边界与验证条件
+- version: '0.2'
+  date: '2026-05-04'
+  author: agent
+  changes:
+  - 补充 native window host fallback 和无边框窗口 resize 要求

@@ -9,9 +9,64 @@ function getRuntime(): any | null {
 	return (window as any).runtime ?? null;
 }
 
+const NATIVE_WINDOW_ACTION_PATH = '/__vibex/native/window-action';
+const NATIVE_WINDOW_STATE_PATH = '/__vibex/native/window-state';
+
+type NativeWindowState = {
+	size?: { w: number; h: number };
+	position?: { x: number; y: number };
+	maximized?: boolean;
+};
+
+function isWailsHost(): boolean {
+	return window.location.hostname === 'wails.localhost' || window.location.port === '34115';
+}
+
+function nativeWindowCandidates(path: string): string[] {
+	if (isWailsHost()) return [path];
+	const candidates = [path];
+	const current = window.location.origin;
+	for (const origin of ['http://wails.localhost:34115', 'http://localhost:34115']) {
+		if (origin !== current) candidates.push(`${origin}${path}`);
+	}
+	return candidates;
+}
+
+async function fetchNativeWindowState(): Promise<NativeWindowState | null> {
+	for (const url of nativeWindowCandidates(NATIVE_WINDOW_STATE_PATH)) {
+		try {
+			const res = await fetch(url);
+			if (!res.ok) continue;
+			return (await res.json()) as NativeWindowState;
+		} catch {
+			// Try the next native host candidate.
+		}
+	}
+	return null;
+}
+
+async function postNativeWindowAction(action: string, payload: Record<string, unknown> = {}): Promise<void> {
+	for (const url of nativeWindowCandidates(NATIVE_WINDOW_ACTION_PATH)) {
+		try {
+			const res = await fetch(url, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action, ...payload }),
+			});
+			if (res.ok) return;
+		} catch {
+			// Try the next native host candidate.
+		}
+	}
+}
+
 /** Returns true when running inside a Wails WebView (runtime available). */
 export function isWails(): boolean {
 	return getRuntime() !== null;
+}
+
+export function hasNativeWindowHost(): boolean {
+	return isWails() || isWailsHost();
 }
 
 /** Browser-dev directory picker fallback.
@@ -42,21 +97,85 @@ export async function openDirectoryDialog(): Promise<string> {
 /** Minimizes the application window. */
 export async function windowMinimize(): Promise<void> {
 	const rt = getRuntime();
-	if (!rt) return;
+	if (!rt) {
+		await postNativeWindowAction('minimize');
+		return;
+	}
 	await rt.WindowMinimise();
 }
 
 /** Toggles maximize/restore on the application window. */
 export async function windowToggleMaximize(): Promise<void> {
 	const rt = getRuntime();
-	if (!rt) return;
+	if (!rt) {
+		await postNativeWindowAction('toggle-maximize');
+		return;
+	}
 	await rt.WindowToggleMaximise();
+}
+
+export async function windowIsMaximized(): Promise<boolean> {
+	const rt = getRuntime();
+	if (!rt || typeof rt.WindowIsMaximised !== 'function') {
+		const state = await fetchNativeWindowState();
+		return !!state?.maximized;
+	}
+	return await rt.WindowIsMaximised();
+}
+
+export async function windowGetSize(): Promise<{ w: number; h: number } | null> {
+	const rt = getRuntime();
+	if (!rt || typeof rt.WindowGetSize !== 'function') {
+		const state = await fetchNativeWindowState();
+		return state?.size ?? null;
+	}
+	return await rt.WindowGetSize();
+}
+
+export async function windowSetSize(width: number, height: number): Promise<void> {
+	const rt = getRuntime();
+	if (!rt || typeof rt.WindowSetSize !== 'function') {
+		await postNativeWindowAction('set-size', { width, height });
+		return;
+	}
+	await rt.WindowSetSize(width, height);
+}
+
+export async function windowGetPosition(): Promise<{ x: number; y: number } | null> {
+	const rt = getRuntime();
+	if (!rt || typeof rt.WindowGetPosition !== 'function') {
+		const state = await fetchNativeWindowState();
+		return state?.position ?? null;
+	}
+	return await rt.WindowGetPosition();
+}
+
+export async function windowSetPosition(x: number, y: number): Promise<void> {
+	const rt = getRuntime();
+	if (!rt || typeof rt.WindowSetPosition !== 'function') {
+		await postNativeWindowAction('set-position', { x, y });
+		return;
+	}
+	await rt.WindowSetPosition(x, y);
+}
+
+export async function windowResizeTo(x: number, y: number, width: number, height: number): Promise<void> {
+	const rt = getRuntime();
+	if (!rt || typeof rt.WindowSetPosition !== 'function' || typeof rt.WindowSetSize !== 'function') {
+		await postNativeWindowAction('resize', { x, y, width, height });
+		return;
+	}
+	await rt.WindowSetPosition(x, y);
+	await rt.WindowSetSize(width, height);
 }
 
 /** Quits the application. */
 export async function windowQuit(): Promise<void> {
 	const rt = getRuntime();
-	if (!rt) return;
+	if (!rt) {
+		await postNativeWindowAction('quit');
+		return;
+	}
 	await rt.Quit();
 }
 

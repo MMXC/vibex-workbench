@@ -1,11 +1,14 @@
-<!-- R2 顶栏：品牌 Logo + 居中标题 + 设置
-     窗口控件（最小化/最大化/关闭）由系统原生标题栏提供，不再在 WebView 内渲染。
-     顶部菜单栏由 Wails 原生 MenuSetApplicationMenu 提供，不在此组件内。
--->
+<!-- R2 顶栏：品牌 Logo + 菜单 + 命令中心 + 自定义窗口控件。 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { eventsEmit } from '$lib/wails-runtime';
+	import {
+		eventsEmit,
+		windowIsMaximized,
+		windowMinimize,
+		windowQuit,
+		windowToggleMaximize,
+	} from '$lib/wails-runtime';
 	import { openDirectoryNativeFirst } from '$lib/wails-dialogs';
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
 
@@ -13,15 +16,27 @@
 
 	let fileMenuOpen = $state(false);
 	let menuWrapperEl = $state<HTMLElement | null>(null);
+	let isMaximized = $state(false);
+
+	async function refreshMaximizedState() {
+		isMaximized = await windowIsMaximized();
+	}
 
 	async function handleMinimize() {
-		await (window as any).runtime?.WindowMinimise();
+		await windowMinimize();
 	}
 	async function handleMaximize() {
-		await (window as any).runtime?.WindowToggleMaximise();
+		await windowToggleMaximize();
+		window.setTimeout(() => void refreshMaximizedState(), 80);
 	}
 	async function handleClose() {
-		await (window as any).runtime?.Quit();
+		await windowQuit();
+	}
+
+	function handleTitlebarDoubleClick(event: MouseEvent) {
+		const target = event.target as HTMLElement | null;
+		if (target?.closest('button,a,.dropdown,.menu-strip,.window-controls')) return;
+		void handleMaximize();
 	}
 
 	/** 打开项目：弹目录选择 → 同步 store → 触发事件 → 跳转 */
@@ -52,11 +67,17 @@
 
 	onMount(() => {
 		document.addEventListener('click', handleClickOutside);
-		return () => document.removeEventListener('click', handleClickOutside);
+		void refreshMaximizedState();
+		window.addEventListener('resize', refreshMaximizedState);
+		return () => {
+			document.removeEventListener('click', handleClickOutside);
+			window.removeEventListener('resize', refreshMaximizedState);
+		};
 	});
 </script>
 
-<header class="titlebar">
+<!-- svelte-ignore a11y_no_static_element_interactions - titlebar implements native-window double-click behavior. -->
+<header class="titlebar" ondblclick={handleTitlebarDoubleClick}>
 	<div class="lead">
 		<a class="brand" href="/workbench" title="VibeX Workbench" aria-label="VibeX Workbench">
 			<img class="brand-logo" src="/vibex-logo.svg" alt="" width="26" height="26" />
@@ -108,19 +129,26 @@
 					<path d="M2 6h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
 				</svg>
 			</button>
-			<button type="button" class="win win-max" title="最大化" aria-label="最大化" onclick={handleMaximize}>
-				<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
-					<rect
-						x="2"
-						y="2"
-						width="8"
-						height="8"
-						rx="0.5"
-						stroke="currentColor"
-						stroke-width="1.2"
-						fill="none"
-					/>
-				</svg>
+			<button type="button" class="win win-max" title={isMaximized ? '还原' : '最大化'} aria-label={isMaximized ? '还原' : '最大化'} onclick={handleMaximize}>
+				{#if isMaximized}
+					<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+						<path d="M4 2.5h5.5v5.5H8" stroke="currentColor" stroke-width="1.1" fill="none" />
+						<rect x="2.5" y="4" width="5.5" height="5.5" rx="0.5" stroke="currentColor" stroke-width="1.1" fill="none" />
+					</svg>
+				{:else}
+					<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+						<rect
+							x="2"
+							y="2"
+							width="8"
+							height="8"
+							rx="0.5"
+							stroke="currentColor"
+							stroke-width="1.2"
+							fill="none"
+						/>
+					</svg>
+				{/if}
 			</button>
 			<button type="button" class="win win-close" title="关闭" aria-label="关闭" onclick={handleClose}>
 				<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">

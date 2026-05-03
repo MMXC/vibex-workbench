@@ -11,7 +11,7 @@ meta:
   module: "frontend"
   owner: "hermes"
   created: "2026-04-26"
-  updated: "2026-04-30"
+  updated: "2026-05-04"
 
 lifecycle:
   current: "proposal"
@@ -19,8 +19,8 @@ lifecycle:
 
 display:
   title: ide titlebar
-  summary: 菜单按钮触发对应 workbench event
-  description: 菜单按钮触发对应 workbench event
+  summary: 顶栏承载菜单、拖拽区域和窗口控制，窗口控制具备 Wails runtime/native host 双路径。
+  description: 顶栏承载菜单、拖拽区域和窗口控制，窗口控制具备 Wails runtime/native host 双路径。
 
 structure:
   parent: MOD-ide-chrome
@@ -28,6 +28,8 @@ structure:
   dependencies: []
   impacted_files:
   - frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte
+  - frontend/src/lib/components/workbench/WindowResizeFrame.svelte
+  - frontend/src/lib/wails-runtime.ts
   - frontend/src/app.html
   - main.go
   - specs/L5-slice/SLICE-wails-binding-guard.yaml
@@ -36,13 +38,10 @@ io:
   input:
   - 用户在 IDE 顶部内层 titlebar 上点击菜单、命令中心、状态 chip、设置或窗口控制按钮。
   output:
-  - '- 菜单按钮触发对应 workbench event
-
-    - 命令中心展示当前 workspace / self-bootstrap 状态
-
-    - 状态 chip 展示 validate/backend 当前摘要
-
-    - 窗口按钮调用 Wails runtime'
+  - 菜单按钮触发对应 workbench event
+  - 命令中心展示当前 workspace / self-bootstrap 状态
+  - 状态 chip 展示 validate/backend 当前摘要
+  - 窗口按钮调用 Wails runtime 或 native host fallback
   boundary: 只负责 WebView 内层 titlebar。不得再在 app.html 或原生菜单层渲染重复标题栏。
 
 constraints:
@@ -73,13 +72,14 @@ io_contract:
     - 菜单按钮触发对应 workbench event
     - 命令中心展示当前 workspace / self-bootstrap 状态
     - 状态 chip 展示 validate/backend 当前摘要
-    - 窗口按钮调用 Wails runtime
+    - 窗口按钮调用 Wails runtime 或 native host fallback
   boundary: |
     只负责 WebView 内层 titlebar。不得再在 app.html 或原生菜单层渲染重复标题栏。
   behavior:
     - "titlebar 区域声明 --wails-draggable: drag"
     - "菜单、命令中心、窗口按钮声明 --wails-draggable: no-drag"
-    - "minimize/maximize/close 调用 Wails runtime window API"
+    - "minimize/maximize/close 优先调用 Wails runtime window API；runtime 缺失时调用 /__vibex/native/window-action"
+    - "无边框窗口四边/四角通过 WindowResizeFrame 调整大小"
     - "native application menu 默认使用空 menu，避免双层导航"
 
 content:
@@ -96,19 +96,24 @@ content:
       error_handling: "未实现 command palette 时不抛异常"
     - id: "B3"
       trigger: "用户点击最小化按钮"
-      action: "调用 runtime.WindowMinimise()"
+      action: "调用 runtime.WindowMinimise()；runtime 不可用时请求 /__vibex/native/window-action"
       expected_result: "Wails 窗口最小化"
-      error_handling: "runtime 不存在时仅记录 console error，不影响 Web 预览"
+      error_handling: "runtime 不存在时走 native host fallback；fallback 失败时仅保留当前窗口"
     - id: "B4"
       trigger: "用户点击最大化按钮"
-      action: "调用 runtime.WindowToggleMaximise()"
+      action: "调用 runtime.WindowToggleMaximise()；runtime 不可用时请求 /__vibex/native/window-action"
       expected_result: "Wails 窗口在最大化/还原之间切换"
-      error_handling: "runtime 不存在时降级为空操作"
+      error_handling: "runtime 不存在时走 native host fallback；fallback 失败时仅保留当前窗口"
     - id: "B5"
       trigger: "用户点击关闭按钮"
-      action: "调用 runtime.Quit()"
+      action: "调用 runtime.Quit()；runtime 不可用时请求 /__vibex/native/window-action"
       expected_result: "应用关闭前触发 backend cleanup"
       error_handling: "关闭失败时保留窗口并显示错误日志"
+    - id: "B6"
+      trigger: "用户拖拽无边框窗口边缘或角落"
+      action: "WindowResizeFrame 读取窗口 size/position 并调用 runtime 或 native host 调整窗口大小"
+      expected_result: "窗口按拖拽方向调整大小，且不小于 main.go MinWidth/MinHeight"
+      error_handling: "最大化状态下不执行 resize；native host 不可用时忽略拖拽"
 
   user_stories:
     - id: "US-1"
@@ -134,8 +139,14 @@ content:
       scenario: "窗口按钮可点击"
       given: "用户在 Wails 桌面窗口内"
       when: "点击最小化/最大化/关闭"
-      then: "调用对应 Wails window runtime"
+      then: "调用对应 Wails window runtime 或 native host fallback"
       evaluation: "无 JavaScript 错误，窗口状态正确变化"
+    - id: "TC-4"
+      scenario: "无边框窗口调整大小"
+      given: "main.go 设置 Frameless=true 且窗口未最大化"
+      when: "拖拽窗口四边或四角"
+      then: "窗口 size/position 按拖拽方向变化"
+      evaluation: "边缘拖拽不会触发页面内容点击，且不会缩小到 800x600 以下"
 
   constraints:
     - id: "C1"
@@ -156,6 +167,10 @@ content:
     which_files:
       - file: "frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte"
         generated_from: "B1-B5"
+      - file: "frontend/src/lib/components/workbench/WindowResizeFrame.svelte"
+        generated_from: "B6"
+      - file: "frontend/src/lib/wails-runtime.ts"
+        generated_from: "B3-B6"
       - file: "frontend/src/app.html"
         generated_from: "C1"
       - file: "main.go"
@@ -178,3 +193,8 @@ changelog:
     author: "hermes"
     changes:
       - "新增菜单业务调用守卫约束（C3），并关联 SLICE-wails-binding-guard 防回归"
+  - version: "0.3"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "补充窗口控制 native host fallback 与无边框窗口边缘 resize 行为"

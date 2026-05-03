@@ -9,15 +9,15 @@ meta:
   module: frontend
   owner: hermes
   created: '2026-04-26'
-  updated: '2026-04-30'
+  updated: '2026-05-04'
 lifecycle:
   current: proposal
   updated: '2026-04-26'
 
 display:
   title: ide titlebar component
-  summary: WorkbenchTitlebar.svelte 渲染唯一 IDE 顶部导航，并调用 Wails runtime 完成窗口控制。
-  description: WorkbenchTitlebar.svelte 渲染唯一 IDE 顶部导航，并调用 Wails runtime 完成窗口控制。
+  summary: WorkbenchTitlebar.svelte 渲染唯一 IDE 顶部导航，并通过 runtime/native host 双路径完成窗口控制。
+  description: WorkbenchTitlebar.svelte 渲染唯一 IDE 顶部导航，并通过 runtime/native host 双路径完成窗口控制。
 
 structure:
   parent: FEAT-ide-titlebar
@@ -28,12 +28,13 @@ structure:
   - 'specs/L5-slice/SLICE-wails-binding-guard.yaml: 菜单类业务调用守卫（Wails 仅 go binding，禁止 Wails 内 fallback）'
   impacted_files:
   - frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte
+  - frontend/src/lib/wails-runtime.ts
 
 io:
   input:
   - 用户点击 WebView 内层 titlebar 菜单、命令中心、状态 chip、设置或窗口按钮。
   output:
-  - WorkbenchTitlebar.svelte 渲染唯一 IDE 顶部导航，并调用 Wails runtime 完成窗口控制。
+  - WorkbenchTitlebar.svelte 渲染唯一 IDE 顶部导航，并通过 runtime/native host 双路径完成窗口控制。
   boundary: 只管 WorkbenchTitlebar.svelte。菜单具体弹层、command palette 和设置页可为占位。
 
 constraints:
@@ -52,7 +53,7 @@ io_contract:
   input: '用户点击 WebView 内层 titlebar 菜单、命令中心、状态 chip、设置或窗口按钮。
 
     '
-  output: 'WorkbenchTitlebar.svelte 渲染唯一 IDE 顶部导航，并调用 Wails runtime 完成窗口控制。
+  output: 'WorkbenchTitlebar.svelte 渲染唯一 IDE 顶部导航，并通过 runtime/native host 双路径完成窗口控制。
 
     '
   boundary: '只管 WorkbenchTitlebar.svelte。菜单具体弹层、command palette 和设置页可为占位。
@@ -77,6 +78,8 @@ content:
     detail: 必须包含菜单：文件、编辑、视图、终端、帮助
   - rule: Window buttons
     detail: 必须包含最小化、最大化/还原、关闭按钮
+  - rule: Window runtime fallback
+    detail: 窗口按钮优先调用 window.runtime；runtime 不可用但处于 wails.localhost/34115 时必须请求 /__vibex/native/window-action
   - rule: Wails drag
     detail: '根 titlebar 使用 --wails-draggable: drag；菜单、按钮、命令中心使用 no-drag'
   - rule: Wails event channel constraint ⚠
@@ -134,7 +137,7 @@ content:
     error_handling: 出错时显示 toast 提示，不阻塞其他交互
   - id: B4
     trigger: 步骤4
-    action: 窗口按钮调用 runtime API
+    action: 窗口按钮调用 runtime API；runtime 缺失时调用 native host fallback
     expected_result: 正确执行，无异常
     error_handling: 出错时显示 toast 提示，不阻塞其他交互
 changelog:
@@ -164,3 +167,8 @@ changelog:
   author: hermes
   changes:
   - 对齐 guard 术语：openProject 调用改写为 openDirectoryNativeFirst('titlebar')，避免与旧 wrapper 文案冲突
+- version: '0.6'
+  date: '2026-05-04'
+  author: agent
+  changes:
+  - 补充窗口按钮 runtime/native host fallback 行为，避免 window.runtime 缺失时点击无响应

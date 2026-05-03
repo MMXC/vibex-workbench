@@ -46,6 +46,10 @@ export function SpawnGoBackend(arg1) {
   return window['go']['main']['App']['SpawnGoBackend'](arg1);
 }
 
+export function VerifySpecs(arg1, arg2, arg3) {
+  return window['go']['main']['App']['VerifySpecs'](arg1, arg2, arg3);
+}
+
 export function WriteSpecFile(arg1, arg2, arg3) {
   return window['go']['main']['App']['WriteSpecFile'](arg1, arg2, arg3);
 }

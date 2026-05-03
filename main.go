@@ -137,6 +137,14 @@ func (h *appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.openDirectory(w, r)
 		return
 	}
+	if path == "/__vibex/native/window-action" {
+		h.windowAction(w, r)
+		return
+	}
+	if path == "/__vibex/native/window-state" {
+		h.windowState(w, r)
+		return
+	}
 
 	// Proxy /api/* to the Go backend subprocess
 	if strings.HasPrefix(path, "/api/") {
@@ -189,16 +197,7 @@ func (h *appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (h *appHandler) openDirectory(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("[native] open-directory request")
-	origin := r.Header.Get("Origin")
-	if origin == "http://localhost:5173" ||
-		origin == "http://127.0.0.1:5173" ||
-		origin == "http://localhost:34115" ||
-		origin == "http://wails.localhost:34115" {
-		w.Header().Set("Access-Control-Allow-Origin", origin)
-		w.Header().Set("Vary", "Origin")
-	}
-	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	h.setNativeCORS(w, r, "POST, OPTIONS")
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -241,6 +240,121 @@ func (h *appHandler) openDirectory(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"path": dir})
+}
+
+func (h *appHandler) setNativeCORS(w http.ResponseWriter, r *http.Request, methods string) {
+	origin := r.Header.Get("Origin")
+	if origin == "http://localhost:5173" ||
+		origin == "http://127.0.0.1:5173" ||
+		origin == "http://localhost:34115" ||
+		origin == "http://wails.localhost:34115" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Vary", "Origin")
+	}
+	w.Header().Set("Access-Control-Allow-Methods", methods)
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+}
+
+type nativeWindowActionRequest struct {
+	Action string `json:"action"`
+	Width  int    `json:"width,omitempty"`
+	Height int    `json:"height,omitempty"`
+	X      int    `json:"x,omitempty"`
+	Y      int    `json:"y,omitempty"`
+}
+
+func (h *appHandler) windowAction(w http.ResponseWriter, r *http.Request) {
+	h.setNativeCORS(w, r, "POST, OPTIONS")
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if h.app == nil {
+		http.Error(w, "App binding unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if h.app.ctx == nil {
+		http.Error(w, "Wails context unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req nativeWindowActionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, fmt.Sprintf("invalid request: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	switch req.Action {
+	case "minimize":
+		runtime.WindowMinimise(h.app.ctx)
+	case "toggle-maximize":
+		runtime.WindowToggleMaximise(h.app.ctx)
+	case "quit":
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+		go func() {
+			time.Sleep(80 * time.Millisecond)
+			runtime.Quit(h.app.ctx)
+		}()
+		return
+	case "set-size":
+		if req.Width <= 0 || req.Height <= 0 {
+			http.Error(w, "width and height are required", http.StatusBadRequest)
+			return
+		}
+		runtime.WindowSetSize(h.app.ctx, req.Width, req.Height)
+	case "set-position":
+		runtime.WindowSetPosition(h.app.ctx, req.X, req.Y)
+	case "resize":
+		if req.Width <= 0 || req.Height <= 0 {
+			http.Error(w, "width and height are required", http.StatusBadRequest)
+			return
+		}
+		runtime.WindowSetPosition(h.app.ctx, req.X, req.Y)
+		runtime.WindowSetSize(h.app.ctx, req.Width, req.Height)
+	default:
+		http.Error(w, fmt.Sprintf("unknown action: %s", req.Action), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+}
+
+func (h *appHandler) windowState(w http.ResponseWriter, r *http.Request) {
+	h.setNativeCORS(w, r, "GET, OPTIONS")
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if h.app == nil || h.app.ctx == nil {
+		http.Error(w, "Wails context unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	width, height := runtime.WindowGetSize(h.app.ctx)
+	x, y := runtime.WindowGetPosition(h.app.ctx)
+	maximized := runtime.WindowIsMaximised(h.app.ctx)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"size": map[string]int{
+			"w": width,
+			"h": height,
+		},
+		"position": map[string]int{
+			"x": x,
+			"y": y,
+		},
+		"maximized": maximized,
+	})
 }
 
 // App — 所有 Wails binding methods 都定义在此 struct 上
