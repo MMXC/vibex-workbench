@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -90,11 +91,11 @@ func (h *AutoUpdateHook) LastRun() time.Time {
 
 // WriteStaleMarker writes a stale marker file if governance is stale.
 func (h *AutoUpdateHook) WriteStaleMarker() error {
-	govDir := os.Args[0]
-	if len(os.Args) == 0 {
-		govDir = h.workspaceDir
+	govDir := filepath.Join(h.workspaceDir, "specs", "_governance")
+	if err := os.MkdirAll(govDir, 0755); err != nil {
+		return err
 	}
-	markerPath := fmt.Sprintf("%s/specs/_governance/.stale_governance", h.workspaceDir)
+	markerPath := filepath.Join(govDir, ".stale_governance")
 
 	if h.IsStale() {
 		return os.WriteFile(markerPath, []byte(time.Now().Format(time.RFC3339)+"\n"), 0644)

@@ -44,6 +44,7 @@ func agentPlanGraphHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Goal     string `json:"goal"`
 		SpecPath string `json:"spec_path"`
+		SlotID   string `json:"slot_id"`
 		Mode     string `json:"mode"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -51,7 +52,7 @@ func agentPlanGraphHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reg := toolrouting.NewRegistry(cfg.WorkspaceDir)
-	writeJSON(w, map[string]any{"graph": reg.CreatePlanGraph(req.Goal, req.SpecPath, req.Mode)})
+	writeJSON(w, map[string]any{"graph": reg.CreatePlanGraph(req.Goal, req.SpecPath, req.Mode, req.SlotID)})
 }
 
 func agentToolRouteHandler(w http.ResponseWriter, r *http.Request) {

@@ -30,18 +30,29 @@ func (r *Registry) ListTools() []ToolDescriptor {
 			Source:      "custom",
 			Schema:      c.Schema,
 			Permissions: c.Permissions,
+			AIFillArea:  c.AIFillArea,
 		})
 	}
 	return tools
 }
 
-func (r *Registry) CreatePlanGraph(goal, specPath, mode string) PlanGraph {
+func (r *Registry) CreatePlanGraph(goal, specPath, mode string, slotID ...string) PlanGraph {
 	goal = strings.TrimSpace(goal)
 	if goal == "" {
 		goal = "未命名目标"
 	}
 	if mode == "" {
 		mode = "plan-first"
+	}
+	slot := ""
+	if len(slotID) > 0 {
+		slot = strings.TrimSpace(slotID[0])
+	}
+	if mode == "spec-slot-routing" || slot != "" {
+		if mode == "" {
+			mode = "spec-slot-routing"
+		}
+		return r.createSlotPlanGraph(goal, specPath, mode, slot)
 	}
 	nodes := []PlanNode{
 		{
@@ -74,6 +85,7 @@ func (r *Registry) CreatePlanGraph(goal, specPath, mode string) PlanGraph {
 		Version:  "plan-graph/v1",
 		Goal:     goal,
 		SpecPath: specPath,
+		SlotID:   slot,
 		Mode:     mode,
 		Nodes:    nodes,
 		Edges: []PlanEdge{
@@ -82,6 +94,76 @@ func (r *Registry) CreatePlanGraph(goal, specPath, mode string) PlanGraph {
 			{From: "route_tools", To: "user_confirm", Reason: "tool route must be reviewable"},
 			{From: "user_confirm", To: "validate", Reason: "confirmed execution must be verified"},
 		},
+	}
+}
+
+func (r *Registry) createSlotPlanGraph(goal, specPath, mode, slotID string) PlanGraph {
+	if mode == "" {
+		mode = "spec-slot-routing"
+	}
+	slotKind, slotTitle, slotTool := slotRoute(slotID)
+	nodes := []PlanNode{
+		{
+			ID: "inspect_spec", Kind: "spec.inspect", Title: "读取 Spec 槽位上下文",
+			Description: "读取当前 spec 全文、canonical 槽位状态和邻接关系。",
+			Tool:        "read_spec_context", Inputs: map[string]any{"spec_path": specPath, "slot_id": slotID}, Outputs: []string{"spec_context"},
+		},
+		{
+			ID: "analyze_slot", Kind: slotKind, Title: slotTitle,
+			Description: "基于当前槽位生成可审查的工具能力、澄清问题和路由依据，不直接写业务代码。",
+			Tool:        slotTool, Inputs: map[string]any{"goal": goal, "spec_path": specPath, "slot_id": slotID}, Outputs: []string{"slot_analysis"},
+		},
+		{
+			ID: "debug_route", Kind: "tool.route.debug", Title: "调试工具路由",
+			Description: "解释为什么命中或没有命中工具，并给出 schema、prompt、examples 调整建议。",
+			Tool:        "tool_route_debugger", Inputs: map[string]any{"slot_id": slotID}, Outputs: []string{"route_debug_report"},
+		},
+		{
+			ID: "draft_missing_tool", Kind: "tool.draft.design", Title: "设计缺失工具草案",
+			Description: "当现有工具不足时，生成 metadata-only 工具草案，包含 AI 个性化填充区。",
+			Tool:        "tool_draft_designer", Inputs: map[string]any{"slot_id": slotID}, Outputs: []string{"tool_draft"},
+		},
+		{
+			ID: "render_fireworks_graph", Kind: "graph.fireworks.render", Title: "渲染 Fireworks 技术图",
+			Description: "将 plan graph 和 route preview 转为抽屉右侧可视化图谱数据。",
+			Tool:        "fireworks_tech_graph_renderer", Outputs: []string{"fireworks_graph"},
+		},
+		{
+			ID: "user_confirm", Kind: "gate.confirm", Title: "用户确认工具路由",
+			Description: "用户确认工具路由、工具草案或后续实现计划后，才允许进入写盘或执行。",
+			Tool:        "manual_confirmation", Outputs: []string{"confirmed_route"}, RequiresConfirmation: true,
+		},
+	}
+	return PlanGraph{
+		Version:  "plan-graph/v1",
+		Goal:     goal,
+		SpecPath: specPath,
+		SlotID:   slotID,
+		Mode:     mode,
+		Nodes:    nodes,
+		Edges: []PlanEdge{
+			{From: "inspect_spec", To: "analyze_slot", Reason: "slot routing needs spec context"},
+			{From: "analyze_slot", To: "debug_route", Reason: "route decisions must be explainable"},
+			{From: "debug_route", To: "draft_missing_tool", Reason: "missing route may require tool draft"},
+			{From: "debug_route", To: "render_fireworks_graph", Reason: "debug output feeds visualization"},
+			{From: "draft_missing_tool", To: "render_fireworks_graph", Reason: "tool draft must be visible"},
+			{From: "render_fireworks_graph", To: "user_confirm", Reason: "visual route must be confirmed"},
+		},
+	}
+}
+
+func slotRoute(slotID string) (kind, title, tool string) {
+	switch strings.ToLower(slotID) {
+	case "structure", "constraints":
+		return "spec.structure.analyze", "分析结构与约束槽位", "spec_structure_analyzer"
+	case "input", "output", "io":
+		return "spec.io.validate", "校验输入输出契约", "spec_io_contract_validator"
+	case "prototype":
+		return "spec.prototype.plan", "规划原型验证", "spec_prototype_planner"
+	case "implementation", "implement":
+		return "implementation.route.plan", "规划实现工具路由", "implementation_route_planner"
+	default:
+		return "spec.structure.analyze", "分析 Spec 槽位", "spec_structure_analyzer"
 	}
 }
 
@@ -136,7 +218,7 @@ func (r *Registry) RegisterCustomTool(cfg CustomToolConfig) (ToolDescriptor, err
 		return ToolDescriptor{}, err
 	}
 	r.custom = r.loadCustomTools()
-	return ToolDescriptor{Name: cfg.Name, Kind: cfg.Kind, Description: cfg.Description, Source: "custom", Schema: cfg.Schema, Permissions: cfg.Permissions}, nil
+	return ToolDescriptor{Name: cfg.Name, Kind: cfg.Kind, Description: cfg.Description, Source: "custom", Schema: cfg.Schema, Permissions: cfg.Permissions, AIFillArea: cfg.AIFillArea}, nil
 }
 
 func builtinTools() []ToolDescriptor {
@@ -146,6 +228,37 @@ func builtinTools() []ToolDescriptor {
 		{Name: "tool_route_preview", Kind: "tool.route", Description: "Preview routing decisions for a plan graph.", Source: "builtin", Permissions: []string{"plan"}},
 		{Name: "manual_confirmation", Kind: "gate.confirm", Description: "Require human confirmation before execution.", Source: "builtin", Permissions: []string{"confirm"}},
 		{Name: "make_validate", Kind: "workspace.validate", Description: "Run validation after confirmed execution.", Source: "builtin", Permissions: []string{"execute"}},
+		tool("spec_structure_analyzer", "spec.structure.analyze", "Analyze spec parent/children, dependencies, impacted files, constraints, and layer legality."),
+		tool("spec_io_contract_validator", "spec.io.validate", "Validate spec input/output contracts for completeness, consistency, and testability."),
+		tool("spec_prototype_planner", "spec.prototype.plan", "Plan prototype purpose, validation targets, and prototype file requirements."),
+		tool("implementation_route_planner", "implementation.route.plan", "Create implementation routing plan without directly writing business code."),
+		tool("tool_draft_designer", "tool.draft.design", "Design metadata-only tool drafts with schema and AI personalization fill area."),
+		tool("tool_route_debugger", "tool.route.debug", "Debug route hits/misses and suggest schema, prompt, and example improvements."),
+		tool("fireworks_tech_graph_renderer", "graph.fireworks.render", "Render plan graph and route preview into dynamic fireworks technical graph data."),
+	}
+}
+
+func tool(name, kind, description string) ToolDescriptor {
+	return ToolDescriptor{
+		Name:        name,
+		Kind:        kind,
+		Description: description,
+		Source:      "builtin",
+		Permissions: []string{"plan"},
+		Schema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"spec_path": map[string]any{"type": "string"},
+				"slot_id":   map[string]any{"type": "string"},
+				"context":   map[string]any{"type": "object"},
+			},
+		},
+		AIFillArea: AIFillArea{
+			PromptTemplate:       "",
+			DomainRules:          []string{},
+			Examples:             []any{},
+			PersonalizationNotes: "Reserved for project-specific prompts, examples, and user preferences.",
+		},
 	}
 }
 

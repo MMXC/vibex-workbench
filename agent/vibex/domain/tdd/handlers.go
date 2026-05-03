@@ -93,15 +93,15 @@ func MakeTddDesignHandler(workspaceDir string, bc Broadcaster) rt.Handler {
 
 		cases := generateTestCasesFromIO(io)
 		return fmt.Sprintf("TDD test cases designed:\nspec: %s\ntest_file: %s\nlanguage: %s\nframework: %s\ntest_count: %d\n\nTest cases generated from io_contract:\n%s\n\nNext: Run tests with tdd_run to see RED (failing) → then implement → GREEN (passing)",
-			specMeta.ID, testPath, args.TestLanguage, args.Framework, len(cases), cases)
+			specMeta.ID, testPath, args.TestLanguage, args.Framework, len(cases), fmt.Sprint(cases))
 	}
 }
 
 func MakeTddRunHandler(workspaceDir string, bc Broadcaster) rt.Handler {
 	return func(arguments string) string {
 		var args struct {
-			SpecPath    string `json:"spec_path"`
-			TestFile    string `json:"test_file"`
+			SpecPath     string `json:"spec_path"`
+			TestFile     string `json:"test_file"`
 			TestLanguage string `json:"test_language"`
 		}
 		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
@@ -184,8 +184,8 @@ func MakeTddRunHandler(workspaceDir string, bc Broadcaster) rt.Handler {
 func MakeTddIterateHandler(workspaceDir string, bc Broadcaster) rt.Handler {
 	return func(arguments string) string {
 		var args struct {
-			SpecPath    string `json:"spec_path"`
-			TestFile    string `json:"test_file"`
+			SpecPath     string `json:"spec_path"`
+			TestFile     string `json:"test_file"`
 			TestLanguage string `json:"test_language"`
 		}
 		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
@@ -533,27 +533,27 @@ func emitTDDCanvasNodes(specID, testID string, io IOPair, testPath string, bc Br
 	nodes := make([]map[string]interface{}, 0, len(cases)+3)
 
 	nodes = append(nodes, map[string]interface{}{
-		"type":   "tdd_phase",
-		"phase":  "RED",
-		"label":  "RED: Write failing tests",
-		"spec_id": specID,
-		"test_file": testPath,
+		"type":       "tdd_phase",
+		"phase":      "RED",
+		"label":      "RED: Write failing tests",
+		"spec_id":    specID,
+		"test_file":  testPath,
 		"test_count": len(cases),
-		"color":  "#ef4444",
+		"color":      "#ef4444",
 	})
 	nodes = append(nodes, map[string]interface{}{
-		"type":   "tdd_phase",
-		"phase":  "GREEN",
-		"label":  "GREEN: Implement to pass",
+		"type":    "tdd_phase",
+		"phase":   "GREEN",
+		"label":   "GREEN: Implement to pass",
 		"spec_id": specID,
-		"color":  "#22c55e",
+		"color":   "#22c55e",
 	})
 	nodes = append(nodes, map[string]interface{}{
-		"type":   "tdd_phase",
-		"phase":  "REFACTOR",
-		"label":  "REFACTOR: Clean up code",
+		"type":    "tdd_phase",
+		"phase":   "REFACTOR",
+		"label":   "REFACTOR: Clean up code",
 		"spec_id": specID,
-		"color":  "#3b82f6",
+		"color":   "#3b82f6",
 	})
 
 	for i, tc := range cases {
@@ -563,9 +563,9 @@ func emitTDDCanvasNodes(specID, testID string, io IOPair, testPath string, bc Br
 			"name":     tc.Name,
 			"input":    tc.Input,
 			"expected": tc.Expected,
-			"status":  "RED",
-			"spec_id": specID,
-			"test_id": testID,
+			"status":   "RED",
+			"spec_id":  specID,
+			"test_id":  testID,
 		})
 	}
 
@@ -592,13 +592,13 @@ func emitTDDCycleCanvas(specID, status string, passed, failed int, output string
 	}
 
 	bc(specID, "canvas.tdd_cycle", map[string]interface{}{
-		"spec_id":  specID,
-		"phase":    phase,
-		"status":   status,
-		"color":    color,
-		"passed":   passed,
-		"failed":   failed,
-		"output":   firstFewWords(output, 500),
+		"spec_id":   specID,
+		"phase":     phase,
+		"status":    status,
+		"color":     color,
+		"passed":    passed,
+		"failed":    failed,
+		"output":    firstFewWords(output, 500),
 		"timestamp": time.Now().Format(time.RFC3339),
 	})
 }

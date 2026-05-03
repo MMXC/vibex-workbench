@@ -6,6 +6,7 @@ type PlanGraph struct {
 	Version  string     `json:"version"`
 	Goal     string     `json:"goal"`
 	SpecPath string     `json:"spec_path,omitempty"`
+	SlotID   string     `json:"slot_id,omitempty"`
 	Mode     string     `json:"mode"`
 	Nodes    []PlanNode `json:"nodes"`
 	Edges    []PlanEdge `json:"edges"`
@@ -35,6 +36,7 @@ type ToolDescriptor struct {
 	Source      string         `json:"source"`
 	Schema      map[string]any `json:"schema,omitempty"`
 	Permissions []string       `json:"permissions,omitempty"`
+	AIFillArea  AIFillArea     `json:"ai_fill_area,omitempty"`
 }
 
 type CustomToolConfig struct {
@@ -43,8 +45,16 @@ type CustomToolConfig struct {
 	Description string         `json:"description"`
 	Schema      map[string]any `json:"schema,omitempty"`
 	Permissions []string       `json:"permissions,omitempty"`
+	AIFillArea  AIFillArea     `json:"ai_fill_area,omitempty"`
 	ExecuteMode string         `json:"execute_mode"`
 	Command     string         `json:"command,omitempty"`
+}
+
+type AIFillArea struct {
+	PromptTemplate       string   `json:"prompt_template,omitempty"`
+	DomainRules          []string `json:"domain_rules,omitempty"`
+	Examples             []any    `json:"examples,omitempty"`
+	PersonalizationNotes string   `json:"personalization_notes,omitempty"`
 }
 
 type RouteDecision struct {

@@ -23,7 +23,7 @@ structure:
 
 io:
   input:
-    - "name/kind/description/schema/permissions/execute_mode"
+    - "name/kind/description/schema/permissions/execute_mode/ai_fill_area"
   output:
     - "ToolDescriptor"
     - ".vibex/tools/<name>.json"
@@ -49,7 +49,7 @@ meta:
   module: "agent"
   owner: "hermes"
   created: "2026-05-03"
-  updated: "2026-05-03"
+  updated: "2026-05-04"
 
 lifecycle:
   current: "proposal"
@@ -57,13 +57,13 @@ lifecycle:
 
 io_contract:
   input: |
-    用户提交的 custom tool metadata。
+    用户提交的 custom tool metadata，可包含 ai_fill_area。
   output: |
     可被 tool registry 读取并参与 route preview 的 ToolDescriptor。
   boundary: |
     不实现 shell/custom process executor。
   behavior: |
-    1. 校验 name/kind/execute_mode
+    1. 校验 name/kind/execute_mode/ai_fill_area
     2. 写入 .vibex/tools/<name>.json
     3. 重新加载 registry
     4. GET /api/agent/tools 可见
@@ -76,9 +76,11 @@ content:
       detail: "注册表是路由描述，不是执行授权。"
     - rule: "Workspace scoped"
       detail: "所有自定义工具配置都位于当前 WorkspaceDir 下。"
+    - rule: "AI fill area"
+      detail: "ToolDescriptor 与 CustomToolConfig 必须保留 ai_fill_area，用于 agent 个性化补充工具提示、限制和说明。"
   verification:
     commands:
-      - "go test ./agent/..."
+      - "cd agent && go test ./vibex/domain/toolrouting"
 
 changelog:
   - version: "0.1"
@@ -86,5 +88,10 @@ changelog:
     author: "agent"
     changes:
       - "新增自定义工具注册表 slice"
+  - version: "0.2"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "补充 ai_fill_area 字段和正确的 agent 模块验证命令"
 ---
 

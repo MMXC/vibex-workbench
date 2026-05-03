@@ -15,18 +15,20 @@ func ToolSpecs(workspaceDir string) []rt.Spec {
 			Parameters: objectSchema(
 				reqField("goal", "string", "User goal or implementation intent"),
 				optField("spec_path", "string", "Optional spec path that anchors the graph"),
+				optField("slot_id", "string", "Optional canonical spec slot id for slot-aware routing"),
 				optField("mode", "string", "Routing mode, default plan-first"),
 			),
 			Handler: func(arguments string) string {
 				var req struct {
 					Goal     string `json:"goal"`
 					SpecPath string `json:"spec_path"`
+					SlotID   string `json:"slot_id"`
 					Mode     string `json:"mode"`
 				}
 				if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 					return "invalid args: " + err.Error()
 				}
-				return encode(r.CreatePlanGraph(req.Goal, req.SpecPath, req.Mode))
+				return encode(r.CreatePlanGraph(req.Goal, req.SpecPath, req.Mode, req.SlotID))
 			},
 		},
 		{

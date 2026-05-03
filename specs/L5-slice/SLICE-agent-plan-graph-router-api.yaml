@@ -26,7 +26,7 @@ structure:
 
 io:
   input:
-    - "goal/spec_path/mode"
+    - "goal/spec_path/mode/slot_id"
     - "PlanGraph JSON"
   output:
     - "PlanGraph"
@@ -52,7 +52,7 @@ meta:
   module: "agent"
   owner: "hermes"
   created: "2026-05-03"
-  updated: "2026-05-03"
+  updated: "2026-05-04"
 
 lifecycle:
   current: "proposal"
@@ -60,7 +60,7 @@ lifecycle:
 
 io_contract:
   input: |
-    goal/spec_path 或已有 PlanGraph。
+    goal/spec_path/slot_id 或已有 PlanGraph。
   output: |
     JSON 格式的 PlanGraph 或 RoutePreview。
   boundary: |
@@ -81,9 +81,11 @@ content:
       detail: "优先 node.tool 精确匹配，其次 node.kind 匹配。"
     - rule: "Custom tools are metadata-only"
       detail: "MVP 不执行用户提供 command。"
+    - rule: "Spec slot graph is explicit"
+      detail: "mode=spec-slot-routing 时必须保留 slot_id，并生成槽位专用节点。"
   verification:
     commands:
-      - "go test ./agent/..."
+      - "cd agent && go test ./vibex/domain/toolrouting"
 
 changelog:
   - version: "0.1"
@@ -91,5 +93,10 @@ changelog:
     author: "agent"
     changes:
       - "新增计划图路由 API slice"
+  - version: "0.2"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "补充 slot_id 入参与 spec-slot-routing 验证命令"
 ---
 

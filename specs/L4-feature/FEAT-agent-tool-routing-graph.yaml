@@ -25,13 +25,17 @@ structure:
     - "agent/vibex/domain/toolrouting/*.go"
     - "agent/cmd/web/tool_routing_handlers.go"
     - "agent/cmd/web/server.go"
+    - "frontend/src/lib/services/tool-routing-client.ts"
+    - "frontend/src/lib/stores/spec-slot-session-store.ts"
+    - "frontend/src/lib/components/workbench/SpecSlotDrawer.svelte"
 
 io:
   input:
-    - "用户实现意图、当前 spec path、已有 workspace/tool 配置"
+    - "用户实现意图、当前 spec path、slot_id、已有 workspace/tool 配置"
   output:
     - "PlanGraph JSON"
     - "ToolRoutePreview JSON"
+    - "FireworksGraph UI model"
     - "可注册但默认不执行的 custom tool metadata"
   boundary: "本 feature 只定义计划图和工具路由，不默认执行任意自定义命令，不绕过用户确认写代码。"
 
@@ -49,6 +53,14 @@ constraints:
       name: "Human confirmation gate"
       rule: "写文件、执行命令或生成代码前必须经过可见路由图确认。"
       verification: "PlanGraph 中包含 gate.confirm 节点。"
+    - id: "C4"
+      name: "Slot-aware routing"
+      rule: "Spec 槽位澄清必须携带 slot_id，并路由到结构、I/O、约束、原型、实现等专用工具。"
+      verification: "plan_graph_create 支持 slot_id，spec-slot-routing mode 返回对应 slot 节点。"
+    - id: "C5"
+      name: "AI fill area"
+      rule: "内置/自定义工具描述必须预留 ai_fill_area，供 agent 个性化补充工具说明、约束和提示。"
+      verification: "ToolDescriptor/CustomToolConfig 包含 ai_fill_area。"
   forbidden:
     - "把用户自定义工具注册成默认可执行 shell 命令"
     - "跳过路由图直接调用 write_file/batch 生成代码"
@@ -63,7 +75,7 @@ meta:
   module: "agent"
   owner: "hermes"
   created: "2026-05-03"
-  updated: "2026-05-03"
+  updated: "2026-05-04"
 
 lifecycle:
   current: "proposal"
@@ -71,7 +83,7 @@ lifecycle:
 
 io_contract:
   input: |
-    用户向 agent 提出实现、生成、验证或工具扩展意图。
+    用户向 agent 提出实现、生成、验证、Spec 槽位澄清或工具扩展意图。
   output: |
     Go agent 先产出可审查的执行图和工具路由预览，再由用户确认后进入执行。
   boundary: |
@@ -80,6 +92,8 @@ io_contract:
     - "创建 PlanGraph"
     - "路由每个节点到内置或自定义工具"
     - "展示需要确认的节点"
+    - "按 slot_id 生成槽位专用计划图"
+    - "转换 FireworksGraph 供前端动态图展示"
     - "保存自定义工具 metadata"
 
 content:
@@ -99,6 +113,11 @@ content:
       action: "保存 .vibex/tools/<name>.json metadata"
       expected_result: "工具出现在 tool registry 中，可参与后续路由"
       error_handling: "非法 name/kind 或 execute_mode 被拒绝"
+    - id: "B4"
+      trigger: "用户点击 Spec 槽位（结构/输入/输出/约束/原型/实现）"
+      action: "创建 mode=spec-slot-routing 且包含 slot_id 的 PlanGraph，并生成 route preview / FireworksGraph"
+      expected_result: "SpecSlotDrawer 展示槽位澄清对话、路由决策和动态图谱"
+      error_handling: "tool routing API 不可用时保留对话入口并显示可恢复错误"
 
   test_scenarios:
     - id: "TC-1"
@@ -113,6 +132,12 @@ content:
       when: "POST /api/agent/tools/custom"
       then: "写入 .vibex/tools/<name>.json 并可被 GET /api/agent/tools 读取"
       evaluation: "非 metadata_only 被拒绝"
+    - id: "TC-3"
+      scenario: "创建槽位计划图"
+      given: "goal/spec_path/slot_id"
+      when: "POST /api/agent/plan-graph mode=spec-slot-routing"
+      then: "返回 graph.slot_id 且节点匹配当前槽位"
+      evaluation: "RoutePreview 命中内置槽位工具，且工具包含 ai_fill_area"
 
 changelog:
   - version: "0.1"
@@ -120,5 +145,10 @@ changelog:
     author: "agent"
     changes:
       - "新增 agent 工具路由图 feature"
+  - version: "0.2"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "补充 slot_id 槽位路由、FireworksGraph 展示模型与 ai_fill_area 规则"
 ---
 

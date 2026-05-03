@@ -3,13 +3,11 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
-	"strings"
 	"time"
 )
 
@@ -17,7 +15,7 @@ import (
 type qaRunnerRequest struct {
 	WorkspaceRoot string `json:"workspace_root"`
 	Scenario      string `json:"scenario"` // "e2e", "smoke", "spec-verify"
-	Tags          string `json:"tags"`      // comma-separated playwright tags
+	Tags          string `json:"tags"`     // comma-separated playwright tags
 }
 
 // qaRunnerResult is the response from a QA run.
