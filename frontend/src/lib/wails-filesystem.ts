@@ -64,15 +64,63 @@ function inferLevelFromPath(path: string): number {
 	return match ? Number(match[1]) : 0;
 }
 
+function normalizeSpecPath(path: string): string {
+	const normalized = path.replace(/\\/g, '/').replace(/^\/+/, '');
+	return normalized.startsWith('specs/') ? normalized : `specs/${normalized}`;
+}
+
+function parseSpecListPayload(payload: unknown): WailsSpecFile[] {
+	if (!payload || typeof payload !== 'object') return [];
+	const record = payload as Record<string, unknown>;
+	const raw = Array.isArray(record.paths)
+		? record.paths
+		: Array.isArray(record.specs)
+			? record.specs
+			: Array.isArray(record.files)
+				? record.files
+				: [];
+
+	return raw
+		.map(item => {
+			if (typeof item === 'string') {
+				const path = normalizeSpecPath(item);
+				return {
+					path,
+					level: inferLevelFromPath(path),
+					name: path.split('/').pop() ?? path,
+					status: 'active',
+				};
+			}
+			if (item && typeof item === 'object') {
+				const spec = item as Partial<WailsSpecFile> & { filePath?: string; filepath?: string };
+				const rawPath = spec.path ?? spec.filePath ?? spec.filepath;
+				if (typeof rawPath !== 'string') return null;
+				const path = normalizeSpecPath(rawPath);
+				return {
+					path,
+					level: spec.level || inferLevelFromPath(path),
+					name: spec.name || path.split('/').pop() || path,
+					status: spec.status || 'active',
+					display: spec.display,
+					slots: spec.slots,
+				};
+			}
+			return null;
+		})
+		.filter((item): item is WailsSpecFile => item !== null);
+}
+
 async function enrichSpecFiles(root: string, files: WailsSpecFile[]): Promise<WailsSpecFile[]> {
 	return Promise.all(
 		files.map(async file => {
+			const path = normalizeSpecPath(file.path);
 			try {
-				const content = await wailsReadSpecFile(root, file.path);
-				const meta = extractSpecDisplay(content, file.path);
+				const content = await wailsReadSpecFile(root, path);
+				const meta = extractSpecDisplay(content, path);
 				return {
 					...file,
-					level: file.level || levelTokenToNumber(meta.level) || inferLevelFromPath(file.path),
+					path,
+					level: file.level || levelTokenToNumber(meta.level) || inferLevelFromPath(path),
 					name: meta.name || file.name,
 					status: meta.status || file.status,
 					display: meta.display,
@@ -81,7 +129,8 @@ async function enrichSpecFiles(root: string, files: WailsSpecFile[]): Promise<Wa
 			} catch {
 				return {
 					...file,
-					level: file.level || inferLevelFromPath(file.path),
+					path,
+					level: file.level || inferLevelFromPath(path),
 				};
 			}
 		})
@@ -95,8 +144,7 @@ async function enrichSpecFiles(root: string, files: WailsSpecFile[]): Promise<Wa
  * 生产用 Wails binding，开发用 HTTP fallback。
  */
 export async function wailsListSpecs(root: string): Promise<WailsSpecFile[]> {
-	if (!root) return [];
-	if (!isLikelyFullPath(root)) {
+	if (root && !isLikelyFullPath(root)) {
 		throw new Error(`Invalid workspace root (not full path): ${root}`);
 	}
 
@@ -119,17 +167,14 @@ export async function wailsListSpecs(root: string): Promise<WailsSpecFile[]> {
 
 	// HTTP fallback for browser dev
 	console.log('[wails-filesystem] ListSpecs via HTTP, root=', root);
-	const r = await fetch(
-		`/api/workspace/specs/list?workspaceRoot=${encodeURIComponent(root)}`
-	);
+	const query = root ? `?workspaceRoot=${encodeURIComponent(root)}` : '';
+	const r = await fetch(`/api/workspace/specs/list${query}`);
 	if (!r.ok) return [];
 	const j = await r.json();
-	const files = (j.paths ?? []).map((p: string) => ({
-		path: p,
-		level: inferLevelFromPath(p),
-		name: p.split('/').pop() ?? p,
-		status: 'active',
-	}));
+	const files = parseSpecListPayload(j);
+	if (files.length === 0) {
+		console.warn('[wails-filesystem] ListSpecs returned no parsable spec files:', j);
+	}
 	return enrichSpecFiles(root, files);
 }
 
@@ -142,8 +187,8 @@ export async function wailsReadSpecFile(
 	root: string,
 	path: string
 ): Promise<string> {
-	if (!root || !path) throw new Error('root and path required');
-	if (!isLikelyFullPath(root)) {
+	if (!path) throw new Error('path required');
+	if (root && !isLikelyFullPath(root)) {
 		throw new Error(`Invalid workspace root (not full path): ${root}`);
 	}
 
@@ -161,9 +206,9 @@ export async function wailsReadSpecFile(
 	}
 
 	// HTTP fallback
-	const r = await fetch(
-		`/api/workspace/specs/read?workspaceRoot=${encodeURIComponent(root)}&path=${encodeURIComponent(path)}`
-	);
+	const params = new URLSearchParams({ path });
+	if (root) params.set('workspaceRoot', root);
+	const r = await fetch(`/api/workspace/specs/read?${params.toString()}`);
 	if (!r.ok) throw new Error(await r.text());
 	const j = await r.json();
 	return (j.content ?? '') as string;

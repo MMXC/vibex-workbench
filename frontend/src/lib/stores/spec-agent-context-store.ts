@@ -10,6 +10,7 @@ type SpecAgentContextState = {
 	items: SpecContextItem[];
 	expanded: boolean;
 	focusedPath: string | null;
+	draftCommand: { id: string; text: string } | null;
 };
 
 export type SpecCommand = {
@@ -45,6 +46,12 @@ export const specCommands: SpecCommand[] = [
 		description: '只分析，不修改文件',
 	},
 	{
+		name: '/clarify',
+		levels: ['L1', 'L2', 'L3', 'L4', 'L5', 'IMPL', 'UNKNOWN'],
+		sample: '/clarify "交互式澄清当前 spec 的缺失槽位"',
+		description: '进入交互式可视化澄清，补齐结构、输入、输出、原型或实现边界',
+	},
+	{
 		name: '/confirm',
 		levels: ['L1', 'L2', 'L3', 'L4', 'L5', 'IMPL', 'UNKNOWN'],
 		sample: '/confirm "确认 spec"',
@@ -69,6 +76,7 @@ function createSpecAgentContextStore() {
 		items: [],
 		expanded: false,
 		focusedPath: null,
+		draftCommand: null,
 	});
 
 	return {
@@ -81,8 +89,15 @@ function createSpecAgentContextStore() {
 					attachedAt: new Date().toISOString(),
 				};
 				const items = [item, ...state.items.filter(existing => existing.path !== spec.path)].slice(0, 8);
-				return { ...state, items, focusedPath: spec.path };
+				return { ...state, items, expanded: true, focusedPath: spec.path };
 			});
+		},
+		prefillCommand(text: string) {
+			update(state => ({
+				...state,
+				expanded: true,
+				draftCommand: { id: crypto.randomUUID(), text },
+			}));
 		},
 		removeSpec(path: string) {
 			update(state => {
@@ -98,7 +113,7 @@ function createSpecAgentContextStore() {
 			update(state => ({ ...state, expanded: !state.expanded }));
 		},
 		clear() {
-			set({ items: [], expanded: false, focusedPath: null });
+			set({ items: [], expanded: false, focusedPath: null, draftCommand: null });
 		},
 	};
 }

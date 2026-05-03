@@ -3,35 +3,17 @@
      生产用 Wails binding，开发用 HTTP fallback（见 wails-filesystem.ts）
 -->
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { get } from 'svelte/store';
 	import { specExplorerStore, workspaceDisplayName } from '$lib/stores/spec-explorer-store';
-	import type { SpecDisplay, SpecSlotModel, SpecSlotSummary } from '$lib/workbench/spec-display';
+	import type { SpecSlotSummary } from '$lib/workbench/spec-display';
 	import { fallbackDisplayTitle } from '$lib/workbench/spec-display';
-
-	// 订阅 store 中的 specs 列表
-	let specs = $state<
-		{ path: string; level: number; name: string; status: string; display?: SpecDisplay; slots?: SpecSlotModel }[]
-	>([]);
-	let specsLoading = $state(false);
-	let specsError = $state<string | null>(null);
-	let selectedPath = $state<string | null>(null);
-	let currentWorkspaceRoot = $state('');
-
-	// 订阅 store（列表 + 选中状态）
-	$effect(() => {
-		const unsub = specExplorerStore.subscribe(s => {
-			specs = s.specs;
-			specsLoading = s.specsLoading;
-			specsError = s.specsError;
-			selectedPath = s.selectedSpecPath;
-			currentWorkspaceRoot = s.workspaceRoot;
-		});
-		return unsub;
-	});
 
 	/** 手动刷新（点击 ↻ 按钮） */
 	function reload() {
-		if (!currentWorkspaceRoot) return;
-		specExplorerStore.loadList(currentWorkspaceRoot);
+		const root = get(specExplorerStore).workspaceRoot;
+		if (!root) return;
+		specExplorerStore.loadList(root);
 	}
 
 	function depthIndent(path: string): number {
@@ -57,6 +39,34 @@
 		if (slot.status === 'na') return '不适用';
 		return '待补';
 	}
+
+	function isLikelyFullPath(path: string | null): path is string {
+		return !!path && (path.includes('/') || path.includes('\\'));
+	}
+
+	async function restoreWorkspaceRoot() {
+		const saved = localStorage.getItem('vibex-workspace-root');
+		if (isLikelyFullPath(saved)) {
+			specExplorerStore.setWorkspaceRoot(saved);
+			return;
+		}
+		try {
+			const res = await fetch('/api/workspace/detect-state');
+			if (!res.ok) return;
+			const data = await res.json();
+			const root = data.workspaceRoot ?? data.workspace_root;
+			if (isLikelyFullPath(root)) {
+				localStorage.setItem('vibex-workspace-root', root);
+				specExplorerStore.setWorkspaceRoot(root);
+			}
+		} catch (e) {
+			console.warn('[SpecExplorer] failed to restore backend workspace root:', e);
+		}
+	}
+
+	onMount(() => {
+		if (!get(specExplorerStore).workspaceRoot) void restoreWorkspaceRoot();
+	});
 </script>
 
 <div class="spec-explorer">
@@ -73,21 +83,22 @@
 		<span class="workspace-actions">···</span>
 	</div>
 
-	{#if !currentWorkspaceRoot}
+	{#if !$specExplorerStore.workspaceRoot}
 		<p class="muted pad">未设置工作区</p>
-	{:else if specsLoading}
+	{:else if $specExplorerStore.specsLoading}
 		<p class="muted pad">加载中…</p>
-	{:else if specsError}
-		<p class="err pad">{specsError}</p>
-	{:else if specs.length === 0}
+	{:else if $specExplorerStore.specsError}
+		<p class="err pad">{$specExplorerStore.specsError}</p>
+	{:else if $specExplorerStore.specs.length === 0}
 		<p class="muted pad">无 spec 文件（点击工具栏「初始化」开始）</p>
 	{:else}
 		<div class="tree" role="tree">
 			<div class="tree-section">
 				<span class="chevron">▾</span>
 				<span>specs</span>
+				<span class="tree-count">{$specExplorerStore.specs.length}</span>
 			</div>
-			{#each specs as item (item.path)}
+			{#each $specExplorerStore.specs as item (item.path)}
 				{@const title = item.display?.title || fallbackDisplayTitle(item.name)}
 				{@const summary = item.display?.summary || compactPath(item.path)}
 				{@const level = item.level > 0 ? `L${item.level}` : 'SPEC'}
@@ -99,8 +110,8 @@
 					class:module={item.level === 3}
 					class:feature={item.level === 4}
 					class:slice={item.level >= 5}
-					class:active={selectedPath === item.path}
-					style:--depth="{depthIndent(item.path)}"
+					class:active={$specExplorerStore.selectedSpecPath === item.path}
+					style:--depth-indent="{depthIndent(item.path) * 4}px"
 					onclick={() => specExplorerStore.selectSpec(item.path)}
 				>
 					<span class="ws-accent"></span>
@@ -201,6 +212,18 @@
 		white-space: nowrap;
 	}
 
+	.tree-count {
+		margin-left: auto;
+		min-width: 18px;
+		padding: 1px 6px;
+		border-radius: 999px;
+		background: rgba(122, 162, 255, 0.14);
+		color: var(--wb-text-sec, #a3abb9);
+		text-align: center;
+		font-size: 10px;
+		font-weight: 700;
+	}
+
 	.workspace-actions {
 		color: var(--wb-muted, #6f7888);
 		font-weight: 400;
@@ -247,23 +270,26 @@
 
 	.tree {
 		flex: 1;
+		min-height: 0;
 		overflow-y: auto;
 		padding: 10px;
-		display: grid;
-		align-content: start;
+		display: flex;
+		flex-direction: column;
 		gap: 7px;
 	}
 
 	.ws-item {
 		position: relative;
-		display: grid;
-		grid-template-columns: 5px 1fr;
+		flex-shrink: 0;
+		display: flex;
 		align-items: stretch;
 		gap: 0;
 		width: 100%;
+		min-height: 88px;
 		padding: 0;
 		border: 1px solid transparent;
 		border-radius: 13px;
+		box-sizing: border-box;
 		background: rgba(28, 32, 42, 0.62);
 		cursor: pointer;
 		color: #eef0f5;
@@ -290,6 +316,7 @@
 
 	.ws-accent {
 		display: block;
+		flex: 0 0 5px;
 		background: #7aa2ff;
 	}
 
@@ -314,10 +341,12 @@
 	}
 
 	.ws-main {
+		flex: 1;
 		min-width: 0;
 		padding: 10px 10px 9px;
-		padding-left: calc(10px + var(--depth, 0) * 4px);
-		display: grid;
+		padding-left: calc(10px + var(--depth-indent, 0px));
+		display: flex;
+		flex-direction: column;
 		gap: 5px;
 	}
 

@@ -1,6 +1,7 @@
 <!-- 非 L1 总目标时的轻量「图谱」：中心为 spec，周围为 canonical 槽位卡片 -->
 <script lang="ts">
 	import { specAgentContextStore } from '$lib/stores/spec-agent-context-store';
+	import { specSlotSessionStore } from '$lib/stores/spec-slot-session-store';
 	import { extractSpecDisplay, type SpecSlotSummary } from '$lib/workbench/spec-display';
 
 	let { specPath, content }: { specPath: string; content: string } = $props();
@@ -47,6 +48,19 @@
 		if (slot.status === 'na') return '不适用';
 		return '待补充';
 	}
+
+	function slotActionLabel(slot: SpecSlotSummary): string {
+		if (slot.status === 'missing' || slot.status === 'empty') return '澄清补全';
+		if (slot.id === 'input' || slot.id === 'output') return '校验 I/O';
+		if (slot.id === 'implementation') return '实现路由';
+		if (slot.id === 'prototype') return '澄清原型';
+		return '分析';
+	}
+
+	function runSlotAction(slot: SpecSlotSummary) {
+		specAgentContextStore.addSpec(specMeta, content);
+		specSlotSessionStore.open({ spec: specMeta, slot, content });
+	}
 </script>
 
 <div class="generic-graph">
@@ -72,16 +86,19 @@
 		{/if}
 
 		{#each slotCards as slot, i (slot.id)}
-			<div
+			<button
+				type="button"
 				class="orbit-card slot-card {slot.status}"
 				style:left="{childLeft}%"
 				style:top="{15 + i * 12}%"
-				title={slot.summary}
+				title={`${slot.summary} · 点击进入${slotActionLabel(slot)}`}
+				onclick={() => runSlotAction(slot)}
 			>
 				<span class="k">{slot.label}</span>
 				<strong>{slotValue(slot)}</strong>
 				<small>{slot.summary}</small>
-			</div>
+				<em>{slotActionLabel(slot)}</em>
+			</button>
 		{/each}
 
 		{#if currentLane !== 'L5'}
@@ -349,6 +366,19 @@
 	.slot-card {
 		display: grid;
 		gap: 3px;
+		pointer-events: auto;
+		cursor: pointer;
+		font-family: inherit;
+		transition:
+			border-color 140ms ease,
+			background 140ms ease,
+			transform 140ms ease;
+	}
+
+	.slot-card:hover {
+		border-color: rgba(122, 162, 255, 0.76);
+		background: rgba(122, 162, 255, 0.13);
+		transform: translate(-50%, -50%) translateY(-1px);
 	}
 
 	.slot-card.present {
@@ -375,6 +405,20 @@
 		white-space: nowrap;
 		color: #858fa1;
 		font-size: 9px;
+	}
+
+	.slot-card em {
+		display: inline-flex;
+		width: max-content;
+		max-width: 100%;
+		margin-top: 3px;
+		padding: 2px 6px;
+		border-radius: 999px;
+		background: rgba(12, 14, 19, 0.48);
+		color: #a3abb9;
+		font-style: normal;
+		font-size: 9px;
+		font-weight: 800;
 	}
 
 	.relation-card {

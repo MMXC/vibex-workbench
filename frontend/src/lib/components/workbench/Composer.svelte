@@ -40,6 +40,7 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
     expanded: false,
     focusedPath: null,
   });
+  let lastDraftCommandId = $state<string | null>(null);
   let showCommandPalette = $state(false);
   let commandQuery = $state('');
 
@@ -87,6 +88,13 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
   $effect(() => {
     const unsub = specAgentContextStore.subscribe(s => {
       contextState = s;
+      if (s.draftCommand && s.draftCommand.id !== lastDraftCommandId) {
+        lastDraftCommandId = s.draftCommand.id;
+        content = s.draftCommand.text;
+        showCommandPalette = false;
+        commandQuery = s.draftCommand.text.split(/\s+/)[0]?.toLowerCase() ?? '';
+        queueMicrotask(() => textareaEl?.focus());
+      }
     });
     return unsub;
   });

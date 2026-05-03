@@ -3,12 +3,14 @@
 	import WorkbenchBootstrapPrototype from '$lib/components/workbench/WorkbenchBootstrapPrototype.svelte';
 	import CanvasRenderer from '$lib/components/workbench/CanvasRenderer.svelte';
 	import ArtifactPanel from '$lib/components/workbench/ArtifactPanel.svelte';
+	import SpecDashboardConsole from '$lib/components/workbench/SpecDashboardConsole.svelte';
 
-	type TabId = 'bootstrap' | 'canvas' | 'artifacts' | 'spec_text' | 'diff';
+	type TabId = 'dashboard' | 'bootstrap' | 'canvas' | 'artifacts' | 'spec_text' | 'diff';
 
-	let active = $state<TabId>('canvas');
+	let active = $state<TabId>('dashboard');
 
 	const tabs: { id: TabId; label: string }[] = [
+		{ id: 'dashboard', label: '控制台' },
 		{ id: 'canvas', label: '画布' },
 		{ id: 'artifacts', label: '构件' },
 		{ id: 'spec_text', label: 'Spec 文本' },
@@ -34,7 +36,11 @@
 	</div>
 
 	<div class="pane-stack">
-		{#if active === 'bootstrap'}
+		{#if active === 'dashboard'}
+			<div class="pane dashboard-pane">
+				<SpecDashboardConsole />
+			</div>
+		{:else if active === 'bootstrap'}
 			<div class="pane prototype-pane">
 				<WorkbenchBootstrapPrototype />
 			</div>
@@ -138,6 +144,10 @@
 	}
 
 	.canvas-pane {
+		background: var(--wb-bg-base, #0b0c10);
+	}
+
+	.dashboard-pane {
 		background: var(--wb-bg-base, #0b0c10);
 	}
 

@@ -16,7 +16,8 @@
 	} from '$lib/workbench/spec-convention';
 	import { wailsReadSpecFile, wailsWriteSpecFile } from '$lib/wails-filesystem';
 	import { specAgentContextStore } from '$lib/stores/spec-agent-context-store';
-	import { extractSpecDisplay } from '$lib/workbench/spec-display';
+	import { specSlotSessionStore } from '$lib/stores/spec-slot-session-store';
+	import { extractSpecDisplay, type SpecSlotSummary } from '$lib/workbench/spec-display';
 	import { get } from 'svelte/store';
 
 	let selectedPath = $state<string | null>(null);
@@ -208,6 +209,21 @@
 		if (status === 'na') return '不适用';
 		return '待补充';
 	}
+
+	function slotActionLabel(slot: SpecSlotSummary): string {
+		if (slot.status === 'missing' || slot.status === 'empty') return '澄清补全';
+		if (slot.id === 'input' || slot.id === 'output') return '校验 I/O';
+		if (slot.id === 'implementation') return '实现路由';
+		if (slot.id === 'prototype') return '澄清原型';
+		return '分析';
+	}
+
+	function runSlotAction(slot: SpecSlotSummary) {
+		if (!selectedPath || !raw) return;
+		const meta = extractSpecDisplay(raw, selectedPath);
+		specAgentContextStore.addSpec(meta, raw);
+		specSlotSessionStore.open({ spec: meta, slot, content: raw });
+	}
 	$effect(() => {
 		if (!editMode) return;
 		const onBeforeunload = (e: BeforeUnloadEvent) => {
@@ -246,8 +262,8 @@
 				Spec 文本
 			</button>
 			<span class="spec-tab-spacer"></span>
-			<button type="button" class="spec-close" onclick={() => specExplorerStore.selectSpec(null)}>
-				返回画布
+			<button type="button" class="spec-close" onclick={() => specExplorerStore.returnToDashboard()}>
+				返回控制台
 			</button>
 		</div>
 
@@ -295,10 +311,18 @@
 			</div>
 			<div class="slot-strip" aria-label="canonical spec 槽位">
 				{#each displayMeta.slots.all as slot (slot.id)}
-					<span class="slot-pill {slot.status}" title={slot.summary}>
-						<span>{slot.label}</span>
-						<strong>{slotLabel(slot.status, slot.count)}</strong>
-					</span>
+					<button
+						type="button"
+						class="slot-pill {slot.status}"
+						title={`${slot.summary} · 点击进入${slotActionLabel(slot)}`}
+						onclick={() => runSlotAction(slot)}
+					>
+						<span class="slot-pill-main">
+							<span>{slot.label}</span>
+							<strong>{slotLabel(slot.status, slot.count)}</strong>
+						</span>
+						<em>{slotActionLabel(slot)}</em>
+					</button>
 				{/each}
 			</div>
 		{/if}
@@ -536,12 +560,40 @@
 		align-items: center;
 		gap: 6px;
 		min-height: 22px;
-		padding: 0 8px;
+		padding: 3px 8px;
 		border: 1px solid rgba(70, 80, 100, 0.78);
 		border-radius: 999px;
+		background: rgba(28, 32, 42, 0.72);
 		color: #858fa1;
 		font-size: 10px;
 		font-weight: 700;
+		font-family: inherit;
+		cursor: pointer;
+		transition:
+			background 140ms ease,
+			border-color 140ms ease,
+			color 140ms ease;
+	}
+
+	.slot-pill:hover {
+		color: #eef0f5;
+		border-color: rgba(122, 162, 255, 0.72);
+		background: rgba(122, 162, 255, 0.13);
+	}
+
+	.slot-pill-main {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+	}
+
+	.slot-pill em {
+		padding-left: 6px;
+		border-left: 1px solid rgba(70, 80, 100, 0.7);
+		color: #a3abb9;
+		font-style: normal;
+		font-size: 9px;
+		font-weight: 800;
 	}
 
 	.slot-pill strong {

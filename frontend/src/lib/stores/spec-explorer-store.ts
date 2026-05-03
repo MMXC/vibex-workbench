@@ -7,11 +7,15 @@ export type LeftActivity = 'explorer' | 'git' | 'search' | 'extensions';
 
 /** 规格主区：图谱 | 文本 */
 export type SpecCenterView = 'graph' | 'text';
+export type SpecDashboardLevel = 'goal' | 'skeleton' | 'module' | 'feature' | 'slice';
+export type SpecReturnTarget = 'dashboard' | null;
 
 export type SpecExplorerState = {
 	leftActivity: LeftActivity;
 	selectedSpecPath: string | null;
 	centerView: SpecCenterView;
+	dashboardLevel: SpecDashboardLevel;
+	returnTarget: SpecReturnTarget;
 	/** 当前 workspace 根路径，切换时驱动 SpecExplorer 刷新文件树 */
 	workspaceRoot: string;
 	/** 规格文件列表（从 store 加载） */
@@ -26,6 +30,8 @@ const initial: SpecExplorerState = {
 	leftActivity: 'explorer',
 	selectedSpecPath: null,
 	centerView: 'graph',
+	dashboardLevel: 'goal',
+	returnTarget: 'dashboard',
 	workspaceRoot: '',
 	specs: [],
 	specsLoading: false,
@@ -49,6 +55,7 @@ function createSpecExplorerStore() {
 		update(s => ({ ...s, specsLoading: true, specsError: null }));
 		try {
 			const files: WailsSpecFile[] = await wailsListSpecs(root);
+			console.log('[spec-explorer-store] loaded specs:', files.length, 'root=', root);
 			update(s => ({
 				...s,
 				specs: files.map(f => ({
@@ -82,16 +89,30 @@ function createSpecExplorerStore() {
 			update(s => ({ ...s, leftActivity: act }));
 		},
 
-		selectSpec(path: string | null) {
+		selectSpec(path: string | null, returnTarget: SpecReturnTarget = 'dashboard') {
 			update(s => ({
 				...s,
 				selectedSpecPath: path,
 				centerView: 'graph',
+				returnTarget: path ? returnTarget : s.returnTarget,
+			}));
+		},
+
+		returnToDashboard() {
+			update(s => ({
+				...s,
+				selectedSpecPath: null,
+				centerView: 'graph',
+				returnTarget: 'dashboard',
 			}));
 		},
 
 		setCenterView(view: SpecCenterView) {
 			update(s => ({ ...s, centerView: view }));
+		},
+
+		setDashboardLevel(level: SpecDashboardLevel) {
+			update(s => ({ ...s, dashboardLevel: level }));
 		},
 
 		/** 切换 workspace 根路径，同时清空选中状态并触发文件树刷新 */
