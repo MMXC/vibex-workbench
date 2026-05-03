@@ -30,7 +30,6 @@ structure:
   - frontend/src/lib/components/workbench/StatusBar.svelte
   - frontend/src/lib/components/workbench/WorkbenchTitlebar.svelte
   - specs/L5-slice/SLICE-wails-binding-guard.yaml
-  - backend/agent/cmd/web/workspace_make.go
   - generators/validate_specs.py
 
 io:
@@ -239,8 +238,8 @@ content:
       note: 「lint-specs」/ 「generate」菜单按钮触发 eventsEmit
     - file: specs/L5-slice/SLICE-wails-binding-guard.yaml
       note: 菜单类业务调用守卫约束来源
-    - file: backend/agent/cmd/web/workspace_make.go
-      note: POST /api/workspace/run-make 的 backend 实现
+    - file: main.go
+      note: POST /api/workspace/run-make 的 backend 实现（已在 main.go RunMake()）
     - file: generators/validate_specs.py
       note: lint-specs 实际执行的脚本
     generation_order:
