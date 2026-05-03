@@ -18,9 +18,19 @@ export default defineConfig({
 		port: 5173,
 		strictPort: false,
 		proxy: {
+			// SvelteKit handles /api/workspace/* (spec list, verify, scaffold, etc.)
+			// Only proxy non-workspace /api/* to Go backend
 			'/api': {
 				target: `http://localhost:${BACKEND_PORT}`,
 				changeOrigin: true,
+				bypass(req) {
+					// Let SvelteKit handle /api/workspace/* routes
+					if (req.url?.startsWith('/api/workspace/')) {
+						return false;
+					}
+					// Proxy everything else to Go backend
+					return null;
+				},
 			},
 		},
 	},
