@@ -296,19 +296,13 @@ content:
       note: WORKSPACE_ROOT 输入/选择
     - file: frontend/src/lib/components/workbench/SpecExplorer.svelte
       note: spec 列表 + 选中触发 spec 编辑
-    generation_order: '1. FEAT-state-detection（状态探测，L4 最先实现）
-
-      2. FEAT-workspace-selector（路径选择）
-
-      3. FEAT-scaffolding（脚手架生成）
-
-      4. FEAT-spec-editor（spec 读写）
-
-      5. FEAT-make-integration（make 按钮）
-
-      6. FEAT-workspace-lifecycle（整体编排）
-
-      '
+    generation_order:
+      - '1. FEAT-state-detection（状态探测，L4 最先实现）'
+      - '2. FEAT-workspace-selector（路径选择）'
+      - '3. FEAT-scaffolding（脚手架生成）'
+      - '4. FEAT-spec-editor（spec 读写）'
+      - '5. FEAT-make-integration（make 按钮）'
+      - '6. FEAT-workspace-lifecycle（整体编排）'
 changelog:
 - version: '0.1'
   date: '2026-04-26'

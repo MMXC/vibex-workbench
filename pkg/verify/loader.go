@@ -112,25 +112,15 @@ func (l *Loader) loadFile(path string) (*Spec, error) {
 		Structure struct {
 			Parent        string   `yaml:"parent"`
 			Children      []string `yaml:"children"`
-			Dependencies   []string `yaml:"dependencies"`
+			Dependencies  []string `yaml:"dependencies"`
 			ImpactedFiles []string `yaml:"impacted_files"`
 		} `yaml:"structure"`
-		Content struct {
-			FilePath        string            `yaml:"file_path"`
-			FileType        string            `yaml:"file_type"`
-			Behaviors       []Behavior        `yaml:"behaviors"`
-			UserStories     []UserStory       `yaml:"user_stories"`
-			TestScenarios   []TestScenario    `yaml:"test_scenarios"`
-			GenerationRules []GenRule         `yaml:"generation_rules"`
-			Verification    *Verification     `yaml:"verification"`
-			Constraints     []Constraint      `yaml:"constraints"`
-			L4L5Lineage     *L4L5Lineage     `yaml:"l4_l5_lineage"`
-			L3L4Lineage     *L3L4Lineage     `yaml:"l3_l4_lineage"`
-		} `yaml:"content"`
+		// Content can be a map (single-entry) or []any (multi-file list)
+		Content       any   `yaml:"content"`
 		Prototype struct {
-			File       string   `yaml:"file"`
-			Validates  []string `yaml:"validates"`
-			Status     string   `yaml:"status"`
+			File      string   `yaml:"file"`
+			Validates []string `yaml:"validates"`
+			Status    string   `yaml:"status"`
 		} `yaml:"prototype"`
 	}
 
@@ -148,33 +138,59 @@ func (l *Loader) loadFile(path string) (*Spec, error) {
 	}
 
 	spec := &Spec{
-		SourceFile:       path,
-		Name:            raw.Spec.Name,
-		Level:           raw.Spec.Level,
-		Parent:          raw.Spec.Parent,
-		Status:          raw.Spec.Status,
-		Module:          raw.Meta.Module,
-		Owner:           raw.Meta.Owner,
-		LifecycleCurrent: raw.Lifecycle.Current,
-		LifecycleUpdated: raw.Lifecycle.Updated,
-		Title:           raw.Display.Title,
-		Summary:         raw.Display.Summary,
-		ImpactedFiles:   raw.Structure.ImpactedFiles,
-		StructureDeps:   raw.Structure.Dependencies,
-		Children:        raw.Structure.Children,
-		FilePath:        raw.Content.FilePath,
-		FileType:        raw.Content.FileType,
-		Behaviors:       raw.Content.Behaviors,
-		UserStories:     raw.Content.UserStories,
-		TestScenarios:   raw.Content.TestScenarios,
-		GenerationRules: raw.Content.GenerationRules,
-		Verification:    raw.Content.Verification,
-		Constraints:     raw.Content.Constraints,
-		L4L5Lineage:     raw.Content.L4L5Lineage,
-		L3L4Lineage:     raw.Content.L3L4Lineage,
-		PrototypeFile:    raw.Prototype.File,
+		SourceFile:        path,
+		Name:              raw.Spec.Name,
+		Level:             raw.Spec.Level,
+		Parent:            raw.Spec.Parent,
+		Status:            raw.Spec.Status,
+		Module:            raw.Meta.Module,
+		Owner:             raw.Meta.Owner,
+		LifecycleCurrent:  raw.Lifecycle.Current,
+		LifecycleUpdated:  raw.Lifecycle.Updated,
+		Title:             raw.Display.Title,
+		Summary:           raw.Display.Summary,
+		ImpactedFiles:     raw.Structure.ImpactedFiles,
+		StructureDeps:     raw.Structure.Dependencies,
+		Children:          raw.Structure.Children,
+		PrototypeFile:      raw.Prototype.File,
 		PrototypeValidates: raw.Prototype.Validates,
-		PrototypeStatus: raw.Prototype.Status,
+		PrototypeStatus:   raw.Prototype.Status,
+	}
+
+	// Copy Content as-is (can be map or list)
+	spec.Content = raw.Content
+	// Also extract individual fields from Content when it's a map (for non-list specs)
+	if cm, ok := raw.Content.(map[string]any); ok {
+		if v, ok := cm["file_path"].(string); ok {
+			spec.FilePath = v
+		}
+		if v, ok := cm["file_type"].(string); ok {
+			spec.FileType = v
+		}
+		if v, ok := cm["behaviors"].([]Behavior); ok {
+			spec.Behaviors = v
+		}
+		if v, ok := cm["user_stories"].([]UserStory); ok {
+			spec.UserStories = v
+		}
+		if v, ok := cm["test_scenarios"].([]TestScenario); ok {
+			spec.TestScenarios = v
+		}
+		if v, ok := cm["generation_rules"].([]GenRule); ok {
+			spec.GenerationRules = v
+		}
+		if v, ok := cm["verification"].(*Verification); ok {
+			spec.Verification = v
+		}
+		if v, ok := cm["constraints"].([]Constraint); ok {
+			spec.Constraints = v
+		}
+		if v, ok := cm["l4_l5_lineage"].(*L4L5Lineage); ok {
+			spec.L4L5Lineage = v
+		}
+		if v, ok := cm["l3_l4_lineage"].(*L3L4Lineage); ok {
+			spec.L3L4Lineage = v
+		}
 	}
 
 	// If spec.name is still empty, try the top-level yaml key directly

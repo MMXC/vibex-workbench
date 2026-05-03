@@ -243,17 +243,12 @@ content:
       note: POST /api/workspace/run-make 的 backend 实现
     - file: generators/validate_specs.py
       note: lint-specs 实际执行的脚本
-    generation_order: '1. backend /api/workspace/run-make endpoint（Go 实现）
-
-      2. frontend menu events wiring（+page.svelte）
-
-      3. Output tab 展示（workspace-output-store + R2Dock）
-
-      4. Problems tab 阻塞摘要（基于 run-make 结果）
-
-      5. Error summary 格式化（可读错误行）
-
-      '
+    generation_order:
+      - '1. backend /api/workspace/run-make endpoint（Go 实现）'
+      - '2. frontend menu events wiring（+page.svelte）'
+      - '3. Output tab 展示（workspace-output-store + R2Dock）'
+      - '4. Problems tab 阻塞摘要（基于 run-make 结果）'
+      - '5. Error summary 格式化（可读错误行）'
 changelog:
 - version: '0.1'
   date: '2026-04-26'

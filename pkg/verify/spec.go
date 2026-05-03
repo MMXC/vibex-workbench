@@ -37,17 +37,24 @@ type Spec struct {
 	StructureDeps  []string `yaml:"structure.dependencies"`
 	Children       []string `yaml:"structure.children"`
 
-	// Content (level-dependent)
-	FilePath   string            `yaml:"content.file_path"`    // L5
-	FileType   string            `yaml:"content.file_type"`    // L5: svelte, go, ts, etc.
-	Behaviors  []Behavior        `yaml:"content.behaviors"`
-	UserStories []UserStory      `yaml:"content.user_stories"`
-	TestScenarios []TestScenario `yaml:"content.test_scenarios"`
-	GenerationRules []GenRule    `yaml:"content.generation_rules"`
-	Verification   *Verification `yaml:"content.verification"`  // L5
-	Constraints    []Constraint  `yaml:"content.constraints"`
-	L4L5Lineage    *L4L5Lineage  `yaml:"content.l4_l5_lineage"`
-	L3L4Lineage    *L3L4Lineage  `yaml:"content.l3_l4_lineage"`
+	// Content holds raw content value (can be map for single-file specs or []any for multi-file specs)
+	Content any `yaml:"content"` // no nested yaml tags — use ContentFilePaths() / ContentBehaviors()
+
+	// ContentMap returns the content as a map[string]any (for single-entry specs)
+	// Returns nil if content is a list or not a map
+	ContentMap func() map[string]any
+
+	// Flat content fields — only populated when content is a single-entry map
+	FilePath        string            `yaml:"-"` // use ContentFilePaths() instead
+	FileType        string            `yaml:"-"`
+	Behaviors       []Behavior        `yaml:"-"`
+	UserStories     []UserStory       `yaml:"-"`
+	TestScenarios   []TestScenario    `yaml:"-"`
+	GenerationRules []GenRule         `yaml:"-"`
+	Verification    *Verification     `yaml:"-"`
+	Constraints     []Constraint      `yaml:"-"`
+	L4L5Lineage    *L4L5Lineage      `yaml:"-"`
+	L3L4Lineage    *L3L4Lineage      `yaml:"-"`
 
 	// Prototype
 	PrototypeFile    string   `yaml:"prototype.file"`
@@ -162,4 +169,86 @@ func (s *Spec) Exists(workspaceRoot, relPath string) bool {
 	abs := s.AbsPath(workspaceRoot, relPath)
 	_, err := os.Stat(abs)
 	return err == nil
+}
+
+// ContentFilePaths returns all file_path values from the content field,
+// handling both single-entry maps and list-of-maps.
+// Also handles "file1 + file2 + ..." concatenation in a single string.
+func (s *Spec) ContentFilePaths() []string {
+	var paths []string
+	if s.Content == nil {
+		return paths
+	}
+
+	switch c := s.Content.(type) {
+	case map[string]any:
+		// Single-entry content map
+		if fp, ok := c["file_path"].(string); ok && fp != "" {
+			// Handle "file1 + file2" syntax
+			if strings.Contains(fp, " + ") {
+				for _, p := range strings.Split(fp, " + ") {
+					p = strings.TrimSpace(p)
+					if p != "" {
+						paths = append(paths, p)
+					}
+				}
+			} else {
+				paths = append(paths, fp)
+			}
+		}
+	case []any:
+		// List of content entries
+		for _, item := range c {
+			if m, ok := item.(map[string]any); ok {
+				if fp, ok := m["file_path"].(string); ok && fp != "" {
+					paths = append(paths, fp)
+				}
+			}
+		}
+	}
+	return paths
+}
+
+// ContentFileType returns the file_type from the content map (single-entry).
+func (s *Spec) ContentFileType() string {
+	if s.Content == nil {
+		return ""
+	}
+	if m, ok := s.Content.(map[string]any); ok {
+		if ft, ok := m["file_type"].(string); ok {
+			return ft
+		}
+	}
+	return ""
+}
+
+// ContentBehaviors returns behaviors from the content map (single-entry).
+func (s *Spec) ContentBehaviors() []Behavior {
+	if s.Content == nil {
+		return nil
+	}
+	if m, ok := s.Content.(map[string]any); ok {
+		if b, ok := m["behaviors"].([]any); ok {
+			var behaviors []Behavior
+			for _, item := range b {
+				if bm, ok := item.(map[string]any); ok {
+					bh := Behavior{
+						ID:     getString(bm, "id"),
+						Trigger: getString(bm, "trigger"),
+						Action:  getString(bm, "action"),
+					}
+					behaviors = append(behaviors, bh)
+				}
+			}
+			return behaviors
+		}
+	}
+	return nil
+}
+
+func getString(m map[string]any, key string) string {
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return ""
 }

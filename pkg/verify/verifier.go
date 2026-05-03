@@ -260,15 +260,16 @@ func (v *Verifier) checkImpactedFiles(spec *Spec) []Result {
 
 func (v *Verifier) checkContentFilePath(spec *Spec) []Result {
 	var results []Result
-	if spec.FilePath == "" || spec.LevelNum() < 5 {
+	if spec.LevelNum() < 5 {
 		return results
 	}
-	// Handle "file1 + file2 + ..." syntax
-	fpList := spec.FilePath
-	if strings.Contains(spec.FilePath, " + ") {
-		fpList = strings.Join(strings.Split(spec.FilePath, " + "), ",")
+	// Use ContentFilePaths() which handles both list and single-entry content
+	fpList := spec.ContentFilePaths()
+	// Legacy fallback removed — use ContentFilePaths() instead
+	if len(fpList) == 0 {
+		return results
 	}
-	for _, singleFile := range strings.Split(fpList, ",") {
+	for _, singleFile := range fpList {
 		singleFile = strings.TrimSpace(singleFile)
 		if singleFile == "" {
 			continue
@@ -389,7 +390,8 @@ func (v *Verifier) checkCompleteness(spec *Spec) []Result {
 
 func (v *Verifier) checkBehaviors(spec *Spec) []Result {
 	var results []Result
-	if len(spec.Behaviors) == 0 {
+	behaviors := spec.ContentBehaviors()
+	if len(behaviors) == 0 {
 		results = append(results, Result{
 			SpecName:  spec.Name,
 			SpecLevel: spec.Level,
@@ -402,7 +404,7 @@ func (v *Verifier) checkBehaviors(spec *Spec) []Result {
 		})
 	}
 	// Check each behavior has required fields
-	for _, b := range spec.Behaviors {
+	for _, b := range behaviors {
 		if b.Trigger == "" {
 			results = append(results, Result{
 				SpecName:  spec.Name,
@@ -487,80 +489,90 @@ func (v *Verifier) checkGoStructFields(spec *Spec) []Result {
 }
 
 // checkSvelteProps verifies that a Svelte component's props match what's declared in spec.
+// Handles both single-entry content (dict) and multi-file content (list).
 func (v *Verifier) checkSvelteProps(spec *Spec) []Result {
 	var results []Result
-	if spec.FileType != "svelte" || spec.FilePath == "" {
-		return results
-	}
-	abs := spec.AbsPath(v.workspaceRoot, spec.FilePath)
-	data, err := os.ReadFile(abs)
-	if err != nil {
-		return results
-	}
-	content := string(data)
-
-	// Extract script tag content
-	scriptMatch := regexp.MustCompile(`<script[^>]*>(.*?)</script>`)
-	matches := scriptMatch.FindAllStringSubmatch(content, -1)
-	if len(matches) == 0 {
-		results = append(results, Result{
-			SpecName:  spec.Name,
-			SpecLevel: spec.Level,
-			SpecFile:  spec.SourceFile,
-			CheckType: "svelte_script_tag",
-			CheckID:   spec.FilePath,
-			FilePath:  spec.FilePath,
-			AbsPath:   abs,
-			Status:    "warn",
-			Severity:  "warning",
-			Message:   "Svelte file has no <script> tag",
-			Suggestion: "Add a <script> tag with props defined",
-		})
+	fpList := spec.ContentFilePaths()
+	if len(fpList) == 0 {
 		return results
 	}
 
-	script := matches[0][1]
-	// Check for $props() rune (Svelte 5)
-	if strings.Contains(script, "$props()") || strings.Contains(script, "let {") {
-		results = append(results, Result{
-			SpecName:  spec.Name,
-			SpecLevel: spec.Level,
-			SpecFile:  spec.SourceFile,
-			CheckType: "svelte_props",
-			CheckID:   spec.FilePath,
-			FilePath:  spec.FilePath,
-			AbsPath:   abs,
-			Status:    "pass",
-			Severity:  "info",
-			Message:   "Svelte component uses $props() rune",
-		})
-	} else if strings.Contains(script, "export let") {
-		results = append(results, Result{
-			SpecName:  spec.Name,
-			SpecLevel: spec.Level,
-			SpecFile:  spec.SourceFile,
-			CheckType: "svelte_props",
-			CheckID:   spec.FilePath,
-			FilePath:  spec.FilePath,
-			AbsPath:   abs,
-			Status:    "pass",
-			Severity:  "info",
-			Message:   "Svelte component uses export let props (Svelte 4 style)",
-		})
-	} else {
-		results = append(results, Result{
-			SpecName:  spec.Name,
-			SpecLevel: spec.Level,
-			SpecFile:  spec.SourceFile,
-			CheckType: "svelte_props",
-			CheckID:   spec.FilePath,
-			FilePath:  spec.FilePath,
-			AbsPath:   abs,
-			Status:    "warn",
-			Severity:  "warning",
-			Message:   "Svelte component has no clear props definition ($props() or export let)",
-			Suggestion: "Define props using $props() rune (Svelte 5) or export let (Svelte 4)",
-		})
+	for _, singleFile := range fpList {
+		singleFile = strings.TrimSpace(singleFile)
+		if singleFile == "" || !strings.HasSuffix(singleFile, ".svelte") {
+			continue
+		}
+		abs := spec.AbsPath(v.workspaceRoot, singleFile)
+		data, err := os.ReadFile(abs)
+		if err != nil {
+			// File doesn't exist yet — skip svelte props check
+			continue
+		}
+		scriptContent := string(data)
+
+		// Extract script tag content
+		scriptMatch := regexp.MustCompile(`<script[^>]*>(.*?)</script>`)
+		matches := scriptMatch.FindAllStringSubmatch(scriptContent, -1)
+		if len(matches) == 0 {
+			results = append(results, Result{
+				SpecName:  spec.Name,
+				SpecLevel: spec.Level,
+				SpecFile:  spec.SourceFile,
+				CheckType: "svelte_script_tag",
+				CheckID:   singleFile,
+				FilePath:  singleFile,
+				AbsPath:   abs,
+				Status:    "warn",
+				Severity:  "warning",
+				Message:   "Svelte file has no <script> tag",
+				Suggestion: "Add a <script> tag with props defined",
+			})
+			continue
+		}
+
+		script := matches[0][1]
+		// Check for $props() rune (Svelte 5)
+		if strings.Contains(script, "$props()") || strings.Contains(script, "let {") {
+			results = append(results, Result{
+				SpecName:  spec.Name,
+				SpecLevel: spec.Level,
+				SpecFile:  spec.SourceFile,
+				CheckType: "svelte_props",
+				CheckID:   singleFile,
+				FilePath:  singleFile,
+				AbsPath:   abs,
+				Status:    "pass",
+				Severity:  "info",
+				Message:   "Svelte component uses $props() rune",
+			})
+		} else if strings.Contains(script, "export let") {
+			results = append(results, Result{
+				SpecName:  spec.Name,
+				SpecLevel: spec.Level,
+				SpecFile:  spec.SourceFile,
+				CheckType: "svelte_props",
+				CheckID:   singleFile,
+				FilePath:  singleFile,
+				AbsPath:   abs,
+				Status:    "pass",
+				Severity:  "info",
+				Message:   "Svelte component uses export let props (Svelte 4 style)",
+			})
+		} else {
+			results = append(results, Result{
+				SpecName:  spec.Name,
+				SpecLevel: spec.Level,
+				SpecFile:  spec.SourceFile,
+				CheckType: "svelte_props",
+				CheckID:   singleFile,
+				FilePath:  singleFile,
+				AbsPath:   abs,
+				Status:    "warn",
+				Severity:  "warning",
+				Message:   "Svelte component has no clear props definition ($props() or export let)",
+				Suggestion: "Define props using $props() rune (Svelte 5) or export let (Svelte 4)",
+			})
+		}
 	}
 	return results
 }
