@@ -1,0 +1,124 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-agent-tool-routing-graph"
+  parent: "MOD-ide-chrome"
+  status: "proposal"
+
+display:
+  title: "Agent 工具路由图"
+  summary: "让 Go agent 先生成可审查的执行图，再路由到内置或自定义工具。"
+  description: |
+    将 agent 从直接生成代码转为 plan graph -> tool routing graph -> confirmed execution。
+    用户可以看到每个节点会由哪个工具处理，并能手动注册自定义工具作为路由目标。
+
+structure:
+  parent: "MOD-ide-chrome"
+  children:
+    - "SLICE-agent-plan-graph-router-api"
+    - "SLICE-agent-custom-tool-registry"
+  dependencies:
+    - "FEAT-ide-agent-panel"
+    - "FEAT-workspace-runtime-safety"
+  impacted_files:
+    - "agent/vibex/domain/toolrouting/*.go"
+    - "agent/cmd/web/tool_routing_handlers.go"
+    - "agent/cmd/web/server.go"
+
+io:
+  input:
+    - "用户实现意图、当前 spec path、已有 workspace/tool 配置"
+  output:
+    - "PlanGraph JSON"
+    - "ToolRoutePreview JSON"
+    - "可注册但默认不执行的 custom tool metadata"
+  boundary: "本 feature 只定义计划图和工具路由，不默认执行任意自定义命令，不绕过用户确认写代码。"
+
+constraints:
+  rules:
+    - id: "C1"
+      name: "Plan-first"
+      rule: "实现类请求必须优先形成 plan graph 和 tool route preview。"
+      verification: "agent tools 中存在 plan_graph_create 与 tool_route_preview。"
+    - id: "C2"
+      name: "No implicit custom execution"
+      rule: "自定义工具 MVP 只作为 metadata routing target，不执行任意 command。"
+      verification: "custom_tool_register 仅允许 execute_mode=metadata_only。"
+    - id: "C3"
+      name: "Human confirmation gate"
+      rule: "写文件、执行命令或生成代码前必须经过可见路由图确认。"
+      verification: "PlanGraph 中包含 gate.confirm 节点。"
+  forbidden:
+    - "把用户自定义工具注册成默认可执行 shell 命令"
+    - "跳过路由图直接调用 write_file/batch 生成代码"
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+meta:
+  type: "feature"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-05-03"
+  updated: "2026-05-03"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-03"
+
+io_contract:
+  input: |
+    用户向 agent 提出实现、生成、验证或工具扩展意图。
+  output: |
+    Go agent 先产出可审查的执行图和工具路由预览，再由用户确认后进入执行。
+  boundary: |
+    不替代现有 LLM tool loop；作为其前置计划与路由层。
+  behavior:
+    - "创建 PlanGraph"
+    - "路由每个节点到内置或自定义工具"
+    - "展示需要确认的节点"
+    - "保存自定义工具 metadata"
+
+content:
+  behaviors:
+    - id: "B1"
+      trigger: "用户请求实现某个 spec"
+      action: "agent 调用 plan_graph_create 生成执行图"
+      expected_result: "返回 inspect/design/route/confirm/validate 等节点"
+      error_handling: "目标 spec 缺失时仍返回可编辑图，并标记 inspect 节点待补充"
+    - id: "B2"
+      trigger: "用户或 agent 需要选择工具"
+      action: "调用 tool_route_preview 根据节点 kind 找到 tool"
+      expected_result: "每个节点显示 tool、source、是否需要确认"
+      error_handling: "无匹配工具时返回 warning，不执行"
+    - id: "B3"
+      trigger: "用户添加自定义工具"
+      action: "保存 .vibex/tools/<name>.json metadata"
+      expected_result: "工具出现在 tool registry 中，可参与后续路由"
+      error_handling: "非法 name/kind 或 execute_mode 被拒绝"
+
+  test_scenarios:
+    - id: "TC-1"
+      scenario: "创建计划图"
+      given: "goal 和 spec_path"
+      when: "POST /api/agent/plan-graph"
+      then: "返回 graph.version=plan-graph/v1 且包含 gate.confirm 节点"
+      evaluation: "不写入代码文件"
+    - id: "TC-2"
+      scenario: "注册自定义工具"
+      given: "execute_mode=metadata_only"
+      when: "POST /api/agent/tools/custom"
+      then: "写入 .vibex/tools/<name>.json 并可被 GET /api/agent/tools 读取"
+      evaluation: "非 metadata_only 被拒绝"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-03"
+    author: "agent"
+    changes:
+      - "新增 agent 工具路由图 feature"
+---
+

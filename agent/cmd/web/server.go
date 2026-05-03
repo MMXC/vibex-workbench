@@ -14,9 +14,9 @@ import (
 	"vibex/agent/adapters"
 	"vibex/agent/agents/background"
 	"vibex/agent/agents/compact"
-	"vibex/agent/agents/sessions"
 	"vibex/agent/agents/runtime"
 	rtools "vibex/agent/agents/runtime/tools"
+	"vibex/agent/agents/sessions"
 	"vibex/agent/agents/skills"
 	"vibex/agent/agents/subagent"
 	"vibex/agent/internal/common"
@@ -37,14 +37,16 @@ GOAL routes (new project/feature idea):
   5. Use canvas_update to show spec relationship on canvas
 
 FEATURE routes (implementing existing spec):
-  1. Use spec_validate to check the target spec YAML
-  2. Use tdd_design to design test cases (RED phase)
-  3. Use tdd_run to verify tests fail (RED)
-  4. Implement the feature
-  5. Use tdd_run to verify tests pass (GREEN)
-  6. Use tdd_iterate for next behavior step
-  7. Use spec_sync push after changes
-  8. Use make_validate to verify all specs
+  1. Use plan_graph_create to create a reviewable execution/tool graph
+  2. Use tool_route_preview to route graph nodes to builtin/custom tools
+  3. Ask for confirmation before write_file, bash, make_generate, or custom execution
+  4. Use spec_validate to check the target spec YAML
+  5. Use tdd_design to design test cases (RED phase)
+  6. Use tdd_run to verify tests fail (RED)
+  7. Implement only the confirmed graph nodes
+  8. Use tdd_run to verify tests pass (GREEN)
+  9. Use spec_sync push after changes
+  10. Use make_validate to verify all specs
 
 BUG routes:
   1. Use bug_report to create changelog entry
@@ -62,6 +64,7 @@ Core principles:
 - Every spec must have: input, output, boundary, behavior fields filled
 - Test cases are generated from io_contract, not from implementation
 - Use canvas_update to show TDD cycle progress
+- Prefer Plan Graph → Tool Routing Graph → confirmed execution over direct code generation
 - Never assume — always clarify ambiguous requirements
 - After any code/spec change, always run make_validate`
 
@@ -135,7 +138,7 @@ func runToolLoop(
 			broadcastSSE(threadID, "tool.called", map[string]interface{}{
 				"toolName":     item.OfFunctionCall.Name, // camelCase for sse.ts
 				"tool":         item.OfFunctionCall.Name, // snake_case for stores/sse.ts
-				"invocationId": callID,                  // camelCase for sse.ts
+				"invocationId": callID,                   // camelCase for sse.ts
 				"call_id":      callID,                   // snake_case for stores/sse.ts
 				"runId":        threadID,                 // camelCase: parent run
 				"args":         args,
@@ -251,11 +254,11 @@ func runAgentTurn(threadID string, userInput string) (string, error) {
 	// S2 SSE lifecycle: emit run lifecycle events aligned with frontend expectations
 	runID := threadID + "-run-" + fmt.Sprintf("%d", time.Now().Unix())
 	broadcastSSE(threadID, "run.started", map[string]interface{}{
-		"run_id":   runID,    // snake_case for stores/sse.ts
-		"runId":    runID,    // camelCase for sse.ts
+		"run_id":    runID, // snake_case for stores/sse.ts
+		"runId":     runID, // camelCase for sse.ts
 		"thread_id": threadID,
 		"step_type": stepType,
-		"model":    model,
+		"model":     model,
 	})
 	if stepType != "" {
 		broadcastSSE(threadID, "agent.step", map[string]string{"type": stepType, "model": model})
@@ -264,7 +267,7 @@ func runAgentTurn(threadID string, userInput string) (string, error) {
 	broadcastSSE(threadID, "run.planning", map[string]interface{}{
 		"run_id": threadID,
 		"status": "planning",
-		"model": model,
+		"model":  model,
 	})
 	broadcastSSE(threadID, "agent.thinking", map[string]string{"status": "processing", "model": model})
 
@@ -480,16 +483,16 @@ func clarificationsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	sessions := mgr.ListSessions()
 	type SessionSummary struct {
-		ID            string `json:"id"`
-		SpecName      string `json:"spec_name"`
-		SpecParent    string `json:"spec_parent"`
-		Phase         string `json:"phase"`
-		Status        string `json:"status"`
-		Rounds        int    `json:"rounds"`
-		CurrentRound  int    `json:"current_round"`
-		HasDraft      bool   `json:"has_draft"`
-		ConfirmedAt   string `json:"confirmed_at,omitempty"`
-		UpdatedAt     string `json:"updated_at"`
+		ID           string `json:"id"`
+		SpecName     string `json:"spec_name"`
+		SpecParent   string `json:"spec_parent"`
+		Phase        string `json:"phase"`
+		Status       string `json:"status"`
+		Rounds       int    `json:"rounds"`
+		CurrentRound int    `json:"current_round"`
+		HasDraft     bool   `json:"has_draft"`
+		ConfirmedAt  string `json:"confirmed_at,omitempty"`
+		UpdatedAt    string `json:"updated_at"`
 	}
 	var out []SessionSummary
 	for _, s := range sessions {
@@ -501,9 +504,9 @@ func clarificationsHandler(w http.ResponseWriter, r *http.Request) {
 			ID: s.ID, SpecName: s.SpecName, SpecParent: s.SpecParent,
 			Phase: string(s.Phase), Status: string(s.Status),
 			Rounds: len(s.Rounds), CurrentRound: s.CurrentRound,
-			HasDraft: s.DerivedSpecDraft != "",
+			HasDraft:    s.DerivedSpecDraft != "",
 			ConfirmedAt: confirmedAt,
-			UpdatedAt: s.UpdatedAt.Format(time.RFC3339),
+			UpdatedAt:   s.UpdatedAt.Format(time.RFC3339),
 		})
 	}
 	if out == nil {
@@ -544,25 +547,25 @@ func clarificationHandler(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"id":            session.ID,
 			"spec_name":     session.SpecName,
-			"spec_parent":    session.SpecParent,
+			"spec_parent":   session.SpecParent,
 			"phase":         string(session.Phase),
 			"status":        string(session.Status),
 			"rounds":        session.Rounds,
 			"current_round": session.CurrentRound,
 			"draft":         session.DerivedSpecDraft,
-			"yaml_content":   yamlContent,
-			"confirmed_at":   session.ConfirmedAt,
+			"yaml_content":  yamlContent,
+			"confirmed_at":  session.ConfirmedAt,
 		})
 		return
 	}
 
 	if r.Method == http.MethodPost {
 		var req struct {
-			Action  string `json:"action"` // "confirm"|"reject"|"start"|"qa"|"draft"
-			Phase   string `json:"phase"`
-			Draft   string `json:"draft"`
+			Action   string `json:"action"` // "confirm"|"reject"|"start"|"qa"|"draft"
+			Phase    string `json:"phase"`
+			Draft    string `json:"draft"`
 			Question string `json:"question"`
-			Answer  string `json:"answer"`
+			Answer   string `json:"answer"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "bad json", http.StatusBadRequest)
@@ -628,10 +631,10 @@ func clarificationHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			json.NewEncoder(w).Encode(map[string]string{"ok": "true", "status": "rejected"})
-	default:
-		http.Error(w, "unknown action: "+req.Action, http.StatusBadRequest)
-	}
-	return
+		default:
+			http.Error(w, "unknown action: "+req.Action, http.StatusBadRequest)
+		}
+		return
 	}
 	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 }

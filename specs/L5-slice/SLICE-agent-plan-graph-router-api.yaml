@@ -1,0 +1,95 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-agent-plan-graph-router-api"
+  parent: "FEAT-agent-tool-routing-graph"
+  status: "proposal"
+
+display:
+  title: "计划图路由 API"
+  summary: "提供 PlanGraph 创建和 tool route preview 的 Go 后端接口与 agent tools。"
+  description: "在 agent 后端新增 toolrouting domain，并挂载 HTTP API 与 LLM function tools。"
+
+structure:
+  parent: "FEAT-agent-tool-routing-graph"
+  children: []
+  dependencies:
+    - "agent/cmd/web/server.go"
+    - "agent/vibex/domain/registry.go"
+  impacted_files:
+    - "agent/vibex/domain/toolrouting/types.go"
+    - "agent/vibex/domain/toolrouting/registry.go"
+    - "agent/vibex/domain/toolrouting/specs.go"
+    - "agent/cmd/web/tool_routing_handlers.go"
+    - "agent/cmd/web/main.go"
+
+io:
+  input:
+    - "goal/spec_path/mode"
+    - "PlanGraph JSON"
+  output:
+    - "PlanGraph"
+    - "RoutePreview"
+  boundary: "只做计划图创建和路由预览，不执行写盘节点。"
+
+constraints:
+  rules:
+    - rule: "HTTP 与 agent tool 使用同一套 toolrouting.Registry"
+      detail: "避免 UI 和 LLM 工具看到不同的路由结果。"
+    - rule: "route preview 遇到无匹配工具时只返回 warning"
+      detail: "不得自动降级为 bash/write_file。"
+  forbidden:
+    - "在 route preview 阶段执行节点"
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-05-03"
+  updated: "2026-05-03"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-03"
+
+io_contract:
+  input: |
+    goal/spec_path 或已有 PlanGraph。
+  output: |
+    JSON 格式的 PlanGraph 或 RoutePreview。
+  boundary: |
+    本 slice 不负责前端图形编辑器，也不负责执行自定义工具。
+  behavior: |
+    1. 创建 toolrouting.Registry
+    2. 生成 PlanGraph
+    3. 按 node.kind/node.tool 路由
+    4. 返回可审查 JSON
+
+content:
+  file_path: "agent/vibex/domain/toolrouting/*.go"
+  file_type: "go"
+  generation_rules:
+    - rule: "PlanGraph is declarative"
+      detail: "Graph 节点表达工作意图，不直接包含大段代码。"
+    - rule: "Router is deterministic"
+      detail: "优先 node.tool 精确匹配，其次 node.kind 匹配。"
+    - rule: "Custom tools are metadata-only"
+      detail: "MVP 不执行用户提供 command。"
+  verification:
+    commands:
+      - "go test ./agent/..."
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-03"
+    author: "agent"
+    changes:
+      - "新增计划图路由 API slice"
+---
+

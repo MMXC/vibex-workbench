@@ -1,0 +1,90 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-agent-custom-tool-registry"
+  parent: "FEAT-agent-tool-routing-graph"
+  status: "proposal"
+
+display:
+  title: "自定义工具注册表"
+  summary: "允许用户手动添加自定义工具 metadata，并参与 agent 工具路由。"
+  description: "自定义工具保存在 workspace 的 .vibex/tools/*.json，MVP 只注册路由目标，不执行任意命令。"
+
+structure:
+  parent: "FEAT-agent-tool-routing-graph"
+  children: []
+  dependencies:
+    - "SLICE-agent-plan-graph-router-api"
+    - "FEAT-workspace-runtime-safety"
+  impacted_files:
+    - "agent/vibex/domain/toolrouting/registry.go"
+    - "agent/cmd/web/tool_routing_handlers.go"
+
+io:
+  input:
+    - "name/kind/description/schema/permissions/execute_mode"
+  output:
+    - "ToolDescriptor"
+    - ".vibex/tools/<name>.json"
+  boundary: "只保存 metadata 并参与路由；执行器、沙箱和权限升级另行设计。"
+
+constraints:
+  rules:
+    - rule: "工具名必须匹配 ^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"
+      detail: "防止路径穿越和不可读工具名。"
+    - rule: "MVP 仅允许 execute_mode=metadata_only"
+      detail: "避免把自定义工具变成任意命令执行入口。"
+  forbidden:
+    - "执行用户上传的 command"
+    - "写入 workspace 外路径"
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-05-03"
+  updated: "2026-05-03"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-03"
+
+io_contract:
+  input: |
+    用户提交的 custom tool metadata。
+  output: |
+    可被 tool registry 读取并参与 route preview 的 ToolDescriptor。
+  boundary: |
+    不实现 shell/custom process executor。
+  behavior: |
+    1. 校验 name/kind/execute_mode
+    2. 写入 .vibex/tools/<name>.json
+    3. 重新加载 registry
+    4. GET /api/agent/tools 可见
+
+content:
+  file_path: "agent/vibex/domain/toolrouting/registry.go"
+  file_type: "go"
+  generation_rules:
+    - rule: "Metadata only"
+      detail: "注册表是路由描述，不是执行授权。"
+    - rule: "Workspace scoped"
+      detail: "所有自定义工具配置都位于当前 WorkspaceDir 下。"
+  verification:
+    commands:
+      - "go test ./agent/..."
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-03"
+    author: "agent"
+    changes:
+      - "新增自定义工具注册表 slice"
+---
+

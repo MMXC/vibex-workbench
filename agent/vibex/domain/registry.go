@@ -6,6 +6,7 @@ import (
 	rt "vibex/agent/agents/runtime/tools"
 	"vibex/agent/vibex/domain/spec"
 	"vibex/agent/vibex/domain/tdd"
+	"vibex/agent/vibex/domain/toolrouting"
 	"vibex/generators/memlace"
 )
 
@@ -13,7 +14,7 @@ import (
 type Registry struct {
 	WorkspaceDir string
 	Broadcaster  func(threadID, event string, data interface{})
-	SetStepType func(threadID, stepType string) // updates per-thread step type
+	SetStepType  func(threadID, stepType string) // updates per-thread step type
 }
 
 // NewRegistry creates a new vibex tool registry.
@@ -21,7 +22,7 @@ func NewRegistry(workspaceDir string, bc func(threadID, event string, data inter
 	return &Registry{
 		WorkspaceDir: workspaceDir,
 		Broadcaster:  bc,
-		SetStepType: setStepType,
+		SetStepType:  setStepType,
 	}
 }
 
@@ -30,6 +31,7 @@ func (r *Registry) ToolSpecs() []rt.Spec {
 	var specs []rt.Spec
 	specs = append(specs, spec.ToolSpecs(r.WorkspaceDir, r.Broadcaster, r.SetStepType)...)
 	specs = append(specs, tdd.ToolSpecs()...)
+	specs = append(specs, toolrouting.ToolSpecs(r.WorkspaceDir)...)
 	// MemLace tools
 	memSpecs := memlace.ToolSchemas()
 	for _, ms := range memSpecs {
@@ -56,6 +58,10 @@ func (r *Registry) ToolHandlers() map[string]rt.Handler {
 	handlers["tdd_design"] = tdd.MakeTddDesignHandler(r.WorkspaceDir, r.Broadcaster)
 	handlers["tdd_run"] = tdd.MakeTddRunHandler(r.WorkspaceDir, r.Broadcaster)
 	handlers["tdd_iterate"] = tdd.MakeTddIterateHandler(r.WorkspaceDir, r.Broadcaster)
+
+	for _, s := range toolrouting.ToolSpecs(r.WorkspaceDir) {
+		handlers[s.Name] = s.Handler
+	}
 
 	// MemLace tools
 	handlers["memlace_search"] = memlace.SearchHandler

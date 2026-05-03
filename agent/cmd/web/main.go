@@ -68,6 +68,10 @@ func main() {
 	http.HandleFunc("/api/workspace/scaffold", withCORS(workspaceScaffoldHandler))
 	http.HandleFunc("/api/workspace/run-make", withCORS(workspaceRunMakeHandler))
 	http.HandleFunc("/api/workspace/verify-specs", withCORS(workspaceVerifySpecsHandler))
+	http.HandleFunc("/api/agent/tools", withCORS(agentToolsHandler))
+	http.HandleFunc("/api/agent/tools/custom", withCORS(agentCustomToolHandler))
+	http.HandleFunc("/api/agent/plan-graph", withCORS(agentPlanGraphHandler))
+	http.HandleFunc("/api/agent/tool-route", withCORS(agentToolRouteHandler))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
