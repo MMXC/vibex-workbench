@@ -1,0 +1,110 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-workspace-design-kit-http-api"
+  parent: "FEAT-workspace-design-prototype-gate"
+  status: "implementation"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-05-04"
+  updated: "2026-05-04"
+
+lifecycle:
+  current: "implementation"
+  updated: "2026-05-04"
+
+display:
+  title: "design-kit HTTP API（SvelteKit）"
+  summary: "status / scaffold / extract 三端点；路径校验、体积上限、HTML 剥离安全策略。"
+  description: |
+    实现于 `frontend/src/routes/api/workspace/design-kit/`。
+    与现有 `/api/workspace/specs/read` 共用 workspaceRoot 语义；vite dev 下 `/api/workspace/*` 由 SvelteKit 处理。
+
+structure:
+  parent: "FEAT-workspace-design-prototype-gate"
+  children: []
+  dependencies:
+    - "frontend/src/routes/api/workspace/specs/read/+server.ts: 读取 DESIGN.md 预览"
+  impacted_files:
+    - "frontend/src/routes/api/workspace/design-kit/status/+server.ts"
+    - "frontend/src/routes/api/workspace/design-kit/scaffold/+server.ts"
+    - "frontend/src/routes/api/workspace/design-kit/extract/+server.ts"
+    - "frontend/src/lib/services/design-kit-client.ts"
+
+io:
+  input:
+    - "workspaceRoot / workspace_root"
+    - "extract: source_path 相对工作区；可选 out_basename"
+    - "scaffold/extract: confirm=true"
+  output:
+    - "status: designMdExists, prototypesDirExists, designPath, prototypesPath"
+    - "scaffold: written[], skipped[]"
+    - "extract: writtenPath, specSnippet（YAML 草案）"
+  boundary: "不在本 slice 实现 specs/write 或 prototype 字段合并；不托管静态资源 CDN。"
+
+constraints:
+  rules:
+    - id: "API1"
+      name: "extract 体积上限"
+      rule: "单文件读取不得超过约定字节上限（如 600KB），超限拒绝。"
+      verification: "大文件返回 400 与明确 error。"
+    - id: "API2"
+      name: "HTML 剥离"
+      rule: "对 .html/.htm 移除 script 与行内事件属性后再进入预览区；非 HTML 源仅摘录不进可执行预览。"
+      verification: "输出 HTML 中无 script 标签。"
+  forbidden: []
+
+prototype:
+  file: ""
+  validates: []
+  status: "none"
+
+io_contract:
+  input: |
+    同 io.input。
+  output: |
+    同 io.output。
+  boundary: |
+    同 io.boundary。
+  behavior:
+    - "GET /api/workspace/design-kit/status"
+    - "POST /api/workspace/design-kit/scaffold"
+    - "POST /api/workspace/design-kit/extract"
+
+content:
+  file_path: "frontend/src/routes/api/workspace/design-kit/extract/+server.ts"
+  file_type: "ts"
+
+  implementation_boundary:
+    allowed:
+      - "Node fs 读写限于 workspaceRoot 之下"
+      - "JSON 响应与错误码"
+    forbidden:
+      - "执行子进程或任意用户命令"
+      - "写入 specs/ 目录（除非未来单独 slice 批准）"
+
+  verification:
+    commands:
+      - "make lint-specs"
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - "curl 或浏览器 devtools 验证三端点与错误体"
+    failure_conditions:
+      - "路径穿越成功"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "新增 design-kit SvelteKit 端点 slice"
+  - version: "0.2"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "无 confirm 时 scaffold/extract 返回 400；extract 用 path.relative 防穿越；main.go Wails 绑定共享 pkg/designkit"
+---

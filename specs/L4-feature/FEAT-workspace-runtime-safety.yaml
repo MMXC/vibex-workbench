@@ -11,11 +11,11 @@ meta:
   module: "backend"
   owner: "hermes"
   created: "2026-04-27"
-  updated: "2026-04-27"
+  updated: "2026-05-04"
 
 lifecycle:
   current: "proposal"
-  updated: "2026-04-27"
+  updated: "2026-05-04"
 
 display:
   title: workspace runtime safety
@@ -41,7 +41,7 @@ constraints:
   rules:
   - id: C1
     name: Single root
-    rule: workspaceRoot store、backend config、agent env、make cwd 必须一致
+    rule: workspaceRoot store、backend config、agent env、make cwd、/api/chat、/api/agent/* 和 VibeX tool handlers 必须一致
     validation: 任一 API 返回不同 root 即失败
   - id: C2
     name: No path traversal
@@ -66,7 +66,7 @@ io_contract:
     - "所有 workspace API 必须显式携带或解析同一个 workspace_root"
     - "路径规范化后必须仍位于 workspace root 下"
     - "Windows 盘符、反斜杠、Git Bash 路径必须被标准化"
-    - "backend spawn、spec read/write、run-make 使用同一工作目录"
+    - "backend spawn、spec read/write、run-make、agent chat、tool routing、通用 AI 操作台 context 使用同一工作目录"
     - "拒绝 ../、空路径、不存在目录、文件路径伪装目录"
 
 content:
@@ -94,8 +94,8 @@ content:
     - id: "TC-1"
       scenario: "Windows 路径标准化"
       given: "用户输入 C:/project/demo"
-      when: "调用 detect-state、specs/list、run-make"
-      then: "三个 API 使用同一个 native absolute workspace root"
+      when: "调用 detect-state、specs/list、run-make、/api/chat、/api/agent/plan-graph、workspace_specs_list"
+      then: "所有 API 和 tool handler 使用同一个 native absolute workspace root"
       evaluation: "返回摘要中的 workspaceRoot 一致"
     - id: "TC-2"
       scenario: "路径穿越被拒绝"
@@ -107,7 +107,7 @@ content:
   constraints:
     - id: "C1"
       name: "Single root"
-      rule: "workspaceRoot store、backend config、agent env、make cwd 必须一致"
+      rule: "workspaceRoot store、backend config、agent env、make cwd、/api/chat、/api/agent/* 和 VibeX tool handlers 必须一致"
       validation: "任一 API 返回不同 root 即失败"
     - id: "C2"
       name: "No path traversal"
@@ -134,3 +134,13 @@ changelog:
     author: "hermes"
     changes:
       - "新增 workspace runtime 与 Windows 路径安全规格"
+  - version: "0.2"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "补充 /api/chat 与 /api/agent/* 必须接收并同步 workspaceRoot，保证 Agent 领域工具读写同一工作区"
+  - version: "0.3"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "补充右侧 AI 操作台 context 与 VibeX tool handlers 的 workspaceRoot 一致性约束"

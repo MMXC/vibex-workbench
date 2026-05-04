@@ -8,7 +8,7 @@ import (
 func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, stepType string)) []rt.Spec {
 	return []rt.Spec{
 		{
-			Name:        "spec_designer",
+			Name: "spec_designer",
 			Description: "Create a spec YAML draft from user intent (L1 goal). " +
 				"Auto-emits canvas.spec_created SSE event to update the canvas. " +
 				"After creation, await user confirmation before proceeding.",
@@ -18,7 +18,7 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 			Handler: MakeSpecDesignerHandler(workspaceDir, bc, setStepType),
 		},
 		{
-			Name:        "spec_feature",
+			Name: "spec_feature",
 			Description: "Break a confirmed goal spec into a feature spec (L4). " +
 				"Creates both feature and uiux sub-spec in specs/feature/<name>/. " +
 				"AUTO-CHAIN (no user action needed): " +
@@ -67,12 +67,12 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 			Handler:     MakeMakeValidateHandler(workspaceDir, setStepType),
 		},
 		{
-			Name:        "make_generate",
+			Name: "make_generate",
 			Description: "Run `make generate` in vibex-workbench — the spec-to-code step. " +
 				"Creates types.ts, *.Skeleton.svelte, and stubs from spec YAML. " +
 				"Use after creating or updating a spec file. This is the core of spec-driven development.",
-			Parameters:  objectSchema(),
-			Handler:     MakeMakeGenerateHandler(workspaceDir, setStepType),
+			Parameters: objectSchema(),
+			Handler:    MakeMakeGenerateHandler(workspaceDir, setStepType),
 		},
 		{
 			Name:        "bug_report",
@@ -99,7 +99,7 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 			Handler: MakeSpecResultTrackHandler(bc),
 		},
 		{
-			Name:        "workspace_detect_state",
+			Name: "workspace_detect_state",
 			Description: "Detect workspace state: empty (no specs/gen.py) / partial (specs only) / ready (all scaffolding present). " +
 				"Returns state, detection signals, and next-step suggestions. " +
 				"Use this when starting a new project or when the user asks about project status.",
@@ -109,7 +109,48 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 			Handler: MakeWorkspaceDetectStateHandler(workspaceDir, setStepType),
 		},
 		{
-			Name:        "workspace_scaffold",
+			Name:        "workspace_specs_list",
+			Description: "List all spec YAML files in the current workspace. Use this for natural-language requests like '列出 specs' or '当前有哪些规格'.",
+			Parameters: objectSchema(
+				optField("workspace_root", "string", "Path to workspace root (defaults to current WORKSPACE_DIR)"),
+			),
+			Handler: MakeWorkspaceSpecsListHandler(workspaceDir, setStepType),
+		},
+		{
+			Name:        "workspace_specs_convention",
+			Description: "Describe the VibeX spec hierarchy, naming convention, canonical slots, and parent-chain rules.",
+			Parameters:  objectSchema(),
+			Handler:     MakeWorkspaceSpecsConventionHandler(workspaceDir, setStepType),
+		},
+		{
+			Name:        "verify_spec_suite",
+			Description: "Run the structured spec verification suite for parent chains, completeness, behaviors, and file existence. Falls back to make validate when verify_specs binary is unavailable.",
+			Parameters: objectSchema(
+				optField("workspace_root", "string", "Path to workspace root (defaults to current WORKSPACE_DIR)"),
+				optField("checks", "string", "Optional comma-separated checks"),
+				optField("levels", "string", "Optional comma-separated levels"),
+			),
+			Handler: MakeVerifySpecSuiteHandler(workspaceDir, setStepType),
+		},
+		{
+			Name:        "workspace_run_make",
+			Description: "Run an allowlisted Makefile target in the current workspace and summarize output. Prefer this over generic bash for validate/generate/lint-specs.",
+			Parameters: objectSchema(
+				reqField("target", "string", "Make target: validate, lint-specs, generate, or test"),
+				optField("workspace_root", "string", "Path to workspace root (defaults to current WORKSPACE_DIR)"),
+			),
+			Handler: MakeWorkspaceRunMakeHandler(workspaceDir, setStepType),
+		},
+		{
+			Name:        "governance_status",
+			Description: "Summarize workspace governance state including panorama presence and spec counts by level.",
+			Parameters: objectSchema(
+				optField("workspace_root", "string", "Path to workspace root (defaults to current WORKSPACE_DIR)"),
+			),
+			Handler: MakeGovernanceStatusHandler(workspaceDir, setStepType),
+		},
+		{
+			Name: "workspace_scaffold",
 			Description: "Scaffold a new VibeX project from scratch. " +
 				"Creates the minimal directory structure: specs/, generators/, spec-templates/, Makefile, frontend/package.json. " +
 				"Uses vibex-workbench scaffold files as templates. " +
@@ -125,7 +166,7 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 			Handler: MakeWorkspaceScaffoldHandler(workspaceDir, setStepType),
 		},
 		{
-			Name:        "spec_write",
+			Name: "spec_write",
 			Description: "Write or overwrite a spec YAML file at a given path. " +
 				"Use this to save edited spec content back to disk. " +
 				"Auto-creates parent directories if needed. " +

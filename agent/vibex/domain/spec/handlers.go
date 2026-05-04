@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -156,11 +157,11 @@ func MakeSpecFeatureHandler(workspaceDir string, bc Broadcaster, setStepType fun
 		// ── Substitute placeholders (${FEATURE_ID} etc., synced from meta-spec) ──
 		timestamp := time.Now().Format(time.RFC3339)
 		subs := map[string]string{
-			"${FEATURE_ID}":    featureID,
-			"${SAFE_NAME}":     safeName,
-			"${PARENT_ID}":     args.ParentSpecID,
-			"${TIMESTAMP}":     timestamp,
-			"${FEATURE_NAME}":  escapeYAML(args.FeatureName),
+			"${FEATURE_ID}":   featureID,
+			"${SAFE_NAME}":    safeName,
+			"${PARENT_ID}":    args.ParentSpecID,
+			"${TIMESTAMP}":    timestamp,
+			"${FEATURE_NAME}": escapeYAML(args.FeatureName),
 		}
 		for placeholder, value := range subs {
 			featureTplContent = strings.ReplaceAll(featureTplContent, placeholder, value)
@@ -288,9 +289,9 @@ func MakeCanvasUpdateHandler(bc Broadcaster, setStepType func(threadID, stepType
 		var args struct {
 			ThreadID  string `json:"thread_id"`
 			EventType string `json:"event_type"`
-			Payload  string `json:"payload"`
-			Title    string `json:"title"`
-			Content  string `json:"content"`
+			Payload   string `json:"payload"`
+			Title     string `json:"title"`
+			Content   string `json:"content"`
 		}
 		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 			return "invalid args: " + err.Error()
@@ -300,12 +301,12 @@ func MakeCanvasUpdateHandler(bc Broadcaster, setStepType func(threadID, stepType
 		}
 
 		event := map[string]interface{}{
-			"thread_id":   args.ThreadID,
-			"event_type":  args.EventType,
-			"payload":     args.Payload,
-			"title":       args.Title,
-			"content":     args.Content,
-			"timestamp":   time.Now().Format(time.RFC3339),
+			"thread_id":  args.ThreadID,
+			"event_type": args.EventType,
+			"payload":    args.Payload,
+			"title":      args.Title,
+			"content":    args.Content,
+			"timestamp":  time.Now().Format(time.RFC3339),
 		}
 		if bc != nil {
 			bc(args.ThreadID, "canvas."+args.EventType, event)
@@ -394,13 +395,170 @@ func MakeMakeGenerateHandler(workspaceDir string, setStepType func(threadID, ste
 	}
 }
 
+func MakeWorkspaceSpecsListHandler(workspaceDir string, setStepType func(threadID, stepType string)) rt.Handler {
+	return func(arguments string) string {
+		if setStepType != nil {
+			setStepType("", "spec-analyse")
+		}
+		var args struct {
+			WorkspaceRoot string `json:"workspace_root"`
+		}
+		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+			return "invalid args: " + err.Error()
+		}
+		root := resolveWorkspaceArg(workspaceDir, args.WorkspaceRoot)
+		specsDir := filepath.Join(root, "specs")
+		var paths []string
+		if err := filepath.Walk(specsDir, func(full string, info os.FileInfo, err error) error {
+			if err != nil || info == nil || info.IsDir() {
+				return nil
+			}
+			if strings.HasSuffix(full, ".yaml") || strings.HasSuffix(full, ".yml") {
+				if rel, relErr := filepath.Rel(root, full); relErr == nil {
+					paths = append(paths, filepath.ToSlash(rel))
+				}
+			}
+			return nil
+		}); err != nil {
+			return "workspace_specs_list failed: " + err.Error()
+		}
+		sort.Strings(paths)
+		payload := map[string]any{
+			"workspace_root": root,
+			"count":          len(paths),
+			"paths":          paths,
+		}
+		return marshalToolResult(payload)
+	}
+}
+
+func MakeWorkspaceSpecsConventionHandler(workspaceDir string, setStepType func(threadID, stepType string)) rt.Handler {
+	return func(arguments string) string {
+		if setStepType != nil {
+			setStepType("", "spec-analyse")
+		}
+		payload := map[string]any{
+			"workspace_root": workspaceDir,
+			"levels": []map[string]string{
+				{"id": "L1", "directory": "specs/L1-goal", "meaning": "Goal / project intent"},
+				{"id": "L2", "directory": "specs/L2-skeleton", "meaning": "Skeleton / system shape"},
+				{"id": "L3", "directory": "specs/L3-module", "meaning": "Module boundary"},
+				{"id": "L4", "directory": "specs/L4-feature", "meaning": "Feature behavior"},
+				{"id": "L5", "directory": "specs/L5-slice", "meaning": "Slice / implementation unit"},
+			},
+			"canonical_slots": []string{"structure", "io.input", "io.output", "constraints", "prototype", "implementation"},
+			"rules": []string{
+				"Use spec.name and spec.parent as the parent-chain source of truth.",
+				"Cards should prefer display.title and display.summary.",
+				"Missing canonical slots should be clarified before implementation.",
+			},
+		}
+		return marshalToolResult(payload)
+	}
+}
+
+func MakeVerifySpecSuiteHandler(workspaceDir string, setStepType func(threadID, stepType string)) rt.Handler {
+	return func(arguments string) string {
+		if setStepType != nil {
+			setStepType("", "spec-apply")
+		}
+		var args struct {
+			WorkspaceRoot string `json:"workspace_root"`
+			Checks        string `json:"checks"`
+			Levels        string `json:"levels"`
+		}
+		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+			return "invalid args: " + err.Error()
+		}
+		root := resolveWorkspaceArg(workspaceDir, args.WorkspaceRoot)
+		verifyBin := ""
+		for _, candidate := range []string{filepath.Join(root, "verify_specs"), filepath.Join(root, "verify_specs.exe")} {
+			if _, err := os.Stat(candidate); err == nil {
+				verifyBin = candidate
+				break
+			}
+		}
+		if verifyBin != "" {
+			cmdArgs := []string{"--workspace", root, "--format", "json"}
+			if strings.TrimSpace(args.Checks) != "" {
+				cmdArgs = append(cmdArgs, "--check", args.Checks)
+			}
+			if strings.TrimSpace(args.Levels) != "" {
+				cmdArgs = append(cmdArgs, "--level", args.Levels)
+			}
+			cmd := exec.Command(verifyBin, cmdArgs...)
+			cmd.Dir = root
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				return fmt.Sprintf("verify_spec_suite FAILED:\n%s\n%v", strings.TrimSpace(string(out)), err)
+			}
+			return "verify_spec_suite PASSED:\n" + strings.TrimSpace(string(out))
+		}
+
+		cmd := exec.Command("make", "validate")
+		cmd.Dir = root
+		out, err := cmd.CombinedOutput()
+		text := strings.TrimSpace(string(out))
+		if err != nil {
+			return fmt.Sprintf("verify_specs binary not found; make validate FAILED:\n%s\n%v", text, err)
+		}
+		return "verify_specs binary not found; make validate PASSED:\n" + text
+	}
+}
+
+func MakeWorkspaceRunMakeHandler(workspaceDir string, setStepType func(threadID, stepType string)) rt.Handler {
+	return func(arguments string) string {
+		if setStepType != nil {
+			setStepType("", "spec-apply")
+		}
+		var args struct {
+			WorkspaceRoot string `json:"workspace_root"`
+			Target        string `json:"target"`
+		}
+		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+			return "invalid args: " + err.Error()
+		}
+		target := strings.TrimSpace(args.Target)
+		allowed := map[string]bool{"validate": true, "lint-specs": true, "generate": true, "test": true}
+		if !allowed[target] {
+			return "target must be one of: validate, lint-specs, generate, test"
+		}
+		root := resolveWorkspaceArg(workspaceDir, args.WorkspaceRoot)
+		cmd := exec.Command("make", target)
+		cmd.Dir = root
+		out, err := cmd.CombinedOutput()
+		text := strings.TrimSpace(string(out))
+		if err != nil {
+			return fmt.Sprintf("workspace_run_make %s FAILED:\n%s\n%v", target, text, err)
+		}
+		return fmt.Sprintf("workspace_run_make %s PASSED:\n%s", target, text)
+	}
+}
+
+func MakeGovernanceStatusHandler(workspaceDir string, setStepType func(threadID, stepType string)) rt.Handler {
+	return func(arguments string) string {
+		if setStepType != nil {
+			setStepType("", "spec-analyse")
+		}
+		var args struct {
+			WorkspaceRoot string `json:"workspace_root"`
+		}
+		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+			return "invalid args: " + err.Error()
+		}
+		root := resolveWorkspaceArg(workspaceDir, args.WorkspaceRoot)
+		payload := governanceSummary(root)
+		return marshalToolResult(payload)
+	}
+}
+
 func MakeBugReportHandler(workspaceDir string, setStepType func(threadID, stepType string)) rt.Handler {
 	return func(arguments string) string {
 		if setStepType != nil {
 			setStepType("", "spec-bug")
 		}
 		var args struct {
-			SpecPath     string `json:"spec_path"`
+			SpecPath    string `json:"spec_path"`
 			BugDesc     string `json:"bug_description"`
 			Severity    string `json:"severity"`
 			ReproSteps  string `json:"repro_steps"`
@@ -474,12 +632,12 @@ func MakeSpecResultTrackHandler(bc Broadcaster) rt.Handler {
 		}
 
 		event := map[string]interface{}{
-			"spec_path":     args.SpecPath,
-			"result_index":  args.ResultIndex,
-			"confirmed":     args.Confirmed,
-			"confirmed_by":  args.ConfirmedBy,
-			"confirmed_at":  time.Now().Format(time.RFC3339),
-			"notes":         args.Notes,
+			"spec_path":    args.SpecPath,
+			"result_index": args.ResultIndex,
+			"confirmed":    args.Confirmed,
+			"confirmed_by": args.ConfirmedBy,
+			"confirmed_at": time.Now().Format(time.RFC3339),
+			"notes":        args.Notes,
 		}
 		if bc != nil {
 			bc(args.SpecPath, "result.confirmed", event)
@@ -510,6 +668,58 @@ func parseStringArg(arguments, fieldName string) (string, error) {
 	return s, nil
 }
 
+func resolveWorkspaceArg(defaultRoot, root string) string {
+	root = strings.TrimSpace(root)
+	if root == "" {
+		return defaultRoot
+	}
+	if abs, err := filepath.Abs(root); err == nil {
+		return abs
+	}
+	return root
+}
+
+func governanceSummary(root string) map[string]any {
+	summary := map[string]any{
+		"workspace_root": root,
+		"ok":             true,
+	}
+	if _, err := os.Stat(filepath.Join(root, "specs", "_governance", "panorama.json")); err == nil {
+		summary["panorama"] = "present"
+	} else {
+		summary["panorama"] = "missing"
+	}
+	counts := map[string]int{}
+	total := 0
+	_ = filepath.Walk(filepath.Join(root, "specs"), func(full string, info os.FileInfo, err error) error {
+		if err != nil || info == nil || info.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(full, ".yaml") && !strings.HasSuffix(full, ".yml") {
+			return nil
+		}
+		total++
+		if rel, relErr := filepath.Rel(filepath.Join(root, "specs"), full); relErr == nil {
+			parts := strings.Split(filepath.ToSlash(rel), "/")
+			if len(parts) > 0 {
+				counts[parts[0]]++
+			}
+		}
+		return nil
+	})
+	summary["total_specs"] = total
+	summary["by_directory"] = counts
+	return summary
+}
+
+func marshalToolResult(value any) string {
+	data, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return fmt.Sprintf("%v", value)
+	}
+	return string(data)
+}
+
 func MakeWorkspaceScaffoldHandler(workspaceDir string, setStepType func(threadID, stepType string)) rt.Handler {
 	return func(arguments string) string {
 		if setStepType != nil {
@@ -518,10 +728,10 @@ func MakeWorkspaceScaffoldHandler(workspaceDir string, setStepType func(threadID
 
 		var args struct {
 			WorkspaceRoot string `json:"workspace_root"`
-			ProjectName  string `json:"project_name"`
-			Owner        string `json:"owner"`
-			DryRun       bool   `json:"dry_run"`
-			Confirm      bool   `json:"confirm"`
+			ProjectName   string `json:"project_name"`
+			Owner         string `json:"owner"`
+			DryRun        bool   `json:"dry_run"`
+			Confirm       bool   `json:"confirm"`
 		}
 		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 			return "invalid args: " + err.Error()
@@ -599,8 +809,8 @@ func MakeSpecWriteHandler(workspaceDir string, bc Broadcaster, setStepType func(
 		}
 
 		var args struct {
-			SpecPath     string `json:"spec_path"`
-			Content     string `json:"content"`
+			SpecPath      string `json:"spec_path"`
+			Content       string `json:"content"`
 			ValidateAfter *bool  `json:"validate_after"`
 		}
 		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
@@ -662,9 +872,9 @@ func MakeSpecWriteHandler(workspaceDir string, bc Broadcaster, setStepType func(
 		canvasNote := ""
 		if bc != nil {
 			bc("", "canvas.spec_modified", map[string]interface{}{
-				"spec_path":  args.SpecPath,
-				"size":       len(args.Content),
-				"timestamp":  time.Now().Format(time.RFC3339),
+				"spec_path": args.SpecPath,
+				"size":      len(args.Content),
+				"timestamp": time.Now().Format(time.RFC3339),
 			})
 			canvasNote = "\n✅ canvas updated"
 		}

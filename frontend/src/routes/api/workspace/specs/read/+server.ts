@@ -11,9 +11,10 @@ export async function GET(event) {
 		return json({ error: 'workspaceRoot and path required' }, { status: 400 });
 	}
 
-	const fullPath = path.join(workspaceRoot, filePath);
-	// Security: ensure the resolved path is within workspaceRoot
-	if (!fullPath.startsWith(path.resolve(workspaceRoot))) {
+	const rootAbs = path.resolve(workspaceRoot);
+	const fullPath = path.resolve(rootAbs, filePath);
+	const rel = path.relative(rootAbs, fullPath);
+	if (rel.startsWith('..') || path.isAbsolute(rel)) {
 		return json({ error: 'Invalid path' }, { status: 403 });
 	}
 

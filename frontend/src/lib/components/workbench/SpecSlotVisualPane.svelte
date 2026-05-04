@@ -1,5 +1,8 @@
 <script lang="ts">
+	import { specSlotSessionStore } from '$lib/stores/spec-slot-session-store';
 	import type { SpecSlotSession } from '$lib/stores/spec-slot-session-store';
+	import SpecSlotA2UIStage from '$lib/components/workbench/SpecSlotA2UIStage.svelte';
+	import SpecSlotPrototypeKitBar from '$lib/components/workbench/SpecSlotPrototypeKitBar.svelte';
 
 	let { session }: { session: SpecSlotSession } = $props();
 
@@ -22,79 +25,97 @@
 	}
 
 	const routeDecisions = $derived.by(() => session.routePreview?.decisions ?? []);
-	const fireworks = $derived.by(() => session.fireworksGraph);
 </script>
 
-<section class="visual-pane" aria-label="槽位可视化图谱">
-	<div class="map-card focus">
-		<span class="k">Current Slot</span>
-		<h3>{session.slot.label}</h3>
-		<p>{session.slot.summary}</p>
-		<strong>{statusText(session.slot.status)}</strong>
+<section class="visual-pane" aria-label="槽位可视化与 A2UI">
+	<header class="focus-strip">
+		<span class="slot-pill">{session.slot.label}</span>
+		<span class="dot">·</span>
+		<span class="spec-title">{session.spec.display.title}</span>
+		<span class="status-pill">{statusText(session.slot.status)}</span>
+	</header>
+
+	<div class="a2ui-main">
+		<SpecSlotA2UIStage {session} />
 	</div>
 
-	<div class="flow">
-		<div class="spec-node">
-			<span class="k">{session.spec.level}</span>
-			<h3>{session.spec.display.title}</h3>
-			<p>{session.spec.display.summary}</p>
-			<code>{session.spec.path}</code>
-		</div>
+	<details class="drawer context-drawer">
+		<summary class="drawer-sum">槽位上下文 · 图谱与路由预览</summary>
+		<div class="drawer-body">
+			<div class="map-card focus">
+				<span class="k">Current Slot</span>
+				<h3>{session.slot.label}</h3>
+				<p>{session.slot.summary}</p>
+				<strong>{statusText(session.slot.status)}</strong>
+			</div>
 
-		<div class="slot-grid">
-			{#each slots as slot (slot.id)}
-				<div class="slot-node {slot.status}" class:active={slot.id === session.slot.id}>
-					<span>{slot.label}</span>
-					<strong>{statusText(slot.status)}</strong>
-					<small>{slot.summary}</small>
+			<div class="flow">
+				<div class="spec-node">
+					<span class="k">{session.spec.level}</span>
+					<h3>{session.spec.display.title}</h3>
+					<p>{session.spec.display.summary}</p>
+					<code>{session.spec.path}</code>
 				</div>
-			{/each}
+
+				<div class="slot-grid">
+					{#each slots as slot (slot.id)}
+						<div class="slot-node {slot.status}" class:active={slot.id === session.slot.id}>
+							<span>{slot.label}</span>
+							<strong>{statusText(slot.status)}</strong>
+							<small>{slot.summary}</small>
+						</div>
+					{/each}
+				</div>
+			</div>
+
+			<div class="question-card">
+				<span class="k">Clarification Seed</span>
+				<p>{questionForSlot(session.slot.id)}</p>
+			</div>
+
+			<div class="route-card compact">
+				<span class="k">Tool Route Preview</span>
+				{#if routeDecisions.length > 0}
+					<div class="route-list">
+						{#each routeDecisions as decision (decision.node_id)}
+							<div class="route-item" class:confirm={decision.needs_confirm}>
+								<strong>{decision.tool || '未命中工具'}</strong>
+								<span>{decision.node_kind}</span>
+								<small>{decision.reason}</small>
+							</div>
+						{/each}
+					</div>
+				{:else}
+					<p class="route-fallback">路由预览加载后显示各节点命中工具；详见 A2UI 区。</p>
+				{/if}
+			</div>
 		</div>
-	</div>
+	</details>
 
-	<div class="question-card">
-		<span class="k">Clarification Seed</span>
-		<p>{questionForSlot(session.slot.id)}</p>
-	</div>
-
-	<div class="route-card">
-		<span class="k">Tool Route Preview</span>
-		{#if routeDecisions.length > 0}
-			<div class="route-list">
-				{#each routeDecisions as decision (decision.node_id)}
-					<div class="route-item" class:confirm={decision.needs_confirm}>
-						<strong>{decision.tool || '未命中工具'}</strong>
-						<span>{decision.node_kind}</span>
-						<small>{decision.reason}</small>
-					</div>
-				{/each}
+	{#if session.slot.id === 'prototype'}
+		<details class="drawer kit-drawer">
+			<summary class="drawer-sum">设计物料库 · DESIGN.md / 从页面提取</summary>
+			<div class="drawer-body kit-body">
+				<SpecSlotPrototypeKitBar {session} />
 			</div>
-		{:else if session.slot.id === 'input' || session.slot.id === 'output'}
-			<p>建议进入 I/O 合约校验，检查上下游、边界条件和可测试性。</p>
-		{:else if session.slot.id === 'prototype'}
-			<p>建议先澄清验证目标，再决定是否生成独立原型文件。</p>
-		{:else}
-			<p>建议先分析结构关系，再用最少问题补齐缺失字段。</p>
-		{/if}
-	</div>
+		</details>
+	{/if}
 
-	<div class="fireworks-card">
-		<span class="k">Fireworks Tech Graph</span>
-		{#if fireworks}
-			<div class="fireworks-stage">
-				{#each fireworks.nodes as node, index (node.id)}
-					<div class="spark {node.type} {node.status}" style:left="{8 + (index % 4) * 28}%" style:top="{18 + Math.floor(index / 4) * 24}%">
-						<strong>{node.label}</strong>
-						<small>{node.type} · {node.status}</small>
-					</div>
-				{/each}
-				{#each fireworks.edges as edge, index (`${edge.from}-${edge.to}-${index}`)}
-					<span class="spark-edge" style:top="{14 + index * 7}%">{edge.label}</span>
-				{/each}
+	<div class="action-zone">
+		<button type="button" class="btn-confirm" onclick={() => specSlotSessionStore.confirmActiveA2UI()}>
+			确认
+		</button>
+		<details class="drawer action-drawer">
+			<summary class="drawer-sum action-sum">更多操作</summary>
+			<div class="action-grid">
+				<button type="button" onclick={() => specSlotSessionStore.tuneActiveA2UI()}>微调</button>
+				<button type="button" onclick={() => specSlotSessionStore.draftActiveA2UI()}>草稿</button>
+				<button type="button" onclick={() => specSlotSessionStore.cancelActiveA2UI()}>取消</button>
+				<button type="button" onclick={() => specSlotSessionStore.regenerateActiveA2UI()}>
+					重新生成
+				</button>
 			</div>
-		{:else}
-			<p>正在生成 route preview 和 fireworks 图谱数据…</p>
-		{/if}
+		</details>
 	</div>
 </section>
 
@@ -102,11 +123,8 @@
 	.visual-pane {
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
 		height: 100%;
 		min-height: 0;
-		overflow: auto;
-		padding: 14px;
 		background:
 			linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
 			linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
@@ -114,10 +132,95 @@
 		background-size: 24px 24px;
 	}
 
+	.focus-strip {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-wrap: wrap;
+		padding: 8px 14px;
+		border-bottom: 1px solid #2a3140;
+		background: rgba(12, 14, 19, 0.75);
+		font-size: 12px;
+		color: #c8ced9;
+	}
+
+	.slot-pill {
+		font-weight: 800;
+		color: #7aa2ff;
+	}
+	.dot {
+		opacity: 0.45;
+	}
+	.spec-title {
+		color: #eef0f5;
+		font-weight: 600;
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.status-pill {
+		font-size: 10px;
+		padding: 2px 8px;
+		border-radius: 999px;
+		border: 1px solid rgba(114, 214, 208, 0.35);
+		color: #72d6d0;
+	}
+
+	.a2ui-main {
+		flex: 1;
+		min-height: 0;
+		padding: 8px 14px 0;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.drawer {
+		flex-shrink: 0;
+		border-top: 1px solid #2a3140;
+		background: rgba(12, 14, 19, 0.55);
+	}
+
+	.drawer-sum {
+		cursor: pointer;
+		list-style: none;
+		padding: 10px 14px;
+		font-size: 11px;
+		font-weight: 800;
+		color: #94a3b8;
+		letter-spacing: 0.04em;
+		user-select: none;
+	}
+	.drawer-sum::-webkit-details-marker {
+		display: none;
+	}
+	.drawer-sum::before {
+		content: '▸ ';
+		opacity: 0.5;
+	}
+	details[open] > .drawer-sum::before {
+		content: '▾ ';
+	}
+
+	.drawer-body {
+		padding: 0 14px 12px;
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		max-height: 40vh;
+		overflow: auto;
+	}
+
+	.kit-body {
+		max-height: 48vh;
+		padding-top: 4px;
+	}
+
 	.map-card,
 	.question-card,
 	.route-card,
-	.fireworks-card,
 	.spec-node,
 	.slot-node {
 		border: 1px solid #303746;
@@ -127,10 +230,12 @@
 	}
 
 	.map-card,
-	.question-card,
-	.route-card,
-	.fireworks-card {
-		padding: 14px;
+	.question-card {
+		padding: 12px 14px;
+	}
+
+	.route-card.compact {
+		padding: 12px 14px;
 	}
 
 	.map-card.focus {
@@ -140,7 +245,7 @@
 
 	.k {
 		display: block;
-		margin-bottom: 7px;
+		margin-bottom: 6px;
 		color: #72d6d0;
 		font-family: 'Cascadia Code', ui-monospace, monospace;
 		font-size: 10px;
@@ -155,20 +260,24 @@
 	}
 
 	h3 {
-		font-size: 16px;
+		font-size: 15px;
 		line-height: 1.25;
 	}
 
 	p {
-		margin-top: 7px;
+		margin-top: 6px;
 		color: #a3abb9;
-		font-size: 12px;
-		line-height: 1.5;
+		font-size: 11px;
+		line-height: 1.45;
+	}
+
+	.route-fallback {
+		margin-top: 6px;
 	}
 
 	code {
 		display: block;
-		margin-top: 10px;
+		margin-top: 8px;
 		color: #858fa1;
 		font-size: 10px;
 		white-space: normal;
@@ -177,24 +286,23 @@
 
 	.flow {
 		display: grid;
-		grid-template-columns: minmax(220px, 0.78fr) minmax(280px, 1.22fr);
-		gap: 12px;
-		min-height: 0;
+		grid-template-columns: minmax(200px, 0.78fr) minmax(260px, 1.22fr);
+		gap: 10px;
 	}
 
 	.spec-node {
-		padding: 16px;
+		padding: 12px;
 	}
 
 	.slot-grid {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 10px;
+		gap: 8px;
 	}
 
 	.slot-node {
-		padding: 11px;
-		min-height: 78px;
+		padding: 9px;
+		min-height: 68px;
 	}
 
 	.slot-node.active {
@@ -220,18 +328,19 @@
 	.slot-node span {
 		color: #eef0f5;
 		font-weight: 800;
-	}
-
-	.slot-node strong {
-		margin-top: 5px;
-		color: #72d6d0;
 		font-size: 11px;
 	}
 
-	.slot-node small {
-		margin-top: 6px;
-		color: #858fa1;
+	.slot-node strong {
+		margin-top: 4px;
+		color: #72d6d0;
 		font-size: 10px;
+	}
+
+	.slot-node small {
+		margin-top: 4px;
+		color: #858fa1;
+		font-size: 9px;
 		line-height: 1.35;
 	}
 
@@ -243,14 +352,16 @@
 
 	.route-list {
 		display: grid;
-		gap: 8px;
-		margin-top: 10px;
+		gap: 6px;
+		margin-top: 8px;
+		max-height: 120px;
+		overflow: auto;
 	}
 
 	.route-item {
 		border: 1px solid rgba(114, 214, 208, 0.34);
-		border-radius: 12px;
-		padding: 10px;
+		border-radius: 10px;
+		padding: 8px;
 		background: rgba(114, 214, 208, 0.07);
 	}
 
@@ -267,94 +378,81 @@
 
 	.route-item strong {
 		color: #eef0f5;
-		font-size: 12px;
+		font-size: 11px;
 	}
 
 	.route-item span {
-		margin-top: 4px;
+		margin-top: 3px;
 		color: #72d6d0;
 		font-family: ui-monospace, monospace;
-		font-size: 10px;
-	}
-
-	.route-item small {
-		margin-top: 6px;
-		color: #858fa1;
-		font-size: 10px;
-		line-height: 1.4;
-	}
-
-	.fireworks-stage {
-		position: relative;
-		height: 260px;
-		margin-top: 10px;
-		overflow: hidden;
-		border: 1px solid #242b38;
-		border-radius: 14px;
-		background:
-			radial-gradient(circle at 30% 18%, rgba(122, 162, 255, 0.15), transparent 22%),
-			radial-gradient(circle at 78% 70%, rgba(114, 214, 208, 0.12), transparent 26%),
-			rgba(12, 14, 19, 0.58);
-	}
-
-	.spark {
-		position: absolute;
-		width: 132px;
-		min-height: 48px;
-		transform: translate(-50%, -50%);
-		border: 1px solid #465064;
-		border-radius: 13px;
-		padding: 8px;
-		background: rgba(28, 32, 42, 0.9);
-		box-shadow: 0 0 24px rgba(122, 162, 255, 0.1);
-	}
-
-	.spark.ready {
-		border-color: rgba(114, 214, 208, 0.56);
-	}
-
-	.spark.confirm {
-		border-color: rgba(239, 198, 107, 0.6);
-	}
-
-	.spark.missing {
-		border-color: rgba(248, 113, 113, 0.55);
-	}
-
-	.spark.tool {
-		background: rgba(122, 162, 255, 0.13);
-	}
-
-	.spark.gate {
-		background: rgba(239, 198, 107, 0.1);
-	}
-
-	.spark strong,
-	.spark small {
-		display: block;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.spark strong {
-		color: #eef0f5;
-		font-size: 10px;
-	}
-
-	.spark small {
-		margin-top: 4px;
-		color: #a3abb9;
 		font-size: 9px;
 	}
 
-	.spark-edge {
-		position: absolute;
-		left: 50%;
-		width: 38%;
-		height: 1px;
-		overflow: hidden;
-		border-top: 1px dashed rgba(122, 162, 255, 0.34);
-		color: transparent;
+	.route-item small {
+		margin-top: 4px;
+		color: #858fa1;
+		font-size: 9px;
+		line-height: 1.35;
+	}
+
+	.action-zone {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		flex-wrap: wrap;
+		padding: 10px 14px 12px;
+		border-top: 1px solid #303746;
+		background: rgba(12, 14, 19, 0.92);
+	}
+
+	.btn-confirm {
+		border: 1px solid rgba(114, 214, 208, 0.55);
+		border-radius: 999px;
+		background: rgba(114, 214, 208, 0.12);
+		color: #bdf7f3;
+		padding: 8px 18px;
+		font-size: 12px;
+		font-weight: 800;
+		cursor: pointer;
+	}
+	.btn-confirm:hover {
+		border-color: #72d6d0;
+		background: rgba(114, 214, 208, 0.2);
+	}
+
+	.action-drawer {
+		flex: 1;
+		min-width: 140px;
+		border: none;
+		background: transparent;
+	}
+
+	.action-sum {
+		padding: 8px 0;
+		color: #7aa2ff;
+	}
+
+	.action-grid {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		padding-bottom: 4px;
+	}
+
+	.action-grid button {
+		border: 1px solid #465064;
+		border-radius: 999px;
+		background: rgba(28, 32, 42, 0.85);
+		color: #d4d8e3;
+		padding: 7px 13px;
+		font-size: 11px;
+		font-weight: 800;
+		cursor: pointer;
+	}
+
+	.action-grid button:hover {
+		border-color: #7aa2ff;
+		color: #eef0f5;
 	}
 </style>

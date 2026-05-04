@@ -21,6 +21,7 @@ structure:
   dependencies:
     - "FEAT-ide-agent-panel"
     - "FEAT-workspace-runtime-safety"
+    - "FEAT-workspace-design-prototype-gate"
   impacted_files:
     - "agent/vibex/domain/toolrouting/*.go"
     - "agent/cmd/web/tool_routing_handlers.go"
@@ -28,16 +29,19 @@ structure:
     - "frontend/src/lib/services/tool-routing-client.ts"
     - "frontend/src/lib/stores/spec-slot-session-store.ts"
     - "frontend/src/lib/components/workbench/SpecSlotDrawer.svelte"
+    - "frontend/src/lib/components/workbench/SpecSlotVisualPane.svelte"
+    - "frontend/src/lib/components/workbench/SpecSlotA2UIStage.svelte"
 
 io:
   input:
-    - "用户实现意图、当前 spec path、slot_id、已有 workspace/tool 配置"
+    - "用户实现意图、当前 spec path、slot_id、已有 workspace/tool 配置、右侧 AI 操作台的 workbench context"
   output:
     - "PlanGraph JSON"
     - "ToolRoutePreview JSON"
-    - "FireworksGraph UI model"
+    - "FireworksGraph UI model（A2UI 主体的一种渲染模式，可与卡片/HTML 原型并列）"
+    - "前端可映射的 A2UI 确认组件模型（由 slot_id、plan node outputs 与 route decisions 推导）"
     - "可注册但默认不执行的 custom tool metadata"
-  boundary: "本 feature 只定义计划图和工具路由，不默认执行任意自定义命令，不绕过用户确认写代码。"
+  boundary: "本 feature 只定义计划图和工具路由，不默认执行任意自定义命令，不绕过用户确认写代码。通用 AI 操作台负责全局编排，SpecSlotDrawer 负责单槽位深度澄清。"
 
 constraints:
   rules:
@@ -57,10 +61,18 @@ constraints:
       name: "Slot-aware routing"
       rule: "Spec 槽位澄清必须携带 slot_id，并路由到结构、I/O、约束、原型、实现等专用工具。"
       verification: "plan_graph_create 支持 slot_id，spec-slot-routing mode 返回对应 slot 节点。"
+    - id: "C6"
+      name: "Right rail orchestration"
+      rule: "通用 AI 操作台的实现/验证/治理请求必须可通过 plan_graph_create 和 tool_route_preview 展示可审查路线。"
+      verification: "用户在右侧操作台请求实现或验证时，回复包含 plan graph 或 route preview 摘要。"
     - id: "C5"
       name: "AI fill area"
       rule: "内置/自定义工具描述必须预留 ai_fill_area，供 agent 个性化补充工具说明、约束和提示。"
       verification: "ToolDescriptor/CustomToolConfig 包含 ai_fill_area。"
+    - id: "C7"
+      name: "SpecSlotDrawer A2UI core"
+      rule: "SpecSlotDrawer 右侧在 Current Slot 与 Fireworks 之间须以 A2UI 为核心区：按槽位生成可确认的可视化组件（卡片、HTML prototype 壳、或 Fireworks 静态/路由图）；底部固定 确认、微调、草稿、取消、重新生成。"
+      verification: "槽位抽屉打开后主体区为 A2UIStage，操作条常驻；prototype 槽位优先展示 HTML 预览壳，其它槽位可与 Fireworks 并排或主显其一。"
   forbidden:
     - "把用户自定义工具注册成默认可执行 shell 命令"
     - "跳过路由图直接调用 write_file/batch 生成代码"
@@ -79,11 +91,11 @@ meta:
 
 lifecycle:
   current: "proposal"
-  updated: "2026-05-03"
+  updated: "2026-05-04"
 
 io_contract:
   input: |
-    用户向 agent 提出实现、生成、验证、Spec 槽位澄清或工具扩展意图。
+    用户向右侧 AI 操作台或 SpecSlotDrawer 提出实现、生成、验证、Spec 槽位澄清或工具扩展意图。
   output: |
     Go agent 先产出可审查的执行图和工具路由预览，再由用户确认后进入执行。
   boundary: |
@@ -92,8 +104,10 @@ io_contract:
     - "创建 PlanGraph"
     - "路由每个节点到内置或自定义工具"
     - "展示需要确认的节点"
-    - "按 slot_id 生成槽位专用计划图"
+    - "通用 AI 操作台请求生成全局 plan graph"
+    - "按 slot_id 生成槽位专用计划图，并由 SpecSlotDrawer 展示"
     - "转换 FireworksGraph 供前端动态图展示"
+    - "推导 A2UI 模型供 SpecSlotDrawer 中央确认区渲染"
     - "保存自定义工具 metadata"
 
 content:
@@ -118,6 +132,16 @@ content:
       action: "创建 mode=spec-slot-routing 且包含 slot_id 的 PlanGraph，并生成 route preview / FireworksGraph"
       expected_result: "SpecSlotDrawer 展示槽位澄清对话、路由决策和动态图谱"
       error_handling: "tool routing API 不可用时保留对话入口并显示可恢复错误"
+    - id: "B5"
+      trigger: "用户在右侧 AI 操作台请求实现、验证或治理"
+      action: "agent 先调用 plan_graph_create，再调用 tool_route_preview，必要时请求用户确认"
+      expected_result: "ConversationPanel 显示计划/路由摘要，确认后再进入执行"
+      error_handling: "缺少工具时返回 custom tool metadata 草案，不直接执行 shell"
+    - id: "B6"
+      trigger: "用户在 SpecSlotDrawer 中查看某一槽位"
+      action: "生成 spec-slot-routing 的 PlanGraph 与 RoutePreview，并映射为 A2UI 核心区组件；Fireworks 仅作为路由可视化子模式"
+      expected_result: "右侧中间为可确认的 A2UI 卡片或 HTML prototype 壳；底部固定确认、微调、草稿、取消、重新生成"
+      error_handling: "API 不可用时 A2UI 显示降级说明，仍保留操作条与左侧对话"
 
   test_scenarios:
     - id: "TC-1"
@@ -138,6 +162,12 @@ content:
       when: "POST /api/agent/plan-graph mode=spec-slot-routing"
       then: "返回 graph.slot_id 且节点匹配当前槽位"
       evaluation: "RoutePreview 命中内置槽位工具，且工具包含 ai_fill_area"
+    - id: "TC-4"
+      scenario: "右侧操作台展示全局路由预览"
+      given: "用户输入 '实现当前 spec 并验证'"
+      when: "agent 收到 [Workbench Context] 与 focused spec"
+      then: "先返回 PlanGraph/RoutePreview 摘要，再要求确认写入或执行"
+      evaluation: "未确认前不写文件、不执行自定义工具"
 
 changelog:
   - version: "0.1"
@@ -150,5 +180,20 @@ changelog:
     author: "agent"
     changes:
       - "补充 slot_id 槽位路由、FireworksGraph 展示模型与 ai_fill_area 规则"
+  - version: "0.3"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "补充右侧 AI 操作台全局编排与 SpecSlotDrawer 槽位澄清的路由边界"
+  - version: "0.4"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "明确 SpecSlotDrawer A2UI 核心区：槽位映射可视化确认组件、Fireworks 为子模式、固定确认/微调/草稿/取消/重新生成"
+  - version: "0.5"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "依赖 FEAT-workspace-design-prototype-gate：prototype 槽位设计物料库与双轨写盘确认（spec YAML vs .vibex/prototypes）"
 ---
 

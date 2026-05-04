@@ -8,22 +8,22 @@ spec:
 
 display:
   title: "Agent 上下文面板"
-  summary: "在 Composer 上方折叠展示已附加 spec，并提供 / 命令下拉。"
+  summary: "在 Composer 上方折叠展示已附加 spec，并提供 / 命令、搜索定位打开 spec。"
   description: |
     让 spec 图谱与右侧 agent 对话协作。
     用户点击 spec 后，右侧仅以紧凑 Context 条显示附加数量；
-    输入 "/" 时才弹出当前层级可用命令。
+    输入 "/" 时才弹出当前层级可用命令，并可通过 /open-spec 或 /search-spec 从右侧直接定位 spec。
 
 meta:
   type: "slice"
   module: "frontend"
   owner: "hermes"
   created: "2026-05-02"
-  updated: "2026-05-02"
+  updated: "2026-05-04"
 
 lifecycle:
   current: "proposal"
-  updated: "2026-05-02"
+  updated: "2026-05-04"
 
 structure:
   parent: FEAT-spec-graph-expansion
@@ -35,6 +35,8 @@ io:
   input:
   - '- spec 图谱或 SpecViewer 提供的 spec path/name/level/display 摘要
 
+    - workspaceRoot、spec 列表、selectedSpecPath、centerView、运行状态等 workbench snapshot
+
     - Composer 当前输入内容
 
     - 当前焦点 spec 的层级'
@@ -45,7 +47,11 @@ io:
 
     - 输入 "/" 后显示层级可用 slash command 下拉
 
-    - 发送消息时将精简 Spec Context 附加到 prompt'
+    - /open-spec 唯一命中时打开中央 spec 详情并加入 Context
+
+    - /search-spec 或多命中时在对话中显示候选
+
+    - 发送消息时将 [Workspace]、[Workbench Context]、[Spec List]、[Spec Context] 附加到 prompt'
   boundary: '本 slice 只负责前端上下文 UI、命令候选和 prompt context 拼接。
 
     不直接写 spec，不直接调用 make，不直接实现 LLM provider。'
@@ -62,13 +68,16 @@ prototype:
 io_contract:
   input: |
     - spec 图谱或 SpecViewer 提供的 spec path/name/level/display 摘要
+    - workspaceRoot、spec 列表、selectedSpecPath、centerView、运行状态等 workbench snapshot
     - Composer 当前输入内容
     - 当前焦点 spec 的层级
   output: |
     - Composer 上方默认收起的 Context 区，仅显示已附加 spec 数量
     - 展开后展示可移除的 spec chips
     - 输入 "/" 后显示层级可用 slash command 下拉
-    - 发送消息时将精简 Spec Context 附加到 prompt
+    - /open-spec 唯一命中时打开中央 spec 详情并加入 Context
+    - /search-spec 或多命中时在对话中显示候选
+    - 发送消息时将 [Workspace]、[Workbench Context]、[Spec List]、[Spec Context] 附加到 prompt
   boundary: |
     本 slice 只负责前端上下文 UI、命令候选和 prompt context 拼接。
     不直接写 spec，不直接调用 make，不直接实现 LLM provider。
@@ -78,7 +87,9 @@ io_contract:
     - "Context 展开后显示 title/name/level，并支持移除"
     - "Composer 输入 / 时按当前焦点 spec 层级过滤命令"
     - "选择命令后填入默认描述，用户可继续编辑"
-    - "提交时追加精简 Spec Context，供 agent 使用"
+    - "提交 /open-spec 时在本地 spec 列表中搜索，唯一命中则打开中央详情并加入 Context"
+    - "提交 /search-spec 或 /open-spec 多命中时，在当前对话中显示候选，不调用后端 chat"
+    - "提交时追加 Workspace、Workbench Context、Spec List 和 Spec Context，供 agent 使用"
 
 content:
   files:
@@ -98,6 +109,12 @@ content:
     - command: "/validate"
       levels: ["L1", "L2", "L3", "L4", "L5", "IMPL"]
       meaning: "校验输入输出、层级、parent chain 与边界"
+    - command: "/open-spec"
+      levels: ["L1", "L2", "L3", "L4", "L5", "IMPL", "UNKNOWN"]
+      meaning: "按名称、路径、标题或摘要搜索并打开唯一匹配的 spec"
+    - command: "/search-spec"
+      levels: ["L1", "L2", "L3", "L4", "L5", "IMPL", "UNKNOWN"]
+      meaning: "按关键词搜索 spec 并展示候选，不自动打开多命中结果"
     - command: "/deduce"
       levels: ["L1", "L2", "L3", "L4"]
       meaning: "根据当前 spec 与 children 推导缺失子 spec"
@@ -120,7 +137,11 @@ content:
     - rule: "Slash commands are demand-driven"
       detail: "命令列表只在输入框以 / 开头时出现，不常驻堆叠展示。"
     - rule: "Context prompt is concise"
-      detail: "提交时只附加 title/name/level/path/summary，避免无关内容影响 agent 输出。"
+      detail: "焦点 spec 可以附加完整 YAML，其余 spec 只附加 title/name/level/path/summary；workbench snapshot 只保留状态摘要。"
+    - rule: "Workbench-native commands"
+      detail: "slash command 同时包含 spec 命令和工作台级命令，如 /workspace、/specs、/open-spec、/search-spec、/validate、/generate、/route、/governance、/open-slot。"
+    - rule: "Spec navigation stays local"
+      detail: "/open-spec 和 /search-spec 使用 specExplorerStore.specs 搜索；唯一命中调用 specExplorerStore.selectSpec(path) 和 specAgentContextStore.addSpec，不创建后端 run。"
     - rule: "Display fields are user-facing"
       detail: "spec.display 默认中文，由 agent 创建或修改 spec 时生成/维护。"
 
@@ -133,11 +154,15 @@ content:
       - "展开 Context 后可看到 spec chips 并移除"
       - "输入 / 后出现命令下拉，选择后填入默认描述"
       - "L5 当前焦点不显示 /add 和 /deduce"
+      - "输入 /open-spec \"FEAT-ide-agent-panel\" 后中央区域打开对应 spec"
+      - "输入 /search-spec \"agent\" 后对话区展示候选列表"
       - "发送消息时 prompt 包含精简 [Spec Context]"
+      - "发送消息时 prompt 包含 [Workspace]、[Workbench Context] 与 [Spec List]"
     failure_conditions:
       - "右侧面板常驻展示大量命令说明"
       - "Context 展开内容挤占对话输出区域"
       - "点击 spec 直接触发 agent 或写盘"
+      - "/open-spec 唯一命中仍然发送 /api/chat"
 
 changelog:
   - version: "0.1"
@@ -145,3 +170,13 @@ changelog:
     author: "hermes"
     changes:
       - "新增 Agent Context 折叠面板与 slash command palette slice"
+  - version: "0.2"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "扩展为工作台级 context 注入，包含 workspace、spec list、focused spec 与 workbench snapshot"
+  - version: "0.3"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "新增右侧 /open-spec 与 /search-spec 本地搜索、定位和打开 spec 的命令规则"

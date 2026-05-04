@@ -28,6 +28,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"vibex-workbench/pkg/designkit"
 	"vibex-workbench/pkg/verify"
 )
 
@@ -729,7 +730,14 @@ func (a *App) ReadSpecFile(root, path string) (string, error) {
 	if root == "" {
 		root = a.workspaceRoot
 	}
-	full := filepath.Join(root, filepath.Clean(path))
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return "", fmt.Errorf("ReadSpecFile root: %w", err)
+	}
+	full, err := designkit.WorkspaceRelSafe(rootAbs, path)
+	if err != nil {
+		return "", fmt.Errorf("ReadSpecFile %s: %w", path, err)
+	}
 	data, err := os.ReadFile(full)
 	if err != nil {
 		return "", fmt.Errorf("ReadSpecFile %s: %w", path, err)
@@ -742,7 +750,14 @@ func (a *App) WriteSpecFile(root, path, content string) error {
 	if root == "" {
 		root = a.workspaceRoot
 	}
-	full := filepath.Join(root, filepath.Clean(path))
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return fmt.Errorf("WriteSpecFile root: %w", err)
+	}
+	full, err := designkit.WorkspaceRelSafe(rootAbs, path)
+	if err != nil {
+		return fmt.Errorf("WriteSpecFile %s: %w", path, err)
+	}
 	if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
 		return fmt.Errorf("WriteSpecFile mkdir: %w", err)
 	}
@@ -789,6 +804,30 @@ func (a *App) DetectWorkspaceState(root string) (WorkspaceState, error) {
 		result.Suggestions = []string{"无法检测工作区状态"}
 	}
 	return result, nil
+}
+
+// DesignKitStatus Wails：等价 GET /api/workspace/design-kit/status
+func (a *App) DesignKitStatus(root string) designkit.Status {
+	if root == "" {
+		root = a.workspaceRoot
+	}
+	return designkit.GetStatus(root)
+}
+
+// DesignKitScaffold Wails：等价 POST /api/workspace/design-kit/scaffold
+func (a *App) DesignKitScaffold(root string, confirm bool) designkit.ScaffoldResult {
+	if root == "" {
+		root = a.workspaceRoot
+	}
+	return designkit.Scaffold(root, confirm)
+}
+
+// DesignKitExtract Wails：等价 POST /api/workspace/design-kit/extract（sourcePath 为相对工作区路径）
+func (a *App) DesignKitExtract(root, sourcePath, outBasename string, confirm bool) designkit.ExtractResult {
+	if root == "" {
+		root = a.workspaceRoot
+	}
+	return designkit.Extract(root, sourcePath, outBasename, confirm)
 }
 
 // ── Agent Spawn ─────────────────────────────────────────────

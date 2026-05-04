@@ -4,17 +4,20 @@ import type { SpecDisplayMeta, SpecSlotSummary } from '$lib/workbench/spec-displ
 import {
 	createSlotPlanGraph,
 	previewToolRoute,
+	toA2UIModel,
 	toFireworksGraph,
+	type A2UIModel,
 	type FireworksGraph,
 	type PlanGraph,
 	type RoutePreview,
 } from '$lib/services/tool-routing-client';
+import { specExplorerStore } from '$lib/stores/spec-explorer-store';
 
-export type SpecSlotMessage = {
+export type SpecSlotA2UIStatus = 'idle' | 'loading' | 'ready';
+
+export type SpecSlotChatPrefill = {
 	id: string;
-	role: 'user' | 'assistant' | 'system';
-	content: string;
-	createdAt: string;
+	text: string;
 };
 
 export type SpecSlotSession = {
@@ -31,6 +34,12 @@ export type SpecSlotSession = {
 	routePreview?: RoutePreview;
 	fireworksGraph?: FireworksGraph;
 	toolDrafts?: unknown[];
+	/** A2UI 核心区模型（由 slot + plan + route 推导） */
+	a2uiRevision: number;
+	a2uiModel?: A2UIModel;
+	a2uiStatus: SpecSlotA2UIStatus;
+	/** 由右侧「微调」写入，左侧输入框消费后清除 */
+	chatPrefill: SpecSlotChatPrefill | null;
 	updatedAt: string;
 };
 
@@ -73,10 +82,20 @@ function loadState(): SpecSlotSessionState {
 		const raw = localStorage.getItem(STORAGE_KEY);
 		if (!raw) return { activeKey: null, drawerOpen: false, sessions: {} };
 		const parsed = JSON.parse(raw) as SpecSlotSessionState;
+		const sessions: Record<string, SpecSlotSession> = {};
+		for (const [k, v] of Object.entries(parsed.sessions ?? {})) {
+			const s = v as SpecSlotSession;
+			sessions[k] = {
+				...s,
+				a2uiRevision: s.a2uiRevision ?? 0,
+				a2uiStatus: s.a2uiStatus ?? 'idle',
+				chatPrefill: s.chatPrefill ?? null,
+			};
+		}
 		return {
 			activeKey: parsed.activeKey ?? null,
 			drawerOpen: false,
-			sessions: parsed.sessions ?? {},
+			sessions,
 		};
 	} catch {
 		return { activeKey: null, drawerOpen: false, sessions: {} };
@@ -99,11 +118,20 @@ function buildPrompt(session: SpecSlotSession, userInput: string): string {
 		.slice(-8)
 		.map(message => `${message.role}: ${message.content}`)
 		.join('\n');
+	const explorerState = get(specExplorerStore);
+	const specList = explorerState.specs
+		.map(spec => {
+			const title = spec.display?.title ?? spec.name;
+			const summary = spec.display?.summary ? ` — ${spec.display.summary}` : '';
+			return `- L${spec.level} ${spec.status} ${spec.path} :: ${title}${summary}`;
+		})
+		.join('\n');
 
 	return [
 		userInput,
 		'',
 		'[Spec Slot Session]',
+		`workspace_root: ${explorerState.workspaceRoot || 'unknown'}`,
 		`spec_path: ${session.spec.path}`,
 		`spec_name: ${session.spec.name}`,
 		`spec_level: ${session.spec.level}`,
@@ -113,6 +141,30 @@ function buildPrompt(session: SpecSlotSession, userInput: string): string {
 		`slot_summary: ${session.slot.summary}`,
 		`compact_summary: ${session.compactSummary || 'none'}`,
 		'',
+		...(session.slot.id === 'prototype'
+			? [
+					'[Design Kit / 原型物料]',
+					'工作区约定：.vibex/design/DESIGN.md（栈、令牌、组件边界）；可交付 HTML 放在 .vibex/prototypes/；当前 spec 的 prototype.file 引用相对工作区根路径。',
+					'生成或修改原型前须对齐 DESIGN.md；写入当前 spec 的 prototype 字段须经用户明确确认后再 specs/write；写入物料文件使用原型槽工具条 extract/scaffold（已 confirm）。',
+					'[/Design Kit]',
+					'',
+				]
+			: []),
+		'[A2UI]',
+		session.a2uiModel
+			? JSON.stringify(
+					{
+						headline: session.a2uiModel.headline,
+						revision: session.a2uiModel.revision,
+						routeSummary: session.a2uiModel.routeSummaryLines,
+						hints: session.a2uiModel.componentHints,
+					},
+					null,
+					2
+				)
+			: 'none',
+		'[/A2UI]',
+		'',
 		'要求：这是针对当前 spec 槽位的可延续交互式澄清。先提出必要问题或给出可确认方案；除非用户明确确认，不要直接写文件。',
 		'如果需要工具路由，请先展示 plan graph / route preview 的建议步骤。',
 		'工具策略：优先造工具、注册路由、使用路由、调试工具、完善工具；不要默认直接生成业务代码。',
@@ -121,6 +173,10 @@ function buildPrompt(session: SpecSlotSession, userInput: string): string {
 		'[Current Tool Route Preview]',
 		session.routePreview ? JSON.stringify(session.routePreview, null, 2) : 'none',
 		'[/Current Tool Route Preview]',
+		'',
+		'[Spec List]',
+		specList || 'none',
+		'[/Spec List]',
 		'',
 		'[Recent Session Messages]',
 		recent || 'none',
@@ -185,14 +241,44 @@ function createSpecSlotSessionStore() {
 		const state = get({ subscribe });
 		const session = state.sessions[key];
 		if (!session) return;
+		commit(current => {
+			const active = current.sessions[key];
+			if (!active) return current;
+			return {
+				...current,
+				sessions: {
+					...current.sessions,
+					[key]: {
+						...active,
+						a2uiStatus: 'loading',
+						error: null,
+						updatedAt: nowIso(),
+					},
+				},
+			};
+		});
 		try {
+			const workspaceRoot = get(specExplorerStore).workspaceRoot;
 			const graph = await createSlotPlanGraph({
 				goal: `为 ${session.spec.path} 的 ${session.slot.label} 槽位生成工具路由和可视化验证图`,
 				specPath: session.spec.path,
 				slotId: session.slot.id,
+				workspaceRoot,
 			});
-			const route = await previewToolRoute(graph);
+			const route = await previewToolRoute(graph, workspaceRoot);
 			const fireworks = toFireworksGraph(graph, route);
+			const fresh = get({ subscribe }).sessions[key] ?? session;
+			const nextRev = (fresh.a2uiRevision ?? 0) + 1;
+			const a2uiModel = toA2UIModel({
+				revision: nextRev,
+				slotId: fresh.slot.id,
+				slotLabel: fresh.slot.label,
+				specPath: fresh.spec.path,
+				specTitle: fresh.spec.display.title,
+				goal: graph.goal,
+				graph,
+				route,
+			});
 			commit(current => {
 				const active = current.sessions[key];
 				if (!active) return current;
@@ -205,6 +291,9 @@ function createSpecSlotSessionStore() {
 							planGraph: graph,
 							routePreview: route,
 							fireworksGraph: fireworks,
+							a2uiModel,
+							a2uiRevision: nextRev,
+							a2uiStatus: 'ready',
 							updatedAt: nowIso(),
 						},
 					},
@@ -220,6 +309,7 @@ function createSpecSlotSessionStore() {
 						...current.sessions,
 						[key]: {
 							...active,
+							a2uiStatus: 'idle',
 							error: `工具路由预览失败: ${e instanceof Error ? e.message : String(e)}`,
 							updatedAt: nowIso(),
 						},
@@ -241,6 +331,9 @@ function createSpecSlotSessionStore() {
 							spec: input.spec,
 							slot: input.slot,
 							content: input.content,
+							a2uiRevision: existing.a2uiRevision ?? 0,
+							a2uiStatus: existing.a2uiStatus ?? 'idle',
+							chatPrefill: existing.chatPrefill ?? null,
 							updatedAt: nowIso(),
 						}
 					: {
@@ -260,6 +353,9 @@ function createSpecSlotSessionStore() {
 							compactSummary: '',
 							status: 'idle',
 							error: null,
+							a2uiRevision: 0,
+							a2uiStatus: 'idle',
+							chatPrefill: null,
 							updatedAt: nowIso(),
 						};
 				return {
@@ -270,6 +366,160 @@ function createSpecSlotSessionStore() {
 				};
 			});
 			void refreshToolRouting(key);
+		},
+		clearChatPrefillActive() {
+			commit(state => {
+				const key = state.activeKey;
+				if (!key) return state;
+				const session = state.sessions[key];
+				if (!session) return state;
+				return {
+					...state,
+					sessions: {
+						...state.sessions,
+						[key]: { ...session, chatPrefill: null, updatedAt: nowIso() },
+					},
+				};
+			});
+		},
+		/** 原型物料库等工具条：向左侧对话预填可发送文本 */
+		prefillActiveChat(text: string) {
+			const t = text.trim();
+			if (!t) return;
+			commit(state => {
+				const key = state.activeKey;
+				if (!key) return state;
+				const session = state.sessions[key];
+				if (!session) return state;
+				return {
+					...state,
+					sessions: {
+						...state.sessions,
+						[key]: {
+							...session,
+							chatPrefill: { id: id(), text: t },
+							updatedAt: nowIso(),
+						},
+					},
+				};
+			});
+		},
+		confirmActiveA2UI() {
+			commit(state => {
+				const key = state.activeKey;
+				if (!key) return state;
+				const session = state.sessions[key];
+				if (!session?.a2uiModel) return state;
+				const m = session.a2uiModel;
+				const lines = [
+					'[A2UI 确认] 用户确认当前槽位可视化摘要。',
+					`slot: ${session.slot.id} (${session.slot.label})`,
+					...m.cards.slice(0, 8).map(c => `- ${c.title}: ${c.body.slice(0, 200)}`),
+				];
+				if (m.routeSummaryLines.length) {
+					lines.push('--- tool route ---', ...m.routeSummaryLines.slice(0, 12));
+				}
+				const msg: SpecSlotMessage = {
+					id: id(),
+					role: 'system',
+					content: lines.join('\n'),
+					createdAt: nowIso(),
+				};
+				return {
+					...state,
+					sessions: {
+						...state.sessions,
+						[key]: {
+							...session,
+							messages: [...session.messages, msg],
+							updatedAt: nowIso(),
+						},
+					},
+				};
+			});
+		},
+		tuneActiveA2UI() {
+			commit(state => {
+				const key = state.activeKey;
+				if (!key) return state;
+				const session = state.sessions[key];
+				if (!session) return state;
+				const bullets =
+					session.a2uiModel?.cards.map(c => `- ${c.title}: ${c.body.slice(0, 120)}`).join('\n') ??
+					session.routePreview?.decisions.map(d => `- ${d.tool || d.node_id}`).join('\n') ??
+					'（尚无路由卡片）';
+				const text = `[A2UI 微调] 当前槽位「${session.slot.label}」。请根据右侧 A2UI 确认区调整澄清问题或输出更精确的草案。\n${bullets}`;
+				return {
+					...state,
+					sessions: {
+						...state.sessions,
+						[key]: {
+							...session,
+							chatPrefill: { id: id(), text },
+							updatedAt: nowIso(),
+						},
+					},
+				};
+			});
+		},
+		draftActiveA2UI() {
+			commit(state => {
+				const key = state.activeKey;
+				if (!key) return state;
+				const session = state.sessions[key];
+				if (!session?.a2uiModel) return state;
+				const body = session.a2uiModel.cards
+					.map(c => `## ${c.title}\n${c.body}`)
+					.join('\n\n');
+				const msg: SpecSlotMessage = {
+					id: id(),
+					role: 'system',
+					content: `[A2UI 草稿]（未写盘）\n\n${body}`,
+					createdAt: nowIso(),
+				};
+				return {
+					...state,
+					sessions: {
+						...state.sessions,
+						[key]: {
+							...session,
+							messages: [...session.messages, msg],
+							updatedAt: nowIso(),
+						},
+					},
+				};
+			});
+		},
+		cancelActiveA2UI() {
+			commit(state => {
+				const key = state.activeKey;
+				if (!key) return state;
+				const session = state.sessions[key];
+				if (!session) return state;
+				const msg: SpecSlotMessage = {
+					id: id(),
+					role: 'system',
+					content: '[A2UI 取消] 已放弃当前可视化候选摘要；可点击「重新生成」恢复路由与 A2UI。',
+					createdAt: nowIso(),
+				};
+				return {
+					...state,
+					sessions: {
+						...state.sessions,
+						[key]: {
+							...session,
+							a2uiModel: undefined,
+							a2uiStatus: 'idle',
+							messages: [...session.messages, msg],
+							updatedAt: nowIso(),
+						},
+					},
+				};
+			});
+		},
+		regenerateActiveA2UI() {
+			const key = get({ subscribe }).activeKey;
+			if (key) void refreshToolRouting(key);
 		},
 		close() {
 			closeStream();
@@ -400,7 +650,11 @@ function createSpecSlotSessionStore() {
 					await fetch(`${SSE_URL}/api/chat`, {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ threadId: session.threadId, input: prompt }),
+						body: JSON.stringify({
+							threadId: session.threadId,
+							input: prompt,
+							workspaceRoot: get(specExplorerStore).workspaceRoot,
+						}),
 					});
 				}
 			} catch (e) {

@@ -1,0 +1,136 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-workspace-design-prototype-gate"
+  parent: "MOD-ide-chrome"
+  status: "implementation"
+
+display:
+  title: "工作区设计门禁与原型物料库"
+  summary: "每仓库维护 DESIGN.md 与 prototypes 物料；原型槽提供可操作策略条；spec 与 prototype 修改均经显式确认写盘。"
+  description: |
+    约束 Agent 与原型生成都对齐本仓库真实栈与样式，避免脱离框架自由发挥。
+    工作区根下约定 `.vibex/design/DESIGN.md`（设计令牌、栈、组件边界、禁止项）与 `.vibex/prototypes/`（可交付 HTML 物料）。
+    Spec 槽位 `prototype` 在 A2UI 区之上展示 Design Kit 工具条：初始化物料、查看 DESIGN、从现有页面提取物料、预填合并 prototype 段落到当前 spec。
+    **双轨确认**：(1) 修改当前 spec YAML（含 `prototype.file`）仅通过用户确认后的 `specs/write` 或等效显式流程；(2) 写入物料文件仅通过带 `confirm: true` 的 design-kit API。工具条「关联到当前 spec」只允许预填对话，不得静默写盘。
+
+structure:
+  parent: "MOD-ide-chrome"
+  children:
+    - "SLICE-workspace-design-kit-http-api"
+    - "SLICE-spec-slot-prototype-kit-ui"
+  dependencies:
+    - "FEAT-agent-tool-routing-graph"
+    - "FEAT-workspace-runtime-safety"
+    - "FEAT-workspace-lifecycle"
+  impacted_files:
+    - "frontend/src/routes/api/workspace/design-kit/status/+server.ts"
+    - "frontend/src/routes/api/workspace/design-kit/scaffold/+server.ts"
+    - "frontend/src/routes/api/workspace/design-kit/extract/+server.ts"
+    - "frontend/src/routes/api/workspace/specs/read/+server.ts"
+    - "frontend/src/lib/services/design-kit-client.ts"
+    - "frontend/src/lib/components/workbench/SpecSlotPrototypeKitBar.svelte"
+    - "frontend/src/lib/components/workbench/SpecSlotVisualPane.svelte"
+    - "frontend/src/lib/stores/spec-slot-session-store.ts"
+    - "frontend/src/lib/services/tool-routing-client.ts"
+    - "pkg/designkit/designkit.go"
+    - "main.go（Wails：DesignKit*、ReadSpecFile/WriteSpecFile 路径安全）"
+
+io:
+  input:
+    - "已绑定的 WORKSPACE_ROOT"
+    - "用户在设计门禁工具条上的操作（初始化、查看 DESIGN、提取源路径、预填关联 spec）"
+    - "spec 槽位 prototype 会话上下文（当前 spec path、左侧对话）"
+  output:
+    - "design-kit status（DESIGN.md / prototypes 目录是否存在）"
+    - "初始化写入的 DESIGN.md、prototypes README、manifest（缺失则创建，已存在则跳过）"
+    - "从源文件剥离生成的 `*-extracted.html` 与返回的 `specSnippet`（prototype 块草稿）"
+    - "预填到槽位对话的文案（合并 YAML、设计门禁提示），供用户发送后由 Agent 或人工执行 specs/write"
+  boundary: "不替代 A2UI 底部「确认/微调/草稿/取消/重新生成」语义；不在本 feature 内实现 Agent 自动合并 YAML 需另行约定；SvelteKit `/api/workspace/design-kit/*` 仅在 dev/适配器下可用，与 Go agent 并行时仍受 vite bypass 规则约束。"
+
+constraints:
+  rules:
+    - id: "DG1"
+      name: "设计物料路径固定"
+      rule: "门禁与物料相对工作区根路径为 `.vibex/design/DESIGN.md` 与 `.vibex/prototypes/`。"
+      verification: "status API 返回的 designPath、prototypesPath 与实现一致。"
+    - id: "DG2"
+      name: "写盘需确认"
+      rule: "scaffold 与 extract 的 HTTP API 必须在 body 中带 confirm=true 才允许写入；禁止静默覆盖已有 DESIGN.md。"
+      verification: "confirm 缺省或 false 时不写入；DESIGN.md 已存在时 scaffold 跳过该文件。"
+    - id: "DG3"
+      name: "源路径安全"
+      rule: "extract 的 source_path 解析后必须仍位于 WORKSPACE_ROOT 内。"
+      verification: "越界路径返回 403 或错误 JSON，不写入。"
+    - id: "DG4"
+      name: "Spec 修改与原型修改分离确认"
+      rule: "更新当前 spec 中 prototype 字段须经由 specs/write（或用户明确确认的写盘动作）；更新 `.vibex/prototypes` 下 HTML 须经由 design-kit extract 或后续等效 API。禁止从「关联预填」单步直接写 YAML。"
+      verification: "工具条仅调用 prefillActiveChat 合并建议，不调用 specs/write；extract 只写 prototypes 目录。"
+    - id: "DG5"
+      name: "原型槽可见操作"
+      rule: "`slot_id=prototype` 时 SpecSlotVisualPane 须在 A2UI 主体之上渲染 Design Kit 工具条，且按钮可触发上述 API 或预填。"
+      verification: "手动打开原型槽位可见初始化、查看 DESIGN、注入提示、提取、关联预填。"
+  forbidden:
+    - "无 confirm 写入工作区任意文件"
+    - "从 UI 绕过路径校验读取仓库外文件"
+    - "将 A2UI「确认」按钮改为自动 specs/write 全文件"
+
+prototype:
+  file: ""
+  validates: []
+  status: "none"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-05-04"
+  updated: "2026-05-04"
+
+lifecycle:
+  current: "implementation"
+  updated: "2026-05-04"
+
+io_contract:
+  input: |
+    用户已在 Workbench 绑定仓库根，并打开某 spec 的 prototype 槽位或需初始化设计物料库。
+  output: |
+    可查 status；可一键 scaffold；可从相对路径读取页面源并生成物料 HTML；可将 prototype 段落以对话预填方式衔接至 specs 修改确认流程。
+  boundary: |
+    不实现自动三路合并 spec；不强制 Agent 逐字遵守 DESIGN（由治理与其它 feature 约束）。
+  behavior:
+    - "GET design-kit/status 反映 DESIGN 与 prototypes 是否存在"
+    - "POST design-kit/scaffold 在确认后创建缺失的设计物料文件"
+    - "POST design-kit/extract 在确认后写入 prototypes 并返回可粘贴的 prototype 草稿"
+    - "Spec 中 prototype.file 的最终变更须用户确认后走 specs/write"
+    - "槽位 store 提供 prefillActiveChat 承载「关联 spec」与设计门禁提示"
+
+content:
+  verification:
+    commands:
+      - "make lint-specs"
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - "原型槽位显示 Design Kit 工具条，且 WORKSPACE 未绑定时有提示"
+      - "初始化后磁盘出现 .vibex/design/DESIGN.md；再次初始化不覆盖该文件"
+      - "提取合法相对路径后生成 .vibex/prototypes/*-extracted.html 且返回 specSnippet"
+      - "关联到当前 spec 仅预填对话，网络面板无未经确认的 specs/write"
+      - "查看 DESIGN.md 可拉取并展示正文（文件不存在时按钮不可用或报错清晰）"
+    failure_conditions:
+      - "confirm=false 仍写入磁盘"
+      - "source_path 可逃出 WORKSPACE_ROOT"
+      - "工具条在非 prototype 槽位误显"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "新增设计门禁与原型物料库 L4：双轨确认（spec YAML vs 原型文件）、API 与 UI 边界"
+  - version: "0.2"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "落地实现：SvelteKit API、Wails DesignKit* 绑定、pkg/designkit、specs/read 与槽位 prompt 设计门禁段、scaffold/extract 无 confirm 返回 400"
+---

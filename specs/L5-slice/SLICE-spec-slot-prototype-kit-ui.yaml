@@ -1,0 +1,115 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-slot-prototype-kit-ui"
+  parent: "FEAT-workspace-design-prototype-gate"
+  status: "implementation"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-05-04"
+  updated: "2026-05-04"
+
+lifecycle:
+  current: "implementation"
+  updated: "2026-05-04"
+
+display:
+  title: "原型槽 Design Kit 工具条 UI"
+  summary: "仅在 prototype 槽位挂载 SpecSlotPrototypeKitBar；连接 design-kit-client 与 prefillActiveChat。"
+  description: |
+    `SpecSlotVisualPane` 在 `session.slot.id === 'prototype'` 时于 A2UI 之上渲染工具条。
+    操作：初始化物料库、查看 DESIGN.md（specs/read）、注入设计门禁提示、从页面路径提取、将 prototype YAML 草案预填到槽位对话。
+    **spec 确认修改**：用户发送预填内容后，由澄清流程或显式动作触发 `specs/write`，不在本组件内自动保存。
+    **原型确认修改**：提取操作调用 extract API（confirm），写 `.vibex/prototypes`；若需调整 iframe 预览壳仍走 A2UI「微调/重新生成」与对话。
+
+structure:
+  parent: "FEAT-workspace-design-prototype-gate"
+  children: []
+  dependencies:
+    - "frontend/src/lib/stores/spec-explorer-store.ts: workspaceRoot"
+    - "frontend/src/lib/stores/spec-slot-session-store.ts: prefillActiveChat"
+  impacted_files:
+    - "frontend/src/lib/components/workbench/SpecSlotPrototypeKitBar.svelte"
+    - "frontend/src/lib/components/workbench/SpecSlotVisualPane.svelte"
+    - "frontend/src/lib/stores/spec-slot-session-store.ts"
+
+io:
+  input:
+    - "$specExplorerStore.workspaceRoot"
+    - "用户输入的源文件相对路径"
+    - "当前 session.spec.path（用于预填文案中的目标 spec）"
+  output:
+    - "工具条 UI 状态与 DESIGN 预览折叠区"
+    - "chatPrefill 更新（关联 spec、门禁提示）"
+  boundary: "不承担 Monaco/外部编辑器打开磁盘文件；不替代 SpecSlotA2UIStage iframe。"
+
+constraints:
+  rules:
+    - id: "UI1"
+      name: "条件挂载"
+      rule: "仅 prototype 槽位渲染 SpecSlotPrototypeKitBar。"
+      verification: "其它槽位无该条。"
+    - id: "UI2"
+      name: "无工作区降级"
+      rule: "workspaceRoot 空时提示选择工作区，不发起 status 之外的写请求。"
+      verification: "按钮 disabled 或早退符合预期。"
+  forbidden:
+    - "组件内直接 fetch specs/write"
+
+prototype:
+  file: ""
+  validates: []
+  status: "none"
+
+io_contract:
+  input: |
+    用户打开 prototype 槽位抽屉且工作区已绑定（部分操作）。
+  output: |
+    可点击的操作与预填；最近一次 extract 的 specSnippet 在条内可见。
+  boundary: |
+    不写 spec 文件；不写 prototypes 除通过 client 调 extract/scaffold。
+  behavior:
+    - "挂载工具条 → refresh status"
+    - "初始化 → scaffold → refresh"
+    - "查看 DESIGN → specs/read .vibex/design/DESIGN.md"
+    - "提取 → extract → 展示 specSnippet"
+    - "关联 spec → prefillActiveChat"
+
+content:
+  file_path: "frontend/src/lib/components/workbench/SpecSlotPrototypeKitBar.svelte"
+  file_type: "svelte"
+
+  implementation_boundary:
+    allowed:
+      - "调用 design-kit-client"
+      - "调用 specs/read 仅读 DESIGN"
+      - "specSlotSessionStore.prefillActiveChat"
+    forbidden:
+      - "静默 specs/write"
+      - "在非 prototype 槽位挂载"
+
+  verification:
+    commands:
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - "切换槽位时工具条显隐正确"
+      - "预填后 Composer 出现文案且发送流程可达 specs 写入确认"
+    failure_conditions:
+      - "误对其它槽位写 prototypes"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "新增原型槽 Design Kit 工具条 slice，明确 spec/原型双轨确认"
+  - version: "0.2"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "查看 DESIGN 走 wailsReadSpecFile；design-kit-client 在 Wails 下调用 App.DesignKit*"
+---

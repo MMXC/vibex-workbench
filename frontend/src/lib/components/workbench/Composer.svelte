@@ -181,8 +181,8 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
 
   <div class="context-shell">
     <button type="button" class="context-toggle" onclick={() => specAgentContextStore.toggleExpanded()}>
-      <span>Context</span>
-      <strong>{contextState.items.length} spec{contextState.items.length === 1 ? '' : 's'} {contextState.expanded ? '▴' : '▾'}</strong>
+      <span>Workbench Context</span>
+      <strong>{contextState.items.length} spec{contextState.items.length === 1 ? '' : 's'} · snapshot {contextState.expanded ? '▴' : '▾'}</strong>
     </button>
     {#if contextState.expanded}
       <div class="context-list">
@@ -224,7 +224,7 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
     <textarea
       bind:this={textareaEl}
       bind:value={content}
-      placeholder='输入消息，或输入 / 选择 spec 指令...'
+      placeholder='用自然语言操作工作台，或输入 /workspace /specs /validate /route /open-slot...'
       rows={3}
       oninput={syncCommandPalette}
       onfocus={syncCommandPalette}
@@ -235,7 +235,7 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
     ></textarea>
   </div>
   <div class="actions">
-    <span class="hint">Ctrl+Enter 发送 · / 打开命令 · {toolCount} tools</span>
+    <span class="hint">Ctrl+Enter 发送 · / 打开工作台命令 · {toolCount} tools</span>
     <button class="submit-btn" onclick={submit} disabled={submitting}>
       {submitting ? '发送中…' : '发送 ⌘↵'}
     </button>

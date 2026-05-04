@@ -6,6 +6,20 @@
 
 	let draft = $state('');
 	let scrollEl = $state<HTMLDivElement | undefined>(undefined);
+	let consumedPrefillId = $state<string | null>(null);
+
+	$effect(() => {
+		session.key;
+		consumedPrefillId = null;
+	});
+
+	$effect(() => {
+		const pre = session.chatPrefill;
+		if (!pre || pre.id === consumedPrefillId) return;
+		consumedPrefillId = pre.id;
+		draft = pre.text;
+		queueMicrotask(() => specSlotSessionStore.clearChatPrefillActive());
+	});
 
 	$effect(() => {
 		session.messages.length;

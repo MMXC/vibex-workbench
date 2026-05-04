@@ -9,15 +9,15 @@ meta:
   module: frontend
   owner: hermes
   created: '2026-04-26'
-  updated: '2026-04-26'
+  updated: '2026-05-04'
 lifecycle:
   current: proposal
-  updated: '2026-04-26'
+  updated: '2026-05-04'
 
 display:
   title: ide agent panel component
-  summary: AiChatColumn.svelte 将右侧 Agent 区域拆成 header、ThreadList、ConversationPanel、Composer。
-  description: AiChatColumn.svelte 将右侧 Agent 区域拆成 header、ThreadList、ConversationPanel、Composer。
+  summary: AiChatColumn.svelte 承载右侧 AI 操作台壳层，组合 Thread、Conversation、Context、Composer 与运行状态。
+  description: AiChatColumn.svelte 承载右侧 AI 操作台壳层，组合 Thread、Conversation、Context、Composer 与运行状态。
 
 structure:
   parent: FEAT-ide-agent-panel
@@ -25,8 +25,9 @@ structure:
   dependencies:
   - 'frontend/src/lib/components/workbench/ThreadList.svelte: 线程列表'
   - 'frontend/src/lib/components/workbench/ConversationPanel.svelte: 消息显示'
-  - 'frontend/src/lib/components/workbench/Composer.svelte: 输入与提交'
+  - 'frontend/src/lib/components/workbench/Composer.svelte: 输入、Context strip、slash command 与提交'
   - 'frontend/src/lib/stores/workbench-layout-store.ts: 右侧 composer 高度状态'
+  - 'frontend/src/lib/components/workbench/SpecSlotDrawer.svelte: 槽位深度澄清覆盖层'
   impacted_files:
   - frontend/src/lib/components/workbench/AiChatColumn.svelte
 
@@ -34,8 +35,8 @@ io:
   input:
   - 当前 thread store、message store、composer submit handler、layout dimensions。
   output:
-  - AiChatColumn.svelte 将右侧 Agent 区域拆成 header、ThreadList、ConversationPanel、Composer。
-  boundary: 只管右侧 panel 布局和 composer resize。消息渲染和提交逻辑由子组件/页面 handler 负责。
+  - AiChatColumn.svelte 将右侧 Agent 区域拆成 header、ThreadList、ConversationPanel、Composer，并保留 Context/RunStatus/Drawer 的挂载边界。
+  boundary: 只管右侧 panel 布局和 composer resize。消息渲染、Context 拼接、工具路由和提交逻辑由子组件/页面 handler 负责。
 
 constraints:
   rules: []
@@ -53,10 +54,10 @@ io_contract:
   input: '当前 thread store、message store、composer submit handler、layout dimensions。
 
     '
-  output: 'AiChatColumn.svelte 将右侧 Agent 区域拆成 header、ThreadList、ConversationPanel、Composer。
+  output: 'AiChatColumn.svelte 将右侧 Agent 区域拆成 header、ThreadList、ConversationPanel、Composer，并保留 Context/RunStatus/Drawer 的挂载边界。
 
     '
-  boundary: '只管右侧 panel 布局和 composer resize。消息渲染和提交逻辑由子组件/页面 handler 负责。
+  boundary: '只管右侧 panel 布局和 composer resize。消息渲染、Context 拼接、工具路由和提交逻辑由子组件/页面 handler 负责。
 
     '
   behavior_summary: 共 5 个行为步骤，详见 content.behaviors
@@ -69,6 +70,7 @@ content:
     - header 文案与状态点
     - composer resize handle
     - ThreadList/ConversationPanel/Composer 的组合
+    - 为 Context strip、RunStatus、SpecSlotDrawer 提供稳定挂载区域
     forbidden:
     - 在 AiChatColumn 中直接调用 /api/chat
     - 在 AiChatColumn 中修改 threadStore 消息内容
@@ -80,6 +82,8 @@ content:
     detail: resize 通过 workbenchLayoutStore 处理，不直接写 DOM style
   - rule: Child ownership
     detail: ThreadList、ConversationPanel、Composer 内部行为不在本 slice 修改
+  - rule: Right rail shell
+    detail: AiChatColumn 是通用 AI 操作台壳层，不直接实现工具调用；自然语言编排由页面 handler 和 agent tools 承担。
   verification:
     commands:
     - npm --prefix frontend run build
@@ -99,6 +103,8 @@ content:
     reason: 输入与提交
   - file: frontend/src/lib/stores/workbench-layout-store.ts
     reason: 右侧 composer 高度状态
+  - file: frontend/src/lib/components/workbench/SpecSlotDrawer.svelte
+    reason: 槽位深度澄清覆盖层
   behaviors:
   - id: B1
     trigger: 步骤1
@@ -125,9 +131,19 @@ content:
     action: 拖动 split-ai 更新 aiComposerBarPx
     expected_result: 正确执行，无异常
     error_handling: 出错时显示 toast 提示，不阻塞其他交互
+  - id: B6
+    trigger: 通用操作台或槽位按钮打开 SpecSlotDrawer
+    action: 抽屉覆盖在 workbench 上方，AiChatColumn 保持线程和 Composer 状态
+    expected_result: 槽位澄清不破坏通用操作台线程上下文
+    error_handling: 抽屉关闭后返回原右侧操作台状态
 changelog:
 - version: '0.1'
   date: '2026-04-26'
   author: hermes
   changes:
   - 新增 AiChatColumn 文件级边界与验证条件
+- version: '0.2'
+  date: '2026-05-04'
+  author: agent
+  changes:
+  - 明确 AiChatColumn 是右侧 AI 操作台壳层，并保留 Context/RunStatus/SpecSlotDrawer 的挂载边界

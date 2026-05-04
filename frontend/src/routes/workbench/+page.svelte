@@ -25,9 +25,17 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 	import SpecSlotDrawer from '$lib/components/workbench/SpecSlotDrawer.svelte';
 	import WindowResizeFrame from '$lib/components/workbench/WindowResizeFrame.svelte';
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
-	import { formatSpecContextForPrompt } from '$lib/stores/spec-agent-context-store';
+	import {
+		currentFocusedSpecContext,
+		formatSpecContextForPrompt,
+		specAgentContextStore,
+	} from '$lib/stores/spec-agent-context-store';
+	import { specSlotSessionStore } from '$lib/stores/spec-slot-session-store';
+	import { runStore } from '$lib/stores/run-store';
 	import { eventsOn } from '$lib/wails-runtime';
-	import { appendOutput, clearOutput } from '$lib/stores/workspace-output-store';
+	import { wailsReadSpecFile } from '$lib/wails-filesystem';
+	import { appendOutput, clearOutput, outputText } from '$lib/stores/workspace-output-store';
+	import { extractSpecDisplay, type SpecSlotSummary } from '$lib/workbench/spec-display';
 
 	const SSE_URL = import.meta.env.VITE_SSE_URL || 'http://localhost:33338';
 	const useMockBackend =
@@ -157,6 +165,170 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 			: `${SSE_URL}/api/sse/${tid}`;
 	}
 
+	function ensureLocalThread(goal: string): string {
+		if ($currentThread?.id) return $currentThread.id;
+		const thread = {
+			id: crypto.randomUUID(),
+			goal: goal.slice(0, 50),
+			title: goal.slice(0, 20),
+			createdAt: new Date().toISOString(),
+		};
+		threadStore.addThread(thread as any);
+		threadStore.setCurrentThread(thread.id);
+		return thread.id;
+	}
+
+	function appendLocalWorkbenchMessage(threadId: string, content: string) {
+		threadStore.appendMessage(threadId, {
+			id: crypto.randomUUID(),
+			threadId,
+			role: 'assistant',
+			content,
+			createdAt: new Date().toISOString(),
+		});
+	}
+
+	function extractCommandQuery(content: string, command: string): string {
+		return content
+			.trim()
+			.slice(command.length)
+			.trim()
+			.replace(/^["'“”]+|["'“”]+$/g, '')
+			.trim();
+	}
+
+	function specSearchText(spec: (typeof $specExplorerStore.specs)[number]): string {
+		return [
+			spec.path,
+			spec.name,
+			spec.status,
+			spec.display?.title,
+			spec.display?.summary,
+			spec.display?.description,
+		]
+			.filter(Boolean)
+			.join(' ')
+			.toLowerCase();
+	}
+
+	function scoreSpecMatch(spec: (typeof $specExplorerStore.specs)[number], query: string): number {
+		const q = query.toLowerCase();
+		const path = spec.path.toLowerCase();
+		const name = spec.name.toLowerCase();
+		const title = spec.display?.title?.toLowerCase() ?? '';
+		if (path === q || name === q || title === q) return 100;
+		if (path.endsWith(q) || name.includes(q)) return 80;
+		if (title.includes(q)) return 70;
+		if (specSearchText(spec).includes(q)) return 40;
+		return 0;
+	}
+
+	function searchSpecs(query: string) {
+		const q = query.trim();
+		if (!q) return [];
+		return $specExplorerStore.specs
+			.map(spec => ({ spec, score: scoreSpecMatch(spec, q) }))
+			.filter(item => item.score > 0)
+			.sort((a, b) => b.score - a.score || a.spec.path.localeCompare(b.spec.path))
+			.slice(0, 8)
+			.map(item => item.spec);
+	}
+
+	function inferSlotFromText(text: string, slots: SpecSlotSummary[]): SpecSlotSummary | null {
+		const lower = text.toLowerCase();
+		const candidates: [string, string[]][] = [
+			['structure', ['structure', '结构']],
+			['input', ['input', '输入', '入参']],
+			['output', ['output', '输出', '出参']],
+			['constraints', ['constraint', 'constraints', '约束']],
+			['prototype', ['prototype', '原型']],
+			['implementation', ['implementation', 'implement', '实现']],
+		];
+		for (const [id, aliases] of candidates) {
+			if (aliases.some(alias => lower.includes(alias))) {
+				return slots.find(slot => slot.id === id) ?? null;
+			}
+		}
+		return slots.find(slot => slot.status === 'missing' || slot.status === 'empty') ?? slots[0] ?? null;
+	}
+
+	async function tryOpenSlotCommand(content: string, workspaceForAgent: string): Promise<boolean> {
+		if (!content.trimStart().toLowerCase().startsWith('/open-slot')) return false;
+		const focused = currentFocusedSpecContext();
+		const selectedPath = $specExplorerStore.selectedSpecPath ?? focused?.path ?? null;
+		if (!selectedPath) {
+			specAgentContextStore.prefillCommand('/open-slot "请先在左侧或中央选择一个 spec，再指定结构/输入/输出/原型/实现槽位"');
+			return true;
+		}
+		try {
+			const raw = focused?.path === selectedPath && focused.content
+				? focused.content
+				: await wailsReadSpecFile(workspaceForAgent, selectedPath);
+			const meta = extractSpecDisplay(raw, selectedPath);
+			const slot = inferSlotFromText(content, meta.slots.all);
+			if (!slot) return true;
+			specAgentContextStore.addSpec(meta, raw);
+			specSlotSessionStore.open({ spec: meta, slot, content: raw });
+		} catch (e) {
+			specAgentContextStore.prefillCommand(`/open-slot "打开槽位失败：${e instanceof Error ? e.message : String(e)}"`);
+		}
+		return true;
+	}
+
+	async function tryOpenSpecCommand(content: string, workspaceForAgent: string): Promise<boolean> {
+		const lower = content.trimStart().toLowerCase();
+		const command = lower.startsWith('/open-spec')
+			? '/open-spec'
+			: lower.startsWith('/search-spec')
+				? '/search-spec'
+				: null;
+		if (!command) return false;
+
+		const threadId = ensureLocalThread(content);
+		const query = extractCommandQuery(content, command);
+		if (!query) {
+			appendLocalWorkbenchMessage(threadId, `${command} 需要一个关键词，例如：/open-spec "FEAT-ide-agent-panel"`);
+			return true;
+		}
+
+		let matches = searchSpecs(query);
+		if (matches.length === 0 && $specExplorerStore.specs.length === 0 && workspaceForAgent) {
+			await specExplorerStore.loadList(workspaceForAgent);
+			matches = searchSpecs(query);
+		}
+		if (matches.length === 0) {
+			appendLocalWorkbenchMessage(threadId, `没有找到匹配 "${query}" 的 spec。可以用 /specs 先查看当前列表。`);
+			return true;
+		}
+
+		if (command === '/search-spec' || matches.length > 1) {
+			const candidates = matches
+				.map((spec, index) => {
+					const title = spec.display?.title ?? spec.name;
+					const summary = spec.display?.summary ? ` — ${spec.display.summary}` : '';
+					return `${index + 1}. ${title}\n   path: ${spec.path}${summary}`;
+				})
+				.join('\n');
+			appendLocalWorkbenchMessage(
+				threadId,
+				`找到 ${matches.length} 个候选，请复制更精确的 path/name 使用 /open-spec 打开：\n${candidates}`
+			);
+			return true;
+		}
+
+		const spec = matches[0];
+		try {
+			const raw = await wailsReadSpecFile(workspaceForAgent, spec.path);
+			const meta = extractSpecDisplay(raw, spec.path);
+			specExplorerStore.selectSpec(spec.path);
+			specAgentContextStore.addSpec(meta, raw);
+			appendLocalWorkbenchMessage(threadId, `已打开 spec：${meta.display.title}\npath: ${spec.path}`);
+		} catch (e) {
+			appendLocalWorkbenchMessage(threadId, `打开 spec 失败：${e instanceof Error ? e.message : String(e)}`);
+		}
+		return true;
+	}
+
 	$effect(() => {
 		const tid = $currentThread?.id ?? null;
 
@@ -177,6 +349,10 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 	});
 
 	async function handleSubmit(content: string, mode: string) {
+		const workspaceForAgent = workspaceRoot !== '—' ? workspaceRoot : $specExplorerStore.workspaceRoot;
+		if (await tryOpenSpecCommand(content, workspaceForAgent)) return;
+		if (await tryOpenSlotCommand(content, workspaceForAgent)) return;
+
 		const tid = $currentThread?.id;
 		let effectiveTid = tid;
 		if (!effectiveTid) {
@@ -186,7 +362,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 				title: content.slice(0, 20),
 				createdAt: new Date().toISOString(),
 			};
-			threadStore.addThread(t);
+			threadStore.addThread(t as any);
 			threadStore.setCurrentThread(t.id);
 			effectiveTid = t.id;
 			const url = sseConnectPath(t.id);
@@ -197,7 +373,33 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 			prevThreadId = t.id;
 		}
 
-		const inputWithContext = `${content}${formatSpecContextForPrompt()}`;
+		const activeRun = $runStore.runs.find(run => run.id === $runStore.active_run_id) ?? null;
+		const recentOutput = $outputText.trim().slice(-1200);
+		const inputWithContext = `${content}${formatSpecContextForPrompt({
+			workspaceRoot: workspaceForAgent,
+			specs: $specExplorerStore.specs,
+			workbench: {
+				workspaceRoot: workspaceForAgent,
+				workspaceState,
+				backendStatus,
+				leftActivity: $specExplorerStore.leftActivity,
+				centerView: $specExplorerStore.selectedSpecPath
+					? $specExplorerStore.centerView
+					: 'dashboard',
+				selectedSpecPath: $specExplorerStore.selectedSpecPath,
+				dashboardLevel: $specExplorerStore.dashboardLevel,
+				specCount: $specExplorerStore.specs.length,
+				mode,
+				activeRun: activeRun
+					? {
+							id: activeRun.id,
+							status: activeRun.status,
+							toolCount: $runStore.toolInvocations.length,
+						}
+					: undefined,
+				recentOutput,
+			},
+		})}`;
 
 		// 用户消息通过 SSE message.delta(role='user') 由后端回显，作为唯一来源。
 		// 不再本地提前创建，避免 SSE bridge echo 时 ID 不同导致重复/排队混乱。
@@ -213,7 +415,11 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 				await fetch(`${SSE_URL}/api/chat`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ threadId: threadKey, input: inputWithContext }),
+					body: JSON.stringify({
+						threadId: threadKey,
+						input: inputWithContext,
+						workspaceRoot: workspaceForAgent,
+					}),
 				});
 			}
 		} catch (e) {

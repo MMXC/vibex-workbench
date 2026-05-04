@@ -16,14 +16,19 @@ import (
 	"vibex/agent/agents/skills"
 	"vibex/agent/agents/subagent"
 	"vibex/agent/internal/common"
+	"vibex/agent/vibex/domain"
 
 	"github.com/openai/openai-go/v3/responses"
 )
 
 var (
-	// 运行时的核心约束：要求模型通过 todo_set 维护任务状态。
-	developerMessage = "You are a coding agent. Use tools `bash`, `read_file`, `write_file`, and `todo_set` when needed. You can manage skills with `skill_list`, `skill_load`, and `skill_unload`. Use `todo_set` only for non-trivial multi-step tasks (for example: code changes, file edits, debugging, or tasks requiring multiple actions). For simple single-turn Q&A, reply directly without creating TODO. If a TODO is started, keep it updated and reply directly once completed."
+	// 运行时的核心约束：要求模型通过 todo_set 维护任务状态，并优先使用 VibeX 领域工具处理 specs。
+	developerMessage = "You are a VibeX coding agent. Use VibeX domain tools such as spec_designer, spec_write, spec_validate, make_validate, canvas_update, TDD, toolrouting, and memlace when working with specs or the workbench flow. Use generic tools like bash, read_file, write_file, and todo_set only when the domain tools do not cover the task. You can manage skills with skill_list, skill_load, and skill_unload. Use todo_set only for non-trivial multi-step tasks. For simple single-turn Q&A, reply directly without creating TODO. If a TODO is started, keep it updated and reply directly once completed."
 )
+
+func noopBroadcast(threadID, event string, data interface{}) {}
+
+func noopSetStepType(threadID, stepType string) {}
 
 func RunInteractive() error {
 	cfg := common.LoadConfig()
@@ -55,8 +60,13 @@ func RunInteractive() error {
 		childSkills := skills.NewState()
 		childSkills.SetActive(parentSkills.ActiveNames())
 		childSpecs := rtools.ChildSpecs(childTodo)
+		childVibexReg := domain.NewRegistry(cfg.WorkspaceDir, noopBroadcast, noopSetStepType)
+		childSpecs = append(childSpecs, childVibexReg.ToolSpecs()...)
 		childTools := rtools.BuildTools(childSpecs)
 		childHandlers := rtools.BuildHandlers(childSpecs)
+		for name, handler := range childVibexReg.ToolHandlers() {
+			childHandlers[name] = handler
+		}
 
 		childMessages := []responses.ResponseInputItemUnionParam{
 			responses.ResponseInputItemParamOfMessage(developerMessage, responses.EasyInputMessageRoleDeveloper),
@@ -74,15 +84,20 @@ func RunInteractive() error {
 	}
 
 	specs := rtools.ParentSpecs(todo, backgroundMgr, subAgentMgr, subAgentRunner, parentSkills, skillRegistry)
+	vibexReg := domain.NewRegistry(cfg.WorkspaceDir, noopBroadcast, noopSetStepType)
+	specs = append(specs, vibexReg.ToolSpecs()...)
 	tools := rtools.BuildTools(specs)
 	handlers := rtools.BuildHandlers(specs)
+	for name, handler := range vibexReg.ToolHandlers() {
+		handlers[name] = handler
+	}
 
 	messages := []responses.ResponseInputItemUnionParam{
 		responses.ResponseInputItemParamOfMessage(developerMessage, responses.EasyInputMessageRoleDeveloper),
 	}
 
-	fmt.Printf("Tool-use agent started. adapter=%s model=%s subagent_model=%s skills=%d\n",
-		llm.AdapterName(), cfg.Model, cfg.SubAgentModel, skillRegistry.Count())
+	fmt.Printf("Tool-use agent started. adapter=%s model=%s subagent_model=%s workspace=%s skills=%d\n",
+		llm.AdapterName(), cfg.Model, cfg.SubAgentModel, cfg.WorkspaceDir, skillRegistry.Count())
 	if currentID, err := sessionStore.CurrentID(); err != nil {
 		fmt.Printf("warning: failed to inspect saved session: %v\n", err)
 	} else if currentID != "" {

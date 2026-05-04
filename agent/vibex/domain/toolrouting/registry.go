@@ -228,13 +228,13 @@ func builtinTools() []ToolDescriptor {
 		{Name: "tool_route_preview", Kind: "tool.route", Description: "Preview routing decisions for a plan graph.", Source: "builtin", Permissions: []string{"plan"}},
 		{Name: "manual_confirmation", Kind: "gate.confirm", Description: "Require human confirmation before execution.", Source: "builtin", Permissions: []string{"confirm"}},
 		{Name: "make_validate", Kind: "workspace.validate", Description: "Run validation after confirmed execution.", Source: "builtin", Permissions: []string{"execute"}},
-		tool("spec_structure_analyzer", "spec.structure.analyze", "Analyze spec parent/children, dependencies, impacted files, constraints, and layer legality."),
-		tool("spec_io_contract_validator", "spec.io.validate", "Validate spec input/output contracts for completeness, consistency, and testability."),
-		tool("spec_prototype_planner", "spec.prototype.plan", "Plan prototype purpose, validation targets, and prototype file requirements."),
-		tool("implementation_route_planner", "implementation.route.plan", "Create implementation routing plan without directly writing business code."),
-		tool("tool_draft_designer", "tool.draft.design", "Design metadata-only tool drafts with schema and AI personalization fill area."),
-		tool("tool_route_debugger", "tool.route.debug", "Debug route hits/misses and suggest schema, prompt, and example improvements."),
-		tool("fireworks_tech_graph_renderer", "graph.fireworks.render", "Render plan graph and route preview into dynamic fireworks technical graph data."),
+		tool("spec_structure_analyzer", "spec.structure.analyze", "Analyze spec parent/children, dependencies, impacted files, constraints, and layer legality. A2UI hint: structure_tree_cards + dependency list."),
+		tool("spec_io_contract_validator", "spec.io.validate", "Validate spec input/output contracts for completeness, consistency, and testability. A2UI hint: io_contract_cards + boundary/test-point checklist."),
+		tool("spec_prototype_planner", "spec.prototype.plan", "Plan prototype purpose, validation targets, and prototype file requirements. A2UI hint: html_prototype_shell (sandbox) + validation goal card."),
+		tool("implementation_route_planner", "implementation.route.plan", "Create implementation routing plan without directly writing business code. A2UI hint: fireworks_route_graph + tool hit cards."),
+		tool("tool_draft_designer", "tool.draft.design", "Design metadata-only tool drafts with schema and AI personalization fill area. A2UI hint: tool_draft_schema_card."),
+		tool("tool_route_debugger", "tool.route.debug", "Debug route hits/misses and suggest schema, prompt, and example improvements. A2UI hint: route_debug_report card."),
+		tool("fireworks_tech_graph_renderer", "graph.fireworks.render", "Render plan graph and route preview into dynamic fireworks technical graph data. A2UI hint: fireworks_tech_graph (sub-view of A2UI stage)."),
 	}
 }
 

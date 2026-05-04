@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
-	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -44,21 +44,28 @@ func governanceStatusHandler(w http.ResponseWriter, r *http.Request) {
 		status["panorama"] = "missing"
 	}
 
-	// Count specs by level
-	specsDir := wsRoot + "/specs"
-	cmd := exec.Command("find", specsDir, "-name", "*.yaml", "-o", "-name", "*.yml")
-	cmd.Dir = wsRoot
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		lines := strings.Split(string(out), "\n")
-		count := 0
-		for _, l := range lines {
-			if strings.TrimSpace(l) != "" {
-				count++
+	// Count specs by level without shelling out, so Windows builds behave the same.
+	counts := map[string]int{}
+	count := 0
+	specsDir := filepath.Join(wsRoot, "specs")
+	_ = filepath.Walk(specsDir, func(full string, info os.FileInfo, err error) error {
+		if err != nil || info == nil || info.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(full, ".yaml") && !strings.HasSuffix(full, ".yml") {
+			return nil
+		}
+		count++
+		if rel, relErr := filepath.Rel(specsDir, full); relErr == nil {
+			parts := strings.Split(filepath.ToSlash(rel), "/")
+			if len(parts) > 0 {
+				counts[parts[0]]++
 			}
 		}
-		status["total_specs"] = count
-	}
+		return nil
+	})
+	status["total_specs"] = count
+	status["by_directory"] = counts
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(status)

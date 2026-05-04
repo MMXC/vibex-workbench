@@ -68,6 +68,7 @@ func main() {
 	http.HandleFunc("/api/workspace/scaffold", withCORS(workspaceScaffoldHandler))
 	http.HandleFunc("/api/workspace/run-make", withCORS(workspaceRunMakeHandler))
 	http.HandleFunc("/api/workspace/verify-specs", withCORS(workspaceVerifySpecsHandler))
+	http.HandleFunc("/api/workspace/governance/status", withCORS(governanceStatusHandler))
 	http.HandleFunc("/api/agent/tools", withCORS(agentToolsHandler))
 	http.HandleFunc("/api/agent/tools/custom", withCORS(agentCustomToolHandler))
 	http.HandleFunc("/api/agent/plan-graph", withCORS(agentPlanGraphHandler))

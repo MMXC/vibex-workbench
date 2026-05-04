@@ -1,3 +1,70 @@
+export namespace designkit {
+	
+	export class ExtractResult {
+	    ok: boolean;
+	    writtenPath?: string;
+	    specSnippet?: string;
+	    sourcePath?: string;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExtractResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.writtenPath = source["writtenPath"];
+	        this.specSnippet = source["specSnippet"];
+	        this.sourcePath = source["sourcePath"];
+	        this.error = source["error"];
+	    }
+	}
+	export class ScaffoldResult {
+	    ok: boolean;
+	    written?: string[];
+	    skipped?: string[];
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ScaffoldResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.written = source["written"];
+	        this.skipped = source["skipped"];
+	        this.error = source["error"];
+	    }
+	}
+	export class Status {
+	    ok: boolean;
+	    workspaceRoot?: string;
+	    designMdExists: boolean;
+	    prototypesDirExists: boolean;
+	    designPath: string;
+	    prototypesPath: string;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Status(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.workspaceRoot = source["workspaceRoot"];
+	        this.designMdExists = source["designMdExists"];
+	        this.prototypesDirExists = source["prototypesDirExists"];
+	        this.designPath = source["designPath"];
+	        this.prototypesPath = source["prototypesPath"];
+	        this.error = source["error"];
+	    }
+	}
+
+}
+
 export namespace main {
 	
 	export class Signal {

@@ -9,28 +9,32 @@ meta:
   module: backend+frontend
   owner: hermes
   created: '2026-04-29'
-  updated: '2026-04-29'
+  updated: '2026-05-04'
 lifecycle:
   current: proposal
   updated: '2026-04-29'
 display:
   title: go agent cli
-  summary: agent 进程 stdout 输出 JSON lines，Wails 前端逐行解析 SSE event
-  description: agent 进程 stdout 输出 JSON lines，Wails 前端逐行解析 SSE event
+  summary: agent CLI 与 Web agent 使用同一套 VibeX 领域工具注册，stdout 输出 JSON lines
+  description: agent CLI 与 Web agent 使用同一套 VibeX 领域工具注册，stdout 输出 JSON lines
 structure:
   parent: FEAT-workspace-selector
   children: []
   dependencies:
   - 'main.go: App.RunAgent / App.KillAgent Wails binding'
   - 'agent/cmd/agent/main.go: agent binary 和 --goal flag'
+  - 'agent/agents/runtime/runtime.go: RunInteractive 工具注册'
+  - 'agent/vibex/domain/registry.go: VibeX 领域工具（spec/TDD/toolrouting/memlace）'
   impacted_files:
   - frontend/src/lib/wails-agent.ts
+  - agent/cmd/agent/main.go
+  - agent/agents/runtime/runtime.go
 io:
   input:
   - 前端通过 Wails binding 调用 `window.go.main.App.RunAgent(goal, workspaceRoot)`，传入 JSON
     goal payload
   output:
-  - agent 进程 stdout 输出 JSON lines，Wails 前端逐行解析 SSE event
+  - agent CLI 具备与 Web agent 对齐的 VibeX 领域工具，并输出 JSON lines
   boundary: 只管 agent 进程生命周期（spawn/kill/stdout→前端）；SSE 连接仍由前端维护
 constraints:
   rules: []
@@ -43,7 +47,7 @@ prototype:
 io_contract:
   input: 前端通过 Wails binding 调用 `window.go.main.App.RunAgent(goal, workspaceRoot)`，传入
     JSON goal payload
-  output: agent 进程 stdout 输出 JSON lines，Wails 前端逐行解析 SSE event
+  output: agent CLI 具备与 Web agent 对齐的 VibeX 领域工具，并输出 JSON lines
   boundary: 只管 agent 进程生命周期（spawn/kill/stdout→前端）；SSE 连接仍由前端维护
   behavior_summary: 共 4 个 behavior，详见 content.behaviors
 content:
@@ -54,6 +58,7 @@ content:
     - 在 runtime.RunInteractive() 外层包一层 RunGoal(ctx, goal, workspaceRoot) 函数
     - 支持 `--goal` / `--workspace` CLI flag，检测到时进入单次模式并输出 JSON stream
     - 'agent 的 Broadcaster 改为写 stdout（而非 WebSocket），格式每行 JSON: { type, data }'
+    - CLI 与 RunInteractive 必须合并 domain.NewRegistry(...).ToolSpecs() 与 ToolHandlers()
     - Wails App struct 新增 `RunAgent(ctx, goalJSON string)` 方法，spawn 进程并透传 stdout
     forbidden:
     - 不修改现有 runtime.RunInteractive() 的交互逻辑
@@ -99,6 +104,11 @@ content:
       { "type": "error",      "data": { "message": "..." } }
 
       '
+  - rule: CLI/Web 工具对齐
+    detail: |
+      CLI 单次模式和 RunInteractive 不得只注册 ParentSpecs。
+      构建 tools/handlers 时必须追加 domain.NewRegistry(...).ToolSpecs() 与 ToolHandlers()，
+      以确保 spec_designer/spec_write/spec_validate/make_validate/canvas_update/TDD/toolrouting/memlace 与 Web agent 一致。
   - rule: Wails App.RunAgent binding
     detail: "// main.go\nfunc (a *App) RunAgent(ctx context.Context, goalJSON string)\
       \ (map[string]any, error) {\n  var req struct {\n    Goal          string `json:\"\
@@ -189,6 +199,10 @@ content:
     reason: App.RunAgent / App.KillAgent Wails binding
   - file: agent/cmd/agent/main.go
     reason: agent binary 和 --goal flag
+  - file: agent/agents/runtime/runtime.go
+    reason: RunInteractive 注册 VibeX 领域工具
+  - file: agent/vibex/domain/registry.go
+    reason: CLI/Web 共用 VibeX 领域工具注册
 verification:
   commands:
   - cd /root/vibex-workbench && go build ./agent/cmd/agent && ./agent -goal "hello"
@@ -220,7 +234,7 @@ behaviors:
 - id: B4
   trigger: CLI 独立使用
   action: ./agent -goal "..." -workspace /path
-  expected_result: JSON event lines 输出到 stdout，末尾为 done 或 error
+  expected_result: JSON event lines 输出到 stdout，且可调用 VibeX 领域工具，末尾为 done 或 error
   error_handling: 异常打印 error JSON 到 stderr 并 exit 1
 changelog:
 - version: '0.1'
@@ -232,3 +246,8 @@ changelog:
   - agent stdout 改为 JSON lines 输出（type + data 结构）
   - main.go 新增 App.RunAgent / App.KillAgent Wails binding
   - frontend wails-agent.ts 封装调用层
+- version: '0.2'
+  date: '2026-05-04'
+  author: agent
+  changes:
+  - 明确 CLI 单次模式与 RunInteractive 必须注册 VibeX 领域工具，避免只能使用通用文件读写工具

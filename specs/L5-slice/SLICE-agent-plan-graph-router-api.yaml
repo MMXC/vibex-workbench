@@ -31,6 +31,7 @@ io:
   output:
     - "PlanGraph"
     - "RoutePreview"
+    - "供前端映射 A2UI 的语义：PlanNode.outputs、node.kind、route decision 与内置工具描述中的可视化输出提示（等价 a2ui_component_hint；MVP 可由前端推导）"
   boundary: "只做计划图创建和路由预览，不执行写盘节点。"
 
 constraints:
@@ -56,7 +57,7 @@ meta:
 
 lifecycle:
   current: "proposal"
-  updated: "2026-05-03"
+  updated: "2026-05-04"
 
 io_contract:
   input: |
@@ -83,6 +84,8 @@ content:
       detail: "MVP 不执行用户提供 command。"
     - rule: "Spec slot graph is explicit"
       detail: "mode=spec-slot-routing 时必须保留 slot_id，并生成槽位专用节点。"
+    - rule: "A2UI mapping hints"
+      detail: "节点 outputs 与工具 description 应能推断前端 A2UI 组件类型（如 prototype 对应 html_prototype_shell、implementation 对应 route_graph / fireworks）。"
   verification:
     commands:
       - "cd agent && go test ./vibex/domain/toolrouting"
@@ -98,5 +101,10 @@ changelog:
     author: "agent"
     changes:
       - "补充 slot_id 入参与 spec-slot-routing 验证命令"
----
+  - version: "0.3"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "声明 PlanGraph/Route 输出需支持前端 A2UI 映射（outputs + 工具描述语义，等价 a2ui_component_hint）"
 
+---

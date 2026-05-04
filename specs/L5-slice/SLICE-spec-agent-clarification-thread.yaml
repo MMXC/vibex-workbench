@@ -11,11 +11,11 @@ meta:
   module: "frontend"
   owner: "hermes"
   created: "2026-04-26"
-  updated: "2026-04-26"
+  updated: "2026-05-04"
 
 lifecycle:
   current: "proposal"
-  updated: "2026-04-26"
+  updated: "2026-05-04"
 
 display:
   title: spec agent clarification thread
@@ -28,11 +28,21 @@ structure:
   dependencies:
   - 'frontend/src/lib/components/workbench/AiChatColumn.svelte: 右侧 agent 线程承载区域'
   - 'frontend/src/lib/components/workbench/Composer.svelte: 用户补充澄清和确认动作'
+  - 'frontend/src/lib/components/workbench/SpecSlotDrawer.svelte: Spec 槽位抽屉（左侧槽位对话 + 右侧 A2UI 确认区）'
+  - 'frontend/src/lib/components/workbench/SpecSlotVisualPane.svelte: 槽位右侧可视化与操作条'
+  - 'frontend/src/lib/stores/spec-slot-session-store.ts: 槽位会话、路由预览与 A2UI 状态'
   - 'agent/cmd/web/workspace_handlers.go: specs/write 与 run-make API'
   - 'agent/skills/spec-first-workflow/SKILL.md: agent 生成子 spec 时遵循 L1-L5 工作流'
   - 'agent/skills/spec-first-workflow/validation-and-failure.md: 验证失败分类规则'
+  - 'FEAT-workspace-design-prototype-gate: prototype 物料库与 spec/原型双轨确认写盘'
+  - 'frontend/src/lib/components/workbench/SpecSlotPrototypeKitBar.svelte: prototype 槽设计门禁工具条'
   impacted_files:
   - frontend/src/lib/components/workbench/SpecAgentClarification.svelte
+  - frontend/src/lib/components/workbench/SpecSlotDrawer.svelte
+  - frontend/src/lib/components/workbench/SpecSlotVisualPane.svelte
+  - frontend/src/lib/components/workbench/SpecSlotA2UIStage.svelte
+  - frontend/src/lib/components/workbench/SpecSlotPrototypeKitBar.svelte
+  - frontend/src/lib/stores/spec-slot-session-store.ts
 
 io:
   input:
@@ -41,7 +51,8 @@ io:
     parent_name、parent_path、target_level、target_dir、existing_children、current_workspace。'
   output:
   - 右侧 agent 线程展示推荐 spec 草稿、澄清问题、确认写入动作和验证结果摘要。
-  boundary: '只管从图谱 intent 到 agent 澄清线程的上下文组装和确认流程。
+  - SpecSlotDrawer 右侧 A2UI 核心区展示按槽位生成的可视化确认组件（卡片、HTML prototype 壳、Fireworks/路由图）；底部固定 确认、微调、草稿、取消、重新生成；prototype 槽位优先 HTML 预览。
+  boundary: '只管从图谱 intent 到 agent 澄清线程的上下文组装和确认流程；SpecSlotDrawer 的槽位会话与之对齐（澄清先于写盘、用户显式确认）。
 
     不负责 agent 模型实现、不负责完整聊天存储、不负责所有 spec 模板字段穷举。'
 
@@ -64,8 +75,10 @@ io_contract:
     parent_name、parent_path、target_level、target_dir、existing_children、current_workspace。
   output: |
     右侧 agent 线程展示推荐 spec 草稿、澄清问题、确认写入动作和验证结果摘要。
+    SpecSlotDrawer 展示槽位对话与 A2UI 确认区：prototype 优先 HTML 壳，其它槽位可主显卡片与 Fireworks；操作条固定。
   boundary: |
     只管从图谱 intent 到 agent 澄清线程的上下文组装和确认流程。
+    SpecSlotDrawer 槽位会话与之对齐：A2UI 确认不等于写盘。
     不负责 agent 模型实现、不负责完整聊天存储、不负责所有 spec 模板字段穷举。
   behavior: |
     1. 点击 + 后在右侧线程追加 create-child-spec 系统上下文
@@ -73,6 +86,8 @@ io_contract:
     3. agent 必须先提出必要澄清问题
     4. 用户确认后才调用 specs/write
     5. 写入后运行 make validate，并把结果归类展示
+    6. SpecSlotDrawer 中用户确认 A2UI 候选时仅追加会话/摘要，不自动 specs/write；写盘仍走显式确认与 API
+    7. prototype 槽位 Design Kit 工具条写入 `.vibex/prototypes` 须经 extract/scaffold 的 confirm；将 `prototype.file` 写入当前 spec 须经对话确认后的 specs/write；「关联 spec」预填不得单步静默写盘
 
 content:
   file_path: "frontend/src/lib/components/workbench/SpecAgentClarification.svelte"
@@ -84,7 +99,7 @@ content:
       - "agent draft preview state"
       - "confirm/cancel actions"
       - "specs/write API call after explicit confirmation"
-      - "make validate result summary display"
+      - "slot 抽屉 A2UI 确认、微调预填对话、草稿摘要、取消与重新生成路由预览"
     forbidden:
       - "未确认时写入 specs/"
       - "绕过 agent 线程直接静默创建文件"
@@ -98,8 +113,10 @@ content:
       detail: "agent 至少需要输出草稿摘要和待确认字段，用户确认前不得调用 specs/write"
     - rule: "Filename proposal"
       detail: "agent 推荐 filename 时必须避免与 existing_children 和目录内现有文件冲突"
-    - rule: "Validation feedback"
-      detail: "写入后运行 make validate，失败按 yaml_parse_error/parent_not_found/level_mismatch/missing_l5_boundary 分类展示"
+    - rule: "SpecSlotDrawer A2UI"
+      detail: "槽位右侧中间为 A2UI 核心区；Fireworks 为路由可视化子模式；底部操作条常驻。"
+    - rule: "Prototype HTML first"
+      detail: "prototype 槽位优先生成或展示 HTML 预览壳（sandbox），完整内容由对话与 agent 产出后再替换；物料路径须与 `.vibex/design/DESIGN.md` 及 prototypes 目录约定一致（见 FEAT-workspace-design-prototype-gate）。"
 
   verification:
     commands:
@@ -109,7 +126,8 @@ content:
       - "点击 + L4 后右侧线程出现 parent 与 target_level 上下文"
       - "未点确认时不会写入任何新 YAML"
       - "确认后新 spec 写入目标目录并刷新左侧树/中央图谱"
-      - "validate 失败时线程中显示失败分类和下一步"
+      - "打开 SpecSlotDrawer 后右侧可见 A2UI 卡片区与固定操作条；点「重新生成」会刷新路由预览"
+      - "prototype 槽位可见 HTML 预览壳（无脚本时安全展示）"
     failure_conditions:
       - "点击 + 后直接写盘"
       - "agent 草稿缺少 parent 字段"
@@ -119,6 +137,12 @@ content:
   dependencies:
     - file: "frontend/src/lib/components/workbench/AiChatColumn.svelte"
       reason: "右侧 agent 线程承载区域"
+    - file: "frontend/src/lib/components/workbench/SpecSlotDrawer.svelte"
+      reason: "槽位抽屉与会话"
+    - file: "frontend/src/lib/components/workbench/SpecSlotA2UIStage.svelte"
+      reason: "A2UI 核心区渲染"
+    - file: "frontend/src/lib/components/workbench/SpecSlotPrototypeKitBar.svelte"
+      reason: "prototype 槽位设计物料库工具条（与澄清写盘边界对齐）"
     - file: "frontend/src/lib/components/workbench/Composer.svelte"
       reason: "用户补充澄清和确认动作"
     - file: "agent/cmd/web/workspace_handlers.go"
@@ -134,3 +158,13 @@ changelog:
     author: "hermes"
     changes:
       - "新增 + 子 spec 到 agent 澄清线程的实现边界"
+  - version: "0.2"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "补充 SpecSlotDrawer A2UI 核心区、prototype HTML 优先与固定操作条，与澄清先于写盘对齐"
+  - version: "0.3"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "对齐 FEAT-workspace-design-prototype-gate：prototype 槽位 Design Kit 工具条、双轨确认（spec YAML / 原型文件）、预填与 specs/write 边界"

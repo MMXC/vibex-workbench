@@ -11,22 +11,31 @@ meta:
   module: "frontend"
   owner: "hermes"
   created: "2026-04-26"
-  updated: "2026-04-28"
+  updated: "2026-05-04"
 
 lifecycle:
   current: "proposal"
-  updated: "2026-04-28"
+  updated: "2026-05-04"
 
 display:
   title: ide agent panel
-  summary: ThreadList：会话列表 + 当前线程
-  description: ThreadList：会话列表 + 当前线程
+  summary: 右侧 AI 操作台是 vibex-workbench 原生能力的自然语言编排入口
+  description: 右侧 AI 操作台是 vibex-workbench 原生能力的自然语言编排入口，负责把 workspace、spec、build、graph、governance、tool routing 等能力以可确认的计划和工具调用暴露给用户。
 
 structure:
   parent: MOD-ide-chrome
   children: []
-  dependencies: []
-  impacted_files: []
+  dependencies:
+  - 'frontend/src/routes/workbench/+page.svelte: 统一 /api/chat 发送协议与 context snapshot'
+  - 'frontend/src/lib/stores/spec-agent-context-store.ts: 右侧 context、slash commands、prompt 拼接'
+  - 'frontend/src/lib/stores/spec-slot-session-store.ts: Spec 槽位抽屉深上下文会话'
+  - 'agent/vibex/domain/registry.go: VibeX 原生工具注册'
+  impacted_files:
+  - frontend/src/routes/workbench/+page.svelte
+  - frontend/src/lib/components/workbench/AiChatColumn.svelte
+  - frontend/src/lib/components/workbench/Composer.svelte
+  - frontend/src/lib/components/workbench/ConversationPanel.svelte
+  - frontend/src/lib/stores/spec-agent-context-store.ts
 
 io:
   input:
@@ -44,16 +53,20 @@ io:
 
     - ConversationPanel：消息气泡 + Diff 卡片 + Artifact 卡片
 
-    - Composer：底部输入区，支持 text/image/file/url mode
+    - Composer：底部输入区，支持 text/image/file/url mode 和工作台级 slash command
 
-    - DiffPreview：agent 提议的文件修改，用户可接受/拒绝/修改后接受
+    - Context strip：workspace/spec/workbench snapshot 的可见摘要
 
-    - RunStatusBar：当前 run 的 tool 调用数 + 状态'
+    - RunStatusBar：当前 run 的 tool 调用数 + 状态
+
+    - 计划/路由/确认卡片：展示 AI 正在调用的工作台原生能力'
   boundary: '本 feature 只定义 Agent Panel 的交互协议：
 
-    消息↔Diff↔Terminal↔Artifact 的状态机。
+    消息↔Context↔PlanGraph↔ToolRoute↔Confirm↔Diff↔Terminal↔Artifact 的状态机。
 
-    不定义 agent 推理策略、tool 选择算法、model provider。'
+    Spec 详情抽屉负责单 spec/slot 的深度澄清；右侧 AI 操作台负责全局自然语言编排。
+
+    不定义底层 model provider。'
 
 constraints:
   rules:
@@ -71,8 +84,20 @@ constraints:
     validation: threadStore 以 threadId 为 key 隔离
   - id: C4
     name: Spec-aware context
-    rule: 当有 active_spec 时，context injection 必须包含该 spec 完整内容
-    validation: Ask Agent 触发时 AI 响应必须引用 active_spec 的字段
+    rule: 当有 active_spec 时，context injection 必须包含 workspaceRoot、spec 列表摘要和该 spec 完整内容
+    validation: Ask Agent 触发时 /api/chat body 带 workspaceRoot，prompt 含 [Spec List] 与 [Spec Context]
+  - id: C5
+    name: Native workbench orchestration
+    rule: 右侧 AI 操作台必须优先通过 VibeX 原生工具/API 编排 workspace、spec、build、graph、governance 能力
+    validation: 工作台级请求 prompt 含 [Workbench Context]，后端可路由到 domain tools 而不是只使用 bash/read_file
+  - id: C6
+    name: Slot drawer boundary
+    rule: 单个 spec 槽位的结构/输入/输出/原型/实现澄清必须进入 SpecSlotDrawer，不在通用操作台堆叠长表单
+    validation: 点击槽位或 /open-slot 只打开抽屉会话，不直接写 spec
+  - id: C7
+    name: Native spec navigation
+    rule: 搜索、定位、打开 spec 属于前端工作台原生导航能力，应优先本地命中 specExplorerStore.specs 并调用 selectSpec
+    validation: /open-spec 唯一命中时打开中央详情并加入 Context，不发送 /api/chat
   forbidden: []
 
 prototype:
@@ -93,12 +118,14 @@ io_contract:
     - Composer：底部输入区，支持 text/image/file/url mode
     - DiffPreview：agent 提议的文件修改，用户可接受/拒绝/修改后接受
     - RunStatusBar：当前 run 的 tool 调用数 + 状态
+    - Plan/Route/Confirm：展示工作台原生能力调用计划与确认门禁
   boundary: |
     本 feature 只定义 Agent Panel 的交互协议：
-    消息↔Diff↔Terminal↔Artifact 的状态机。
-    不定义 agent 推理策略、tool 选择算法、model provider。
+    消息↔Context↔PlanGraph↔ToolRoute↔Confirm↔Diff↔Terminal↔Artifact 的状态机。
+    Spec 详情抽屉负责单 spec/slot 的深度澄清；右侧 AI 操作台负责全局自然语言编排。
+    不定义底层 model provider。
   behavior:
-    - "用户 Ctrl+Enter 提交 → 创建/复用线程 → SSE 流式接收"
+    - "用户 Ctrl+Enter 提交 → 注入 workspaceRoot/spec list/workbench context → 创建/复用线程 → POST /api/chat(workspaceRoot) → SSE 流式接收"
     - "agent 返回 tool_use → RunStatusBar 显示工具链"
     - "agent 返回 diff_proposal → DiffPreview 卡片出现"
     - "用户接受 diff → 写入文件 → spec-drift 检查"
@@ -117,6 +144,8 @@ content:
     
     VibeX 的 Agent Panel 对齐策略：
     - 保留 autonomy slider，但第一阶段 MVP 仅支持 Agent 模式
+    - 右侧 AI 操作台不是普通聊天框，而是工作台原生能力的自然语言编排入口
+    - workspace/spec/build/graph/governance/toolrouting 请求必须优先走 VibeX domain tools 或 HTTP API
     - Diff 卡片是 spec→代码闭环的关键：agent 改 spec 对应文件前必须先 diff
     - Artifacts 对应 VibeX 的 preview prototype（HTML 原型）
     - Terminal 输出对标 make validate/generate 的执行流
@@ -137,7 +166,7 @@ content:
 
   component_states:
     AiChatColumn:
-      description: "右侧 AI panel 容器，三栏分区"
+      description: "右侧 AI 操作台容器，承载全局自然语言编排、Context strip、Thread、Conversation、Composer 与 RunStatus"
       states:
         - idle: "无 active run，显示 Composer"
         - running: "有 active run，显示 RunStatusBar"
@@ -169,10 +198,17 @@ content:
         - tool_invocations: "显示 [tool_use #N: tool_name]"
         - failed: "红色 + 错误摘要"
 
+    SpecSlotDrawer:
+      description: "单 spec/slot 深度澄清抽屉，由通用操作台或槽位按钮打开"
+      states:
+        - closed: "不占用右侧通用操作台"
+        - clarifying: "展示槽位会话、PlanGraph、RoutePreview、FireworksGraph"
+        - confirmed: "用户确认后回填上下文或触发 spec 写盘流程"
+
   behaviors:
     - id: "B1"
       trigger: "用户在 Composer 输入文字并 Ctrl+Enter"
-      action: "handleSubmit(content, mode='text') → POST /api/chat → SSE 接收"
+      action: "handleSubmit(content, mode='text') → 注入 workspaceRoot/spec list/workbench context → POST /api/chat → SSE 接收"
       expected_result: "ConversationPanel 出现 user bubble，AI 开始流式响应"
       error_handling: "网络失败时显示错误 toast，Composer 内容保留"
 
@@ -230,6 +266,24 @@ content:
       expected_result: "Composer textarea 追加 artifact 引用，提交后 agent 可访问"
       error_handling: "无 artifact.id 时忽略"
 
+    - id: "B11"
+      trigger: "用户输入工作台级自然语言请求（如列出 specs、校验 workspace、展示路由）"
+      action: "Composer 发送 [Workbench Context]，agent 优先调用 VibeX domain tools 或 /api 工作台能力"
+      expected_result: "AI 以计划、工具调用或结果摘要回复，必要时展示确认门禁"
+      error_handling: "工具缺失时返回可补工具建议，不直接退化为不可控写文件"
+
+    - id: "B12"
+      trigger: "用户输入 /open-slot 或点击 spec 槽位"
+      action: "打开 SpecSlotDrawer，并传入 focused spec、slot_id、workspaceRoot 与当前 spec 内容"
+      expected_result: "抽屉进入槽位级澄清，通用操作台保留全局上下文"
+      error_handling: "无 focused spec 或 slot_id 时提示用户先选择 spec/槽位"
+
+    - id: "B13"
+      trigger: "用户输入 /open-spec 或 /search-spec 加 spec 名称、路径、标题关键词"
+      action: "前端在 specExplorerStore.specs 中搜索，唯一命中时 selectSpec(path) 并 addSpec 到 Context；多命中时显示候选"
+      expected_result: "中央区域打开对应 spec 详情，右侧 Context 聚焦该 spec"
+      error_handling: "无命中时在当前对话提示用户先 /specs 查看列表"
+
   user_stories:
     - id: "US-1"
       as_a: "spec 编写者"
@@ -266,10 +320,12 @@ content:
     context_injection: |
       agent 接收的上下文包含：
       - workspace_awareness: 当前目录状态、三态、最近 spec 变更
+      - workbench_context: 当前 workspaceRoot、spec 列表摘要、中心视图、selectedSpecPath、运行状态、最近输出摘要
       - active_spec: 当前选中的 spec 节点内容（完整 YAML）
       - spec_selection: 用户选中的 spec 编辑器文字（可选）
       - artifact_references: 用户通过 @artifact:{id} 注入的 artifacts
       - command_history: 最近 5 次 make validate/generate 结果
+      注入优先级：workspaceRoot 与 workbench_context 必填；focused spec 可全量；其他 spec 只注入摘要。
 
     diff_contracts: |
       diff_proposal 的 JSON 形状：
@@ -323,6 +379,19 @@ content:
       then: "Composer textarea 追加 '@artifact:proto1'"
       evaluation: "提交后 AI 能访问该 artifact 上下文"
 
+    - id: "TC-6"
+      scenario: "Workbench native command"
+      given: "workspaceRoot 已绑定且 SpecExplorer 已加载 specs"
+      when: "用户输入 '列出当前 specs 并说明哪些槽位缺失'"
+      then: "请求体携带 workspaceRoot，prompt 含 [Workbench Context] 和 [Spec List]"
+      evaluation: "AI 回复基于当前 workspace 的 spec 列表，而不是泛泛解释"
+    - id: "TC-7"
+      scenario: "Open spec from right rail"
+      given: "SpecExplorer 已加载 specs，用户知道部分 spec 名称"
+      when: "用户输入 /open-spec \"FEAT-ide-agent-panel\""
+      then: "前端本地搜索唯一命中并调用 specExplorerStore.selectSpec(path)"
+      evaluation: "中央区域显示该 spec，右侧 Context 包含该 spec，且未触发 /api/chat"
+
   constraints:
     - id: "C1"
       name: "No silent write"
@@ -341,8 +410,20 @@ content:
 
     - id: "C4"
       name: "Spec-aware context"
-      rule: "当有 active_spec 时，context injection 必须包含该 spec 完整内容"
-      validation: "Ask Agent 触发时 AI 响应必须引用 active_spec 的字段"
+      rule: "当有 active_spec 时，context injection 必须包含 workspaceRoot、spec 列表摘要和该 spec 完整内容"
+      validation: "Ask Agent 触发时 /api/chat body 带 workspaceRoot，prompt 含 [Spec List] 与 [Spec Context]"
+    - id: "C5"
+      name: "Native workbench orchestration"
+      rule: "右侧 AI 操作台必须优先通过 VibeX 原生工具/API 编排 workspace、spec、build、graph、governance 能力"
+      validation: "工作台级请求 prompt 含 [Workbench Context]，后端可路由到 domain tools 而不是只使用 bash/read_file"
+    - id: "C6"
+      name: "Slot drawer boundary"
+      rule: "单个 spec 槽位的结构/输入/输出/原型/实现澄清必须进入 SpecSlotDrawer，不在通用操作台堆叠长表单"
+      validation: "点击槽位或 /open-slot 只打开抽屉会话，不直接写 spec"
+    - id: "C7"
+      name: "Native spec navigation"
+      rule: "搜索、定位、打开 spec 属于前端工作台原生导航能力，应优先本地命中 specExplorerStore.specs 并调用 selectSpec"
+      validation: "/open-spec 唯一命中时打开中央详情并加入 Context，不发送 /api/chat"
 
   l4_l5_lineage:
     summary: "L4 定义交互协议，L5 定义 DiffPreview 和 Terminal 组件实现"
@@ -364,6 +445,21 @@ changelog:
       - "对齐 Cursor：新增 autonomy levels、Diff 卡片协议、Terminal 集成、Artifact 卡片"
       - "新增 spec-aware context injection、Ask Agent from spec node"
       - "新增 diff_proposal JSON 形状规范"
+  - version: "0.3"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "明确 Agent 请求必须携带 workspaceRoot，并注入 spec 列表摘要与当前 spec 上下文"
+  - version: "0.4"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "明确右侧 AI 操作台是工作台原生能力自然语言编排入口，并与 SpecSlotDrawer 划清全局/局部职责"
+  - version: "0.5"
+    date: "2026-05-04"
+    author: "agent"
+    changes:
+      - "新增右侧操作台 /open-spec 与 /search-spec 的本地搜索定位打开 spec 能力"
   - version: "0.1"
     date: "2026-04-26"
     author: "hermes"

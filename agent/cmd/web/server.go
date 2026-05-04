@@ -200,8 +200,13 @@ func buildToolsAndHandlers(threadID string, cfg common.Config,
 		childSkills.SetActive(state.skillState.ActiveNames())
 		childBg := background.NewManager()
 		childSpecs := rtools.ParentSpecs(childTodo, childBg, nil, nil, childSkills, skillRegistry)
+		childVibexReg := domain.NewRegistry(cfg.WorkspaceDir, broadcastSSE, SetStepType)
+		childSpecs = append(childSpecs, childVibexReg.ToolSpecs()...)
 		childTools := rtools.BuildTools(childSpecs)
 		childHandlers := rtools.BuildHandlers(childSpecs)
+		for name, handler := range childVibexReg.ToolHandlers() {
+			childHandlers[name] = handler
+		}
 		childMsgs := []responses.ResponseInputItemUnionParam{
 			responses.ResponseInputItemParamOfMessage(developerMessage, responses.EasyInputMessageRoleDeveloper),
 			responses.ResponseInputItemParamOfMessage("Sub-agent task:\n"+strings.TrimSpace(taskSummary), responses.EasyInputMessageRoleUser),
@@ -315,8 +320,10 @@ func saveSession(threadID string, state *threadState) {
 // ── HTTP Handlers ─────────────────────────────────────────────
 
 type chatRequest struct {
-	ThreadID string `json:"threadId"`
-	Input    string `json:"input"`
+	ThreadID       string `json:"threadId"`
+	Input          string `json:"input"`
+	WorkspaceRoot  string `json:"workspaceRoot"`
+	WorkspaceRoot2 string `json:"workspace_root"`
 }
 
 func chatHandler(w http.ResponseWriter, r *http.Request) {
@@ -329,6 +336,10 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Input == "" {
 		http.Error(w, "input is required", http.StatusBadRequest)
+		return
+	}
+	if _, err := effectiveWorkspaceRoot(firstNonEmpty(req.WorkspaceRoot, req.WorkspaceRoot2)); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -349,6 +360,39 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "queued", "threadId": req.ThreadID})
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func effectiveWorkspaceRoot(workspaceRoot string) (string, error) {
+	root := strings.TrimSpace(workspaceRoot)
+	if root == "" {
+		return cfg.WorkspaceDir, nil
+	}
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		return "", fmt.Errorf("invalid workspaceRoot: %w", err)
+	}
+	info, err := os.Stat(abs)
+	if err != nil {
+		return "", fmt.Errorf("workspaceRoot unavailable: %w", err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("workspaceRoot is not a directory: %s", abs)
+	}
+	if cfg.WorkspaceDir != abs {
+		cfg.WorkspaceDir = abs
+		_memLaceMgr = nil
+		_memLaceMgrOnce = false
+	}
+	return cfg.WorkspaceDir, nil
 }
 
 type historyResponse struct {
@@ -401,7 +445,8 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // stepHandler: GET /api/step?thread=xxx → returns current step type
-//               POST /api/step {threadId, stepType} → sets step type
+//
+//	POST /api/step {threadId, stepType} → sets step type
 func stepHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	threadID := r.URL.Query().Get("thread")
