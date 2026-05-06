@@ -27,7 +27,7 @@ structure:
   children: []
   dependencies:
   - 'specs/L4-feature/FEAT-agent-spec-write-protocol.yaml: 协议来源'
-  - 'agent/skills/spec-first-workflow/validation-and-failure.md: 失败分类标准'
+  - 'skills/spec-first-workflow/validation-and-failure.md: 失败分类标准'
   - 'agent/cmd/web/workspace_handlers.go: specs/write 与 run-make handler'
   impacted_files:
   - agent/cmd/web/workspace_handlers.go + frontend/src/lib/components/workbench/SpecAgentClarification.svelte
@@ -84,6 +84,8 @@ content:
       target_level: "L2|L3|L4|L5"
       yaml_text: "string"
       confirmation_id: "string"
+    optional_ui_workflow_context:
+      note: "当修改涉及 prototype 段落时，客户端可在前置澄清线程附带 ui_workflow_run 摘要（stage/decision），服务端可选校验但不阻断现有 specs/write（由 FEAT-agent-spec-write-protocol C3 约束人机流程）"
 
   generation_rules:
     - rule: "Path guard"
@@ -108,7 +110,7 @@ content:
   dependencies:
     - file: "specs/L4-feature/FEAT-agent-spec-write-protocol.yaml"
       reason: "协议来源"
-    - file: "agent/skills/spec-first-workflow/validation-and-failure.md"
+    - file: "skills/spec-first-workflow/validation-and-failure.md"
       reason: "失败分类标准"
     - file: "agent/cmd/web/workspace_handlers.go"
       reason: "specs/write 与 run-make handler"
@@ -119,3 +121,8 @@ changelog:
     author: "hermes"
     changes:
       - "新增 agent spec 写盘 API payload 和验证反馈边界"
+  - version: "0.2"
+    date: "2026-05-05"
+    author: "agent"
+    changes:
+      - "补充可选 ui_workflow 上下文说明（与 Prototype Gate 对齐）"

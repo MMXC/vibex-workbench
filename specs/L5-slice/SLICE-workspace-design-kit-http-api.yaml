@@ -40,12 +40,18 @@ io:
     - "workspaceRoot / workspace_root"
     - "extract: source_path 相对工作区；可选 out_basename"
     - "scaffold/extract: confirm=true"
+    - "可选 spec_yaml：当前 spec 全文，用于服务端 Prototype Gate（Intent/ui_spec）校验；缺省时跳过 gate（兼容旧客户端）"
   output:
     - "status: designMdExists, prototypesDirExists, designPath, prototypesPath"
     - "scaffold: written[], skipped[]"
     - "extract: writtenPath, specSnippet（YAML 草案）"
   boundary: "不在本 slice 实现 specs/write 或 prototype 字段合并；不托管静态资源 CDN。"
 
+gate_errors:
+  http_status: 409
+  description: |
+    409 body 示例字段：ok=false，error=prototype_gate_blocked，
+    gate_failure.codes / gate_failure.checks（id、passed、detail）/ gate_failure.next_action。
 constraints:
   rules:
     - id: "API1"
@@ -56,6 +62,10 @@ constraints:
       name: "HTML 剥离"
       rule: "对 .html/.htm 移除 script 与行内事件属性后再进入预览区；非 HTML 源仅摘录不进可执行预览。"
       verification: "输出 HTML 中无 script 标签。"
+    - id: "API3"
+      name: "Prototype Gate（可选 spec_yaml）"
+      rule: "当 confirm=true 且请求体含非空 spec_yaml 时，服务端在写盘前运行与前端一致的 gate；失败返回 409 与 gate_failure 结构，不得写入磁盘。"
+      verification: "故意缺失 prototype.intent 时 POST extract 返回 409；省略 spec_yaml 时行为与 v0.2 一致。"
   forbidden: []
 
 prototype:
@@ -107,4 +117,9 @@ changelog:
     author: "agent"
     changes:
       - "无 confirm 时 scaffold/extract 返回 400；extract 用 path.relative 防穿越；main.go Wails 绑定共享 pkg/designkit"
+  - version: "0.3"
+    date: "2026-05-05"
+    author: "agent"
+    changes:
+      - "spec_yaml + Prototype Gate；409 gate_failure；API3"
 ---

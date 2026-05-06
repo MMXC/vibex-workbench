@@ -47,6 +47,10 @@ constraints:
     name: Canonical directory
     rule: target_dir 必须来自 FEAT-spec-graph-expansion.level_rules
     validation: 禁止 agent 自行拼接 specs/{level}/
+  - id: C3
+    name: UI workflow gate before prototype-adjacent writes
+    rule: 涉及 prototype 物料或 prototype 段 YAML 的写盘请求，若会话 ui_workflow_run.decision 非 passed，须归类为 gate_blocked；客户端须展示失败码 intent_incomplete / ui_spec_incomplete / acceptance_missing / confirm_required 之一，不得静默 specs/write。
+    validation: 失败响应 body 含 gate_failure.code 数组与 next_action 提示
   forbidden: []
 
 prototype:
@@ -135,3 +139,8 @@ changelog:
     author: "hermes"
     changes:
       - "新增 agent 推荐 spec 到确认写盘的协议规格"
+  - version: "0.2"
+    date: "2026-05-05"
+    author: "agent"
+    changes:
+      - "补充 C3：与 Prototype Gate 对齐的写盘前置分类与失败码"

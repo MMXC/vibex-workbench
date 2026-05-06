@@ -28,7 +28,7 @@ structure:
   dependencies:
   - 'specs/L5-slice/SLICE-implementation-journal-schema.yaml: checkpoint schema'
   - 'specs/L5-slice/SLICE-workspace-path-safety-contract.yaml: workspace path guard'
-  - 'agent/skills/spec-first-workflow/validation-and-failure.md: failure category vocabulary'
+  - 'skills/spec-first-workflow/validation-and-failure.md: failure category vocabulary'
   impacted_files:
   - agent/internal/specjournal/checkpoint_writer.go
 
@@ -100,7 +100,7 @@ content:
       reason: "checkpoint schema"
     - file: "specs/L5-slice/SLICE-workspace-path-safety-contract.yaml"
       reason: "workspace path guard"
-    - file: "agent/skills/spec-first-workflow/validation-and-failure.md"
+    - file: "skills/spec-first-workflow/validation-and-failure.md"
       reason: "failure category vocabulary"
 
 changelog:

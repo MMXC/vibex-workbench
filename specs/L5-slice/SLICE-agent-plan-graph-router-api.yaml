@@ -32,6 +32,7 @@ io:
     - "PlanGraph"
     - "RoutePreview"
     - "供前端映射 A2UI 的语义：PlanNode.outputs、node.kind、route decision 与内置工具描述中的可视化输出提示（等价 a2ui_component_hint；MVP 可由前端推导）"
+    - "slot_id=prototype 时 A2UIModel.uiWorkflowGate（requiredChecks/failedChecks/canCommitPrototype/stage）由当前 spec YAML 推导"
   boundary: "只做计划图创建和路由预览，不执行写盘节点。"
 
 constraints:
@@ -106,5 +107,10 @@ changelog:
     author: "agent"
     changes:
       - "声明 PlanGraph/Route 输出需支持前端 A2UI 映射（outputs + 工具描述语义，等价 a2ui_component_hint）"
+  - version: "0.4"
+    date: "2026-05-05"
+    author: "agent"
+    changes:
+      - "prototype 槽位输出 uiWorkflowGate 契约"
 
 ---

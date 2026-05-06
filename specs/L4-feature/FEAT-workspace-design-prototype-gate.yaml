@@ -71,6 +71,18 @@ constraints:
       name: "原型槽可见操作"
       rule: "`slot_id=prototype` 时 SpecSlotVisualPane 须在 A2UI 主体之上渲染 Design Kit 工具条，且按钮可触发上述 API 或预填。"
       verification: "手动打开原型槽位可见初始化、查看 DESIGN、注入提示、提取、关联预填。"
+    - id: "DG6"
+      name: "Intent 必填（方法论对齐）"
+      rule: "进入可写盘原型流程前，会话上下文须包含结构化 Intent：目标用户、核心业务目标、用户核心动作、成功验收口径（至少一句）。缺失时前端 gate 为 intent_incomplete，仅允许澄清预填，不允许 confirm=true 的 extract/scaffold。"
+      verification: "gate 未通过时 POST extract/scaffold 返回 structured error（见 SLICE-workspace-design-kit-http-api）。"
+    - id: "DG7"
+      name: "UI Spec 必填（方法论对齐）"
+      rule: "进入可写盘原型流程前，须具备可机读 UI Spec：页面目的、模块列表（含优先级）、组件类型映射、状态矩阵（至少 loading/empty/error/normal）、桌面与移动端响应式策略摘要、验收要点列表。缺失时 gate 为 ui_spec_incomplete 或 acceptance_missing。"
+      verification: "可由槽位 YAML io.prototype.ui_spec 区块或会话 ui_workflow_run 快照承载；A2UI checklist 展示缺口。"
+    - id: "DG8"
+      name: "Prototype Gate 先于物料写盘"
+      rule: "未通过 Prototype Gate（ui_workflow_run.decision != passed）时，design-kit extract/scaffold 仅允许 dry-run（confirm=false 且不写入）；confirm=true 请求须被拒绝或降级为 409 + gate_failure 明细。"
+      verification: "手动：Intent 不完整时点提取→不入磁盘且返回 gate；补齐后 confirm=true 才写入。"
   forbidden:
     - "无 confirm 写入工作区任意文件"
     - "从 UI 绕过路径校验读取仓库外文件"
@@ -122,6 +134,18 @@ content:
       - "source_path 可逃出 WORKSPACE_ROOT"
       - "工具条在非 prototype 槽位误显"
 
+ui_workflow:
+  stages:
+    - "intent_captured"
+    - "ui_spec_drafted"
+    - "gate_pending"
+    - "gate_passed"
+  gate_failure_codes:
+    - "intent_incomplete"
+    - "ui_spec_incomplete"
+    - "acceptance_missing"
+    - "confirm_required"
+
 changelog:
   - version: "0.1"
     date: "2026-05-04"
@@ -133,4 +157,9 @@ changelog:
     author: "agent"
     changes:
       - "落地实现：SvelteKit API、Wails DesignKit* 绑定、pkg/designkit、specs/read 与槽位 prompt 设计门禁段、scaffold/extract 无 confirm 返回 400"
+  - version: "0.3"
+    date: "2026-05-05"
+    author: "agent"
+    changes:
+      - "对齐 AI UI 工作流：Intent/UI Spec/Prototype Gate 总则、失败分类与 stage 枚举（DG6–DG8）"
 ---

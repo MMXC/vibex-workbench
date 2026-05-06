@@ -57,6 +57,10 @@ constraints:
       name: "无工作区降级"
       rule: "workspaceRoot 空时提示选择工作区，不发起 status 之外的写请求。"
       verification: "按钮 disabled 或早退符合预期。"
+    - id: "UI3"
+      name: "Prototype Gate 联动"
+      rule: "当会话 evaluatePrototypeGate 判定 canCommitPrototype=false 时，禁用「剥离并写入 prototypes」（extract）；「初始化物料库」（scaffold）仍可用以便先创建 DESIGN/README。未通过 Gate 时可预填 Intent/UI Spec 模板。"
+      verification: "Intent 缺失时 extract 不可点，scaffold 可点；补齐 prototype YAML 后 extract 恢复。"
   forbidden:
     - "组件内直接 fetch specs/write"
 
@@ -64,6 +68,10 @@ prototype:
   file: ""
   validates: []
   status: "none"
+
+ui_workflow:
+  evaluate_from: "当前 spec YAML 正文（槽位会话 session.content）中的 prototype.intent 与 prototype.ui_spec"
+  gate_display: "SpecSlotA2UIStage 展示 uiWorkflowGate checklist；SpecSlotPrototypeKitBar 禁用写盘直至 gate_passed"
 
 io_contract:
   input: |
@@ -112,4 +120,9 @@ changelog:
     author: "agent"
     changes:
       - "查看 DESIGN 走 wailsReadSpecFile；design-kit-client 在 Wails 下调用 App.DesignKit*"
+  - version: "0.3"
+    date: "2026-05-05"
+    author: "agent"
+    changes:
+      - "UI3：工具条与 Prototype Gate 联动，禁用未通过 gate 的写盘按钮"
 ---

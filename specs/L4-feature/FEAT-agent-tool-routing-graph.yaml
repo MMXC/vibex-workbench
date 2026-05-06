@@ -22,6 +22,7 @@ structure:
     - "FEAT-ide-agent-panel"
     - "FEAT-workspace-runtime-safety"
     - "FEAT-workspace-design-prototype-gate"
+    - "FEAT-agent-task-state-machine"
   impacted_files:
     - "agent/vibex/domain/toolrouting/*.go"
     - "agent/cmd/web/tool_routing_handlers.go"
@@ -73,6 +74,14 @@ constraints:
       name: "SpecSlotDrawer A2UI core"
       rule: "SpecSlotDrawer 右侧在 Current Slot 与 Fireworks 之间须以 A2UI 为核心区：按槽位生成可确认的可视化组件（卡片、HTML prototype 壳、或 Fireworks 静态/路由图）；底部固定 确认、微调、草稿、取消、重新生成。"
       verification: "槽位抽屉打开后主体区为 A2UIStage，操作条常驻；prototype 槽位优先展示 HTML 预览壳，其它槽位可与 Fireworks 并排或主显其一。"
+    - id: "C8"
+      name: "Prototype slot UI workflow gate"
+      rule: "当 slot_id=prototype 时，A2UIModel 须携带 ui_workflow_gate（requiredChecks/failedChecks/canCommitPrototype）；toA2UIModel 结合会话 Intent 与 UI Spec 快照计算 gate；未通过 gate 时底部确认语义为「补充澄清」，design-kit 写盘动作禁用。"
+      verification: "Intent 缺失时 A2UI 展示 checklist；extract/scaffold 在 gate fail 且 confirm=true 时返回错误；通过后 canCommitPrototype=true。"
+    - id: "C9"
+      name: "Iteration graph in right drawer"
+      rule: "SpecSlotDrawer 详情抽屉须展示迭代动态图：run/planning/tool/result 节点、动态连线、当前游标高亮、错误路径强调，并支持历史折叠与节点详情查看。"
+      verification: "提交后可实时看到 run.started -> planning -> tool.called/tool.completed -> run.completed|run.failed 的可视化轨迹。"
   forbidden:
     - "把用户自定义工具注册成默认可执行 shell 命令"
     - "跳过路由图直接调用 write_file/batch 生成代码"
@@ -87,11 +96,11 @@ meta:
   module: "agent"
   owner: "hermes"
   created: "2026-05-03"
-  updated: "2026-05-04"
+  updated: "2026-05-05"
 
 lifecycle:
   current: "proposal"
-  updated: "2026-05-04"
+  updated: "2026-05-05"
 
 io_contract:
   input: |
@@ -142,6 +151,11 @@ content:
       action: "生成 spec-slot-routing 的 PlanGraph 与 RoutePreview，并映射为 A2UI 核心区组件；Fireworks 仅作为路由可视化子模式"
       expected_result: "右侧中间为可确认的 A2UI 卡片或 HTML prototype 壳；底部固定确认、微调、草稿、取消、重新生成"
       error_handling: "API 不可用时 A2UI 显示降级说明，仍保留操作条与左侧对话"
+    - id: "B7"
+      trigger: "用户在 SpecSlotDrawer 里发起一次槽位对话/执行"
+      action: "前端消费 SSE 运行事件并维护 iterationNodes/iterationEdges/iterationCursorId，详情抽屉渲染动态图和节点详情"
+      expected_result: "用户可见可追踪的多步闭环路径，并可快速定位失败节点与最近一次修复回路"
+      error_handling: "无事件或事件缺失时显示空态提示，不阻塞主流程"
 
   test_scenarios:
     - id: "TC-1"
@@ -168,6 +182,12 @@ content:
       when: "agent 收到 [Workbench Context] 与 focused spec"
       then: "先返回 PlanGraph/RoutePreview 摘要，再要求确认写入或执行"
       evaluation: "未确认前不写文件、不执行自定义工具"
+    - id: "TC-5"
+      scenario: "右侧详情抽屉展示迭代动态图"
+      given: "用户在槽位会话中触发一次 run，且包含至少 1 次 tool.called/tool.completed"
+      when: "前端接收 SSE run/tool 事件"
+      then: "抽屉显示动态连线、当前节点高亮、错误边样式，并可展开历史与查看节点详情"
+      evaluation: "轨迹顺序与 SSE 事件一致；失败节点 detail 可读"
 
 changelog:
   - version: "0.1"
@@ -195,5 +215,20 @@ changelog:
     author: "agent"
     changes:
       - "依赖 FEAT-workspace-design-prototype-gate：prototype 槽位设计物料库与双轨写盘确认（spec YAML vs .vibex/prototypes）"
+  - version: "0.6"
+    date: "2026-05-05"
+    author: "agent"
+    changes:
+      - "新增 C8：prototype 槽位 Intent→UI Spec→Gate 与 A2UIModel.ui_workflow_gate 契约"
+  - version: "0.7"
+    date: "2026-05-05"
+    author: "agent"
+    changes:
+      - "声明依赖 FEAT-agent-task-state-machine：路由结果进入多步状态机执行闭环"
+  - version: "0.8"
+    date: "2026-05-05"
+    author: "agent"
+    changes:
+      - "新增 C9/B7/TC-5：右侧详情抽屉迭代动态图（动态连线、游标高亮、错误回路、历史折叠、节点详情）"
 ---
 
