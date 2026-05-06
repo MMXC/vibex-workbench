@@ -31,6 +31,29 @@
 	{/if}
 
 	{#if model}
+		{#if model.uiWorkflowGate}
+			<details class="gate-drawer" open={!model.uiWorkflowGate.canCommitPrototype}>
+				<summary>
+					Prototype Gate · {model.uiWorkflowGate.stage}
+					{#if model.uiWorkflowGate.canCommitPrototype}
+						<span class="gate-ok">已通过</span>
+					{:else}
+						<span class="gate-warn">待补齐</span>
+					{/if}
+				</summary>
+				<ul class="gate-checks">
+					{#each model.uiWorkflowGate.checks as c (c.id)}
+						<li class:pass={c.passed} class:fail={!c.passed}>
+							<span class="mark">{c.passed ? '✓' : '✗'}</span>
+							{c.label}{c.detail ? ` — ${c.detail}` : ''}
+						</li>
+					{/each}
+				</ul>
+				{#if !model.uiWorkflowGate.canCommitPrototype}
+					<pre class="gate-next">{model.uiWorkflowGate.nextAction}</pre>
+				{/if}
+			</details>
+		{/if}
 		{#if hasPrimaryVisual}
 			<div class="head-min">
 				<h3>{model.headline}</h3>
@@ -248,6 +271,62 @@
 	.hints-mini ul {
 		margin: 6px 0 0;
 		padding-left: 16px;
+	}
+
+	.gate-drawer {
+		flex-shrink: 0;
+		border: 1px solid rgba(239, 198, 107, 0.35);
+		border-radius: 12px;
+		padding: 8px 10px;
+		background: rgba(239, 198, 107, 0.06);
+		font-size: 11px;
+		color: #d4d8e3;
+	}
+	.gate-drawer summary {
+		cursor: pointer;
+		color: #fcd34d;
+		font-weight: 700;
+		list-style-position: outside;
+	}
+	.gate-ok {
+		margin-left: 8px;
+		font-size: 10px;
+		color: #72d6d0;
+		font-weight: 800;
+	}
+	.gate-warn {
+		margin-left: 8px;
+		font-size: 10px;
+		color: #fca5a5;
+		font-weight: 800;
+	}
+	.gate-checks {
+		margin: 8px 0 0;
+		padding-left: 18px;
+		line-height: 1.45;
+	}
+	.gate-checks li.pass {
+		color: #a7f3d0;
+	}
+	.gate-checks li.fail {
+		color: #fecaca;
+	}
+	.gate-checks .mark {
+		display: inline-block;
+		width: 1.2em;
+		font-weight: 800;
+	}
+	.gate-next {
+		margin: 8px 0 0;
+		padding: 8px 10px;
+		border-radius: 10px;
+		background: #0a0c10;
+		border: 1px solid #242b38;
+		font-size: 10px;
+		color: #a3abb9;
+		white-space: pre-wrap;
+		max-height: 160px;
+		overflow: auto;
 	}
 
 	.head h3 {

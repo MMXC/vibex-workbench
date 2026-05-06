@@ -3,7 +3,9 @@ import { stripReasoningTags } from '$lib/stores/thread-store';
 import type { SpecDisplayMeta, SpecSlotSummary } from '$lib/workbench/spec-display';
 import {
 	createSlotPlanGraph,
+	extractHtmlFromMarkdown,
 	previewToolRoute,
+	lastAssistantHtmlFence,
 	toA2UIModel,
 	toFireworksGraph,
 	type A2UIModel,
@@ -12,12 +14,38 @@ import {
 	type RoutePreview,
 } from '$lib/services/tool-routing-client';
 import { specExplorerStore } from '$lib/stores/spec-explorer-store';
+import type {
+	RepairDecisionPayload,
+	StrongValidationPlan,
+	VerificationSubmission,
+} from '$lib/workbench/rules-engine-contract';
 
 export type SpecSlotA2UIStatus = 'idle' | 'loading' | 'ready';
 
 export type SpecSlotChatPrefill = {
 	id: string;
 	text: string;
+};
+
+export type SpecSlotIterationNode = {
+	id: string;
+	label: string;
+	type: 'run' | 'plan' | 'tool' | 'result';
+	status: 'running' | 'done' | 'error';
+	detail?: string;
+};
+
+export type SpecSlotIterationEdge = {
+	from: string;
+	to: string;
+	label?: string;
+};
+
+export type SpecSlotMessage = {
+	id: string;
+	role: 'system' | 'user' | 'assistant';
+	content: string;
+	createdAt: string;
 };
 
 export type SpecSlotSession = {
@@ -38,8 +66,18 @@ export type SpecSlotSession = {
 	a2uiRevision: number;
 	a2uiModel?: A2UIModel;
 	a2uiStatus: SpecSlotA2UIStatus;
+	/** 右侧详情抽屉：多步迭代过程动态图（来自 SSE run/tool 事件） */
+	iterationNodes: SpecSlotIterationNode[];
+	iterationEdges: SpecSlotIterationEdge[];
+	iterationCursorId: string | null;
 	/** 由右侧「微调」写入，左侧输入框消费后清除 */
 	chatPrefill: SpecSlotChatPrefill | null;
+	/** 规则引擎：强校验计划（默认种子或后端下发） */
+	strongValidationPlan?: StrongValidationPlan | null;
+	/** 用户 RED/GREEN 提交 */
+	verificationSubmission?: VerificationSubmission | null;
+	/** 最近一次纠错决策（SSE repair.decision） */
+	lastRepairDecision?: RepairDecisionPayload | null;
 	updatedAt: string;
 };
 
@@ -74,6 +112,51 @@ function sessionKey(specPath: string, slotId: string): string {
 	return `${specPath.replace(/\\/g, '/')}::${slotId}`;
 }
 
+function seedStrongValidationPlan(specPath: string, slotId: string): StrongValidationPlan | null {
+	if (slotId !== 'prototype' && slotId !== 'implementation') return null;
+	const plan_id = `local:${slotId}:${specPath.replace(/\\/g, '/')}`;
+	const items =
+		slotId === 'prototype'
+			? [
+					{
+						id: 'make-validate',
+						label: '全库 spec YAML 校验',
+						command: 'make validate',
+						timeout_sec: 300,
+						expect_signal: 'green',
+					},
+					{
+						id: 'design-md',
+						label: '存在 DESIGN.md（原型栈约定）',
+						command: 'test -f .vibex/design/DESIGN.md',
+						timeout_sec: 30,
+						expect_signal: 'green',
+					},
+				]
+			: [
+					{
+						id: 'make-validate',
+						label: '全库 spec YAML 校验',
+						command: 'make validate',
+						timeout_sec: 300,
+						expect_signal: 'green',
+					},
+					{
+						id: 'spec-validate-slot',
+						label: '校验当前 spec 文件',
+						command: `make validate`,
+						timeout_sec: 300,
+						expect_signal: 'green',
+					},
+				];
+	return {
+		plan_id,
+		slot_binding: slotId,
+		spec_path: specPath.replace(/\\/g, '/'),
+		items,
+	};
+}
+
 function loadState(): SpecSlotSessionState {
 	if (typeof localStorage === 'undefined') {
 		return { activeKey: null, drawerOpen: false, sessions: {} };
@@ -89,7 +172,13 @@ function loadState(): SpecSlotSessionState {
 				...s,
 				a2uiRevision: s.a2uiRevision ?? 0,
 				a2uiStatus: s.a2uiStatus ?? 'idle',
+				iterationNodes: s.iterationNodes ?? [],
+				iterationEdges: s.iterationEdges ?? [],
+				iterationCursorId: s.iterationCursorId ?? null,
 				chatPrefill: s.chatPrefill ?? null,
+				strongValidationPlan: s.strongValidationPlan ?? null,
+				verificationSubmission: s.verificationSubmission ?? null,
+				lastRepairDecision: s.lastRepairDecision ?? null,
 			};
 		}
 		return {
@@ -119,13 +208,26 @@ function buildPrompt(session: SpecSlotSession, userInput: string): string {
 		.map(message => `${message.role}: ${message.content}`)
 		.join('\n');
 	const explorerState = get(specExplorerStore);
-	const specList = explorerState.specs
+	const MAX_SPEC_LIST = 12;
+	const activeSpecLine = explorerState.specs.find(spec => spec.path === session.spec.path);
+	const others = explorerState.specs.filter(spec => spec.path !== session.spec.path).slice(0, MAX_SPEC_LIST - 1);
+	const compactSpecs = [activeSpecLine, ...others].flatMap(s => (s ? [s] : []));
+	const specList = compactSpecs
 		.map(spec => {
 			const title = spec.display?.title ?? spec.name;
 			const summary = spec.display?.summary ? ` — ${spec.display.summary}` : '';
 			return `- L${spec.level} ${spec.status} ${spec.path} :: ${title}${summary}`;
 		})
 		.join('\n');
+	const omittedCount = Math.max(0, explorerState.specs.length - compactSpecs.length);
+	const specListFooter =
+		omittedCount > 0
+			? `... omitted ${omittedCount} specs to control context size`
+			: '';
+	const boundedSpecContent =
+		session.content.length > 6000
+			? `${session.content.slice(0, 6000)}\n... truncated ${session.content.length - 6000} chars`
+			: session.content;
 
 	return [
 		userInput,
@@ -158,6 +260,11 @@ function buildPrompt(session: SpecSlotSession, userInput: string): string {
 						revision: session.a2uiModel.revision,
 						routeSummary: session.a2uiModel.routeSummaryLines,
 						hints: session.a2uiModel.componentHints,
+						...(session.slot.id === 'prototype' && session.a2uiModel.uiWorkflowGate
+							? {
+									uiWorkflowGate: session.a2uiModel.uiWorkflowGate,
+								}
+							: {}),
 					},
 					null,
 					2
@@ -175,7 +282,7 @@ function buildPrompt(session: SpecSlotSession, userInput: string): string {
 		'[/Current Tool Route Preview]',
 		'',
 		'[Spec List]',
-		specList || 'none',
+		[specList, specListFooter].filter(Boolean).join('\n') || 'none',
 		'[/Spec List]',
 		'',
 		'[Recent Session Messages]',
@@ -183,7 +290,7 @@ function buildPrompt(session: SpecSlotSession, userInput: string): string {
 		'[/Recent Session Messages]',
 		'',
 		'[Current Spec Content]',
-		session.content,
+		boundedSpecContent,
 		'[/Current Spec Content]',
 		'[/Spec Slot Session]',
 	].join('\n');
@@ -222,6 +329,26 @@ function createSpecSlotSessionStore() {
 			} else if (delta) {
 				messages.push({ id: id(), role: 'assistant', content: delta, createdAt: nowIso() });
 			}
+
+			let a2uiModel = session.a2uiModel;
+			if (session.slot.id === 'prototype' && a2uiModel) {
+				const tail = messages[messages.length - 1];
+				if (tail?.role === 'assistant') {
+					const extracted = extractHtmlFromMarkdown(tail.content);
+					if (extracted) {
+						a2uiModel = {
+							...a2uiModel,
+							prototype: {
+								mode: 'html_snippet',
+								html: extracted,
+								caption:
+									'HTML 原型预览（来自助手 fenced html；iframe sandbox：allow-scripts）。',
+							},
+						};
+					}
+				}
+			}
+
 			return {
 				...state,
 				sessions: {
@@ -229,7 +356,46 @@ function createSpecSlotSessionStore() {
 					[key]: {
 						...session,
 						messages,
+						a2uiModel,
 						status: isFinal ? 'idle' : session.status,
+						updatedAt: nowIso(),
+					},
+				},
+			};
+		});
+	}
+
+	function upsertIterationNode(
+		key: string,
+		node: SpecSlotIterationNode,
+		opts?: { moveCursor?: boolean; edgeLabelFromPrev?: string }
+	) {
+		commit(state => {
+			const session = state.sessions[key];
+			if (!session) return state;
+			const nodes = [...session.iterationNodes];
+			const idx = nodes.findIndex(n => n.id === node.id);
+			if (idx >= 0) nodes[idx] = { ...nodes[idx], ...node };
+			else nodes.push(node);
+
+			let edges = session.iterationEdges;
+			let cursor = session.iterationCursorId;
+			if (opts?.moveCursor) {
+				if (cursor && cursor !== node.id && !edges.some(e => e.from === cursor && e.to === node.id)) {
+					edges = [...edges, { from: cursor, to: node.id, label: opts.edgeLabelFromPrev }];
+				}
+				cursor = node.id;
+			}
+
+			return {
+				...state,
+				sessions: {
+					...state.sessions,
+					[key]: {
+						...session,
+						iterationNodes: nodes,
+						iterationEdges: edges,
+						iterationCursorId: cursor,
 						updatedAt: nowIso(),
 					},
 				},
@@ -278,6 +444,8 @@ function createSpecSlotSessionStore() {
 				goal: graph.goal,
 				graph,
 				route,
+				specYamlContent: fresh.content,
+				assistantPrototypeHtml: lastAssistantHtmlFence(fresh.messages),
 			});
 			commit(current => {
 				const active = current.sessions[key];
@@ -325,6 +493,8 @@ function createSpecSlotSessionStore() {
 			const key = sessionKey(input.spec.path, input.slot.id);
 			commit(state => {
 				const existing = state.sessions[key];
+				const seededPlan =
+					existing?.strongValidationPlan ?? seedStrongValidationPlan(input.spec.path, input.slot.id);
 				const session: SpecSlotSession = existing
 					? {
 							...existing,
@@ -333,7 +503,13 @@ function createSpecSlotSessionStore() {
 							content: input.content,
 							a2uiRevision: existing.a2uiRevision ?? 0,
 							a2uiStatus: existing.a2uiStatus ?? 'idle',
+							iterationNodes: existing.iterationNodes ?? [],
+							iterationEdges: existing.iterationEdges ?? [],
+							iterationCursorId: existing.iterationCursorId ?? null,
 							chatPrefill: existing.chatPrefill ?? null,
+							strongValidationPlan: seededPlan,
+							verificationSubmission: existing.verificationSubmission ?? null,
+							lastRepairDecision: existing.lastRepairDecision ?? null,
 							updatedAt: nowIso(),
 						}
 					: {
@@ -355,7 +531,13 @@ function createSpecSlotSessionStore() {
 							error: null,
 							a2uiRevision: 0,
 							a2uiStatus: 'idle',
+							iterationNodes: [],
+							iterationEdges: [],
+							iterationCursorId: null,
 							chatPrefill: null,
+							strongValidationPlan: seededPlan,
+							verificationSubmission: null,
+							lastRepairDecision: null,
 							updatedAt: nowIso(),
 						};
 				return {
@@ -378,6 +560,79 @@ function createSpecSlotSessionStore() {
 					sessions: {
 						...state.sessions,
 						[key]: { ...session, chatPrefill: null, updatedAt: nowIso() },
+					},
+				};
+			});
+		},
+		submitVerificationOutcome(outcome: VerificationSubmission['outcome'], notes?: string) {
+			commit(state => {
+				const key = state.activeKey;
+				if (!key) return state;
+				const session = state.sessions[key];
+				if (!session?.strongValidationPlan) return state;
+				const plan = session.strongValidationPlan;
+				const sub: VerificationSubmission = {
+					submission_id: id(),
+					plan_id: plan.plan_id,
+					slot_id: session.slot.id,
+					spec_path: session.spec.path,
+					outcome,
+					notes: notes?.trim() || undefined,
+				};
+				const msg: SpecSlotMessage = {
+					id: id(),
+					role: 'system',
+					content: `[强校验提交] outcome=${outcome} plan=${plan.plan_id} submission=${sub.submission_id}${notes ? `\n${notes}` : ''}`,
+					createdAt: nowIso(),
+				};
+				return {
+					...state,
+					sessions: {
+						...state.sessions,
+						[key]: {
+							...session,
+							verificationSubmission: sub,
+							messages: [...session.messages, msg],
+							updatedAt: nowIso(),
+						},
+					},
+				};
+			});
+		},
+		/** 将默认校验命令预填到左侧对话（由用户在宿主环境执行） */
+		prefillValidationRun(itemId?: string) {
+			const state = get({ subscribe });
+			const key = state.activeKey;
+			const session = key ? state.sessions[key] : null;
+			if (!session?.strongValidationPlan?.items.length) return;
+			const items = session.strongValidationPlan.items;
+			const item = itemId ? items.find(i => i.id === itemId) : items[0];
+			if (!item?.command) return;
+			const cwd = get(specExplorerStore).workspaceRoot || '.';
+			const text = [
+				`[强校验 · 运行] 请在仓库根（cwd=${cwd}）执行：`,
+				item.command,
+				item.timeout_sec ? `(建议超时 ${item.timeout_sec}s)` : '',
+				'执行后将输出摘要回复；若通过请点击右侧「标记 GREEN」。',
+			]
+				.filter(Boolean)
+				.join('\n');
+			const t = text.trim();
+			if (!t) return;
+			commit(state => {
+				const k = state.activeKey;
+				if (!k) return state;
+				const sess = state.sessions[k];
+				if (!sess) return state;
+				return {
+					...state,
+					sessions: {
+						...state.sessions,
+						[k]: {
+							...sess,
+							chatPrefill: { id: id(), text: t },
+							updatedAt: nowIso(),
+						},
 					},
 				};
 			});
@@ -583,6 +838,9 @@ function createSpecSlotSessionStore() {
 							],
 							status: 'running',
 							error: null,
+							iterationNodes: [],
+							iterationEdges: [],
+							iterationCursorId: null,
 							updatedAt: nowIso(),
 						},
 					},
@@ -609,6 +867,16 @@ function createSpecSlotSessionStore() {
 				}
 			});
 			activeSource.addEventListener('run.completed', () => {
+				upsertIterationNode(
+					key,
+					{
+						id: `result:completed:${Date.now()}`,
+						label: 'run.completed',
+						type: 'result',
+						status: 'done',
+					},
+					{ moveCursor: true, edgeLabelFromPrev: 'done' }
+				);
 				closeStream();
 				commit(current => {
 					const active = current.sessions[key];
@@ -623,6 +891,16 @@ function createSpecSlotSessionStore() {
 				});
 			});
 			activeSource.addEventListener('run.failed', () => {
+				upsertIterationNode(
+					key,
+					{
+						id: `result:failed:${Date.now()}`,
+						label: 'run.failed',
+						type: 'result',
+						status: 'error',
+					},
+					{ moveCursor: true, edgeLabelFromPrev: 'failed' }
+				);
 				closeStream();
 				commit(current => {
 					const active = current.sessions[key];
@@ -635,6 +913,124 @@ function createSpecSlotSessionStore() {
 						},
 					};
 				});
+			});
+			activeSource.addEventListener('run.started', event => {
+				try {
+					const data = JSON.parse(String((event as MessageEvent).data)) as Record<string, unknown>;
+					const runId = String(data.runId ?? data.run_id ?? `run:${Date.now()}`);
+					upsertIterationNode(
+						key,
+						{ id: `run:${runId}`, label: 'run.started', type: 'run', status: 'running' },
+						{ moveCursor: true, edgeLabelFromPrev: 'start' }
+					);
+				} catch {
+					// ignore
+				}
+			});
+			activeSource.addEventListener('run.planning', event => {
+				try {
+					const data = JSON.parse(String((event as MessageEvent).data)) as Record<string, unknown>;
+					const runId = String(data.runId ?? data.run_id ?? 'current');
+					upsertIterationNode(
+						key,
+						{
+							id: `plan:${runId}:${Date.now()}`,
+							label: 'planning',
+							type: 'plan',
+							status: 'running',
+							detail: String(data.status ?? ''),
+						},
+						{ moveCursor: true, edgeLabelFromPrev: 'plan' }
+					);
+				} catch {
+					// ignore
+				}
+			});
+			activeSource.addEventListener('tool.called', event => {
+				try {
+					const data = JSON.parse(String((event as MessageEvent).data)) as Record<string, unknown>;
+					const callId = String(data.call_id ?? data.invocationId ?? `tool:${Date.now()}`);
+					const tool = String(data.tool ?? data.toolName ?? 'tool');
+					upsertIterationNode(
+						key,
+						{
+							id: `tool:${callId}`,
+							label: tool,
+							type: 'tool',
+							status: 'running',
+						},
+						{ moveCursor: true, edgeLabelFromPrev: 'call' }
+					);
+				} catch {
+					// ignore
+				}
+			});
+			activeSource.addEventListener('tool.completed', event => {
+				try {
+					const data = JSON.parse(String((event as MessageEvent).data)) as Record<string, unknown>;
+					const callId = String(data.call_id ?? data.invocationId ?? '');
+					const tool = String(data.tool ?? data.toolName ?? 'tool');
+					const result = String(data.result ?? '');
+					const failed = /^error:|^blocked:|^filter_rejected:/i.test(result.trim());
+					upsertIterationNode(
+						key,
+						{
+							id: `tool:${callId || Date.now().toString()}`,
+							label: tool,
+							type: 'tool',
+							status: failed ? 'error' : 'done',
+							detail: result.slice(0, 140),
+						},
+						{ moveCursor: true, edgeLabelFromPrev: failed ? 'error' : 'ok' }
+					);
+				} catch {
+					// ignore
+				}
+			});
+			activeSource.addEventListener('repair.decision', event => {
+				try {
+					const data = JSON.parse(String((event as MessageEvent).data)) as Record<string, unknown>;
+					const decision = data.decision as RepairDecisionPayload | undefined;
+					const envelope = data.envelope as { failure_type?: string; error_message?: string } | undefined;
+					if (decision?.reason_code) {
+						commit(current => {
+							const active = current.sessions[key];
+							if (!active) return current;
+							return {
+								...current,
+								sessions: {
+									...current.sessions,
+									[key]: {
+										...active,
+										lastRepairDecision: decision,
+										updatedAt: nowIso(),
+									},
+								},
+							};
+						});
+						const detail = [
+							decision.reason_code,
+							decision.target_phase,
+							envelope?.failure_type,
+							envelope?.error_message,
+						]
+							.filter(Boolean)
+							.join(' · ');
+						upsertIterationNode(
+							key,
+							{
+								id: `repair:${decision.reason_code}:${Date.now()}`,
+								label: 'repair.decision',
+								type: 'plan',
+								status: decision.allowed ? 'done' : 'error',
+								detail: detail.slice(0, 200),
+							},
+							{ moveCursor: true, edgeLabelFromPrev: 'repair' }
+						);
+					}
+				} catch {
+					// ignore
+				}
 			});
 
 			try {

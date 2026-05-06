@@ -25,6 +25,146 @@
 	}
 
 	const routeDecisions = $derived.by(() => session.routePreview?.decisions ?? []);
+	const iterNodes = $derived.by(() => session.iterationNodes ?? []);
+	const iterEdges = $derived.by(() => session.iterationEdges ?? []);
+	const iterCursorId = $derived.by(() => session.iterationCursorId);
+	let expandIterHistory = $state(false);
+	let selectedIterNodeId: string | null = $state(null);
+
+	type IterLayoutNode = {
+		id: string;
+		label: string;
+		type: 'run' | 'plan' | 'tool' | 'result';
+		phase: 'init' | 'plan' | 'execute' | 'validate' | 'repair' | 'complete';
+		status: 'running' | 'done' | 'error';
+		detail?: string;
+		x: number;
+		y: number;
+	};
+
+	type IterLayoutEdge = {
+		from: string;
+		to: string;
+		label?: string;
+		x1: number;
+		y1: number;
+		x2: number;
+		y2: number;
+		failed: boolean;
+		active: boolean;
+	};
+
+	const iterLayout = $derived.by(() => {
+		/** 泳道：禁止用 detail 中 “Please repair…” 等筛子提示做子串匹配，否则会几乎把所有 tool 划进 repair。 */
+		const inferPhase = (
+			node: Pick<IterLayoutNode, 'type' | 'label' | 'status' | 'detail'>
+		): IterLayoutNode['phase'] => {
+			const label = (node.label ?? '').toLowerCase();
+			const detail = (node.detail ?? '').toLowerCase();
+
+			if (node.type === 'run') return 'init';
+			if (node.type === 'result') {
+				if (label.includes('failed') || node.status === 'error') return 'repair';
+				return 'complete';
+			}
+
+			if (node.type === 'plan') {
+				if (label === 'repair.decision' || label.startsWith('repair:')) return 'repair';
+				return 'plan';
+			}
+
+			if (node.type === 'tool') {
+				if (node.status === 'error') return 'repair';
+				const head = (detail.trimStart().split('\n')[0] ?? '');
+				if (
+					head.startsWith('filter_rejected:') ||
+					head.startsWith('error:') ||
+					head.startsWith('blocked:') ||
+					head.startsWith('unsupported tool')
+				) {
+					return 'repair';
+				}
+				return 'execute';
+			}
+
+			if (label.includes('validate') || detail.trimStart().startsWith('validate')) return 'validate';
+			return 'execute';
+		};
+		const laneOrder: Record<IterLayoutNode['phase'], number> = {
+			init: 0,
+			plan: 1,
+			execute: 2,
+			validate: 3,
+			repair: 4,
+			complete: 5,
+		};
+		const laneCount = new Map<number, number>();
+		const nodes: IterLayoutNode[] = iterNodes.map(node => {
+			const phase = inferPhase(node);
+			const lane = laneOrder[phase] ?? 0;
+			const idx = laneCount.get(lane) ?? 0;
+			laneCount.set(lane, idx + 1);
+			return {
+				...node,
+				phase,
+				x: 70 + lane * 118,
+				y: 44 + idx * 70,
+			};
+		});
+		const index = new Map(nodes.map(n => [n.id, n]));
+		const edges: IterLayoutEdge[] = iterEdges
+			.map(edge => {
+				const from = index.get(edge.from);
+				const to = index.get(edge.to);
+				if (!from || !to) return null;
+				return {
+					...edge,
+					x1: from.x,
+					y1: from.y,
+					x2: to.x,
+					y2: to.y,
+					failed: (edge.label ?? '').toLowerCase().includes('error'),
+					active: edge.to === iterCursorId,
+				};
+			})
+			.filter((e): e is IterLayoutEdge => !!e);
+		const height = Math.max(220, ...nodes.map(n => n.y + 44));
+		const width = 760;
+		return { nodes, edges, width, height };
+	});
+
+	const iterVisible = $derived.by(() => {
+		const maxKeep = 8;
+		if (expandIterHistory || iterLayout.nodes.length <= maxKeep) {
+			const idSet = new Set(iterLayout.nodes.map(n => n.id));
+			return {
+				nodes: iterLayout.nodes,
+				edges: iterLayout.edges.filter(e => idSet.has(e.from) && idSet.has(e.to)),
+				hiddenCount: 0,
+			};
+		}
+		const nodes = iterLayout.nodes.slice(-maxKeep);
+		const idSet = new Set(nodes.map(n => n.id));
+		return {
+			nodes,
+			edges: iterLayout.edges.filter(e => idSet.has(e.from) && idSet.has(e.to)),
+			hiddenCount: iterLayout.nodes.length - nodes.length,
+		};
+	});
+
+	const iterLaneStats = $derived.by(() => {
+		const acc = { init: 0, plan: 0, execute: 0, validate: 0, repair: 0, complete: 0 };
+		for (const node of iterLayout.nodes) acc[node.phase] += 1;
+		return acc;
+	});
+
+	const selectedIterNode = $derived.by(
+		() =>
+			iterLayout.nodes.find(n => n.id === (selectedIterNodeId ?? iterCursorId ?? '')) ??
+			iterLayout.nodes.at(-1) ??
+			null
+	);
+
 </script>
 
 <section class="visual-pane" aria-label="槽位可视化与 A2UI">
@@ -87,6 +227,108 @@
 					</div>
 				{:else}
 					<p class="route-fallback">路由预览加载后显示各节点命中工具；详见 A2UI 区。</p>
+				{/if}
+			</div>
+
+			<div class="route-card compact">
+				<span class="k">Iteration Graph（动态）</span>
+				{#if iterNodes.length > 0}
+					<div class="iter-toolbar">
+						<div class="iter-lanes">
+							<span>init {iterLaneStats.init}</span>
+							<span>plan {iterLaneStats.plan}</span>
+							<span>execute {iterLaneStats.execute}</span>
+							<span>validate {iterLaneStats.validate}</span>
+							<span>repair {iterLaneStats.repair}</span>
+							<span>complete {iterLaneStats.complete}</span>
+						</div>
+						{#if iterVisible.hiddenCount > 0}
+							<button
+								type="button"
+								class="iter-toggle"
+								onclick={() => (expandIterHistory = !expandIterHistory)}
+							>
+								{expandIterHistory
+									? '收起历史'
+									: `展开历史（+${iterVisible.hiddenCount}）`}
+							</button>
+						{/if}
+					</div>
+					<div class="iter-graph-viewport">
+						<svg
+							class="iter-svg"
+							width={iterLayout.width}
+							height={iterLayout.height}
+							viewBox={`0 0 ${iterLayout.width} ${iterLayout.height}`}
+							preserveAspectRatio="xMinYMin meet"
+							aria-label="iteration graph"
+						>
+							{#each iterVisible.edges as e (`${e.from}-${e.to}`)}
+								<line
+									x1={e.x1}
+									y1={e.y1}
+									x2={e.x2}
+									y2={e.y2}
+									class="iter-line"
+									class:error={e.failed}
+									class:active={e.active}
+								/>
+							{/each}
+							{#each iterVisible.nodes as n (n.id)}
+								<circle
+									cx={n.x}
+									cy={n.y}
+									r={n.id === iterCursorId ? 11 : 8}
+									class="iter-dot"
+									class:run={n.type === 'run'}
+									class:plan={n.type === 'plan'}
+									class:tool={n.type === 'tool'}
+									class:result={n.type === 'result'}
+									class:error={n.status === 'error'}
+									class:active={n.id === iterCursorId}
+								/>
+							{/each}
+						</svg>
+					</div>
+					<div class="iter-graph">
+						{#each iterVisible.nodes as n (n.id)}
+							<button
+								type="button"
+								class="iter-node {n.type} {n.status}"
+								class:active={n.id === iterCursorId}
+								class:selected={n.id === (selectedIterNodeId ?? iterCursorId)}
+								onclick={() => (selectedIterNodeId = n.id)}
+							>
+								<strong>{n.label}</strong>
+								<small>{n.type} · {n.status}</small>
+								{#if n.detail}
+									<small class="detail">{n.detail}</small>
+								{/if}
+							</button>
+						{/each}
+					</div>
+					{#if selectedIterNode}
+						<div class="iter-detail">
+							<strong>当前节点详情</strong>
+							<small>{selectedIterNode.label}</small>
+							<small>{selectedIterNode.type} · {selectedIterNode.status}</small>
+							{#if selectedIterNode.detail}
+								<code>{selectedIterNode.detail}</code>
+							{/if}
+						</div>
+					{/if}
+					{#if iterVisible.edges.length > 0}
+						<div class="iter-edges">
+							{#each iterVisible.edges as e, i (`${e.from}-${e.to}-${i}`)}
+								<div class="iter-edge" class:error={e.failed} class:active={e.active}>
+									<code>{e.from.split(':')[0]}</code> → <code>{e.to.split(':')[0]}</code>
+									{#if e.label}<span>{e.label}</span>{/if}
+								</div>
+							{/each}
+						</div>
+					{/if}
+				{:else}
+					<p class="route-fallback">提交后会实时显示 run/planning/tool 调用迭代轨迹。</p>
 				{/if}
 			</div>
 		</div>
@@ -393,6 +635,235 @@
 		color: #858fa1;
 		font-size: 9px;
 		line-height: 1.35;
+	}
+
+	.iter-graph-viewport {
+		margin-top: 8px;
+		border: 1px solid #2f384a;
+		border-radius: 10px;
+		background:
+			radial-gradient(circle at 20% 20%, rgba(122, 162, 255, 0.09), transparent 40%),
+			rgba(12, 16, 26, 0.8);
+		overflow: auto;
+		max-height: min(520px, 58vh);
+	}
+
+	.iter-toolbar {
+		margin-top: 8px;
+		display: flex;
+		justify-content: space-between;
+		gap: 8px;
+		align-items: center;
+		flex-wrap: wrap;
+	}
+
+	.iter-lanes {
+		display: flex;
+		gap: 6px;
+		flex-wrap: wrap;
+	}
+
+	.iter-lanes span {
+		font-size: 10px;
+		color: #9fb2d1;
+		border: 1px solid #374861;
+		border-radius: 999px;
+		padding: 2px 8px;
+		background: rgba(30, 41, 59, 0.5);
+	}
+
+	.iter-toggle {
+		border: 1px solid #3d4d68;
+		background: rgba(30, 41, 59, 0.55);
+		color: #d1def5;
+		border-radius: 999px;
+		font-size: 10px;
+		font-weight: 700;
+		padding: 4px 10px;
+		cursor: pointer;
+	}
+
+	.iter-svg {
+		display: block;
+		max-width: 100%;
+		height: auto;
+		min-height: 220px;
+		vertical-align: top;
+	}
+
+	.iter-line {
+		stroke: rgba(122, 162, 255, 0.36);
+		stroke-width: 1.5;
+		stroke-dasharray: 6 6;
+		animation: iter-flow 1.8s linear infinite;
+	}
+
+	.iter-line.error {
+		stroke: rgba(248, 113, 113, 0.75);
+	}
+
+	.iter-line.active {
+		stroke-width: 2.6;
+		stroke: rgba(114, 214, 208, 0.85);
+	}
+
+	.iter-dot {
+		fill: #7aa2ff;
+		stroke: rgba(226, 232, 240, 0.8);
+		stroke-width: 1;
+	}
+
+	.iter-dot.plan {
+		fill: #72d6d0;
+	}
+
+	.iter-dot.tool {
+		fill: #a8b6d1;
+	}
+
+	.iter-dot.result {
+		fill: #e8c94b;
+	}
+
+	.iter-dot.error {
+		fill: #f87171;
+	}
+
+	.iter-dot.active {
+		filter: drop-shadow(0 0 6px rgba(114, 214, 208, 0.75));
+	}
+
+	.iter-graph {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+		gap: 8px;
+		margin-top: 8px;
+	}
+
+	.iter-node {
+		border: 1px solid #334155;
+		border-radius: 10px;
+		padding: 8px;
+		background: rgba(15, 20, 30, 0.55);
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.iter-node.run {
+		border-color: rgba(122, 162, 255, 0.45);
+	}
+
+	.iter-node.plan {
+		border-color: rgba(114, 214, 208, 0.45);
+	}
+
+	.iter-node.tool {
+		border-color: rgba(148, 163, 184, 0.45);
+	}
+
+	.iter-node.result {
+		border-color: rgba(236, 201, 75, 0.5);
+	}
+
+	.iter-node.done {
+		box-shadow: inset 0 0 0 1px rgba(114, 214, 208, 0.35);
+	}
+
+	.iter-node.error {
+		box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.4);
+	}
+
+	.iter-node.active {
+		box-shadow:
+			inset 0 0 0 1px rgba(114, 214, 208, 0.45),
+			0 0 0 1px rgba(114, 214, 208, 0.25);
+	}
+
+	.iter-node.selected {
+		outline: 1px solid rgba(122, 162, 255, 0.6);
+	}
+
+	.iter-node strong {
+		font-size: 11px;
+		color: #e2e8f0;
+		word-break: break-word;
+	}
+
+	.iter-node small {
+		font-size: 10px;
+		color: #94a3b8;
+	}
+
+	.iter-node .detail {
+		color: #cbd5e1;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.iter-edges {
+		margin-top: 8px;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		font-size: 10px;
+		color: #9aa7bb;
+	}
+
+	.iter-detail {
+		margin-top: 8px;
+		border: 1px solid rgba(122, 162, 255, 0.35);
+		border-radius: 10px;
+		background: rgba(16, 22, 34, 0.8);
+		padding: 8px;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.iter-detail strong {
+		font-size: 11px;
+		color: #dbeafe;
+	}
+
+	.iter-detail small {
+		font-size: 10px;
+		color: #9fb2d1;
+	}
+
+	.iter-detail code {
+		font-size: 10px;
+		color: #dbeafe;
+		white-space: pre-wrap;
+		word-break: break-word;
+	}
+
+	.iter-edge {
+		display: flex;
+		gap: 6px;
+		align-items: center;
+	}
+
+	.iter-edge.error {
+		color: #fda4af;
+	}
+
+	.iter-edge.active {
+		color: #72d6d0;
+	}
+
+	.iter-edge code {
+		font-size: 10px;
+		color: #cbd5e1;
+	}
+
+	@keyframes iter-flow {
+		to {
+			stroke-dashoffset: -12;
+		}
 	}
 
 	.action-zone {

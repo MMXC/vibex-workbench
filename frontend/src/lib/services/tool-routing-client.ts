@@ -143,6 +143,11 @@ export function toFireworksGraph(graph: PlanGraph, route: RoutePreview): Firewor
 	return { nodes, edges };
 }
 
+import {
+	evaluatePrototypeGate,
+	type UiWorkflowGateModel,
+} from '$lib/workbench/ui-workflow-gate';
+
 /** 与设计 spec 对齐：等价后端 a2ui_component_hint，当前由前端根据 slot + PlanGraph + Route 推导。 */
 export type A2UICardEmphasis = 'confirm' | 'info' | 'warning';
 
@@ -169,6 +174,8 @@ export type A2UIModel = {
 	primaryStage: A2UIStageLayout;
 	cards: A2UICard[];
 	prototype?: A2UIPrototypePanel;
+	/** prototype 槽位：Intent→UI Spec→Gate 可视化 */
+	uiWorkflowGate?: UiWorkflowGateModel;
 	showFireworks: boolean;
 	routeSummaryLines: string[];
 	componentHints: string[];
@@ -180,6 +187,36 @@ function escapeHtml(s: string): string {
 		.replace(/</g, '&lt;')
 		.replace(/>/g, '&gt;')
 		.replace(/"/g, '&quot;');
+}
+
+/** Strip vendor reasoning blocks so ```html``` fences match reliably. */
+function stripEmbeddedReasoningWrappers(text: string): string {
+	return text.replace(/<think>[\s\S]*?<\/redacted_thinking>/gi, '').trim();
+}
+
+/**
+ * Extract HTML document/snippet from the largest fenced ```html … ``` block in assistant markdown.
+ */
+export function extractHtmlFromMarkdown(markdown: string): string | null {
+	const stripped = stripEmbeddedReasoningWrappers(markdown);
+	const re = /```(?:html|htm)?\s*\n([\s\S]*?)```/gi;
+	let best = '';
+	let m: RegExpExecArray | null;
+	while ((m = re.exec(stripped)) !== null) {
+		const inner = (m[1] ?? '').trim();
+		if (inner.length > best.length) best = inner;
+	}
+	return best.length > 0 ? best : null;
+}
+
+/** Walk assistant messages newest-first; return first fenced HTML found. */
+export function lastAssistantHtmlFence(messages: { role: string; content: string }[]): string | null {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		if (messages[i].role !== 'assistant') continue;
+		const h = extractHtmlFromMarkdown(messages[i].content);
+		if (h) return h;
+	}
+	return null;
 }
 
 function buildPrototypeShellHtml(specTitle: string, specPath: string, goal: string): string {
@@ -209,6 +246,10 @@ export function toA2UIModel(params: {
 	goal?: string;
 	graph?: PlanGraph;
 	route?: RoutePreview;
+	/** 当前 spec YAML 全文（prototype 槽用于 Gate） */
+	specYamlContent?: string;
+	/** 最近一次助手消息中的 ```html```（优先于占位 shell） */
+	assistantPrototypeHtml?: string | null;
 }): A2UIModel {
 	const { slotId, graph, route, revision } = params;
 	const goal = (params.goal ?? graph?.goal ?? '').trim();
@@ -315,17 +356,42 @@ export function toA2UIModel(params: {
 	}
 
 	let prototype: A2UIPrototypePanel | undefined;
+	let uiWorkflowGate: UiWorkflowGateModel | undefined;
 	let showFireworks = true;
 	let primaryStage: A2UIStageLayout = 'split';
 
 	if (slotId === 'prototype') {
+		const fromAssistant = params.assistantPrototypeHtml?.trim();
+		const shell = buildPrototypeShellHtml(params.specTitle, params.specPath, goal);
 		prototype = {
 			mode: 'html_snippet',
-			html: buildPrototypeShellHtml(params.specTitle, params.specPath, goal),
-			caption: 'HTML prototype 预览（iframe sandbox：allow-scripts）。',
+			html: fromAssistant || shell,
+			caption: fromAssistant
+				? 'HTML 原型预览（来自助手 fenced html；iframe sandbox：allow-scripts）。'
+				: 'HTML prototype 预览（占位 shell；助手生成 fenced HTML 后将自动替换）。',
 		};
 		showFireworks = false;
 		primaryStage = 'split';
+		if (params.specYamlContent !== undefined) {
+			uiWorkflowGate = evaluatePrototypeGate(params.specYamlContent);
+			const failed = uiWorkflowGate.checks.filter(c => !c.passed);
+			for (const c of failed.slice(0, 6)) {
+				cards.push({
+					id: `gate-${c.id}`,
+					title: `Gate · ${c.label}`,
+					body: c.detail || '请在本 spec 的 prototype.intent / prototype.ui_spec 中补齐 YAML。',
+					emphasis: 'warning',
+				});
+			}
+			if (!uiWorkflowGate.canCommitPrototype) {
+				cards.push({
+					id: 'gate-summary',
+					title: 'Prototype Gate 未通过',
+					body: `阶段：${uiWorkflowGate.stage}。提交物料写盘前请先补齐清单（仍可进行只读操作与对话预填）。`,
+					emphasis: 'warning',
+				});
+			}
+		}
 	} else if (slotId === 'implementation') {
 		showFireworks = true;
 		primaryStage = 'fireworks';
@@ -344,6 +410,7 @@ export function toA2UIModel(params: {
 		primaryStage,
 		cards,
 		prototype,
+		uiWorkflowGate,
 		showFireworks,
 		routeSummaryLines,
 		componentHints,

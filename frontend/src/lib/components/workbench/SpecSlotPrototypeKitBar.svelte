@@ -9,6 +9,7 @@
 		type DesignKitStatus,
 	} from '$lib/services/design-kit-client';
 	import { wailsReadSpecFile } from '$lib/wails-filesystem';
+	import { evaluatePrototypeGate } from '$lib/workbench/ui-workflow-gate';
 
 	let { session }: { session: SpecSlotSession } = $props();
 
@@ -17,10 +18,14 @@
 	let err = $state<string | null>(null);
 	let designBody = $state<string | null>(null);
 	let designOpen = $state(false);
-	let sourcePath = $state('frontend/src/routes/workbench/+page.svelte');
+	/** 可由 Agent 根据 `.vibex/graph/` 回填；留空时请先跑「预填：页面/CSS 图谱分析」 */
+	let sourcePath = $state('');
 	let lastSpecSnippet = $state<string | null>(null);
 
 	const root = $derived($specExplorerStore.workspaceRoot?.trim() ?? '');
+	const gate = $derived(evaluatePrototypeGate(session.content ?? ''));
+	/** 仅「extract 写入 prototypes」需 Gate；初始化 DESIGN/README 不阻塞 */
+	const canExtractWrite = $derived(gate.canCommitPrototype);
 
 	async function refresh() {
 		err = null;
@@ -49,7 +54,10 @@
 		try {
 			const r = await scaffoldDesignKit(root);
 			if (!r.ok) {
-				err = r.error ?? 'scaffold failed';
+				err =
+					(r as { gateFailure?: { next_action?: string } }).gateFailure?.next_action ??
+					r.error ??
+					'scaffold failed';
 				return;
 			}
 			await refresh();
@@ -83,9 +91,13 @@
 			const r = await extractPrototypeFromSource({
 				workspaceRoot: root,
 				sourcePath: sourcePath.trim(),
+				specYaml: session.content,
 			});
 			if (!r.ok) {
-				err = r.error ?? 'extract failed';
+				err =
+					(r as { gateFailure?: { next_action?: string } }).gateFailure?.next_action ??
+					r.error ??
+					'extract failed';
 				return;
 			}
 			lastSpecSnippet = r.specSnippet ?? null;
@@ -111,10 +123,40 @@
 			`生成或调整原型前请先阅读并遵守工作区 ${status?.designPath ?? '.vibex/design/DESIGN.md'} 的栈、色板与组件约定；产物写入 ${status?.prototypesPath ?? '.vibex/prototypes/'} 并在本 spec 的 prototype.file 引用相对路径。`
 		);
 	}
+
+	function onPrefillGateTemplate() {
+		specSlotSessionStore.prefillActiveChat(gate.nextAction);
+	}
+
+	/** 预填「图谱 + 源码」分析任务，供 Agent 结合 graphifyy / 代码图与实际文件后再 extract */
+	function onPrefillGraphAnalysis() {
+		const hint = sourcePath.trim();
+		specSlotSessionStore.prefillActiveChat(
+			[
+				'请基于工作区源码与代码图谱，分析页面边界、样式入口与可剥离为 Design Kit 原型的范围。',
+				'',
+				`**路径来源（优先）**：不要仅依赖聊天里手工粘贴的路径（易过时）。请按 \`graphify-page-analysis\` skill：用 PyPI 包 \`graphifyy\` 的 CLI \`graphify\` 在工作区根生成图谱（默认输出 \`graphify-out/graph.json\`；若团队同步到 \`.vibex/graph/\` 也可读），再根据图谱或 \`graphify query\` 结果定位入口 Svelte/CSS 相对路径，再 \`read_file\` 精读。`,
+				`**工作区根（解析基准）**：${root}`,
+				hint
+					? `（可选线索，若与图谱冲突以图谱为准）相对路径参考：${hint}`
+					: '（左侧输入框未填路径 — 请完全由图谱解析后回填再读文件。）',
+				'',
+				'**精读**：对源文件及其 import 链上的 CSS/组件做交叉核对（read_file / bash+grep）；勿仅凭推测写 prototypes。',
+				'**输出**：①页面职责；②CSS 与组件依赖摘要；③建议的 `.vibex/prototypes/` 文件名草案（默认不自动物料写盘，除非我确认）。',
+				'若已加载 skills，可先 `skill_load graphify-page-analysis`（默认从仓库 `skills/graphify-page-analysis/` 加载）。',
+			].join('\n')
+		);
+	}
 </script>
 
 <div class="kit-bar" aria-label="原型物料库工具">
 	<span class="k">Design Kit</span>
+	{#if !canExtractWrite}
+		<p class="gate-hint">
+			Prototype Gate：阶段 <strong>{gate.stage}</strong> — 补齐 Intent / UI Spec 后才能「剥离并写入 prototypes」（可先「初始化物料库」）。
+			<button type="button" class="linkish" onclick={() => onPrefillGateTemplate()}>预填模板与缺口说明</button>
+		</p>
+	{/if}
 	{#if !root}
 		<p class="hint">请在资源管理器中选择工作区根目录后使用物料库。</p>
 	{:else}
@@ -137,10 +179,20 @@
 		</div>
 		<div class="extract">
 			<label>
-				<span>从页面提取（工作区相对路径）</span>
-				<input type="text" bind:value={sourcePath} placeholder="frontend/src/..." spellcheck="false" />
+				<span>从页面提取（相对路径，可先空着由图谱分析回填）</span>
+				<input
+					type="text"
+					bind:value={sourcePath}
+					placeholder="例：frontend/src/routes/workbench/+page.svelte（或由 Agent 按图谱填写）"
+					spellcheck="false"
+				/>
 			</label>
-			<button type="button" class="primary" disabled={!!busy || !sourcePath.trim()} onclick={() => onExtract()}>
+			<button
+				type="button"
+				class="primary"
+				disabled={!!busy || !sourcePath.trim() || !canExtractWrite}
+				onclick={() => onExtract()}
+			>
 				{busy === 'extract' ? '提取中…' : '剥离并写入 prototypes'}
 			</button>
 			<button
@@ -150,6 +202,9 @@
 				title="将 YAML 片段预填到左侧对话，便于合并到当前 spec"
 			>
 				关联到当前 spec（预填）
+			</button>
+			<button type="button" disabled={!!busy} onclick={() => onPrefillGraphAnalysis()} title="预填对话：图谱 + 源码分析（graphifyy / 缺失则生成）">
+				预填：页面/CSS 图谱分析
 			</button>
 		</div>
 		{#if err}
@@ -177,6 +232,27 @@
 		border: 1px solid #303746;
 		border-radius: 14px;
 		background: rgba(18, 21, 28, 0.92);
+	}
+
+	.gate-hint {
+		margin: 0;
+		font-size: 11px;
+		line-height: 1.45;
+		color: #fcd34d;
+	}
+	.gate-hint strong {
+		color: #fde68a;
+	}
+	button.linkish {
+		display: inline;
+		border: none;
+		background: none;
+		padding: 0;
+		margin-left: 6px;
+		color: #7aa2ff;
+		text-decoration: underline;
+		cursor: pointer;
+		font-size: inherit;
 	}
 
 	.k {
