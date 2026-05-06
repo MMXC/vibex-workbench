@@ -3,6 +3,7 @@ package runtime
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"vibex/agent/agents/subagent"
 	"vibex/agent/internal/common"
 	"vibex/agent/vibex/domain"
+	"vibex/agent/vibex/domain/rulesengine"
 
 	"github.com/openai/openai-go/v3/responses"
 )
@@ -39,9 +41,9 @@ func RunInteractive() error {
 	rawClient := common.NewClient(cfg)
 	llm := adapters.NewLLMClient(rawClient, cfg.BaseURL, cfg.Model)
 
-	skillRegistry, err := skills.LoadRegistryFromDir(".skills")
+	skillRegistry, err := skills.LoadRegistryFromDir(cfg.SkillsDir)
 	if err != nil {
-		fmt.Printf("warning: failed to load .skills: %v\n", err)
+		fmt.Printf("warning: failed to load skills from %s: %v\n", cfg.SkillsDir, err)
 		skillRegistry = skills.NewRegistry()
 	}
 	parentSkills := skills.NewState()
@@ -73,7 +75,7 @@ func RunInteractive() error {
 			responses.ResponseInputItemParamOfMessage("Sub-agent task summary:\n"+strings.TrimSpace(taskSummary), responses.EasyInputMessageRoleUser),
 		}
 
-		answer, _, err := runToolLoop(ctx, llm, cfg.SubAgentModel, childTools, childHandlers, childTodo, childMessages, nil, nil, childSkills, skillRegistry)
+		answer, _, err := runToolLoop(ctx, llm, cfg.SubAgentModel, childTools, childHandlers, childTodo, childMessages, nil, nil, childSkills, skillRegistry, nil)
 		if err != nil {
 			return "", err
 		}
@@ -231,7 +233,7 @@ func RunInteractive() error {
 		messages = append(messages, responses.ResponseInputItemParamOfMessage(text, responses.EasyInputMessageRoleUser))
 
 		ctx := context.Background()
-		answer, turnItems, err := runToolLoop(ctx, llm, cfg.Model, tools, handlers, todo, messages, backgroundMgr, subAgentMgr, parentSkills, skillRegistry)
+		answer, turnItems, err := runToolLoop(ctx, llm, cfg.Model, tools, handlers, todo, messages, backgroundMgr, subAgentMgr, parentSkills, skillRegistry, nil)
 		if err != nil {
 			fmt.Printf("error: %v\n", err)
 			continue
@@ -278,8 +280,9 @@ func RunToolLoop(
 	subAgentMgr *subagent.Manager,
 	skillState *skills.State,
 	skillRegistry *skills.Registry,
+	hooks *ToolLoopHooks,
 ) (string, []responses.ResponseInputItemUnionParam, error) {
-	return runToolLoop(ctx, llm, model, tools, handlers, todo, messages, backgroundMgr, subAgentMgr, skillState, skillRegistry)
+	return runToolLoop(ctx, llm, model, tools, handlers, todo, messages, backgroundMgr, subAgentMgr, skillState, skillRegistry, hooks)
 }
 
 func runToolLoop(
@@ -294,9 +297,11 @@ func runToolLoop(
 	subAgentMgr *subagent.Manager,
 	skillState *skills.State,
 	skillRegistry *skills.Registry,
+	hooks *ToolLoopHooks,
 ) (string, []responses.ResponseInputItemUnionParam, error) {
 	// inputItems 保存"真实会话历史"（用户输入、assistant 输出、tool 调用与结果）。
 	inputItems := append([]responses.ResponseInputItemUnionParam{}, messages...)
+	filter := newFilterEngine(tools)
 
 	for step := 0; step < 20; step++ {
 		// 每轮请求前都先做一次轻量压缩，避免 tool 结果无限膨胀。
@@ -305,7 +310,7 @@ func runToolLoop(
 		}
 		// 达到阈值时做自动压缩（保留指令 + 最近上下文 + 摘要）。
 		if compact.NeedsAutoCompact(inputItems, compact.DefaultAutoCompactCharLimit) {
-			summary, err := summarizeForAutoCompact(ctx, llm, model, inputItems)
+			summary, err := SummarizeForAutoCompact(ctx, llm, model, inputItems)
 			if err == nil && strings.TrimSpace(summary) != "" {
 				inputItems = compact.AutoCompact(inputItems, summary, compact.DefaultAutoCompactKeepRecentK)
 			}
@@ -326,30 +331,103 @@ func runToolLoop(
 				requestInput = append(requestInput, responses.ResponseInputItemParamOfMessage(skillCtx, responses.EasyInputMessageRoleDeveloper))
 			}
 		}
+		if hooks != nil {
+			requestInput = append(requestInput, responses.ResponseInputItemParamOfMessage(
+				"Use todo_set to track progress. Use skill_load to activate skills.",
+				responses.EasyInputMessageRoleDeveloper,
+			))
+		}
 
 		// LLMClient handles all API-level differences (Responses vs Chat Completions).
 		text, toolCalls, err := llm.Chat(ctx, model, tools, requestInput)
 		if err != nil {
 			return "", inputItems, err
 		}
+		if hooks != nil && hooks.OnAssistantDelta != nil && text != "" {
+			hooks.OnAssistantDelta(text, false)
+		}
 
-		followUpItems := make([]responses.ResponseInputItemUnionParam, 0, len(toolCalls)*2)
-		for _, item := range toolCalls {
+		if len(toolCalls) == 0 {
+			if retry, reason, kind := filter.needsRetryWithoutToolCalls(text); retry {
+				emitRepairDecision(hooks, step, kind, reason, "", "")
+				inputItems = append(inputItems, responses.ResponseInputItemParamOfMessage(
+					buildRepairHint(kind, reason),
+					responses.EasyInputMessageRoleDeveloper,
+				))
+				continue
+			}
+		}
+
+		validCalls, rejected := filter.preflight(toolCalls, handlers)
+		followUpItems := make([]responses.ResponseInputItemUnionParam, 0, len(validCalls)*2+len(rejected)*2)
+		for _, rej := range rejected {
+			if rej.item.OfFunctionCall == nil {
+				continue
+			}
+			followUpItems = append(followUpItems, rej.item)
+			followUpItems = append(followUpItems, responses.ResponseInputItemParamOfFunctionCallOutput(
+				rej.item.OfFunctionCall.CallID,
+				"filter_rejected: "+rej.reason,
+			))
+			if rej.item.OfFunctionCall != nil {
+				c := rej.item.OfFunctionCall
+				emitRepairDecision(hooks, step, rej.kind, rej.reason, c.Name, c.CallID)
+			}
+			inputItems = append(inputItems, responses.ResponseInputItemParamOfMessage(
+				buildRepairHint(rej.kind, rej.reason),
+				responses.EasyInputMessageRoleDeveloper,
+			))
+			if hooks != nil && rej.item.OfFunctionCall != nil {
+				call := rej.item.OfFunctionCall
+				var args map[string]any
+				_ = json.Unmarshal([]byte(call.Arguments), &args)
+				if hooks.OnToolCalled != nil {
+					hooks.OnToolCalled(call.Name, call.CallID, args)
+				}
+				if hooks.OnToolCompleted != nil {
+					hooks.OnToolCompleted(call.Name, call.CallID, "filter_rejected: "+rej.reason)
+				}
+			}
+		}
+
+		for _, item := range validCalls {
 			// 显式回放 function_call，便于 call_id 匹配
 			followUpItems = append(followUpItems, item)
 
 			if item.OfFunctionCall == nil {
 				continue
 			}
+			call := item.OfFunctionCall
+			var args map[string]any
+			_ = json.Unmarshal([]byte(call.Arguments), &args)
+			if hooks != nil && hooks.OnToolCalled != nil {
+				hooks.OnToolCalled(call.Name, call.CallID, args)
+			}
+
 			handler, ok := handlers[item.OfFunctionCall.Name]
 			if !ok {
 				followUpItems = append(followUpItems, responses.ResponseInputItemParamOfFunctionCallOutput(item.OfFunctionCall.CallID, "unsupported tool"))
+				if hooks != nil && hooks.OnToolCompleted != nil {
+					hooks.OnToolCompleted(call.Name, call.CallID, "unsupported tool")
+				}
 				continue
 			}
 
 			out := handler(item.OfFunctionCall.Arguments)
-			fmt.Printf("Tool use output: %s\n", out)
+			if hooks == nil {
+				fmt.Printf("Tool use output: %s\n", out)
+			}
 			followUpItems = append(followUpItems, responses.ResponseInputItemParamOfFunctionCallOutput(item.OfFunctionCall.CallID, out))
+			if hooks != nil && hooks.OnToolCompleted != nil {
+				hooks.OnToolCompleted(call.Name, call.CallID, out)
+			}
+			if retry, reason, kind := filter.executionNeedsRepair(out); retry {
+				emitRepairDecision(hooks, step, kind, reason, call.Name, call.CallID)
+				inputItems = append(inputItems, responses.ResponseInputItemParamOfMessage(
+					buildRepairHint(kind, reason),
+					responses.EasyInputMessageRoleDeveloper,
+				))
+			}
 		}
 
 		if len(followUpItems) == 0 {
@@ -361,6 +439,9 @@ func runToolLoop(
 					continue
 				}
 			}
+			if hooks != nil && hooks.OnAssistantDelta != nil && strings.TrimSpace(text) != "" {
+				hooks.OnAssistantDelta(strings.TrimSpace(text), true)
+			}
 			return strings.TrimSpace(text), inputItems, nil
 		}
 
@@ -370,7 +451,22 @@ func runToolLoop(
 	return "", inputItems, fmt.Errorf("tool loop exceeded max steps")
 }
 
-func summarizeForAutoCompact(
+func emitRepairDecision(hooks *ToolLoopHooks, loopStep int, kind filterFailType, detail, toolName, callID string) {
+	if hooks == nil || hooks.OnRepairDecision == nil {
+		return
+	}
+	env := rulesengine.RepairEnvelope{
+		FailureType:  filterFailToRulesEngine(kind),
+		ErrorMessage: detail,
+		ToolName:     toolName,
+		CallID:       callID,
+	}
+	dec := DecideRepair(env, loopStep)
+	hooks.OnRepairDecision(dec, env)
+}
+
+// SummarizeForAutoCompact produces a continuation summary for compact.MicroCompact flows.
+func SummarizeForAutoCompact(
 	ctx context.Context,
 	llm adapters.LLMClient,
 	model string,

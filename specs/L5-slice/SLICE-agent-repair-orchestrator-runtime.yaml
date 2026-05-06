@@ -1,0 +1,115 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-agent-repair-orchestrator-runtime"
+  parent: "FEAT-agent-rules-engine"
+  status: "proposal"
+
+display:
+  title: "Repair Orchestrator Runtime"
+  summary: |
+    在 runToolLoop / FilterEngine 之上实现纠错总编排节点：消费 RepairEnvelope，按 allowed_edges 与 allowed_phases 决策下一跳，并与伪调用检测、白名单重路由衔接。
+  description: |
+    负责运行时「失败 → 归因 → 有界重路由」闭环；不实现详情抽屉 UI。
+    依赖 SLICE-agent-rules-engine-contract 中的 RepairEnvelope / RepairDecision 字段语义。
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-05-06"
+  updated: "2026-05-06"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-06"
+
+structure:
+  parent: "FEAT-agent-rules-engine"
+  children: []
+  dependencies:
+    - "SLICE-agent-rules-engine-contract"
+    - "SLICE-agent-task-state-machine-runtime"
+    - "agent/agents/runtime/filter_engine.go"
+    - "agent/agents/runtime/runtime.go"
+  impacted_files:
+    - "agent/agents/runtime/runtime.go"
+    - "agent/agents/runtime/filter_engine.go"
+    - "agent/agents/runtime/tool_loop_hooks.go"
+    - "agent/cmd/web/server.go"
+
+io:
+  input:
+    - "RepairEnvelope（筛子 failure_type、节点 id、错误文本、输入快照）"
+    - "引擎图 allowed_edges、当前 RulesPipelinePhase"
+  output:
+    - "RepairDecision（target_phase、reason_code、可选 developer/system hint）"
+    - "SSE：repair_decision / phase_transition 事件"
+    - "下一步进入的 runtime 分支（重试 / clarify / route_execute）"
+  boundary: |
+    不绕过 DynamicExecutionSlotRegistry；不写入 SKILLS_DIR 或工作区外路径。
+
+constraints:
+  rules:
+    - id: "RO1"
+      name: "Bounded reroute only"
+      rule: "所有目标 phase 必须在 allowed_phases；图迁移必须在 allowed_edges。"
+      verification: "非法目标返回 orchestration_out_of_scope 并记录。"
+    - id: "RO2"
+      name: "Envelope completeness"
+      rule: "无 RepairEnvelope 完整字段时不宣告 repair 完成。"
+      verification: "缺 failure_type 时进入降级日志而非静默成功。"
+    - id: "RO3"
+      name: "Hooks observable"
+      rule: "repair 决策须可通过 ToolLoopHooks / SSE 被 UI 订阅。"
+      verification: "Web 后端转发至少包含 decision 与 reason_code。"
+  forbidden:
+    - "无边界地重试同一伪 TOOL_CALL"
+    - "在未注册 slot 上执行动态节点"
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+io_contract:
+  input: |
+    RepairEnvelope + 引擎白名单图 + 当前阶段。
+  output: |
+    RepairDecision 与编排下一跳信号。
+  boundary: |
+    与 Chat adapter 协议层解耦；仅通过 runtime 内部类型交互。
+  behavior:
+    - "filter_engine 分类失败 → 组装 RepairEnvelope"
+    - "repair_orchestrator 查表 → RepairDecision"
+    - "决策驱动 phase 迁移或 developer repairing hint"
+
+content:
+  file_path: "agent/agents/runtime/*.go"
+  file_type: "go"
+  generation_rules:
+    - rule: "Single orchestration entry"
+      detail: "repair_orchestrator 入口函数集中，便于测试桩替换。"
+    - rule: "Reason codes are enums"
+      detail: "reason_code 固定集合，日志与 UI 可映射。"
+    - rule: "No silent skip"
+      detail: "与 FEAT RE4 一致：无有效 tool_calls 时不宣告路由完成。"
+
+  verification:
+    commands:
+      - "cd agent && go test ./agents/runtime/... -count=1"
+      - "cd agent && go test ./cmd/web/... -count=1"
+    manual_checks:
+      - "筛子各类 failure_type 均能触发对应 RepairDecision 路径"
+      - "伪 TOOL_CALL 走 repairing，不执行非法工具"
+    failure_conditions:
+      - "repair 回路无 attempt 上限导致死循环"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-06"
+    author: "agent"
+    changes:
+      - "新增纠错编排 runtime slice：Envelope 消费、有界重路由、与 FilterEngine 衔接"
+---

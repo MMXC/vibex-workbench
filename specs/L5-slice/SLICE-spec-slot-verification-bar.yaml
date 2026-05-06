@@ -1,0 +1,110 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-slot-verification-bar"
+  parent: "FEAT-agent-rules-engine"
+  status: "proposal"
+
+display:
+  title: "Spec Slot Verification Bar"
+  summary: |
+    详情抽屉内「强校验」用户验证条：展示 StrongValidationPlan 条目、触发本地运行命令或约定工具调用、提交 RED/GREEN 结果并与槽位 session 绑定持久化。
+  description: |
+    面向 FEAT RE2/RE3：可执行强校验 + 类 TDD 门闩；依赖契约 slice 中的 StrongValidationPlan / VerificationSubmission 字段。
+    MVP 聚焦 prototype + implementation 槽位；其它槽位可只读展示或灰显。
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-05-06"
+  updated: "2026-05-06"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-06"
+
+structure:
+  parent: "FEAT-agent-rules-engine"
+  children: []
+  dependencies:
+    - "SLICE-agent-rules-engine-contract"
+    - "SLICE-spec-slot-prototype-kit-ui"
+    - "FEAT-workspace-design-prototype-gate"
+  impacted_files:
+    - "frontend/src/lib/components/workbench/SpecSlotVisualPane.svelte"
+    - "frontend/src/lib/components/workbench/SpecSlotPrototypeKitBar.svelte"
+    - "frontend/src/lib/stores/spec-slot-session-store.ts"
+    - "frontend/src/lib/workbench/spec-display.ts"
+
+io:
+  input:
+    - "StrongValidationPlan（来自后端/SSE 或会话快照）"
+    - "当前槽位 id、workspace 根路径（用于 cwd 展示）"
+  output:
+    - "VerificationSubmission（submission_id、outcome、artifact_refs）"
+    - "UI 事件：run_clicked、submit_pass、submit_fail"
+  boundary: |
+    不在浏览器内执行任意 shell；运行按钮调用宿主约定通道（如 Wails/local API），与 FEAT RE2 一致。
+
+constraints:
+  rules:
+    - id: "VB1"
+      name: "Executable clarity"
+      rule: "每条条目展示 command 或工具模板、超时、cwd；禁止仅展示自然语言描述作为主交互。"
+      verification: "无结构化条目时显示阻断提示。"
+    - id: "VB2"
+      name: "Submit binds slot"
+      rule: "submission 必须携带 slot_id 与 plan_id，写入 spec-slot-session-store。"
+      verification: "刷新抽屉后仍可见最近一次 submission 摘要。"
+    - id: "VB3"
+      name: "Phase gate"
+      rule: "未提交 VerificationSubmission 前，用户_confirm 入口禁用或显示原因。"
+      verification: "与 FEAT RE3 一致。"
+  forbidden:
+    - "静默跳过用户验证阶段"
+    - "将 RED/GREEN 与原型门禁混用同一按钮无标签区分"
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+io_contract:
+  input: |
+    StrongValidationPlan + 槽位上下文。
+  output: |
+    VerificationSubmission 与用户可见状态。
+  boundary: |
+    UI 不发明契约外字段；扩展须经 SLICE-agent-rules-engine-contract 修订。
+  behavior:
+    - "渲染计划条目列表与运行/提交控件"
+    - "提交后更新 session 并可选触发 SSE notify"
+    - "prototype/implementation 槽完整交互；其它槽降级展示"
+
+content:
+  file_path: "frontend/src/lib/components/workbench/SpecSlot*.svelte"
+  file_type: "svelte"
+  generation_rules:
+    - rule: "Reuse kit bar patterns"
+      detail: "与 SpecSlotPrototypeKitBar 视觉层级对齐，避免抽屉内三套按钮样式。"
+    - rule: "Accessible outcomes"
+      detail: "RED/GREEN 或失败附有简短可读原因与日志引用入口。"
+
+  verification:
+    commands:
+      - "cd frontend && npm run check"
+    manual_checks:
+      - "运行与提交后 session 内可查到 submission_id"
+      - "双槽 MVP：prototype + implementation 均可绑定验证条"
+    failure_conditions:
+      - "提交成功但后端未收到或未持久化"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-06"
+    author: "agent"
+    changes:
+      - "新增详情抽屉强校验条 slice：计划渲染、运行通道、RED/GREEN 提交与槽位绑定"
+---

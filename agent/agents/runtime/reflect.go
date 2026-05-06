@@ -245,7 +245,7 @@ func detectMissingSkill(calls []toolCallEntry, _ string) (pattern string, action
 	for name, n := range count {
 		if n >= 3 && name != "bash" {
 			pattern = fmt.Sprintf("repeated tool '%s' %d times — could be a skill", name, n)
-			action = fmt.Sprintf("suggest adding .skills/%s skill", name)
+			action = fmt.Sprintf("suggest adding skills/%s (SKILL.md) under workspace skills dir", name)
 		}
 	}
 	return

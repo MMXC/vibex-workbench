@@ -1,0 +1,124 @@
+---
+spec:
+  version: "0.2"
+  level: "5_slice"
+  name: "SLICE-agent-task-state-machine-runtime"
+  parent: "FEAT-agent-task-state-machine"
+  status: "proposal"
+
+display:
+  title: "Task State Machine Runtime"
+  summary: "在 runToolLoop 中实现 PlanRun/StepRun 状态机与步骤验证器。"
+  description: |
+    该 slice 负责把状态机接入当前 runtime 工具循环。
+    保持与现有 FilterEngine 兼容：先预筛，再执行，再验证，再转移。
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-05-05"
+  updated: "2026-05-05"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-05"
+
+structure:
+  parent: "FEAT-agent-task-state-machine"
+  children: []
+  dependencies:
+    - "agent/agents/runtime/runtime.go"
+    - "agent/agents/runtime/filter_engine.go"
+    - "SLICE-agent-plan-graph-router-api"
+  impacted_files:
+    - "agent/agents/runtime/planner/state_machine.go"
+    - "agent/agents/runtime/planner/types.go"
+    - "agent/agents/runtime/planner/step_validator.go"
+    - "agent/agents/runtime/runtime.go"
+    - "frontend/src/lib/stores/spec-slot-session-store.ts"
+    - "frontend/src/lib/components/workbench/SpecSlotVisualPane.svelte"
+
+io:
+  input:
+    - "runtime 当前 requestInput、toolCalls、tool output、上下文摘要"
+  output:
+    - "状态转移记录（state, step_id, attempt, failure_type）"
+    - "下一步动作决策（next/retry/repair/fail）"
+  boundary: "不改动 OpenAI/MiniMax adapter 协议层，不引入新模型接口。"
+
+constraints:
+  rules:
+    - id: "RT1"
+      name: "Compatibility first"
+      rule: "默认单步问答流程保持可用；仅在检测到 multi-step 任务时启用 PlanRun。"
+      verification: "简单问答不进入 state_machine 分支。"
+    - id: "RT2"
+      name: "Deterministic transition"
+      rule: "状态转移由代码规则决定，不依赖模型自由文本解释。"
+      verification: "transition table 显式定义 on_pass/on_fail。"
+    - id: "RT3"
+      name: "Step-level DoD"
+      rule: "每个 step 必须有 pass_criteria（例如文件变化、返回字段、子目标满足）。"
+      verification: "缺 pass_criteria 的 step 不可执行。"
+  forbidden:
+    - "将工具执行结果直接等同目标达成"
+    - "无 attempt 限制的无限回路"
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+io_contract:
+  input: |
+    runtime 当前 requestInput、toolCalls、tool output、上下文摘要。
+  output: |
+    状态转移记录与下一步动作决策。
+  boundary: |
+    不改动 adapter 协议层；只在 runtime 增加编排控制。
+  behavior:
+    - "构建 PlanRun（steps + retry_policy + pass_criteria）"
+    - "进入 step_executing：调用 FilterEngine preflight + handler"
+    - "进入 step_validating：判定 pass/fail"
+    - "pass -> next step 或 completed"
+    - "fail -> repair/retry/fail（按 policy）"
+
+content:
+  file_path: "agent/agents/runtime/planner/*.go"
+  file_type: "go"
+  generation_rules:
+    - rule: "Small explicit structs"
+      detail: "使用 PlanRun/PlanStep/StepResult 明确字段，避免 map[string]any 过载。"
+    - rule: "Observable transitions"
+      detail: "每次转移输出统一日志，便于 UI 与调试追踪。"
+    - rule: "Drawer trace mapping"
+      detail: "SSE 事件须可映射为 iterationNodes/iterationEdges/iterationCursorId，并支持历史折叠与节点详情查看。"
+    - rule: "Repair message contract"
+      detail: "repairing 阶段写入 developer hint，强制模型返回结构化 function_call。"
+
+  verification:
+    commands:
+      - "cd agent && go test ./agents/runtime/... -count=1"
+      - "cd agent && go test ./cmd/web/... -count=1"
+    manual_checks:
+      - "模拟 multi-step 任务时可见 state/step/attempt 递进"
+      - "伪 TOOL_CALL 文本被识别并触发 repairing，不执行伪调用"
+      - "step 连续失败达到上限后进入 failed"
+      - "详情抽屉可显示 run/planning/tool/result 动态轨迹，且当前节点高亮"
+    failure_conditions:
+      - "状态机进入死循环且无失败终态"
+      - "缺少 failure_type 导致无法归因"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-05"
+    author: "agent"
+    changes:
+      - "新增 runtime slice：PlanRun 状态机、步骤验证器、转移与重试策略"
+  - version: "0.2"
+    date: "2026-05-05"
+    author: "agent"
+    changes:
+      - "补充右侧详情抽屉迭代轨迹映射约束：SSE -> iteration graph（含历史折叠与节点详情）"
+---

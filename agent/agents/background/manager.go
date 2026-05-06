@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"vibex/agent/internal/shellutil"
 )
 
 const (
@@ -75,8 +77,21 @@ func (m *Manager) run(task *Task) {
 	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "zsh", "-lc", task.Command)
-	cmd.Dir = "."
+	sh, err := shellutil.ResolvePOSIXShell()
+	if err != nil {
+		finishedAt := time.Now().UTC()
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		stored, ok := m.tasks[task.ID]
+		if ok {
+			stored.FinishedAt = &finishedAt
+			stored.Status = TaskFailed
+			stored.ErrorText = err.Error()
+		}
+		return
+	}
+	cmd := exec.CommandContext(ctx, sh, "-lc", task.Command)
+	cmd.Dir = shellutil.WorkingDir()
 	out, err := cmd.CombinedOutput()
 
 	finishedAt := time.Now().UTC()

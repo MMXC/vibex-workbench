@@ -1,0 +1,217 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-agent-rules-engine"
+  parent: "MOD-spec-editor"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-05-06"
+  updated: "2026-05-06"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-06"
+
+display:
+  title: "Agent 规则引擎（门禁流水线 + 纠错总编排 + 动态执行插槽）"
+  summary: |
+    定义从用户任务到工具路由、目标校验与结束的声明式流水线；含「强校验可执行集合」与用户提交；
+    固定纠错编排节点；预留动态执行节点插槽注册表（插件化扩展，子编排不得超出引擎白名单）。
+  description: |
+    与 FEAT-agent-task-state-machine 互补：状态机负责运行时步骤闭环；本 feature 负责**产品侧规则流水线语义**、
+    **详情抽屉门闩与可点击强校验（类 TDD 红绿）**、**全体 Agent 节点的统一纠错入口**，以及**动态节点类型的扩展契约**。
+    Spec 治理保持轻量：规则包可引用 spec 片段（io_contract、test_scenarios），不把整张编排图塞进每个 spec。
+
+structure:
+  parent: "MOD-spec-editor"
+  children:
+    - "SLICE-agent-rules-engine-contract"
+    - "SLICE-agent-repair-orchestrator-runtime"
+    - "SLICE-spec-slot-verification-bar"
+  dependencies:
+    - "FEAT-agent-task-state-machine"
+    - "FEAT-agent-tool-routing-graph"
+    - "FEAT-agent-spec-write-protocol"
+    - "FEAT-workspace-design-prototype-gate"
+  impacted_files:
+    - "agent/agents/runtime/runtime.go"
+    - "agent/agents/runtime/filter_engine.go"
+    - "agent/cmd/web/server.go"
+    - "frontend/src/lib/workbench/spec-display.ts"
+    - "frontend/src/lib/components/workbench/SpecSlotVisualPane.svelte"
+    - "frontend/src/lib/stores/spec-slot-session-store.ts"
+
+io:
+  input:
+    - "用户任务、当前 spec 槽位上下文、规则包引用（rule_pack_ref）、可用引擎节点白名单"
+  output:
+    - "流水线阶段迁移事件（SSE/可观测）"
+    - "强校验计划 StrongValidationPlan（可执行指令列表 + 期望信号）"
+    - "用户校验提交 VerificationSubmission（passed/failed + 日志引用）"
+    - "纠错编排决策 RepairDecision（允许的重路由目标 ∈ 引擎图）"
+    - "动态插槽调用记录 DynamicSlotInvocation"
+  boundary: |
+    不替代现有单个工具实现；不强制所有 spec 层级走完整流水线（按槽位/元数据 opt-in）。
+
+constraints:
+  rules:
+    - id: "RE1"
+      name: "Phases are ordered"
+      rule: "默认阶段顺序：start → clarify → strong_validation_plan → user_verification → user_confirm → route_execute → goal_check → strong_terminal_check → end；允许配置跳过 clarify（仅声明式任务）。"
+      verification: "runtime 暴露 current_phase。"
+    - id: "RE2"
+      name: "Strong validation is executable"
+      rule: "strong_validation_plan 必须产出结构化条目：command 或 tool_call 模板、cwd、超时、期望 RED/GREEN 语义；禁止仅自然语言「请检查」。"
+      verification: "抽屉可渲染「运行/提交」而无歧义。"
+    - id: "RE3"
+      name: "User verification binds TDD-like gate"
+      rule: "user_verification 阶段必须持久化提交结果后再进入 user_confirm；失败可退回 clarify 或进入 repair_orchestrator。"
+      verification: "状态存储可见 submission_id 与 outcome。"
+    - id: "RE4"
+      name: "Routing consumes tool_calls"
+      rule: "route_execute 仅根据模型返回的 tool_calls 与引擎边表迁移；与 Chat Completions tool_calls 对齐。"
+      verification: "无 tool_calls 时不得静默宣告路由完成。"
+    - id: "RE5"
+      name: "Repair orchestrator is bounded"
+      rule: "repair_orchestrator 只允许在 allowed_edges / allowed_phases 内重路由；禁止改写全局规则文件除非单独 gate。"
+      verification: "RepairDecision 包含 target_phase 与 reason_code。"
+    - id: "RE6"
+      name: "Dynamic slots are registered"
+      rule: "动态执行节点必须通过 DynamicExecutionSlotRegistry 注册；未注册 node_kind 不得执行。"
+      verification: "引擎启动日志列出已注册 slot kinds。"
+    - id: "RE7"
+      name: "YAML sub-orchestration subset"
+      rule: "若 route_execute 产出 YAML 子编排，校验子图节点 ⊆ 当前引擎 NodeWhitelist。"
+      verification: "校验失败进入 repair_orchestrator，错误类型 orchestration_out_of_scope。"
+    - id: "RE8"
+      name: "Non-user nodes emit repair envelope"
+      rule: "任一 Agent 节点失败须向上传递 RepairEnvelope：inputs_snapshot、failed_node_id、error_message、failure_type（与筛子分类对齐）。"
+      verification: "repair_orchestrator 输入完整。"
+  forbidden:
+    - "无用户提交即进入 user_confirm（强校验阶段除外：可定义 auto_pass 策略但必须显式配置）"
+    - "纠错节点无边界地改写 SKILLS_DIR 或工作区外路径"
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+io_contract:
+  input: |
+    用户任务与槽位上下文；规则包标识；引擎白名单。
+  output: |
+    阶段事件；强校验计划与用户提交；路由与目标校验结果；纠错决策。
+  boundary: |
+    实现分阶段落地：先 prototype + implementation 槽，再扩展到 input/output 契约校验。
+
+content:
+  phases:
+    description: "规则引擎默认流水线（可与任务状态机并行：任务状态机管逐步工具执行，本流水线管门禁与用户交互）。"
+    ordered:
+      - id: "start"
+        actor: "system"
+        note: "载入 rule_pack_ref、槽位 id、工作区根。"
+      - id: "clarify"
+        actor: "agent"
+        note: "任务澄清；输出待确认意图（可与现有槽位对话合并）。"
+      - id: "strong_validation_plan"
+        actor: "agent"
+        note: "生成 StrongValidationPlan：可执行指令集合（bash/make/custom tool）、顺序、期望 RED/GREEN。"
+      - id: "user_verification"
+        actor: "user"
+        note: "详情抽屉展示可点击「运行校验套件」或逐项运行；提交 passed/failed + 日志句柄（类 TDD）。"
+      - id: "user_confirm"
+        actor: "user"
+        note: "显式确认进入执行路由（可与门禁按钮合并）。"
+      - id: "route_execute"
+        actor: "agent"
+        note: "根据 tool_calls 路由：读 / 写 / 单次执行 / 多次执行 / agent_orchestration（YAML 子编排入口）/ dynamic_slot。"
+      - id: "goal_check"
+        actor: "agent"
+        note: "对照任务目标与 spec 片段做达成判断。"
+      - id: "strong_terminal_check"
+        actor: "agent"
+        note: "终端强校验（如 make_validate、契约脚本）。"
+      - id: "end"
+        actor: "system"
+        note: "闭环结束或进入失败终态。"
+
+  repair_orchestrator:
+    description: "固定「纠错总编排」节点能力边界（实现时可映射为 developer 提示 + 结构化 RepairDecision）。"
+    inputs:
+      - "rule_pack_summary：当前任务绑定的规则摘要（摘自 spec 元数据或外部 YAML）"
+      - "usage_instructions：引擎使用说明（允许的工具与阶段）"
+      - "failed_node_id：报错节点标识"
+      - "inputs_snapshot：该节点入参 JSON"
+      - "error_message：标准化错误正文（含筛子/工具返回）"
+      - "failure_type：与 FilterEngine 分类对齐"
+    outputs:
+      - "target_phase：下一合法阶段或节点"
+      - "parameter_patch：传给下一节点的参数修正（可选）"
+      - "replanned_steps：可选 YAML 子编排（须通过 RE7）"
+    constraints:
+      - "上下文始终以当前任务规则为主，不得引入无关会话。"
+      - "重路由须在 allowed_edges 内；超限进入 failed 或用户澄清。"
+
+  dynamic_execution_slots:
+    description: |
+      预留「动态执行节点」插件插槽：宿主注册 node_kind → 处理器（Go handler 或受控 bash 模板）。
+      用于后续接入自定义流水线节点而不修改核心阶段枚举。
+    registry_contract:
+      node_kind: "唯一字符串，如 design_kit_extract / graph_analysis / custom_validate"
+      handler_ref: "builtin | plugin_id | workspace_script_rel_path（须校验路径）"
+      parameter_schema: "JSON Schema 对象"
+      gate_validator_ref: "可选；接入前校验参数与白名单工具集合"
+      sse_event_types: "可选；抽屉可订阅"
+    whitelist_rule: "route_execute 解析到的动态节点必须在 Registry 中存在且通过 gate_validator_ref。"
+
+  spec_slot_integration:
+    description: "详情抽屉槽位与规则引擎的第一阶段绑定（opt-in）。"
+    priority_mvp:
+      - slot_id: "prototype"
+        rationale: "已有 Prototype Gate 与 Design Kit；最先接 user_verification（物料/预览相关命令）。"
+      - slot_id: "implementation"
+        rationale: "贴近 TDD、tdd_run、make_validate；强校验计划天然可执行。"
+    phase2:
+      - slot_id: "input"
+      - slot_id: "output"
+    phase3:
+      - slot_id: "constraints"
+      - slot_id: "structure"
+
+  observability:
+    - "SSE：phase_transition、strong_validation_plan_ready、verification_submitted、repair_invoked"
+    - "与 FEAT-agent-task-state-machine 的 iteration 图可合并展示（当前游标 + 流水线阶段）"
+
+  test_scenarios:
+    - id: "TC-RE-1"
+      scenario: "强校验计划可执行且用户提交通过"
+      given: "StrongValidationPlan 含两条 make 命令"
+      when: "用户在抽屉点击运行并提交 GREEN"
+      then: "进入 user_confirm 可用"
+      evaluation: "submission 持久化"
+    - id: "TC-RE-2"
+      scenario: "工具失败进入纠错编排"
+      given: "route_execute 某步 execution_failed"
+      when: "RepairEnvelope 上行"
+      then: "repair_orchestrator 产出 RepairDecision ∈ 白名单"
+      evaluation: "未出现未注册 node_kind"
+    - id: "TC-RE-3"
+      scenario: "YAML 子编排越权被拒绝"
+      given: "子图含未声明节点"
+      when: "RE7 校验"
+      then: "失败类型 orchestration_out_of_scope，进入纠错或失败终态"
+      evaluation: "未执行越权工具"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-06"
+    author: "agent"
+    changes:
+      - "新增规则引擎 feature：流水线阶段、强校验与用户验证、纠错编排契约、动态执行插槽注册表、槽位集成优先级"
+---

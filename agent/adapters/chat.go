@@ -11,6 +11,7 @@ import (
 	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/openai/openai-go/v3/shared"
+	"github.com/openai/openai-go/v3/shared/constant"
 )
 
 // chatAdapter implements LLMClient using the Chat Completions API (/v1/chat/completions).
@@ -56,10 +57,11 @@ func (a *chatAdapter) Chat(ctx context.Context, model string,
 	var resp *openai.ChatCompletion
 	if len(chatTools) > 0 {
 		resp, err = a.client.Chat.Completions.New(ctx2, openai.ChatCompletionNewParams{
-			Model:     model,
-			Messages:  chatMsgs,
-			Tools:     chatTools,
-			MaxTokens: maxTokens,
+			Model:      model,
+			Messages:   chatMsgs,
+			Tools:      chatTools,
+			ToolChoice: openai.ChatCompletionToolChoiceOptionUnionParam{OfAuto: param.Opt[string]{Value: "required"}},
+			MaxTokens:  maxTokens,
 		})
 	} else {
 		resp, err = a.client.Chat.Completions.New(ctx2, openai.ChatCompletionNewParams{
@@ -218,6 +220,28 @@ func responseItemToChat(item responses.ResponseInputItemUnionParam) openai.ChatC
 		}
 	}
 
+	// OfFunctionCall path — must become assistant.tool_calls so the next tool message can reference tool_call_id.
+	// Dropping this caused MiniMax 400: "tool result's tool id (...) not found (2013)".
+	if item.OfFunctionCall != nil {
+		fc := item.OfFunctionCall
+		tc := openai.ChatCompletionMessageToolCallUnionParam{
+			OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
+				ID:   fc.CallID,
+				Type: constant.Function("function"),
+				Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
+					Name:      fc.Name,
+					Arguments: fc.Arguments,
+				},
+			},
+		}
+		return openai.ChatCompletionMessageParamUnion{
+			OfAssistant: &openai.ChatCompletionAssistantMessageParam{
+				Role:      constant.Assistant("assistant"),
+				ToolCalls: []openai.ChatCompletionMessageToolCallUnionParam{tc},
+			},
+		}
+	}
+
 	// OfFunctionCallOutput path
 	if item.OfFunctionCallOutput != nil {
 		callID := strings.TrimSpace(item.OfFunctionCallOutput.CallID)
@@ -288,61 +312,31 @@ func extractUnionString(u responses.ResponseInputItemFunctionCallOutputOutputUni
 }
 
 // toolsToChatTools converts Responses API tool definitions to Chat API tool definitions.
+//
+// Important: responses.ToolUnionParam marshals OfFunction with json ",inline" — there is
+// no top-level "function" key. Do not round-trip through JSON expecting m["function"].
 func toolsToChatTools(tools []responses.ToolUnionParam) []openai.ChatCompletionToolUnionParam {
 	if len(tools) == 0 {
 		return nil
 	}
 	result := make([]openai.ChatCompletionToolUnionParam, 0, len(tools))
 	for _, t := range tools {
-		fn := extractToolFunction(t)
-		if fn == nil {
+		if t.OfFunction == nil {
 			continue
 		}
-		name := ""
-		if n, ok := (*fn)["name"].(string); ok {
-			name = n
-		}
-		desc := ""
-		if d, ok := (*fn)["description"].(string); ok {
-			desc = d
-		}
-		var paramsMap map[string]any
-		if p, ok := (*fn)["parameters"]; ok {
-			data, _ := json.Marshal(p)
-			json.Unmarshal(data, &paramsMap)
-		}
+		fn := t.OfFunction
+		paramsMap := fn.Parameters
 		if paramsMap == nil {
 			paramsMap = map[string]any{}
 		}
-		result = append(result, openai.ChatCompletionToolUnionParam{
-			OfFunction: &openai.ChatCompletionFunctionToolParam{
-				Type: "function",
-				Function: openai.FunctionDefinitionParam{
-					Name:        name,
-					Description: param.Opt[string]{Value: desc},
-					Parameters:  shared.FunctionParameters(paramsMap),
-				},
-			},
-		})
+		result = append(result, openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        fn.Name,
+			Description: fn.Description,
+			Strict:      fn.Strict,
+			Parameters:  shared.FunctionParameters(paramsMap),
+		}))
 	}
 	return result
-}
-
-// extractToolFunction extracts a function definition map from a ToolUnionParam via JSON.
-func extractToolFunction(t responses.ToolUnionParam) *map[string]interface{} {
-	data, err := json.Marshal(t)
-	if err != nil {
-		return nil
-	}
-	var m map[string]interface{}
-	if err := json.Unmarshal(data, &m); err != nil {
-		return nil
-	}
-	fn, ok := m["function"].(map[string]interface{})
-	if !ok {
-		return nil
-	}
-	return &fn
 }
 
 func must(s string, _ error) string { return s }

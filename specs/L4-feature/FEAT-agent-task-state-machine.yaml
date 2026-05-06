@@ -1,0 +1,148 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-agent-task-state-machine"
+  parent: "MOD-spec-editor"
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-05-05"
+  updated: "2026-05-05"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-05"
+
+display:
+  title: "Agent 多步任务状态机"
+  summary: "在工具筛子之上增加多步状态机，驱动 plan → step → validate → transition 的闭环执行。"
+  description: |
+    解决“单步工具调用通过但多步任务中断/跳步/假成功”的问题。
+    Agent 先产出可执行步骤（PlanRun），每步进入 FilterEngine 校验，
+    再经过步骤验证器判断是否达成，通过状态机转移到下一步、修复回路或失败终止。
+
+structure:
+  parent: "MOD-spec-editor"
+  children:
+    - "SLICE-agent-task-state-machine-runtime"
+  dependencies:
+    - "FEAT-agent-tool-routing-graph"
+    - "FEAT-agent-spec-write-protocol"
+    - "FEAT-workspace-runtime-safety"
+  impacted_files:
+    - "agent/agents/runtime/runtime.go"
+    - "agent/agents/runtime/filter_engine.go"
+    - "agent/agents/runtime/planner/*.go"
+    - "agent/cmd/web/sse.go"
+    - "frontend/src/lib/stores/spec-slot-session-store.ts"
+    - "frontend/src/lib/components/workbench/SpecSlotVisualPane.svelte"
+
+io:
+  input:
+    - "用户目标、上下文消息、可用工具列表、当前工作区状态"
+  output:
+    - "PlanRun（步骤序列 + 当前状态 + 重试计数）"
+    - "每步验证结果（pass/fail + failure_type）"
+    - "终态：completed / failed"
+  boundary: "只定义 agent runtime 的执行编排，不定义具体业务工具实现。"
+
+constraints:
+  rules:
+    - id: "SM1"
+      name: "State drives execution"
+      rule: "每轮必须由状态机决定当前 step，禁止模型自由跳步执行。"
+      verification: "runtime 日志可见 current_state 与 current_step_id。"
+    - id: "SM2"
+      name: "Step must be validated"
+      rule: "每个 step 执行后必须经过步骤验证器再转移。"
+      verification: "存在 step_validating -> pass/fail 记录。"
+    - id: "SM3"
+      name: "Failure classification required"
+      rule: "失败必须分类为 tool_missing / intent_ambiguous / policy_blocked / execution_failed / goal_not_reached。"
+      verification: "每次失败事件输出 failure_type。"
+    - id: "SM4"
+      name: "Bounded retry"
+      rule: "每步重试次数必须受 retry_policy 限制，超限进入 failed。"
+      verification: "attempt > max_attempts 时转移 failed。"
+    - id: "SM5"
+      name: "Visual trace required"
+      rule: "状态机关键转移需可被前端消费并在右侧详情抽屉形成可视化轨迹。"
+      verification: "run/planning/tool/result 事件可映射为节点与边，并标记当前游标。"
+  forbidden:
+    - "无状态机地连续执行多工具并直接宣告完成"
+    - "跳过 step 验证直接进入下一步"
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+io_contract:
+  input: |
+    用户目标、上下文消息、可用工具列表、当前工作区状态。
+  output: |
+    PlanRun 与每步验证结果；最终终态 completed 或 failed。
+  boundary: |
+    本 feature 不定义业务工具细节，只定义 runtime 编排闭环。
+  behavior:
+    - "init -> plan_ready：从用户目标生成步骤计划"
+    - "step_executing：当前步骤进入 FilterEngine 并执行工具"
+    - "step_validating：校验步骤达成条件"
+    - "on_pass -> 下一步或 completed"
+    - "on_fail -> repairing 或 looping"
+    - "重试超限 -> failed"
+
+content:
+  state_machine:
+    states:
+      - "init"
+      - "plan_ready"
+      - "step_executing"
+      - "step_validating"
+      - "repairing"
+      - "looping"
+      - "completed"
+      - "failed"
+    failure_types:
+      - "tool_missing"
+      - "intent_ambiguous"
+      - "policy_blocked"
+      - "execution_failed"
+      - "goal_not_reached"
+
+  test_scenarios:
+    - id: "TC-SM-1"
+      scenario: "多步任务顺利完成"
+      given: "3-step PlanRun（inspect -> write -> validate）"
+      when: "每步均 pass"
+      then: "状态机终态为 completed"
+      evaluation: "无跳步、无超限重试"
+    - id: "TC-SM-2"
+      scenario: "工具缺失触发修复"
+      given: "step 要求工具不存在"
+      when: "FilterEngine 返回 tool_missing"
+      then: "状态机进入 repairing，并回路后重试或终止"
+      evaluation: "失败类型可追踪"
+    - id: "TC-SM-3"
+      scenario: "伪 TOOL_CALL 文本"
+      given: "模型输出 [TOOL_CALL] 文本"
+      when: "无结构化 function_call"
+      then: "分类 policy_blocked，进入修复提示回路"
+      evaluation: "不执行任何伪调用文本"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-05"
+    author: "agent"
+    changes:
+      - "新增 Agent 多步任务状态机 feature，定义状态、失败分类与闭环转移"
+  - version: "0.2"
+    date: "2026-05-05"
+    author: "agent"
+    changes:
+      - "新增 SM5 与前端影响文件：要求状态机转移具备可视化可观测性（右侧抽屉迭代图）"
+---

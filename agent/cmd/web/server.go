@@ -13,7 +13,6 @@ import (
 
 	"vibex/agent/adapters"
 	"vibex/agent/agents/background"
-	"vibex/agent/agents/compact"
 	"vibex/agent/agents/runtime"
 	rtools "vibex/agent/agents/runtime/tools"
 	"vibex/agent/agents/sessions"
@@ -21,6 +20,7 @@ import (
 	"vibex/agent/agents/subagent"
 	"vibex/agent/internal/common"
 	"vibex/agent/vibex/domain"
+	"vibex/agent/vibex/domain/rulesengine"
 	"vibex/generators/memlace"
 
 	"github.com/openai/openai-go/v3/responses"
@@ -66,129 +66,46 @@ Core principles:
 - Use canvas_update to show TDD cycle progress
 - Prefer Plan Graph → Tool Routing Graph → confirmed execution over direct code generation
 - Never assume — always clarify ambiguous requirements
-- After any code/spec change, always run make_validate`
+- After any code/spec change, always run make_validate
 
-// ── Tool Loop ─────────────────────────────────────────────────
+Tooling:
+- The tool list is the full registry for routing; each turn only invoke tools relevant to the current step — ignore unrelated tools (do not loop through every tool).
+- read_file / write_file / bash: use paths relative to the workspace root when possible; absolute paths under the workspace are normalized automatically.
+- bash on Windows uses Git Bash when available (set VIBEX_POSIX_SHELL to override).`
 
-// runToolLoop executes a tool-use turn via the LLMClient interface.
-// The adapter handles all API-level differences (Responses vs Chat Completions).
-// Returns (answer, turnItems, error). turnItems includes all tool calls/outputs from this turn.
-func runToolLoop(
-	threadID string,
-	llm adapters.LLMClient,
-	model string,
-	tools []responses.ToolUnionParam,
-	handlers map[string]rtools.Handler,
-	messages []responses.ResponseInputItemUnionParam,
-	skillState *skills.State,
-	skillRegistry *skills.Registry,
-) (string, []responses.ResponseInputItemUnionParam, error) {
-	inputItems := append([]responses.ResponseInputItemUnionParam{}, messages...)
-	bgMgr := background.NewManager()
-
-	for step := 0; step < 20; step++ {
-		if compacted, _ := compact.MicroCompact(inputItems, compact.DefaultKeepRecentToolResults); compacted != nil {
-			inputItems = compacted
-		}
-		if compact.NeedsAutoCompact(inputItems, compact.DefaultAutoCompactCharLimit) {
-			summary, _ := summarizeForAutoCompact(llm, model, inputItems)
-			if summary != "" {
-				inputItems = compact.AutoCompact(inputItems, summary, compact.DefaultAutoCompactKeepRecentK)
-			}
-		}
-
-		reqInput := append([]responses.ResponseInputItemUnionParam{}, inputItems...)
-		if notes := strings.TrimSpace(rtools.FormatBackgroundNotifications(bgMgr.DrainNotifications())); notes != "" {
-			reqInput = append(reqInput, responses.ResponseInputItemParamOfMessage(notes, responses.EasyInputMessageRoleDeveloper))
-		}
-		reqInput = append(reqInput, responses.ResponseInputItemParamOfMessage(
-			"Use todo_set to track progress. Use skill_load to activate skills.", responses.EasyInputMessageRoleDeveloper))
-		if skillRegistry != nil {
-			reqInput = append(reqInput, responses.ResponseInputItemParamOfMessage(skillRegistry.NamesContextMessage(), responses.EasyInputMessageRoleDeveloper))
-			if ctx := strings.TrimSpace(skillState.ContextMessage(skillRegistry)); ctx != "" {
-				reqInput = append(reqInput, responses.ResponseInputItemParamOfMessage(ctx, responses.EasyInputMessageRoleDeveloper))
-			}
-		}
-
-		ctx := context.Background()
-		text, toolCalls, err := llm.Chat(ctx, model, tools, reqInput)
-		if err != nil {
-			return "", inputItems, err
-		}
-
-		if text != "" {
+// sseToolLoopHooks maps runtime tool loop events to SSE (same thread as chat UI).
+func sseToolLoopHooks(threadID string) *runtime.ToolLoopHooks {
+	return &runtime.ToolLoopHooks{
+		OnAssistantDelta: func(text string, isFinal bool) {
 			broadcastSSE(threadID, "message.delta", map[string]interface{}{
-				"role": "assistant", "delta": text, "is_final": false,
+				"role": "assistant", "delta": text, "is_final": isFinal,
 			})
-		}
-
-		followUp := make([]responses.ResponseInputItemUnionParam, 0, len(toolCalls)*2)
-		hasCalls := false
-		for _, item := range toolCalls {
-			if item.OfFunctionCall == nil {
-				continue
-			}
-			hasCalls = true
-			// 回放 function_call，保持 call_id 匹配
-			followUp = append(followUp, item)
-
-			var args map[string]any
-			json.Unmarshal([]byte(item.OfFunctionCall.Arguments), &args)
-			callID := item.OfFunctionCall.CallID
+		},
+		OnToolCalled: func(name, callID string, args map[string]any) {
 			broadcastSSE(threadID, "tool.called", map[string]interface{}{
-				"toolName":     item.OfFunctionCall.Name, // camelCase for sse.ts
-				"tool":         item.OfFunctionCall.Name, // snake_case for stores/sse.ts
-				"invocationId": callID,                   // camelCase for sse.ts
-				"call_id":      callID,                   // snake_case for stores/sse.ts
-				"runId":        threadID,                 // camelCase: parent run
-				"args":         args,
+				"toolName": name, "tool": name, "invocationId": callID, "call_id": callID,
+				"runId": threadID, "args": args,
 			})
-
-			h, ok := handlers[item.OfFunctionCall.Name]
-			if !ok {
-				followUp = append(followUp, responses.ResponseInputItemParamOfFunctionCallOutput(item.OfFunctionCall.CallID, "unsupported tool"))
-				continue
-			}
-			result := h(item.OfFunctionCall.Arguments)
-			followUp = append(followUp, responses.ResponseInputItemParamOfFunctionCallOutput(callID, result))
+		},
+		OnToolCompleted: func(name, callID, result string) {
 			broadcastSSE(threadID, "tool.completed", map[string]interface{}{
-				"toolName":     item.OfFunctionCall.Name,
-				"tool":         item.OfFunctionCall.Name,
-				"invocationId": callID,
-				"call_id":      callID,
-				"result":       result,
+				"toolName": name, "tool": name, "invocationId": callID, "call_id": callID,
+				"result": result,
 			})
-		}
-
-		if !hasCalls {
-			// 发送最终消息：is_final=true，触发前端合并气泡并完成
-			if text != "" {
-				broadcastSSE(threadID, "message.delta", map[string]interface{}{
-					"role": "assistant", "delta": strings.TrimSpace(text), "is_final": true,
-				})
-			}
-			broadcastSSE(threadID, "run.completed", map[string]interface{}{
-				"run_id": threadID, "runId": threadID, "summary": "Done."})
-			return strings.TrimSpace(text), inputItems, nil
-		}
-		inputItems = append(inputItems, followUp...)
+		},
+		OnRepairDecision: func(decision rulesengine.RepairDecision, envelope rulesengine.RepairEnvelope) {
+			broadcastSSE(threadID, "repair.decision", map[string]interface{}{
+				"decision": decision,
+				"envelope": envelope,
+			})
+		},
 	}
-	return "", inputItems, fmt.Errorf("tool loop exceeded 20 steps")
-}
-
-func summarizeForAutoCompact(llm adapters.LLMClient, model string, items []responses.ResponseInputItemUnionParam) (string, error) {
-	input := append([]responses.ResponseInputItemUnionParam{}, items...)
-	input = append(input, responses.ResponseInputItemParamOfMessage(
-		"Summarize: key decisions, progress, TODO state, active skills, unresolved issues.",
-		responses.EasyInputMessageRoleDeveloper))
-	ctx := context.Background()
-	return llm.SimpleChat(ctx, model, input)
 }
 
 // ── Build tools & handlers ──────────────────────────────────────
 
 func buildToolsAndHandlers(threadID string, cfg common.Config,
-	skillRegistry *skills.Registry) ([]responses.ToolUnionParam, map[string]rtools.Handler) {
+	skillRegistry *skills.Registry) ([]responses.ToolUnionParam, map[string]rtools.Handler, *background.Manager, *subagent.Manager) {
 
 	state := getThreadState(threadID)
 	bgMgr := background.NewManager()
@@ -211,7 +128,7 @@ func buildToolsAndHandlers(threadID string, cfg common.Config,
 			responses.ResponseInputItemParamOfMessage(developerMessage, responses.EasyInputMessageRoleDeveloper),
 			responses.ResponseInputItemParamOfMessage("Sub-agent task:\n"+strings.TrimSpace(taskSummary), responses.EasyInputMessageRoleUser),
 		}
-		answer, _, err := runToolLoop(threadID, llm, cfg.SubAgentModel, childTools, childHandlers, childMsgs, childSkills, skillRegistry)
+		answer, _, err := runtime.RunToolLoop(ctx, llm, cfg.SubAgentModel, childTools, childHandlers, childTodo, childMsgs, childBg, nil, childSkills, skillRegistry, sseToolLoopHooks(threadID))
 		return answer, err
 	}
 
@@ -231,7 +148,7 @@ func buildToolsAndHandlers(threadID string, cfg common.Config,
 		handlers[name] = h
 	}
 
-	return tools, handlers
+	return tools, handlers, bgMgr, subMgr
 }
 
 // ── Agent turn ─────────────────────────────────────────────────
@@ -276,8 +193,8 @@ func runAgentTurn(threadID string, userInput string) (string, error) {
 	})
 	broadcastSSE(threadID, "agent.thinking", map[string]string{"status": "processing", "model": model})
 
-	tools, handlers := buildToolsAndHandlers(threadID, cfg, skillRegistry)
-	answer, turnItems, err := runToolLoop(threadID, llm, model, tools, handlers, messages, state.skillState, skillRegistry)
+	tools, handlers, bgMgr, subMgr := buildToolsAndHandlers(threadID, cfg, skillRegistry)
+	answer, turnItems, err := runtime.RunToolLoop(context.Background(), llm, model, tools, handlers, state.todo, messages, bgMgr, subMgr, state.skillState, skillRegistry, sseToolLoopHooks(threadID))
 	if err != nil {
 		broadcastSSE(threadID, "run.failed", map[string]interface{}{
 			"run_id": threadID, "runId": threadID,
@@ -285,6 +202,9 @@ func runAgentTurn(threadID string, userInput string) (string, error) {
 		})
 		return "", err
 	}
+	broadcastSSE(threadID, "run.completed", map[string]interface{}{
+		"run_id": threadID, "runId": threadID, "summary": "Done.",
+	})
 
 	// Self-reflection: analyze this turn and execute automatable improvements.
 	// Results are broadcast via SSE so the frontend can show them.
@@ -353,8 +273,7 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 			broadcastSSE(req.ThreadID, "error", map[string]interface{}{"error": err.Error()})
 			return
 		}
-		// 注意：is_final=true 已由 runToolLoop 在 !hasCalls 时发送，
-		// 此处不再重复 broadcast，避免前端出现两个相同内容的气泡。
+		// is_final / run.completed 由 runtime.RunToolLoop + sseToolLoopHooks 发送。
 		_ = answer // 已由 runToolLoop 的 SSE 事件消耗
 	}()
 

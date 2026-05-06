@@ -1,0 +1,115 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-agent-rules-engine-contract"
+  parent: "FEAT-agent-rules-engine"
+  status: "proposal"
+
+display:
+  title: "Rules Engine Contract"
+  summary: |
+    定义规则流水线阶段枚举、SSE 事件名、强校验计划与用户提交、纠错信封、动态执行插槽注册表的数据结构与边界契约。
+  description: |
+    本 slice 仅承载「可被前后端与 runtime 共享」的类型与序列化契约，不含具体 UI 或 Go 节点实现。
+    与 FEAT-agent-task-state-machine 互补：状态机管逐步工具闭环；本契约管门禁流水线语义与可观测字段。
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-05-06"
+  updated: "2026-05-06"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-06"
+
+structure:
+  parent: "FEAT-agent-rules-engine"
+  children: []
+  dependencies:
+    - "FEAT-agent-task-state-machine"
+    - "FEAT-agent-tool-routing-graph"
+    - "SLICE-agent-spec-write-api-contract"
+  impacted_files:
+    - "agent/vibex/domain/spec/specs.go"
+    - "agent/vibex/domain/spec/handlers.go"
+    - "frontend/src/lib/stores/spec-slot-session-store.ts"
+
+io:
+  input:
+    - "rule_pack_ref、槽位 id、工作区根、引擎 NodeWhitelist"
+  output:
+    - "RulesPipelinePhase 当前阶段与迁移事件载荷"
+    - "StrongValidationPlan（可执行条目：command 或 tool_call 模板、cwd、超时、RED/GREEN 语义）"
+    - "VerificationSubmission（passed/failed、日志引用、submission_id）"
+    - "RepairEnvelope（inputs_snapshot、failed_node_id、error_message、failure_type）"
+    - "RepairDecision（target_phase、reason_code、allowed_edges 内目标）"
+    - "DynamicSlotInvocation（slot_kind、payload_ref、结果摘要）"
+  boundary: |
+    不定义具体 shell 命令实现；不绑定单一 SSE 传输格式细节（仅字段名与语义一致）。
+
+constraints:
+  rules:
+    - id: "CE1"
+      name: "Phases are stable identifiers"
+      rule: "阶段 id 与 FEAT RE1 默认顺序一致；新增阶段须 bump spec.version。"
+      verification: "序列化 JSON 使用 snake_case 与固定枚举。"
+    - id: "CE2"
+      name: "Strong validation items are executable"
+      rule: "每条 strong_validation item 必须至少包含 command 或 tool_call_template 之一及超时。"
+      verification: "缺字段时契约校验失败，不进入 user_confirm。"
+    - id: "CE3"
+      name: "RepairEnvelope aligns with sieve"
+      rule: "failure_type 取值与 FilterEngine 分类可映射（含 orchestration_out_of_scope）。"
+      verification: "repair_orchestrator 输入可无损解析。"
+  forbidden:
+    - "用自由文本替代结构化强校验条目"
+    - "RepairDecision 指向白名单外的 phase 或边"
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+io_contract:
+  input: |
+    rule_pack_ref、槽位上下文、引擎白名单。
+  output: |
+    阶段事件与上述结构化载荷类型。
+  boundary: |
+    契约层独立演进；runtime/UI slice 引用本 slice 定义的字段集。
+  behavior:
+    - "导出 PhaseTransitionEvent { phase, previous_phase, timestamp, payload_ref }"
+    - "导出 StrongValidationPlan { items[], plan_id, slot_binding }"
+    - "导出 VerificationSubmission { submission_id, outcome, artifact_refs[] }"
+    - "导出 RepairEnvelope / RepairDecision / DynamicExecutionSlotRegistry 条目形状"
+
+content:
+  artifacts:
+    description: "建议在共享模块中以 JSON Schema 或 Go struct + TS 类型镜像落地。"
+    types:
+      - "RulesPipelinePhase（枚举）"
+      - "StrongValidationPlan / StrongValidationItem"
+      - "VerificationSubmission"
+      - "RepairEnvelope / RepairDecision"
+      - "DynamicExecutionSlotRegistry（node_kind -> handler_ref）"
+      - "DynamicSlotInvocation"
+
+  verification:
+    commands:
+      - "make lint-specs"
+    manual_checks:
+      - "契约示例 JSON 可被前后端分别反序列化"
+      - "与 FEAT RE1–RE8 字段语义逐项对齐"
+    failure_conditions:
+      - "枚举漂移导致 runtime 无法解析阶段"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-06"
+    author: "agent"
+    changes:
+      - "从 FEAT-agent-rules-engine 拆分契约 slice：阶段、强校验、纠错与动态插槽数据结构"
+---
