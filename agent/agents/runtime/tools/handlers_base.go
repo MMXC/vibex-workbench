@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"vibex/agent/internal/shellutil"
 )
 
 func bashHandler(arguments string) string {
@@ -24,6 +26,7 @@ func readFileHandler(arguments string) string {
 	if err != nil {
 		return "invalid args: " + err.Error()
 	}
+	path = normalizePathAgainstWorkspace(path)
 	safe, err := safeWorkspacePath(path)
 	if err != nil {
 		return "invalid path: " + err.Error()
@@ -49,6 +52,7 @@ func writeFileHandler(arguments string) string {
 	if err != nil {
 		return "invalid args: " + err.Error()
 	}
+	path = normalizePathAgainstWorkspace(path)
 	safe, err := safeWorkspacePath(path)
 	if err != nil {
 		return "invalid path: " + err.Error()
@@ -63,6 +67,36 @@ func writeFileHandler(arguments string) string {
 		return "error: " + err.Error()
 	}
 	return fmt.Sprintf("ok: wrote %d bytes to %s", len(content), path)
+}
+
+// normalizePathAgainstWorkspace strips workspace root from absolute paths (models often pass drive paths on Windows).
+func normalizePathAgainstWorkspace(path string) string {
+	if !filepath.IsAbs(path) {
+		return filepath.ToSlash(filepath.Clean(path))
+	}
+	cp := filepath.Clean(path)
+	for _, root := range workspaceRootCandidates() {
+		r := filepath.Clean(root)
+		rel, err := filepath.Rel(r, cp)
+		if err != nil {
+			continue
+		}
+		if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			continue
+		}
+		return filepath.ToSlash(rel)
+	}
+	return path
+}
+
+func workspaceRootCandidates() []string {
+	var out []string
+	for _, k := range []string{"WORKSPACE_ROOT", "WORKSPACE_DIR"} {
+		if v := strings.TrimSpace(os.Getenv(k)); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 func safeWorkspacePath(path string) (string, error) {
@@ -86,8 +120,12 @@ func runBash(command string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "zsh", "-lc", command)
-	cmd.Dir = "."
+	sh, err := shellutil.ResolvePOSIXShell()
+	if err != nil {
+		return "error: " + err.Error()
+	}
+	cmd := exec.CommandContext(ctx, sh, "-lc", command)
+	cmd.Dir = shellutil.WorkingDir()
 	out, err := cmd.CombinedOutput()
 	if ctx.Err() == context.DeadlineExceeded {
 		return "error: command timeout (30s)"

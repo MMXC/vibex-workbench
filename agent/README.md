@@ -92,7 +92,7 @@ flowchart TD
 - **上下文压缩**：每轮 `micro compact`，超阈值自动摘要压缩
 - **工具代码分层**：`agents/runtime/tools` 按类型拆分（base/todo/skills/subagent/schema/parser）
 - **Skills（按需激活）**：`skill_list`、`skill_load`、`skill_unload`
-- **技能来源**：运行目录 `.skills/`（支持 front matter：`name`、`description`）
+- **技能来源**：默认 `<WORKSPACE_DIR>/skills/`（支持 front matter：`name`、`description`）；可用 `SKILLS_DIR` 覆盖
 - **模型配置**：子代理模型读取 `SUBAGENT_MODEL`（为空回退 `OPENAI_MODEL`）
 - **后台任务当前边界**：暂未做后台任务持久化与重启恢复；进程重启后旧后台任务状态不会恢复
 
@@ -184,7 +184,7 @@ nanoClaudeCode/
 │   ├── compact/                    # s06: 上下文压缩逻辑
 │   ├── background/                 # s08: 后台任务管理
 │   ├── sessions/                   # s07: 会话持久化与恢复
-│   └── skills/                     # skills 注册/状态与 .skills 加载
+│   └── skills/                     # skills 注册/状态；SKILL.md 来自仓库 skills/（默认）
 ├── demo/                          # 课程式主线实现（s01-s03）
 │   ├── cmd/
 │   │   ├── chatbot/               # s01: 基础 agent 循环（无工具）

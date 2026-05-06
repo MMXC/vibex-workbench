@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"vibex/agent/internal/shellutil"
+
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"
 )
@@ -529,8 +531,12 @@ func runBash(command string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "zsh", "-lc", command)
-	cmd.Dir = "."
+	sh, err := shellutil.ResolvePOSIXShell()
+	if err != nil {
+		return "error: " + err.Error()
+	}
+	cmd := exec.CommandContext(ctx, sh, "-lc", command)
+	cmd.Dir = shellutil.WorkingDir()
 	out, err := cmd.CombinedOutput()
 	if ctx.Err() == context.DeadlineExceeded {
 		return "error: command timeout (30s)"

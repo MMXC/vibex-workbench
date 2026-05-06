@@ -67,7 +67,7 @@ func ParentSpecs(
 		},
 		Spec{
 			Name:        "skill_list",
-			Description: "List all skills discovered from .skills directory and show active flags.",
+			Description: "List all skills from SKILLS_DIR (default <workspace>/skills) and show active flags.",
 			Parameters:  skillListSchema(),
 			Handler:     skillListHandler(skillRegistry, skillState),
 		},

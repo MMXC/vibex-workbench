@@ -1,6 +1,7 @@
 package spec
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -886,6 +887,106 @@ func MakeSpecWriteHandler(workspaceDir string, bc Broadcaster, setStepType func(
 
 		return fmt.Sprintf("%swritten: %s\n   %d bytes%s%s",
 			status, specPath, len(args.Content), validationResult, canvasNote)
+	}
+}
+
+func MakeSpecPatchApplyHandler(workspaceDir string, bc Broadcaster, setStepType func(threadID, stepType string)) rt.Handler {
+	return func(arguments string) string {
+		if setStepType != nil {
+			setStepType("", "spec-apply")
+		}
+
+		var args struct {
+			SpecPath      string `json:"spec_path"`
+			PatchJSON     string `json:"patch_json"`
+			ValidateAfter *bool  `json:"validate_after"`
+		}
+		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+			return "invalid args: " + err.Error()
+		}
+		if strings.TrimSpace(args.SpecPath) == "" {
+			return "spec_path is required"
+		}
+		if strings.TrimSpace(args.PatchJSON) == "" {
+			return "patch_json is required"
+		}
+
+		specPath := args.SpecPath
+		if !filepath.IsAbs(specPath) {
+			specPath = filepath.Join(workspaceDir, specPath)
+		}
+		specPath = filepath.Clean(specPath)
+		specsRoot := filepath.Clean(filepath.Join(workspaceDir, "specs"))
+		if !strings.HasPrefix(specPath, specsRoot+string(os.PathSeparator)) && specPath != specsRoot {
+			return "forbidden: spec_path must be under specs/"
+		}
+
+		original, err := os.ReadFile(specPath)
+		if err != nil {
+			return "error reading file " + specPath + ": " + err.Error()
+		}
+
+		mergeScript := `
+import json, sys, yaml
+path = sys.argv[1]
+patch_raw = sys.argv[2]
+with open(path, "r", encoding="utf-8") as f:
+    base = yaml.safe_load(f.read()) or {}
+patch = json.loads(patch_raw)
+if not isinstance(patch, dict):
+    raise ValueError("patch_json must be a JSON object")
+def merge(dst, src):
+    for k, v in src.items():
+        if isinstance(v, dict) and isinstance(dst.get(k), dict):
+            merge(dst[k], v)
+        else:
+            dst[k] = v
+merge(base, patch)
+print(yaml.safe_dump(base, allow_unicode=True, sort_keys=False), end="")
+`
+		cmd := exec.Command("python3", "-c", mergeScript, specPath, args.PatchJSON)
+		cmd.Dir = workspaceDir
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Sprintf("patch merge failed: %v\n%s", err, strings.TrimSpace(string(out)))
+		}
+		patched := out
+		if len(bytes.TrimSpace(patched)) == 0 {
+			return "patch merge failed: empty output"
+		}
+		if err := os.WriteFile(specPath, patched, 0644); err != nil {
+			return "error writing patched file " + specPath + ": " + err.Error()
+		}
+
+		validateAfter := true
+		if args.ValidateAfter != nil {
+			validateAfter = *args.ValidateAfter
+		}
+		validationResult := ""
+		if validateAfter {
+			script := filepath.Join(workspaceDir, "generators", "validate_specs.py")
+			vCmd := exec.Command("python3", script, specPath)
+			vCmd.Dir = workspaceDir
+			vOut, vErr := vCmd.CombinedOutput()
+			if vErr != nil {
+				validationResult = fmt.Sprintf("\n⚠️ validation: %s\n%v", strings.TrimSpace(string(vOut)), vErr)
+			} else {
+				validationResult = "\n✅ validation passed"
+			}
+		}
+
+		if bc != nil {
+			bc("", "canvas.spec_modified", map[string]interface{}{
+				"spec_path": args.SpecPath,
+				"size":      len(patched),
+				"delta":     len(patched) - len(original),
+				"timestamp": time.Now().Format(time.RFC3339),
+				"mode":      "patch",
+			})
+		}
+
+		return fmt.Sprintf("✅ patch applied: %s\n   bytes: %d (delta %+d)%s",
+			specPath, len(patched), len(patched)-len(original), validationResult)
 	}
 }
 

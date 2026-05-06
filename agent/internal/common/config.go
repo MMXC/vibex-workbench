@@ -21,8 +21,8 @@ type Config struct {
 	DebugHTTP     bool
 
 	// Vibex-specific
-	SkillsDir  string            // path to hermes skills, default ~/.hermes/skills
-	WorkspaceDir string          // vibex workbench root, default /root/vibex-workbench
+	SkillsDir    string // path to skill packs (subdirs with SKILL.md); default <workspace>/skills
+	WorkspaceDir string // vibex workbench root, default /root/vibex-workbench
 	StepModels map[string]string // step_type -> model name, loaded from models.yaml
 }
 
@@ -30,18 +30,14 @@ func LoadConfig() Config {
 	loadDotEnv()
 
 	model := getenv("OPENAI_MODEL", "gpt-4o")
-	skillsDir := getenv("SKILLS_DIR", "")
-	if skillsDir == "" {
-		usr, err := user.Current()
-		if err == nil {
-			skillsDir = filepath.Join(usr.HomeDir, ".hermes", "skills")
-		} else {
-			skillsDir = "/root/.hermes/skills"
-		}
-	}
 	workspaceDir := getenv("WORKSPACE_DIR", "")
 	if workspaceDir == "" {
 		workspaceDir = inferWorkspaceDir()
+	}
+	skillsDir := getenv("SKILLS_DIR", "")
+	if skillsDir == "" {
+		// 与仓库 `skills/` 目录对齐；可用 SKILLS_DIR 覆盖（例如 ~/.hermes/skills）
+		skillsDir = filepath.Join(workspaceDir, "skills")
 	}
 
 	return Config{

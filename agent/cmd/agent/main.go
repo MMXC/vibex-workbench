@@ -86,9 +86,9 @@ func RunGoal(ctx context.Context, goal string) error {
 	rawClient := common.NewClient(cfg)
 	llm := adapters.NewLLMClient(rawClient, cfg.BaseURL, cfg.Model)
 
-	skillRegistry, err := skills.LoadRegistryFromDir(".skills")
+	skillRegistry, err := skills.LoadRegistryFromDir(cfg.SkillsDir)
 	if err != nil {
-		fmt.Printf("warning: failed to load .skills: %v\n", err)
+		fmt.Printf("warning: failed to load skills from %s: %v\n", cfg.SkillsDir, err)
 		skillRegistry = skills.NewRegistry()
 	}
 	parentSkills := skills.NewState()
@@ -114,7 +114,7 @@ func RunGoal(ctx context.Context, goal string) error {
 			responses.ResponseInputItemParamOfMessage("You are a coding agent.", responses.EasyInputMessageRoleDeveloper),
 			responses.ResponseInputItemParamOfMessage("Sub-agent task summary:\n"+strings.TrimSpace(taskSummary), responses.EasyInputMessageRoleUser),
 		}
-		answer, _, err := runtime.RunToolLoop(ctx, llm, cfg.SubAgentModel, childTools, childHandlers, childTodo, childMessages, nil, nil, childSkills, skillRegistry)
+		answer, _, err := runtime.RunToolLoop(ctx, llm, cfg.SubAgentModel, childTools, childHandlers, childTodo, childMessages, nil, nil, childSkills, skillRegistry, nil)
 		if err != nil {
 			return "", err
 		}
@@ -152,7 +152,7 @@ func RunGoal(ctx context.Context, goal string) error {
 
 	fmt.Printf("Agent started (model=%s subagent=%s workspace=%s)\n", cfg.Model, cfg.SubAgentModel, cfg.WorkspaceDir)
 
-	answer, _, err := runtime.RunToolLoop(ctx, llm, cfg.Model, tools, wrappedHandlers, todo, messages, backgroundMgr, subAgentMgr, parentSkills, skillRegistry)
+	answer, _, err := runtime.RunToolLoop(ctx, llm, cfg.Model, tools, wrappedHandlers, todo, messages, backgroundMgr, subAgentMgr, parentSkills, skillRegistry, nil)
 	if err != nil {
 		emit("error", map[string]string{"message": err.Error()})
 		return err

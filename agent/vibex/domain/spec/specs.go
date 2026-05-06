@@ -178,6 +178,17 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 			),
 			Handler: MakeSpecWriteHandler(workspaceDir, bc, setStepType),
 		},
+		{
+			Name: "spec_patch_apply",
+			Description: "Apply a partial JSON patch to an existing spec YAML (field-level merge, no full-file rewrite). " +
+				"Only allows paths under specs/. Use this for safe iterative updates like prototype.intent/ui_spec.",
+			Parameters: objectSchema(
+				reqField("spec_path", "string", "Relative path from workspace root (must be under specs/)"),
+				reqField("patch_json", "string", "JSON object string to merge into YAML (e.g. {\"prototype\":{\"status\":\"prototype\"}})"),
+				optField("validate_after", "boolean", "Run validation after patch (default true)"),
+			),
+			Handler: MakeSpecPatchApplyHandler(workspaceDir, bc, setStepType),
+		},
 	}
 }
 

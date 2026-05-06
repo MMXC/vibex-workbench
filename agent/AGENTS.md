@@ -34,7 +34,7 @@ agent/
 │   │       ├── handlers_skill.go
 │   │       ├── handlers_subagent.go
 │   │       └── ...
-│   ├── skills/store.go         # SKILL.md loader (loads from ~/.hermes/skills/)
+│   ├── skills/store.go         # SKILL.md loader (default: <workspace>/skills)
 │   ├── sessions/store.go       # Per-thread session persistence
 │   ├── subagent/               # Concurrent sub-agent runner
 │   ├── compact/                 # Context compression
@@ -51,7 +51,7 @@ agent/
 - `todo_set` — maintain TODO state machine
 
 ### Skill Tools (S05)
-- `skill_list` — list available skills from `~/.hermes/skills/`
+- `skill_list` — list available skills from `SKILLS_DIR` (default: repo `skills/`)
 - `skill_load` — activate a skill for subsequent turns
 - `skill_unload` — deactivate a skill
 
@@ -131,7 +131,7 @@ OPENAI_API_KEY=sk-...
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=gpt-4o
 SUBAGENT_MODEL=gpt-4o-mini
-SKILLS_DIR=/root/.hermes/skills
+# 默认 <WORKSPACE_DIR>/skills；仅当使用外部技能目录时设置 SKILLS_DIR
 WORKSPACE_DIR=/root/vibex-workbench
 DEBUG_HTTP=false
 ```
@@ -158,7 +158,7 @@ Results are broadcast as `agent.self_reflection` SSE events. The agent modifies 
 
 ## Skills
 
-Skills are loaded from `SKILLS_DIR` (`~/.hermes/skills/`).
+Skills are loaded from `SKILLS_DIR` (default: `<WORKSPACE_DIR>/skills`, i.e. repository `skills/`).
 Each skill is a directory with `SKILL.md` (and optional `scripts/`, `references/`).
 
 The agent can `skill_load` skills at runtime based on context.

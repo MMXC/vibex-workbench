@@ -16,7 +16,7 @@ func skillListHandler(registry *skills.Registry, state *skills.State) Handler {
 			}
 		}
 		if registry == nil || registry.Count() == 0 {
-			return "skills: none found under .skills"
+			return "skills: none found (check SKILLS_DIR / <workspace>/skills)"
 		}
 
 		activeSet := make(map[string]struct{})
