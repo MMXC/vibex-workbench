@@ -137,16 +137,27 @@ func GetStatus(root string) Status {
 
 // ScaffoldResult is the outcome of scaffold (confirm=true).
 type ScaffoldResult struct {
-	Ok      bool     `json:"ok"`
-	Written []string `json:"written,omitempty"`
-	Skipped []string `json:"skipped,omitempty"`
-	Error   string   `json:"error,omitempty"`
+	Ok          bool               `json:"ok"`
+	Written     []string           `json:"written,omitempty"`
+	Skipped     []string           `json:"skipped,omitempty"`
+	Error       string             `json:"error,omitempty"`
+	GateBlocked bool               `json:"gateBlocked,omitempty"`
+	GateFailure *GateFailureDetail `json:"gateFailure,omitempty"`
 }
 
 // Scaffold creates missing .vibex/design/DESIGN.md, prototypes README, manifest. Never overwrites DESIGN.md.
-func Scaffold(root string, confirm bool) ScaffoldResult {
+// When specYAML is non-empty and confirm is true, EvaluatePrototypeGateYAML must pass before writes.
+func Scaffold(root string, confirm bool, specYAML string) ScaffoldResult {
 	if !confirm {
 		return ScaffoldResult{Ok: false, Error: "需确认：传入 confirm: true 后才会写入 .vibex/design 与 .vibex/prototypes"}
+	}
+	if strings.TrimSpace(specYAML) != "" {
+		ok, det := EvaluatePrototypeGateYAML([]byte(specYAML))
+		if !ok {
+			return ScaffoldResult{
+				Ok: false, Error: "prototype_gate_blocked", GateBlocked: true, GateFailure: det,
+			}
+		}
 	}
 	root = strings.TrimSpace(root)
 	if root == "" {
@@ -259,6 +270,8 @@ type ExtractResult struct {
 	SpecSnippet string `json:"specSnippet,omitempty"`
 	SourcePath  string `json:"sourcePath,omitempty"`
 	Error       string `json:"error,omitempty"`
+	GateBlocked bool               `json:"gateBlocked,omitempty"`
+	GateFailure *GateFailureDetail `json:"gateFailure,omitempty"`
 }
 
 func sanitizeBasename(s string) string {
@@ -299,9 +312,17 @@ func slugFromSourceBase(path string, ext string) string {
 }
 
 // Extract reads a workspace-relative source file and writes a sandbox-safe HTML under .vibex/prototypes.
-func Extract(root string, sourceRel string, outBasename string, confirm bool) ExtractResult {
+func Extract(root string, sourceRel string, outBasename string, confirm bool, specYAML string) ExtractResult {
 	if !confirm {
 		return ExtractResult{Ok: false, Error: "需确认：传入 confirm: true 写入 .vibex/prototypes"}
+	}
+	if strings.TrimSpace(specYAML) != "" {
+		ok, det := EvaluatePrototypeGateYAML([]byte(specYAML))
+		if !ok {
+			return ExtractResult{
+				Ok: false, Error: "prototype_gate_blocked", GateBlocked: true, GateFailure: det,
+			}
+		}
 	}
 	root = strings.TrimSpace(root)
 	sourceRel = strings.TrimSpace(sourceRel)

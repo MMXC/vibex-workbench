@@ -815,19 +815,19 @@ func (a *App) DesignKitStatus(root string) designkit.Status {
 }
 
 // DesignKitScaffold Wails：等价 POST /api/workspace/design-kit/scaffold
-func (a *App) DesignKitScaffold(root string, confirm bool) designkit.ScaffoldResult {
+func (a *App) DesignKitScaffold(root string, confirm bool, specYAML string) designkit.ScaffoldResult {
 	if root == "" {
 		root = a.workspaceRoot
 	}
-	return designkit.Scaffold(root, confirm)
+	return designkit.Scaffold(root, confirm, specYAML)
 }
 
 // DesignKitExtract Wails：等价 POST /api/workspace/design-kit/extract（sourcePath 为相对工作区路径）
-func (a *App) DesignKitExtract(root, sourcePath, outBasename string, confirm bool) designkit.ExtractResult {
+func (a *App) DesignKitExtract(root, sourcePath, outBasename string, confirm bool, specYAML string) designkit.ExtractResult {
 	if root == "" {
 		root = a.workspaceRoot
 	}
-	return designkit.Extract(root, sourcePath, outBasename, confirm)
+	return designkit.Extract(root, sourcePath, outBasename, confirm, specYAML)
 }
 
 // ── Agent Spawn ─────────────────────────────────────────────

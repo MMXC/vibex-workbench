@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import fs from 'fs';
 import path from 'path';
+import { evaluatePrototypeGate } from '$lib/workbench/ui-workflow-gate';
 
 const DESIGN_MD = `# VibeX 设计物料库（DESIGN）
 
@@ -54,6 +55,7 @@ export async function POST(event) {
 	const body = await event.request.json().catch(() => ({}));
 	const workspaceRoot = path.resolve(body.workspace_root || body.workspaceRoot || '');
 	const confirm = body.confirm === true;
+	const specYaml = String(body.spec_yaml ?? body.specYaml ?? '').trim();
 
 	if (!workspaceRoot) {
 		return json({ ok: false, error: 'workspace_root required' }, { status: 400 });
@@ -69,6 +71,24 @@ export async function POST(event) {
 			},
 			{ status: 400 }
 		);
+	}
+
+	if (specYaml) {
+		const gate = evaluatePrototypeGate(specYaml);
+		if (!gate.canCommitPrototype) {
+			return json(
+				{
+					ok: false,
+					error: 'prototype_gate_blocked',
+					gate_failure: {
+						codes: gate.failedCodes,
+						checks: gate.checks,
+						next_action: gate.nextAction,
+					},
+				},
+				{ status: 409 }
+			);
+		}
 	}
 
 	const written: string[] = [];

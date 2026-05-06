@@ -52,15 +52,25 @@ export async function fetchDesignKitStatus(workspaceRoot: string): Promise<Desig
 	return data as DesignKitStatus;
 }
 
-export async function scaffoldDesignKit(workspaceRoot: string): Promise<{
+export async function scaffoldDesignKit(
+	workspaceRoot: string,
+	specYaml?: string
+): Promise<{
 	ok: boolean;
 	written?: string[];
 	skipped?: string[];
 	error?: string;
+	gateFailure?: { codes?: string[]; next_action?: string };
 }> {
 	if (wailsDesignKitBindingsReady()) {
-		const raw = await wailsDesignKitScaffold(workspaceRoot, true);
-		return raw as { ok: boolean; written?: string[]; skipped?: string[]; error?: string };
+		const raw = await wailsDesignKitScaffold(workspaceRoot, true, specYaml ?? '');
+		return raw as {
+			ok: boolean;
+			written?: string[];
+			skipped?: string[];
+			error?: string;
+			gateFailure?: { codes?: string[]; next_action?: string };
+		};
 	}
 	if (isWailsDesktopHost()) {
 		return { ok: false, error: wailsBindingError };
@@ -68,10 +78,21 @@ export async function scaffoldDesignKit(workspaceRoot: string): Promise<{
 	const res = await fetch('/api/workspace/design-kit/scaffold', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ workspace_root: workspaceRoot, confirm: true }),
+		body: JSON.stringify({
+			workspace_root: workspaceRoot,
+			confirm: true,
+			...(specYaml?.trim() ? { spec_yaml: specYaml } : {}),
+		}),
 	});
 	const data = await res.json().catch(() => ({}));
-	if (!res.ok) return { ok: false, error: (data as { error?: string }).error ?? res.statusText };
+	if (!res.ok) {
+		const gf = (data as { gate_failure?: { codes?: string[]; next_action?: string } }).gate_failure;
+		return {
+			ok: false,
+			error: (data as { error?: string }).error ?? res.statusText,
+			...(gf ? { gateFailure: gf } : {}),
+		};
+	}
 	return data as { ok: boolean; written?: string[]; skipped?: string[]; error?: string };
 }
 
@@ -79,19 +100,23 @@ export async function extractPrototypeFromSource(input: {
 	workspaceRoot: string;
 	sourcePath: string;
 	outBasename?: string;
+	/** 当前 spec YAML，用于 Prototype Gate（可选；prototype 槽应传入） */
+	specYaml?: string;
 }): Promise<{
 	ok: boolean;
 	writtenPath?: string;
 	specSnippet?: string;
 	sourcePath?: string;
 	error?: string;
+	gateFailure?: { codes?: string[]; next_action?: string };
 }> {
 	if (wailsDesignKitBindingsReady()) {
 		const raw = await wailsDesignKitExtract(
 			input.workspaceRoot,
 			input.sourcePath.trim(),
 			input.outBasename?.trim() ?? '',
-			true
+			true,
+			input.specYaml?.trim() ?? ''
 		);
 		return raw as {
 			ok: boolean;
@@ -99,6 +124,7 @@ export async function extractPrototypeFromSource(input: {
 			specSnippet?: string;
 			sourcePath?: string;
 			error?: string;
+			gateFailure?: { codes?: string[]; next_action?: string };
 		};
 	}
 	if (isWailsDesktopHost()) {
@@ -112,11 +138,17 @@ export async function extractPrototypeFromSource(input: {
 			source_path: input.sourcePath.trim(),
 			out_basename: input.outBasename?.trim() || undefined,
 			confirm: true,
+			...(input.specYaml?.trim() ? { spec_yaml: input.specYaml } : {}),
 		}),
 	});
 	const data = await res.json().catch(() => ({}));
 	if (!res.ok) {
-		return { ok: false, error: (data as { error?: string }).error ?? res.statusText };
+		const gf = (data as { gate_failure?: { codes?: string[]; next_action?: string } }).gate_failure;
+		return {
+			ok: false,
+			error: (data as { error?: string }).error ?? res.statusText,
+			...(gf ? { gateFailure: gf } : {}),
+		};
 	}
 	return data as {
 		ok: boolean;

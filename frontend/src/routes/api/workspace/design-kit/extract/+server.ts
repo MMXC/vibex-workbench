@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import fs from 'fs';
 import path from 'path';
+import { evaluatePrototypeGate } from '$lib/workbench/ui-workflow-gate';
 
 const MAX_BYTES = 600_000;
 const OUT_DIR = path.join('.vibex', 'prototypes');
@@ -56,6 +57,11 @@ function buildExtractedDocument(opts: {
 </html>`;
 }
 
+function isInsideWorkspace(workspaceRoot: string, candidate: string): boolean {
+	const rel = path.relative(workspaceRoot, candidate);
+	return rel !== '..' && !rel.startsWith(`..${path.sep}`);
+}
+
 export async function POST(event) {
 	const body = await event.request.json().catch(() => ({}));
 	const workspaceRoot = path.resolve(body.workspace_root || body.workspaceRoot || '');
@@ -64,6 +70,7 @@ export async function POST(event) {
 		.replace(/[^a-zA-Z0-9\-_]/g, '')
 		.replace(/\.html$/i, '');
 	const confirm = body.confirm === true;
+	const specYaml = String(body.spec_yaml ?? body.specYaml ?? '').trim();
 
 	if (!workspaceRoot || !fs.existsSync(workspaceRoot)) {
 		return json({ ok: false, error: 'workspace_root invalid' }, { status: 400 });
@@ -73,6 +80,24 @@ export async function POST(event) {
 	}
 	if (!confirm) {
 		return json({ ok: false, error: '需确认：传入 confirm: true 写入 .vibex/prototypes' }, { status: 400 });
+	}
+
+	if (specYaml) {
+		const gate = evaluatePrototypeGate(specYaml);
+		if (!gate.canCommitPrototype) {
+			return json(
+				{
+					ok: false,
+					error: 'prototype_gate_blocked',
+					gate_failure: {
+						codes: gate.failedCodes,
+						checks: gate.checks,
+						next_action: gate.nextAction,
+					},
+				},
+				{ status: 409 }
+			);
+		}
 	}
 
 	const sourceAbs = path.resolve(workspaceRoot, sourceRelRaw);
