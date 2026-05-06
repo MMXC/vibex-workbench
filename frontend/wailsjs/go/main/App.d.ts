@@ -4,9 +4,9 @@ import {designkit} from '../models';
 import {main} from '../models';
 import {context} from '../models';
 
-export function DesignKitExtract(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<designkit.ExtractResult>;
+export function DesignKitExtract(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:string):Promise<designkit.ExtractResult>;
 
-export function DesignKitScaffold(arg1:string,arg2:boolean):Promise<designkit.ScaffoldResult>;
+export function DesignKitScaffold(arg1:string,arg2:boolean,arg3:string):Promise<designkit.ScaffoldResult>;
 
 export function DesignKitStatus(arg1:string):Promise<designkit.Status>;
 
