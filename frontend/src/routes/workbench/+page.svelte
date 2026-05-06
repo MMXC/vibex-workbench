@@ -11,6 +11,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 		connectWorkbenchMessageBridge,
 		disconnectWorkbenchMessageBridge,
 	} from '$lib/workbench/workbench-message-sse-bridge';
+	import { startWorkbenchInspectorStream } from '$lib/workbench/workbench-inspector-ws';
 	import { threadStore, currentThread } from '$lib/stores/thread-store';
 	import WorkbenchLayoutResizable from '$lib/components/workbench/WorkbenchLayoutResizable.svelte';
 	import ActivityBar from '$lib/components/workbench/ActivityBar.svelte';
@@ -346,6 +347,12 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 			disconnectWorkbenchMessageBridge();
 			prevThreadId = null;
 		};
+	});
+
+	/** Workbench → Agent Inspector：WebSocket 推送 UI 状态快照（mock 后端时关闭）。 */
+	$effect(() => {
+		const handle = startWorkbenchInspectorStream(SSE_URL, { disabled: useMockBackend });
+		return () => handle.close();
 	});
 
 	async function handleSubmit(content: string, mode: string) {

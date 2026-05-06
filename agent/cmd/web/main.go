@@ -19,6 +19,9 @@ func main() {
 	if cfg.APIKey == "" {
 		log.Fatal("OPENAI_API_KEY is required")
 	}
+	if cfg.WorkspaceDir != "" {
+		_ = os.Setenv("WORKSPACE_DIR", cfg.WorkspaceDir)
+	}
 
 	rawClient := common.NewClient(cfg)
 	llm = adapters.NewLLMClient(rawClient, cfg.BaseURL, cfg.Model)
@@ -73,13 +76,17 @@ func main() {
 	http.HandleFunc("/api/agent/tools/custom", withCORS(agentCustomToolHandler))
 	http.HandleFunc("/api/agent/plan-graph", withCORS(agentPlanGraphHandler))
 	http.HandleFunc("/api/agent/tool-route", withCORS(agentToolRouteHandler))
+	http.HandleFunc("/api/workbench/inspector/ws", inspectorWebSocketHandler)
+	http.HandleFunc("/api/workbench/inspector/snapshot", withCORS(inspectorSnapshotHandler))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	go func() { <-quit; log.Println("[VibeX Agent] shutdown"); os.Exit(0) }()
 
 	log.Println("[VibeX Agent] listening on :33338")
-	log.Println("  SSE:    GET  http://localhost:33338/api/sse/<threadId>")
-	log.Println("  Chat:   POST http://localhost:33338/api/chat")
+	log.Println("  SSE:       GET  http://localhost:33338/api/sse/<threadId>")
+	log.Println("  Chat:      POST http://localhost:33338/api/chat")
+	log.Println("  Inspector: WS   ws://localhost:33338/api/workbench/inspector/ws")
+	log.Println("  Inspector: GET  http://localhost:33338/api/workbench/inspector/snapshot")
 	log.Fatal(http.ListenAndServe(":33338", nil))
 }
