@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -286,6 +287,78 @@ func workspaceSpecReadHandler(w http.ResponseWriter, r *http.Request) {
 		"path":   specPath,
 		"content": string(content),
 	})
+}
+
+// workspaceFileHandler GET /api/workspace/file/<relative-path>
+// Serves raw workspace files for iframe-based previews so relative assets work.
+func workspaceFileHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	wsRoot := r.URL.Query().Get("workspaceRoot")
+	if wsRoot == "" {
+		wsRoot = cfg.WorkspaceDir
+	}
+	if wsRoot == "" {
+		wsRoot = os.Getenv("WORKSPACE_ROOT")
+	}
+	if wsRoot == "" {
+		http.Error(w, "workspaceRoot required", http.StatusBadRequest)
+		return
+	}
+	wsRoot = filepath.Clean(wsRoot)
+
+	rawRel := strings.TrimPrefix(r.URL.Path, "/api/workspace/file/")
+	if rawRel == "" || rawRel == r.URL.Path {
+		http.Error(w, "file path required", http.StatusBadRequest)
+		return
+	}
+	decodedRel, err := url.PathUnescape(rawRel)
+	if err != nil {
+		http.Error(w, "invalid file path", http.StatusBadRequest)
+		return
+	}
+
+	relPath := strings.TrimPrefix(decodedRel, "/")
+	cleanRel := filepath.Clean(relPath)
+	if cleanRel == "." || strings.HasPrefix(cleanRel, "..") {
+		http.Error(w, "forbidden: path traversal detected", http.StatusForbidden)
+		return
+	}
+
+	target := filepath.Join(wsRoot, cleanRel)
+	if !strings.HasPrefix(target, wsRoot) {
+		http.Error(w, "forbidden: path traversal detected", http.StatusForbidden)
+		return
+	}
+
+	if info, statErr := os.Stat(target); statErr == nil && !info.IsDir() {
+		http.ServeFile(w, r, target)
+		return
+	}
+
+	// Compatibility fallback for html-ppt generated links:
+	// .vibex/ppt/*.html references ../assets/* → .vibex/assets/*
+	// We map it to skills/html-ppt/assets/*.
+	slashRel := filepath.ToSlash(cleanRel)
+	if strings.HasPrefix(slashRel, ".vibex/assets/") {
+		sub := strings.TrimPrefix(slashRel, ".vibex/assets/")
+		candidates := []string{
+			filepath.Join(wsRoot, "skills", "html-ppt", "assets", filepath.FromSlash(sub)),
+			filepath.Join(wsRoot, "skills", "html-ppt", "html-ppt", "assets", filepath.FromSlash(sub)),
+			filepath.Join(wsRoot, ".agents", "skills", "html-ppt", "assets", filepath.FromSlash(sub)),
+		}
+		for _, candidate := range candidates {
+			if info, statErr := os.Stat(candidate); statErr == nil && !info.IsDir() {
+				http.ServeFile(w, r, candidate)
+				return
+			}
+		}
+	}
+
+	http.Error(w, "not found", http.StatusNotFound)
 }
 
 // ── spec write ────────────────────────────────────────────────────

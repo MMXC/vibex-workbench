@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"vibex/agent/adapters"
@@ -73,6 +75,155 @@ Tooling:
 - read_file / write_file / bash: use paths relative to the workspace root when possible; absolute paths under the workspace are normalized automatically.
 - bash on Windows uses Git Bash when available (set VIBEX_POSIX_SHELL to override).`
 
+var (
+	pptQueueOnce sync.Once
+	pptTaskQueue chan func()
+)
+
+func ensurePPTQueue() {
+	pptQueueOnce.Do(func() {
+		pptTaskQueue = make(chan func(), 64)
+		go func() {
+			for task := range pptTaskQueue {
+				task()
+			}
+		}()
+	})
+}
+
+func enqueuePPTTask(task func()) bool {
+	ensurePPTQueue()
+	select {
+	case pptTaskQueue <- task:
+		return true
+	default:
+		return false
+	}
+}
+
+type agentProfileConfig struct {
+	DeveloperMessage string
+	AllowedTools     map[string]struct{}
+	RequiredSkills   []string
+}
+
+type profileJSON struct {
+	DeveloperMessage string   `json:"developer_message"`
+	AllowedTools     []string `json:"allowed_tools"`
+	RequiredSkills   []string `json:"required_skills"`
+}
+
+func toAllowSet(names ...string) map[string]struct{} {
+	if len(names) == 0 {
+		return nil
+	}
+	out := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		n := strings.TrimSpace(name)
+		if n == "" {
+			continue
+		}
+		out[n] = struct{}{}
+	}
+	return out
+}
+
+func isSafeProfileName(profileName string) bool {
+	n := strings.TrimSpace(profileName)
+	if n == "" {
+		return false
+	}
+	if strings.ContainsAny(n, `/\.`) {
+		return false
+	}
+	return true
+}
+
+func loadAgentProfileFromFile(profileName string) (agentProfileConfig, bool) {
+	if !isSafeProfileName(profileName) {
+		return agentProfileConfig{}, false
+	}
+	path := filepath.Join(cfg.WorkspaceDir, ".agents", "profiles", profileName+".json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return agentProfileConfig{}, false
+	}
+	var raw profileJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		log.Printf("[agent-profile] invalid profile json %s: %v", path, err)
+		return agentProfileConfig{}, false
+	}
+	return agentProfileConfig{
+		DeveloperMessage: strings.TrimSpace(raw.DeveloperMessage),
+		AllowedTools:     toAllowSet(raw.AllowedTools...),
+		RequiredSkills:   raw.RequiredSkills,
+	}, true
+}
+
+func ensureProfileSkillsLoaded(state *threadState, profile agentProfileConfig) error {
+	if len(profile.RequiredSkills) == 0 {
+		return nil
+	}
+	for _, skillName := range profile.RequiredSkills {
+		name := strings.TrimSpace(skillName)
+		if name == "" {
+			continue
+		}
+		if _, _, err := state.skillState.Load(name, skillRegistry); err != nil {
+			return fmt.Errorf("required skill load failed (%s): %w", name, err)
+		}
+	}
+	return nil
+}
+
+func resolveAgentProfile(profileName string) agentProfileConfig {
+	if fromFile, ok := loadAgentProfileFromFile(strings.TrimSpace(strings.ToLower(profileName))); ok {
+		return fromFile
+	}
+
+	switch strings.TrimSpace(strings.ToLower(profileName)) {
+	case "", "default", "spec-governance":
+		return agentProfileConfig{
+			DeveloperMessage: developerMessage,
+			AllowedTools:     nil, // full registry
+		}
+	case "ppt-generator":
+		return agentProfileConfig{
+			DeveloperMessage: `You are a focused HTML PPT generation agent.
+- Only work on the requested spec and target html file.
+- Prefer loading html-ppt skill if available, then generate/overwrite only the target file.
+- Keep output deterministic and concise. Do not call unrelated governance/TDD tools.
+- If skill is unavailable, still produce a single self-contained HTML deck with keyboard navigation.`,
+			AllowedTools: toAllowSet(
+				"read_file",
+				"write_file",
+				"skill_list",
+				"skill_load",
+				"skill_unload",
+			),
+		}
+	default:
+		// Unknown profile falls back to default to keep API backward-compatible.
+		return agentProfileConfig{
+			DeveloperMessage: developerMessage,
+			AllowedTools:     nil,
+		}
+	}
+}
+
+func filterSpecsByAllowlist(specs []rtools.Spec, allow map[string]struct{}) []rtools.Spec {
+	if len(allow) == 0 {
+		return specs
+	}
+	filtered := make([]rtools.Spec, 0, len(specs))
+	for _, spec := range specs {
+		if _, ok := allow[spec.Name]; ok {
+			filtered = append(filtered, spec)
+		}
+	}
+	return filtered
+}
+
 // sseToolLoopHooks maps runtime tool loop events to SSE (same thread as chat UI).
 func sseToolLoopHooks(threadID string) *runtime.ToolLoopHooks {
 	return &runtime.ToolLoopHooks{
@@ -105,7 +256,7 @@ func sseToolLoopHooks(threadID string) *runtime.ToolLoopHooks {
 // ── Build tools & handlers ──────────────────────────────────────
 
 func buildToolsAndHandlers(threadID string, cfg common.Config,
-	skillRegistry *skills.Registry) ([]responses.ToolUnionParam, map[string]rtools.Handler, *background.Manager, *subagent.Manager) {
+	skillRegistry *skills.Registry, allowedTools map[string]struct{}) ([]responses.ToolUnionParam, map[string]rtools.Handler, *background.Manager, *subagent.Manager) {
 
 	state := getThreadState(threadID)
 	bgMgr := background.NewManager()
@@ -140,12 +291,19 @@ func buildToolsAndHandlers(threadID string, cfg common.Config,
 	vibexSpecs := vibexReg.ToolSpecs()
 	specs = append(specs, vibexSpecs...)
 
+	specs = filterSpecsByAllowlist(specs, allowedTools)
 	tools := rtools.BuildTools(specs)
 	handlers := rtools.BuildHandlers(specs)
 
 	// Merge vibex handlers (they use factory with broadcaster)
 	for name, h := range vibexReg.ToolHandlers() {
-		handlers[name] = h
+		if len(allowedTools) == 0 {
+			handlers[name] = h
+			continue
+		}
+		if _, ok := allowedTools[name]; ok {
+			handlers[name] = h
+		}
 	}
 
 	return tools, handlers, bgMgr, subMgr
@@ -153,13 +311,20 @@ func buildToolsAndHandlers(threadID string, cfg common.Config,
 
 // ── Agent turn ─────────────────────────────────────────────────
 
-func runAgentTurn(threadID string, userInput string) (string, error) {
+func runAgentTurn(threadID string, userInput string, profile agentProfileConfig) (string, error) {
 	state := getThreadState(threadID)
+	if err := ensureProfileSkillsLoaded(state, profile); err != nil {
+		return "", err
+	}
 
 	state.mu.Lock()
 	if len(state.messages) == 0 {
+		devMsg := profile.DeveloperMessage
+		if strings.TrimSpace(devMsg) == "" {
+			devMsg = developerMessage
+		}
 		state.messages = []responses.ResponseInputItemUnionParam{
-			responses.ResponseInputItemParamOfMessage(developerMessage, responses.EasyInputMessageRoleDeveloper),
+			responses.ResponseInputItemParamOfMessage(devMsg, responses.EasyInputMessageRoleDeveloper),
 		}
 	}
 	state.messages = append(state.messages, responses.ResponseInputItemParamOfMessage(userInput, responses.EasyInputMessageRoleUser))
@@ -193,7 +358,7 @@ func runAgentTurn(threadID string, userInput string) (string, error) {
 	})
 	broadcastSSE(threadID, "agent.thinking", map[string]string{"status": "processing", "model": model})
 
-	tools, handlers, bgMgr, subMgr := buildToolsAndHandlers(threadID, cfg, skillRegistry)
+	tools, handlers, bgMgr, subMgr := buildToolsAndHandlers(threadID, cfg, skillRegistry, profile.AllowedTools)
 	answer, turnItems, err := runtime.RunToolLoop(context.Background(), llm, model, tools, handlers, state.todo, messages, bgMgr, subMgr, state.skillState, skillRegistry, sseToolLoopHooks(threadID))
 	if err != nil {
 		broadcastSSE(threadID, "run.failed", map[string]interface{}{
@@ -244,6 +409,8 @@ type chatRequest struct {
 	Input          string `json:"input"`
 	WorkspaceRoot  string `json:"workspaceRoot"`
 	WorkspaceRoot2 string `json:"workspace_root"`
+	AgentProfile   string `json:"agent_profile"`
+	AgentProfile2  string `json:"agentProfile"`
 }
 
 func chatHandler(w http.ResponseWriter, r *http.Request) {
@@ -267,15 +434,30 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 		"role": "user", "delta": req.Input,
 	})
 
-	go func() {
-		answer, err := runAgentTurn(req.ThreadID, req.Input)
+	profileName := strings.TrimSpace(strings.ToLower(firstNonEmpty(req.AgentProfile, req.AgentProfile2)))
+	runTask := func() {
+		profile := resolveAgentProfile(profileName)
+		answer, err := runAgentTurn(req.ThreadID, req.Input, profile)
 		if err != nil {
 			broadcastSSE(req.ThreadID, "error", map[string]interface{}{"error": err.Error()})
 			return
 		}
 		// is_final / run.completed 由 runtime.RunToolLoop + sseToolLoopHooks 发送。
 		_ = answer // 已由 runToolLoop 的 SSE 事件消耗
-	}()
+	}
+
+	if profileName == "ppt-generator" {
+		broadcastSSE(req.ThreadID, "ppt.queue", map[string]interface{}{
+			"threadId": req.ThreadID,
+			"status":   "queued",
+		})
+		if !enqueuePPTTask(runTask) {
+			http.Error(w, "ppt generation queue is full", http.StatusTooManyRequests)
+			return
+		}
+	} else {
+		go runTask()
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "queued", "threadId": req.ThreadID})
@@ -308,6 +490,13 @@ func effectiveWorkspaceRoot(workspaceRoot string) (string, error) {
 	}
 	if cfg.WorkspaceDir != abs {
 		cfg.WorkspaceDir = abs
+		cfg.SkillsDir = filepath.Join(abs, "skills")
+		if reg, err := skills.LoadRegistryFromDir(cfg.SkillsDir); err != nil {
+			log.Printf("warning: skills dir %s not found: %v", cfg.SkillsDir, err)
+			skillRegistry = skills.NewRegistry()
+		} else {
+			skillRegistry = reg
+		}
 		_memLaceMgr = nil
 		_memLaceMgrOnce = false
 	}

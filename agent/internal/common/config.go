@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -30,15 +31,17 @@ func LoadConfig() Config {
 	loadDotEnv()
 
 	model := getenv("OPENAI_MODEL", "gpt-4o")
-	workspaceDir := getenv("WORKSPACE_DIR", "")
+	workspaceDir := normalizeFSPath(getenv("WORKSPACE_DIR", ""))
 	if workspaceDir == "" {
 		workspaceDir = inferWorkspaceDir()
 	}
+	workspaceDir = normalizeFSPath(workspaceDir)
 	skillsDir := getenv("SKILLS_DIR", "")
 	if skillsDir == "" {
 		// 与仓库 `skills/` 目录对齐；可用 SKILLS_DIR 覆盖（例如 ~/.hermes/skills）
 		skillsDir = filepath.Join(workspaceDir, "skills")
 	}
+	skillsDir = normalizeFSPath(skillsDir)
 
 	return Config{
 		BaseURL:       normalizeBaseURL(getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")),
@@ -137,10 +140,27 @@ func inferWorkspaceDir() string {
 	if err != nil {
 		return "/root/vibex-workbench"
 	}
+	cwd = normalizeFSPath(cwd)
 	if strings.EqualFold(filepath.Base(cwd), "agent") {
-		return filepath.Clean(filepath.Join(cwd, ".."))
+		return normalizeFSPath(filepath.Clean(filepath.Join(cwd, "..")))
 	}
-	return cwd
+	return normalizeFSPath(cwd)
+}
+
+// normalizeFSPath converts msys-style paths like /c/project/... to C:/project/...
+// so Go stdlib APIs can resolve files correctly on Windows.
+func normalizeFSPath(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return p
+	}
+	if runtime.GOOS == "windows" && len(p) >= 3 && p[0] == '/' && p[2] == '/' {
+		drive := p[1]
+		if (drive >= 'a' && drive <= 'z') || (drive >= 'A' && drive <= 'Z') {
+			p = string(drive) + ":" + p[2:]
+		}
+	}
+	return filepath.Clean(p)
 }
 
 func normalizeBaseURL(v string) string {
