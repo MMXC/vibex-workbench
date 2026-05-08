@@ -43,6 +43,12 @@
 	let saveSuccess = $state(false);
 	let saving = $state(false);
 
+	/** 子 spec 落盘后强制从磁盘重读当前 YAML（与 GenericSpecGraph 内联编辑一致） */
+	let specReloadNonce = $state(0);
+	function bumpSpecContentReload() {
+		specReloadNonce += 1;
+	}
+
 	$effect(() => {
 		return specExplorerStore.subscribe(s => {
 			selectedPath = s.selectedSpecPath;
@@ -81,6 +87,7 @@
 
 	$effect(() => {
 		const p = selectedPath;
+		void specReloadNonce;
 		if (!p) {
 			raw = '';
 			fetchErr = null;
@@ -367,7 +374,11 @@
 						<GoalSpecCanvas />
 					</div>
 				{:else}
-					<GenericSpecGraph specPath={selectedPath} content={raw} />
+					<GenericSpecGraph
+						specPath={selectedPath}
+						content={raw}
+						onSpawnComplete={bumpSpecContentReload}
+					/>
 				{/if}
 			{/if}
 		</div>
