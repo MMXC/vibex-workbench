@@ -1,13 +1,33 @@
 <!-- 非 L1 总目标时的轻量「图谱」：中心为 spec，周围为 canonical 槽位卡片 -->
 <script lang="ts">
 	import { get } from 'svelte/store';
-	import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+	import { parse as parseYaml } from 'yaml';
 	import { specAgentContextStore } from '$lib/stores/spec-agent-context-store';
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
 	import { wailsReadSpecFile, wailsWriteSpecFile } from '$lib/wails-filesystem';
-	import { extractSpecDisplay } from '$lib/workbench/spec-display';
+	import {
+		extractSpecDisplay,
+		getSpecPptFileFromYaml,
+		upsertSpecBlockPptFile,
+	} from '$lib/workbench/spec-display';
+	import {
+		appendChildrenPaths,
+		collectL3CandidatesFromL2,
+		collectL5CandidatesFromL4,
+		extractMetaModule,
+		extractMetaOwner,
+		extractSpecName,
+		inferSpawnLayer,
+		renderL3ModuleFromTemplate,
+		renderL5SliceFromTemplate,
+		type ChildSpawnCandidate,
+	} from '$lib/workbench/spawn-child-specs';
 
-	let { specPath, content }: { specPath: string; content: string } = $props();
+	let {
+		specPath,
+		content,
+		onSpawnComplete,
+	}: { specPath: string; content: string; onSpawnComplete?: () => void } = $props();
 
 	const specMeta = $derived.by(() => extractSpecDisplay(content, specPath));
 
@@ -49,8 +69,30 @@
 	let pptError = $state<string | null>(null);
 	let pptTaskState = $state<'idle' | 'queued' | 'running'>('idle');
 	let pptContainerEl = $state<HTMLElement | null>(null);
-	let pptFrameEl = $state<HTMLIFrameElement | null>(null);
 	let pptFullscreen = $state(false);
+	let copyQuestionTip = $state('');
+	let currentPptHtml = $state('');
+	let questionMenuOpen = $state(false);
+
+	let spawnSelectedIds = $state<Record<string, boolean>>({});
+	let spawnBusy = $state(false);
+	let spawnErr = $state<string | null>(null);
+	let spawnOk = $state<string | null>(null);
+
+	/** 右侧「规格血缘」栏：默认收起，避免挤压中央 PPT */
+	let lineageRailExpanded = $state(false);
+
+	const yamlForSpawn = $derived.by(() => currentSpecContent || content);
+
+	const spawnLayer = $derived.by(() => inferSpawnLayer(yamlForSpawn));
+
+	const spawnCandidates = $derived.by((): ChildSpawnCandidate[] => {
+		const layer = spawnLayer;
+		const name = extractSpecName(yamlForSpawn);
+		if (!layer || !name) return [];
+		if (layer === 'L2') return collectL3CandidatesFromL2(yamlForSpawn, name);
+		return collectL5CandidatesFromL4(yamlForSpawn, name);
+	});
 
 	const hasPptFile = $derived.by(() => getPptFileOnly(currentSpecContent).length > 0);
 	const genButtonLabel = $derived.by(() => {
@@ -65,15 +107,7 @@
 	}
 
 	function getPptFileOnly(yamlText: string): string {
-		try {
-			const doc = parseYaml(yamlText) as Record<string, unknown> | null;
-			const proto = (doc?.prototype ?? {}) as Record<string, unknown>;
-			const explicit = String(proto.ppt_file ?? '').trim();
-			if (explicit.toLowerCase().endsWith('.html')) return explicit;
-			return '';
-		} catch {
-			return '';
-		}
+		return getSpecPptFileFromYaml(yamlText);
 	}
 
 	function getSpecLevelTag(yamlText: string): 'L1' | 'L2' | 'L3' | 'L4' | 'L5' | 'UNK' {
@@ -196,13 +230,6 @@
 		return fallback;
 	}
 
-	function upsertPrototypePptFile(yamlText: string, nextPath: string): string {
-		const doc = (parseYaml(yamlText) ?? {}) as Record<string, unknown>;
-		const proto = ((doc.prototype ?? {}) as Record<string, unknown>) || {};
-		proto.ppt_file = nextPath;
-		doc.prototype = proto;
-		return stringifyYaml(doc);
-	}
 
 	function delay(ms: number): Promise<void> {
 		return new Promise(resolve => setTimeout(resolve, ms));
@@ -214,6 +241,215 @@
 			.map(seg => encodeURIComponent(seg))
 			.join('/');
 		return `${SSE_URL}/api/workspace/file/${safe}?workspaceRoot=${encodeURIComponent(workspaceRoot)}`;
+	}
+
+	function ensureTag(source: string, needle: string, insertBefore: string): string {
+		if (source.includes(needle)) return source;
+		const idx = source.indexOf(insertBefore);
+		if (idx >= 0) {
+			return source.slice(0, idx) + `${needle}\n` + source.slice(idx);
+		}
+		return `${source}\n${needle}\n`;
+	}
+
+	function postValidateAndRepairPptHtml(html: string): { content: string; changed: boolean; notes: string[] } {
+		let out = html;
+		let changed = false;
+		const notes: string[] = [];
+		const ensure = (next: string, note: string) => {
+			if (next !== out) {
+				out = next;
+				changed = true;
+				notes.push(note);
+			}
+		};
+
+		ensure(
+			ensureTag(out, '<link rel="stylesheet" href="../assets/base.css">', '</head>'),
+			'补齐 base.css'
+		);
+		ensure(
+			ensureTag(out, '<link rel="stylesheet" href="../assets/fonts.css">', '</head>'),
+			'补齐 fonts.css'
+		);
+		ensure(
+			ensureTag(out, '<script src="../assets/runtime.js"><\\/script>', '</body>'),
+			'补齐 runtime.js'
+		);
+		ensure(
+			ensureTag(out, '<script src="../assets/vibex-ppt-nav.js"><\\/script>', '</body>'),
+			'补齐 vibex-ppt-nav.js'
+		);
+
+		if (!out.includes('<main class="deck">') && out.includes('<section class="slide')) {
+			out = out.replace(/<body([^>]*)>/i, '<body$1>\n<main class="deck">');
+			if (out.includes('<script src="../assets/runtime.js"><\\/script>')) {
+				out = out.replace(
+					'<script src="../assets/runtime.js"><\\/script>',
+					'</main>\n<script src="../assets/runtime.js"><\\/script>'
+				);
+			} else {
+				out = out.replace('</body>', '</main>\n</body>');
+			}
+			changed = true;
+			notes.push('补齐 .deck 容器');
+		}
+
+		return { content: out, changed, notes };
+	}
+
+	function buildDivergentQuestionPack(): string {
+		return [
+			`[Spec] ${specMeta.display.title}`,
+			`[Path] ${specPath}`,
+			'',
+			'请围绕该 spec 做发散式完善，并明确 why / why-not：',
+			'1) 这个方案最关键的业务价值是什么？有没有更低成本达到同样价值的路径？',
+			'2) 当前 as-is 与 to-be 的最大差距是什么？哪个差距最值得优先投入？为什么？',
+			'3) 推荐方案与备选方案的取舍边界是什么？在什么条件下应该切换方案？',
+			'4) 对 CTO/开发/测试/用户四类角色，最容易被忽略的风险分别是什么？',
+			'5) 如果要把当前 spec 拆成更小的 L5 slices，最合理的切分维度是什么？',
+			'6) 验证路径是否足够？缺少哪些可量化验收指标（性能/稳定性/可恢复性）？',
+			'7) 若当前实现失败，回滚策略是否可执行？回滚后如何保证数据/状态一致？',
+			'8) 还有哪些“现在不做”的内容需要被明确记录，避免范围蔓延？',
+		].join('\n');
+	}
+
+	function stripTags(input: string): string {
+		return input
+			.replace(/<style[\s\S]*?<\/style>/gi, '')
+			.replace(/<script[\s\S]*?<\/script>/gi, '')
+			.replace(/<[^>]+>/g, ' ')
+			.replace(/\s+/g, ' ')
+			.trim();
+	}
+
+	function collectMatches(re: RegExp, text: string, max = 6): string[] {
+		const out: string[] = [];
+		let m: RegExpExecArray | null = null;
+		const rx = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
+		while ((m = rx.exec(text)) !== null) {
+			const v = stripTags(m[1] ?? '');
+			if (!v) continue;
+			if (!out.includes(v)) out.push(v);
+			if (out.length >= max) break;
+		}
+		return out;
+	}
+
+	function buildDynamicQuestionPackFromPptHtml(html: string): string {
+		const clean = html || '';
+		const titles = collectMatches(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi, clean, 8);
+		const strongs = collectMatches(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, clean, 8);
+		const codes = collectMatches(/<code[^>]*>([\s\S]*?)<\/code>/gi, clean, 8);
+		const riskHints = (clean.match(/risk|风险|回滚|rollback|fallback/gi) || []).length;
+		const asisTobeHints = (clean.match(/as-is|to-be|现状|目标|差距/gi) || []).length;
+		const audienceHints = (clean.match(/CTO|开发|测试|用户/gi) || []).length;
+		const slotsHints = (clean.match(/slot|插槽|implementation|实现/gi) || []).length;
+
+		const focusA = titles[0] || specMeta.display.title;
+		const focusB = titles[1] || strongs[0] || '核心方案';
+		const keyPath = codes[0] || specPath;
+		const doc = (parseYaml(currentSpecContent || '') ?? {}) as Record<string, unknown>;
+		const spec = (doc.spec ?? {}) as Record<string, unknown>;
+		const io = (spec.io ?? {}) as Record<string, unknown>;
+		const ioContract = (spec.io_contract ?? {}) as Record<string, unknown>;
+		const constraints = Array.isArray(spec.constraints) ? spec.constraints : [];
+		const prototype = (doc.prototype ?? {}) as Record<string, unknown>;
+		const slots = ((doc as Record<string, unknown>).slots ??
+			(spec.slots ?? (spec.implementation_slots ?? []))) as unknown;
+		const slotCount = Array.isArray(slots) ? slots.length : 0;
+		const inputHint = String(io.input ?? ioContract.input ?? '').trim() || '（未显式填写）';
+		const outputHint = String(io.output ?? ioContract.output ?? '').trim() || '（未显式填写）';
+		const boundaryHint = String(io.boundary ?? ioContract.boundary ?? '').trim() || '（未显式填写）';
+		const behaviorHint = String(io.behavior ?? ioContract.behavior ?? '').trim() || '（未显式填写）';
+		const pptDemo = getSpecPptFileFromYaml(currentSpecContent || '');
+		const protoFile = String(prototype.file ?? prototype.path ?? '').trim();
+		const protoHint =
+			[protoFile ? `prototype.file: ${protoFile}` : '', pptDemo ? `spec.ppt_file（演示）: ${pptDemo}` : '']
+				.filter(Boolean)
+				.join('；') || '（未显式填写）';
+
+		return [
+			`[Spec] ${specMeta.display.title}`,
+			`[Path] ${specPath}`,
+			`[PPT] ${pptPath || '(unknown)'}`,
+			'',
+			'以下问题由“当前PPT + 详情抽屉结构字段”联合生成，请在详情抽屉继续和 agent 深挖：',
+			'',
+			'【输入（Input）】',
+			`1) 当前输入定义为：${inputHint}。它是否足以覆盖主流程与异常流程？还缺哪些触发条件或前置状态？`,
+			`2) PPT「${focusA}」中的案例与输入定义是否一一对应？哪些输入在 PPT 里被忽略了？`,
+			'',
+			'【输出（Output）】',
+			`3) 当前输出定义为：${outputHint}。输出是否可验证、可观测、可回归？对应验收口径是什么？`,
+			`4) 若输出失败，是否有降级输出/错误输出规范？PPT 中是否给出了 why-not 方案与代价？`,
+			'',
+			'【约束（Constraints）】',
+			`5) 当前约束数量：${constraints.length}；边界：${boundaryHint}；行为：${behaviorHint}。这些约束是否可执行而非口号？`,
+			`6) 结合 PPT 中 as-is/to-be/gap（命中 ${asisTobeHints} 次），哪些约束会阻塞实现？优先级应如何调整？`,
+			`7) 关键风险线索命中 ${riskHints} 次：是否已转化为“可验证约束 + 回滚条件”？`,
+			'',
+			'【原型（Prototype）】',
+			`8) 当前原型字段为：${protoHint}。原型与 spec 的输入/输出/约束是否一致？哪些页面只展示了“是什么”但缺“为什么不那样做”？`,
+			`9) 对比线索（如 ${keyPath}）是否应写入 prototype 注释或 spec 追溯字段，便于团队复盘？`,
+			'',
+			'【实现插槽（Implementation Slots）】',
+			`10) 当前实现插槽数量：${slotCount}（PPT 实现相关命中 ${slotsHints} 次）。插槽边界是否清晰到可直接分配给 agent/开发？`,
+			`11) 每个插槽是否具备“输入→处理→输出→验证→回滚”闭环？如果没有，优先补哪一段？`,
+			`12) 请基于「输入/输出/约束/原型/插槽」五维，给出一版可落地的 spec 调整清单（字段级变更 + 验收标准）。`,
+			'',
+			`补充视角：四类角色覆盖命中 ${audienceHints} 次，建议分别给出 CTO/开发/测试/用户的最小验收问答。`,
+			`对比焦点：围绕「${focusB}」补齐推荐方案 vs 备选方案的 why / why-not 与切换条件。`,
+		].join('\n');
+	}
+
+	type QuestionSectionKey = 'input' | 'output' | 'constraints' | 'prototype' | 'slots';
+
+	function extractQuestionSections(fullText: string): Record<QuestionSectionKey, string> {
+		const lines = fullText.split('\n');
+		const sections: Record<QuestionSectionKey, string[]> = {
+			input: [],
+			output: [],
+			constraints: [],
+			prototype: [],
+			slots: [],
+		};
+
+		let active: QuestionSectionKey | null = null;
+		for (const raw of lines) {
+			const line = raw.trim();
+			if (line === '【输入（Input）】') active = 'input';
+			else if (line === '【输出（Output）】') active = 'output';
+			else if (line === '【约束（Constraints）】') active = 'constraints';
+			else if (line === '【原型（Prototype）】') active = 'prototype';
+			else if (line === '【实现插槽（Implementation Slots）】') active = 'slots';
+			else if (line.startsWith('补充视角：') || line.startsWith('对比焦点：')) active = null;
+
+			if (active && line) sections[active].push(raw);
+		}
+
+		const title = `# ${specMeta.display.title}\n# ${specPath}\n`;
+		return {
+			input: `${title}\n${sections.input.join('\n')}`.trim(),
+			output: `${title}\n${sections.output.join('\n')}`.trim(),
+			constraints: `${title}\n${sections.constraints.join('\n')}`.trim(),
+			prototype: `${title}\n${sections.prototype.join('\n')}`.trim(),
+			slots: `${title}\n${sections.slots.join('\n')}`.trim(),
+		};
+	}
+
+	async function copyDivergentQuestions() {
+		const text = buildDivergentQuestionPack();
+		try {
+			await navigator.clipboard.writeText(text);
+			copyQuestionTip = '已复制发散问题';
+		} catch {
+			copyQuestionTip = '复制失败，请检查剪贴板权限';
+		}
+		window.setTimeout(() => {
+			copyQuestionTip = '';
+		}, 1800);
 	}
 
 	async function togglePptFullscreen() {
@@ -228,27 +464,47 @@
 		}
 	}
 
-	function gotoPptSlide(direction: 'prev' | 'next') {
-		const frameWin = pptFrameEl?.contentWindow;
-		if (!frameWin) return;
+	async function copyDynamicQuestionsFromCurrentPpt() {
+		const text = buildDynamicQuestionPackFromPptHtml(currentPptHtml);
 		try {
-			const key = direction === 'next' ? 'ArrowRight' : 'ArrowLeft';
-			frameWin.focus();
-			frameWin.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
-			frameWin.document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+			await navigator.clipboard.writeText(text);
+			copyQuestionTip = '已复制动态问题清单';
+		} catch {
+			copyQuestionTip = '复制失败，请检查剪贴板权限';
+		}
+		window.setTimeout(() => {
+			copyQuestionTip = '';
+		}, 1800);
+	}
+
+	async function copyQuestionSection(key: QuestionSectionKey) {
+		const all = buildDynamicQuestionPackFromPptHtml(currentPptHtml);
+		const sections = extractQuestionSections(all);
+		const text = sections[key];
+		if (!text.trim()) {
+			copyQuestionTip = '当前PPT未提取到该维度问题';
+			window.setTimeout(() => {
+				copyQuestionTip = '';
+			}, 1800);
 			return;
-		} catch {
-			// fallback to hash navigation when keyboard injection is blocked
 		}
 		try {
-			const loc = frameWin.location;
-			const match = /^#\/(\d+)$/.exec(loc.hash || '');
-			const current = match ? Math.max(1, Number(match[1])) : 1;
-			const next = direction === 'next' ? current + 1 : Math.max(1, current - 1);
-			loc.hash = `#/${next}`;
+			await navigator.clipboard.writeText(text);
+			const labels: Record<QuestionSectionKey, string> = {
+				input: '输入',
+				output: '输出',
+				constraints: '约束',
+				prototype: '原型',
+				slots: '实现插槽',
+			};
+			copyQuestionTip = `已复制${labels[key]}问题`;
+			questionMenuOpen = false;
 		} catch {
-			// ignore
+			copyQuestionTip = '复制失败，请检查剪贴板权限';
 		}
+		window.setTimeout(() => {
+			copyQuestionTip = '';
+		}, 1800);
 	}
 
 	function waitForAgentCompletion(
@@ -302,7 +558,7 @@
 				void generatePpt();
 				return;
 			}
-			pptError = '当前 spec 未配置 prototype.ppt_file，已尝试自动生成，请点击「生成/重生成」重试。';
+			pptError = '当前 spec 未配置 spec.ppt_file，已尝试自动生成，请点击「生成/重生成」重试。';
 			return;
 		}
 		pptLoading = true;
@@ -310,6 +566,7 @@
 		try {
 			const html = await wailsReadSpecFile(wsRoot, configured);
 			const content = String(html ?? '');
+			currentPptHtml = content;
 			pptSrc = toWorkspaceFileURL(configured, wsRoot);
 			if (!content) {
 				pptError = 'ppt_file 指向文件为空。';
@@ -335,34 +592,36 @@
 			const threadId = `ppt-${basenameNoExt(specPath)}-${Date.now()}`;
 			const levelTag = getSpecLevelTag(currentSpecContent);
 			const layerConfig = await loadLayerSlideTemplate(wsRoot, levelTag);
+			const templateFile = '.agents/ppt-layer-templates.yaml';
 			const prompt = [
 				'你是 vibex-workbench 的原型生成代理。',
-				'必须使用 html-ppt skill 生成一个可运行 HTML 演示文件（spec 说明型 PPT）。',
+				'必须使用 html-ppt skill 生成可运行的 spec 说明型 PPT（HTML）。',
 				`spec_path: ${specPath}`,
 				`spec_level: ${levelTag}`,
 				`visual_theme_primary: ${layerConfig.primaryTheme}`,
 				`visual_theme_candidates: ${layerConfig.themeCandidates.join(', ')}`,
+				`work_root_dir: ${wsRoot}`,
 				`目标输出文件: ${target}`,
-				'要求：只写入该目标文件；不要写其它路径。',
-				'允许使用 html-ppt 外链资源（如 ../assets/themes/*.css 和 ../assets/runtime.js），优先保持标准 html-ppt deck 结构。',
-				'视觉要求：优先使用 visual_theme_primary；如不适配可在 visual_theme_candidates 中选择，但必须保持统一风格。',
-				'必须是“分页演示稿”而不是长文档：每个 section.slide 占满一屏，默认仅显示 1 页。',
-				'必须提供交互：←/→ 或 PgUp/PgDn 切页、底部页码、目录页跳转。',
-				'页面结构建议：封面、问题背景、IO契约、在总spec中的位置、上下游关系、验证与风险、总结（6~8页）。',
-				'以下是按当前 spec 层级的定制模板（必须遵循）：',
-				...layerConfig.lines.map((line, idx) => `${idx + 1}. ${line}`),
-				'内容表达要求：每页仅 1 个主标题 + 3~5 条要点，避免大段文本堆砌。',
-				'内容目标：用于让用户快速理解该 spec 的功能与作用，不是页面原型实现图。',
-				'必须包含：',
-				'1) 该 spec 的核心功能与问题背景',
-				'2) input/output/boundary 的摘要',
-				'3) 它在总 spec（父/子/依赖）中的位置与作用',
-				'4) 与相邻 spec 的关系（上游输入、下游影响）',
-				'5) 验证方式与关键风险',
-				'6) 现有实现(as-is)与目标实现(to-be)差距，并给出可调整的 spec 描述建议（优先高风险/高收益项）',
-				'输出完成后返回 done。',
-				'下面是当前 spec YAML：',
-				currentSpecContent,
+				'硬约束：仅写目标文件；保持 html-ppt 分页 deck（6~10 页）；统一主题；不是长文档。',
+				'资源硬约束：head 中必须包含 ../assets/base.css 与 ../assets/fonts.css，再加载主题与 animations.css。',
+				'HTML 结构硬约束：所有 <section class="slide"> 必须包裹在 <main class="deck">...</main> 中，否则视为不合格。',
+				'必须在末尾包含：<script src="../assets/runtime.js"><\\/script> 与 <script src="../assets/vibex-ppt-nav.js"><\\/script>。',
+				'讲解硬约束：技术类说明优先使用结构图/流程图、对比表格（方案A/B/不选理由）、思维导图式分层讲解，不要长段落。',
+				'决策硬约束：每个关键点必须回答 why（为何做）与 why-not（为何不做其他方案），并标注前提条件与切换条件。',
+				'发散引导硬约束：结尾必须给出“可复制的问题清单”（8~12条），用于用户在详情抽屉继续和 agent 对话完善 spec。',
+				'内容必须覆盖：as-is 现状、to-be 目标、偏差、优化方向、验证与风险、决策与执行。',
+				'受众必须覆盖：CTO/开发/测试/用户。',
+				`层级模板规则请读取并遵循：${templateFile}`,
+				'当前层级模板摘要：',
+				...layerConfig.lines.slice(0, 12).map((line, idx) => `${idx + 1}. ${line}`),
+				'若存在 spec.ppt_file（演示 HTML）或 prototype.file 且文件存在，必须加“原型现状”页。',
+				'尽量引用真实路径/接口名，便于追溯。',
+				'不要依赖本提示内嵌的大段 YAML；请优先用 read_file 读取 spec_path 获取完整内容。',
+				'如果文件较大，分段读取并聚焦关键信息（spec/meta/io/io_contract/content/constraints/changelog/prototype；演示稿路径见 spec.ppt_file）。',
+				'完成后返回 done。',
+				'上下文提示（非权威，仅供快速定位）：',
+				`spec_title_hint: ${specMeta.display.title}`,
+				`spec_summary_hint: ${specMeta.display.summary}`,
 			].join('\n');
 			await fetch(`${SSE_URL}/api/agent/execute`, {
 				method: 'POST',
@@ -371,6 +630,7 @@
 					threadId,
 					input: prompt,
 					workspaceRoot: wsRoot,
+					workRootDir: wsRoot,
 					agent_profile: 'ppt-generator',
 				}),
 			});
@@ -390,8 +650,14 @@
 			if (!html.trim()) {
 				throw new Error(`生成后未检测到文件: ${target}`);
 			}
+			const repaired = postValidateAndRepairPptHtml(html);
+			if (repaired.changed) {
+				await wailsWriteSpecFile(wsRoot, target, repaired.content);
+				html = repaired.content;
+			}
+			currentPptHtml = html;
 			pptSrc = toWorkspaceFileURL(target, wsRoot);
-			const patched = upsertPrototypePptFile(currentSpecContent, target);
+			const patched = upsertSpecBlockPptFile(currentSpecContent, target);
 			await wailsWriteSpecFile(wsRoot, specPath, patched);
 			currentSpecContent = patched;
 		} catch (e) {
@@ -402,6 +668,117 @@
 			void refreshPpt();
 		}
 	}
+
+	function toSpecsRelativePath(p: string): string {
+		const norm = p.replace(/\\/g, '/');
+		const i = norm.indexOf('specs/');
+		return i >= 0 ? norm.slice(i) : norm;
+	}
+
+	function todayYmd(): string {
+		const d = new Date();
+		const pad = (n: number) => String(n).padStart(2, '0');
+		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+	}
+
+	function toggleSpawnCandidate(id: string, checked: boolean) {
+		spawnSelectedIds = { ...spawnSelectedIds, [id]: checked };
+	}
+
+	function selectAllSpawnCandidates() {
+		const next: Record<string, boolean> = { ...spawnSelectedIds };
+		for (const c of spawnCandidates) {
+			if (!c.alreadyLinked) next[c.id] = true;
+		}
+		spawnSelectedIds = next;
+	}
+
+	async function confirmSpawnChildren() {
+		spawnErr = null;
+		spawnOk = null;
+		const layer = spawnLayer;
+		if (!layer) return;
+		const picked = spawnCandidates.filter(c => spawnSelectedIds[c.id] && !c.alreadyLinked);
+		if (picked.length === 0) {
+			spawnErr = '请勾选至少一个未在 structure.children 中的候选';
+			return;
+		}
+		const wsRoot = get(specExplorerStore).workspaceRoot;
+		if (!wsRoot) {
+			spawnErr = '未绑定 workspace root';
+			return;
+		}
+		spawnBusy = true;
+		try {
+			const templateRel =
+				layer === 'L2'
+					? 'spec-templates/L3-module/L3-module-template.yaml'
+					: 'spec-templates/L5-slice/L5-slice-template.yaml';
+			const templateTxt = await wailsReadSpecFile(wsRoot, templateRel);
+			const parentName = extractSpecName(yamlForSpawn);
+			const owner = extractMetaOwner(yamlForSpawn);
+			const moduleName = extractMetaModule(yamlForSpawn);
+			const ymd = todayYmd();
+			if (!parentName) throw new Error('无法解析 spec.name');
+
+			const relParent = toSpecsRelativePath(specPath);
+
+			for (const c of picked) {
+				let body: string;
+				if (layer === 'L2') {
+					body = renderL3ModuleFromTemplate(templateTxt, {
+						moduleSpecName: c.specName,
+						l2SpecName: parentName,
+						owner,
+						dateYmd: ymd,
+						titleZh: c.titleHint,
+						summaryLine: c.summaryHint,
+						descriptionParagraph: `${c.summaryHint}\n\n（由图谱「生成子收敛 spec」自动落盘；请补全 content.public_api / state_definitions。）`,
+					});
+				} else {
+					body = renderL5SliceFromTemplate(templateTxt, {
+						sliceSpecName: c.specName,
+						l4SpecName: parentName,
+						moduleName,
+						owner,
+						dateYmd: ymd,
+						titleZh: c.titleHint,
+						summaryLine: c.summaryHint,
+						descriptionParagraph: `${c.summaryHint}\n\n（由图谱「生成子收敛 spec」自动落盘；请细化 content 与验证步骤。）`,
+						behaviorRefLine: `L4「${parentName}」content.behaviors · ${c.behaviorId ?? '—'}`,
+					});
+				}
+				await wailsWriteSpecFile(wsRoot, c.relativePath, body);
+			}
+
+			const newPaths = picked.map(c => c.relativePath);
+			const patchedParent = appendChildrenPaths(yamlForSpawn, newPaths);
+			await wailsWriteSpecFile(wsRoot, relParent, patchedParent);
+			currentSpecContent = patchedParent;
+			await specExplorerStore.loadList(wsRoot);
+			spawnOk = `已生成 ${picked.length} 个子 spec，并已更新父 spec 的 structure.children`;
+			onSpawnComplete?.();
+			spawnSelectedIds = {};
+		} catch (e) {
+			spawnErr = e instanceof Error ? e.message : String(e);
+		} finally {
+			spawnBusy = false;
+		}
+	}
+
+	$effect(() => {
+		specPath;
+		content;
+		spawnSelectedIds = {};
+		spawnErr = null;
+		spawnOk = null;
+	});
+
+	/** 换文件时收起右侧栏；同文件仅重载 YAML（如生成子 spec）不收起 */
+	$effect(() => {
+		specPath;
+		lineageRailExpanded = false;
+	});
 
 	$effect(() => {
 		currentSpecContent = content;
@@ -437,7 +814,9 @@
 			<button type="button" class="attach-head" onclick={attachCurrentSpec}>Add to Context</button>
 		</div>
 	</div>
-	<div class="radial">
+
+	<div class="graph-main">
+		<div class="radial">
 		{#if specMeta.parent}
 			<div class="relation-card parent-card" style:left="{parentLeft}%" style:top="50%">
 				<span class="k">parent</span>
@@ -451,11 +830,40 @@
 				<strong>Spec HTML PPT 演示</strong>
 				<div class="ppt-actions">
 					<button type="button" onclick={refreshPpt} disabled={pptLoading}>刷新</button>
+					<button type="button" onclick={copyDivergentQuestions} disabled={pptLoading}>复制发散问题</button>
+					<button
+						type="button"
+						onclick={copyDynamicQuestionsFromCurrentPpt}
+						disabled={pptLoading || !currentPptHtml}
+					>
+						从当前PPT抽取问题
+					</button>
+					<div class="q-menu-wrap">
+						<button
+							type="button"
+							onclick={() => (questionMenuOpen = !questionMenuOpen)}
+							disabled={pptLoading || !currentPptHtml}
+						>
+							按五维复制
+						</button>
+						{#if questionMenuOpen}
+							<div class="q-menu">
+								<button type="button" onclick={() => copyQuestionSection('input')}>输入</button>
+								<button type="button" onclick={() => copyQuestionSection('output')}>输出</button>
+								<button type="button" onclick={() => copyQuestionSection('constraints')}>约束</button>
+								<button type="button" onclick={() => copyQuestionSection('prototype')}>原型</button>
+								<button type="button" onclick={() => copyQuestionSection('slots')}>实现插槽</button>
+							</div>
+						{/if}
+					</div>
 					<button type="button" class="gen-btn" onclick={generatePpt} disabled={pptLoading}>
 						{genButtonLabel}
 					</button>
 				</div>
 			</div>
+			{#if copyQuestionTip}
+				<small class="ppt-tip">{copyQuestionTip}</small>
+			{/if}
 			<button
 				type="button"
 				class="fs-fab"
@@ -474,25 +882,20 @@
 						{#if pptTaskState === 'queued'}
 							任务队列中，等待执行…
 						{:else if pptTaskState === 'running'}
-							Agent 正在生成 prototype.ppt_file…
+							Agent 正在生成 spec.ppt_file…
 						{:else}
-							正在加载 prototype.ppt_file…
+							正在加载 spec.ppt_file…
 						{/if}
 					</span>
 				</div>
 			{:else if pptSrc}
 				<iframe
 					class="ppt-frame"
-					bind:this={pptFrameEl}
 					title="spec ppt demo preview"
 					sandbox="allow-scripts allow-same-origin"
 					referrerpolicy="no-referrer"
 					src={pptSrc}
 				></iframe>
-				<div class="ppt-nav-fab">
-					<button type="button" title="上一页" onclick={() => gotoPptSlide('prev')}>◀</button>
-					<button type="button" title="下一页" onclick={() => gotoPptSlide('next')}>▶</button>
-				</div>
 			{:else}
 				<p class="ppt-empty">未找到可展示 HTML。</p>
 			{/if}
@@ -500,6 +903,106 @@
 				<p class="ppt-err">{pptError}</p>
 			{/if}
 		</div>
+		</div>
+
+		<aside
+			class="lineage-rail"
+			class:lineage-rail--expanded={lineageRailExpanded}
+			aria-label="规格血缘侧栏"
+		>
+			<button
+				type="button"
+				class="lineage-tab"
+				onclick={() => (lineageRailExpanded = !lineageRailExpanded)}
+				aria-expanded={lineageRailExpanded}
+				title={lineageRailExpanded ? '收起血缘栏' : '展开血缘栏（父链 / 子候选）'}
+			>
+				{#if lineageRailExpanded}
+					<span class="lineage-tab-chev" aria-hidden="true">›</span>
+				{:else}
+					<span class="lineage-tab-v" aria-hidden="true">血缘</span>
+				{/if}
+			</button>
+			{#if lineageRailExpanded}
+				<div class="lineage-panel-inner">
+					<div class="spawn-panel-head">
+						<strong>规格血缘</strong>
+						{#if spawnLayer}
+							<span class="spawn-badge">{spawnLayer === 'L2' ? 'L2→L3' : 'L4→L5'}</span>
+						{:else}
+							<span class="spawn-badge spawn-badge--muted">{levelShort(level)}</span>
+						{/if}
+					</div>
+					<p class="lineage-intro">
+						右侧用于父链跳转与子 spec 草稿（展开时不遮挡左侧 PPT）。批量生成仅 L2 / L4。
+					</p>
+
+					{#if spawnLayer}
+						<div class="spawn-section-head">
+							<strong>从 YAML 生成子收敛 spec</strong>
+						</div>
+						{#if spawnCandidates.length === 0}
+							<p class="spawn-muted">
+								未解析到候选。L2 需要 <code>content.l2_l3_lineage.which_modules_become_l3</code>；L4 需要
+								<code>content.behaviors</code>。
+							</p>
+						{:else}
+							<div class="spawn-toolbar">
+								<button
+									type="button"
+									class="spawn-link"
+									onclick={selectAllSpawnCandidates}
+									disabled={spawnBusy}
+								>
+									全选可生成项
+								</button>
+								<button
+									type="button"
+									class="spawn-confirm"
+									onclick={() => void confirmSpawnChildren()}
+									disabled={spawnBusy}
+								>
+									{spawnBusy ? '写入中…' : '确认生成并挂载'}
+								</button>
+							</div>
+							<ul class="spawn-list">
+								{#each spawnCandidates as c (c.id)}
+									<li class="spawn-row">
+										<label class="spawn-label">
+											<input
+												type="checkbox"
+												checked={!!spawnSelectedIds[c.id]}
+												disabled={spawnBusy || c.alreadyLinked}
+												onchange={(e) =>
+													toggleSpawnCandidate(
+														c.id,
+														(e.currentTarget as HTMLInputElement).checked
+													)}
+											/>
+											<span class="spawn-path">{c.relativePath}</span>
+											{#if c.alreadyLinked}
+												<span class="spawn-tag">已在 children</span>
+											{/if}
+										</label>
+										<small class="spawn-hint-line">{c.summaryHint}</small>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					{:else}
+						<p class="spawn-muted">
+							当前为 {levelShort(level)}：暂无「一键枚举子候选」。后续将在此栏提供父 spec 打开与子草稿抽屉。
+						</p>
+					{/if}
+					{#if spawnErr}
+						<p class="spawn-err">{spawnErr}</p>
+					{/if}
+					{#if spawnOk}
+						<p class="spawn-ok">{spawnOk}</p>
+					{/if}
+				</div>
+			{/if}
+		</aside>
 	</div>
 	<div class="graph-foot">
 		<div><strong>{slotCards.filter(slot => slot.status === 'present').length}</strong><span>ready slots</span></div>
@@ -590,14 +1093,114 @@
 		cursor: pointer;
 	}
 
+	.graph-main {
+		flex: 1;
+		display: flex;
+		flex-direction: row;
+		align-items: stretch;
+		min-height: 0;
+		gap: 10px;
+	}
+
 	.radial {
 		position: relative;
 		flex: 1;
+		min-width: 0;
 		min-height: 420px;
 		border: 1px solid #303746;
 		border-radius: 16px;
 		background: rgba(12, 14, 19, 0.74);
 		overflow: hidden;
+	}
+
+	.lineage-rail {
+		flex-shrink: 0;
+		display: flex;
+		flex-direction: row;
+		align-items: stretch;
+		align-self: stretch;
+		border-radius: 16px;
+		border: 1px solid #303746;
+		background: rgba(18, 22, 30, 0.92);
+		overflow: hidden;
+		transition: width 0.18s ease;
+	}
+
+	.lineage-rail:not(.lineage-rail--expanded) {
+		width: 44px;
+	}
+
+	.lineage-rail.lineage-rail--expanded {
+		width: min(340px, 40vw);
+		max-width: 100%;
+	}
+
+	.lineage-tab {
+		flex-shrink: 0;
+		width: 44px;
+		border: none;
+		border-right: 1px solid #303746;
+		background: rgba(28, 32, 42, 0.95);
+		color: #c7d2fe;
+		cursor: pointer;
+		padding: 8px 0;
+		font-family: inherit;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.lineage-tab:hover {
+		background: rgba(122, 162, 255, 0.12);
+		color: #eef0f5;
+	}
+
+	.lineage-tab-v {
+		writing-mode: vertical-rl;
+		text-orientation: mixed;
+		font-size: 12px;
+		font-weight: 700;
+		letter-spacing: 0.12em;
+	}
+
+	.lineage-tab-chev {
+		font-size: 22px;
+		line-height: 1;
+		font-weight: 300;
+		color: #a3abb9;
+	}
+
+	.lineage-panel-inner {
+		flex: 1;
+		min-width: 0;
+		overflow: auto;
+		padding: 12px 12px 14px;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.lineage-intro {
+		margin: 0;
+		font-size: 11px;
+		line-height: 1.45;
+		color: #858fa1;
+	}
+
+	.spawn-section-head {
+		margin-top: 4px;
+		font-size: 12px;
+		color: #d4d4d8;
+	}
+
+	.spawn-section-head strong {
+		font-weight: 700;
+		color: #eef0f5;
+	}
+
+	.spawn-badge--muted {
+		background: rgba(120, 130, 150, 0.15);
+		color: #a3abb9;
 	}
 
 	.edge {
@@ -722,39 +1325,40 @@
 		word-break: break-all;
 	}
 
+	.ppt-tip {
+		color: #8fd3c8;
+		font-size: 11px;
+	}
+
+	.q-menu-wrap {
+		position: relative;
+	}
+
+	.q-menu {
+		position: absolute;
+		top: calc(100% + 4px);
+		right: 0;
+		z-index: 10;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		min-width: 110px;
+		padding: 6px;
+		border: 1px solid #3b465d;
+		border-radius: 8px;
+		background: rgba(10, 12, 17, 0.96);
+	}
+
+	.q-menu button {
+		text-align: left;
+	}
+
 	.ppt-frame {
 		flex: 1;
 		width: 100%;
 		border: 1px solid #303746;
 		border-radius: 8px;
 		background: #0a0b0f;
-	}
-
-	.ppt-nav-fab {
-		position: absolute;
-		right: 14px;
-		bottom: 12px;
-		z-index: 4;
-		display: inline-flex;
-		gap: 8px;
-	}
-
-	.ppt-nav-fab button {
-		width: 34px;
-		height: 34px;
-		border-radius: 999px;
-		border: 1px solid rgba(122, 162, 255, 0.65);
-		background: rgba(12, 14, 19, 0.75);
-		color: #e8f0ff;
-		cursor: pointer;
-		font-size: 14px;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.ppt-nav-fab button:hover {
-		background: rgba(122, 162, 255, 0.2);
 	}
 
 	.ppt-loading {
@@ -850,5 +1454,145 @@
 	.graph-foot span {
 		color: #a3abb9;
 		font-size: 11px;
+	}
+
+	.spawn-panel-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+		margin-bottom: 10px;
+	}
+
+	.spawn-panel-head strong {
+		font-size: 13px;
+		color: #eef0f5;
+	}
+
+	.spawn-badge {
+		font-size: 11px;
+		padding: 2px 8px;
+		border-radius: 999px;
+		background: rgba(114, 214, 208, 0.12);
+		color: #8fd3c8;
+		font-family: 'Cascadia Code', ui-monospace, monospace;
+	}
+
+	.spawn-muted {
+		margin: 0;
+		font-size: 12px;
+		line-height: 1.5;
+		color: #a3abb9;
+	}
+
+	.spawn-muted code {
+		font-size: 11px;
+		color: #c7d2fe;
+	}
+
+	.spawn-toolbar {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		margin-bottom: 10px;
+		flex-wrap: wrap;
+	}
+
+	.spawn-link {
+		border: none;
+		background: transparent;
+		color: #7aa2ff;
+		font-size: 12px;
+		cursor: pointer;
+		text-decoration: underline;
+		padding: 0;
+		font-family: inherit;
+	}
+
+	.spawn-link:disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
+	}
+
+	.spawn-confirm {
+		border: 1px solid #4c6ef5;
+		background: rgba(76, 110, 245, 0.18);
+		color: #eef0f5;
+		font-size: 12px;
+		padding: 6px 12px;
+		border-radius: 8px;
+		cursor: pointer;
+		font-family: inherit;
+	}
+
+	.spawn-confirm:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.spawn-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		max-height: 220px;
+		overflow: auto;
+	}
+
+	.spawn-row {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding: 8px 10px;
+		border-radius: 8px;
+		background: rgba(12, 14, 18, 0.65);
+		border: 1px solid rgba(48, 55, 70, 0.85);
+	}
+
+	.spawn-label {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-wrap: wrap;
+		font-size: 12px;
+		color: #eef0f5;
+		cursor: pointer;
+	}
+
+	.spawn-path {
+		font-family: 'Cascadia Code', ui-monospace, monospace;
+		font-size: 11px;
+		color: #c7d2fe;
+		word-break: break-all;
+	}
+
+	.spawn-tag {
+		font-size: 10px;
+		color: #86efac;
+		padding: 1px 6px;
+		border-radius: 4px;
+		background: rgba(34, 197, 94, 0.12);
+	}
+
+	.spawn-hint-line {
+		display: block;
+		margin-left: 22px;
+		font-size: 11px;
+		color: #858fa1;
+		line-height: 1.35;
+	}
+
+	.spawn-err {
+		margin: 10px 0 0;
+		font-size: 12px;
+		color: #f87171;
+	}
+
+	.spawn-ok {
+		margin: 10px 0 0;
+		font-size: 12px;
+		color: #86efac;
 	}
 </style>
