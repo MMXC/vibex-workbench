@@ -125,4 +125,3 @@ changelog:
     author: "agent"
     changes:
       - "UI3：工具条与 Prototype Gate 联动，禁用未通过 gate 的写盘按钮"
----

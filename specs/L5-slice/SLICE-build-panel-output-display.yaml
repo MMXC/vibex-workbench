@@ -4,6 +4,8 @@ spec:
   level: "5_slice"
   name: SLICE-build-panel-output-display
   parent: FEAT-build-panel
+  level: "5_slice"
+  status: proposal
 
 meta:
   type: slice
