@@ -145,4 +145,3 @@ changelog:
     author: "agent"
     changes:
       - "新增 SM5 与前端影响文件：要求状态机转移具备可视化可观测性（右侧抽屉迭代图）"
----

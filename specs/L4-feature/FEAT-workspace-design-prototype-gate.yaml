@@ -162,4 +162,3 @@ changelog:
     author: "agent"
     changes:
       - "对齐 AI UI 工作流：Intent/UI Spec/Prototype Gate 总则、失败分类与 stage 枚举（DG6–DG8）"
----

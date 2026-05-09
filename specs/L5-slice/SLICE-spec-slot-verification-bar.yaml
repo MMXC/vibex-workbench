@@ -107,4 +107,3 @@ changelog:
     author: "agent"
     changes:
       - "新增详情抽屉强校验条 slice：计划渲染、运行通道、RED/GREEN 提交与槽位绑定"
----

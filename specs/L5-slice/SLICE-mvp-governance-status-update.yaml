@@ -4,6 +4,8 @@ spec:
   level: "5_slice"
   name: SLICE-mvp-governance-status-update
   parent: FEAT-mvp-governance
+  level: "5_slice"
+  status: proposal
 
 meta:
   type: slice

@@ -4,6 +4,8 @@ spec:
   level: "5_slice"
   name: SLICE-qa-playwright-scenario-runner
   parent: FEAT-spec-qa-playwright-integration
+  level: "5_slice"
+  status: proposal
 
 meta:
   type: slice

@@ -121,4 +121,3 @@ changelog:
     author: "agent"
     changes:
       - "补充右侧详情抽屉迭代轨迹映射约束：SSE -> iteration graph（含历史折叠与节点详情）"
----

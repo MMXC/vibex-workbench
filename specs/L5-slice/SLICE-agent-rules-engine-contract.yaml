@@ -112,4 +112,3 @@ changelog:
     author: "agent"
     changes:
       - "从 FEAT-agent-rules-engine 拆分契约 slice：阶段、强校验、纠错与动态插槽数据结构"
----

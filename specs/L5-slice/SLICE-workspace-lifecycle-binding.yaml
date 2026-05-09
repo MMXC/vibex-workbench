@@ -4,6 +4,8 @@ spec:
   level: "5_slice"
   name: SLICE-workspace-lifecycle-binding
   parent: FEAT-workspace-lifecycle
+  level: "5_slice"
+  status: proposal
 
 meta:
   type: slice
