@@ -57,7 +57,7 @@
 		},
 		{
 			title: 'scaffold API 仍有测试路径',
-			body: 'workspaceScaffoldHandler 还会查 /root/v-test/generators/scaffolder.py，需要改成仓库相对解析。',
+			body: 'workspaceScaffoldHandler 若仍依赖固定测试路径，应改为相对 Workbench 源码根解析 generators。',
 		},
 		{
 			title: '图谱确认流未成型',

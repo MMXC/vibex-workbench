@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -145,7 +146,11 @@ func detectSequentialValidateGenerate(calls []toolCallEntry, _ string) (pattern 
 // It is conservative: only patches files where the sse package is already imported,
 // otherwise records the pattern for manual follow-up.
 func tryAutoChainFix() (bool, error) {
-	handlersDir := "/root/vibex-workbench/agent/agents/runtime/tools"
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		return false, fmt.Errorf("runtime.Caller failed")
+	}
+	handlersDir := filepath.Join(filepath.Dir(file), "tools")
 	entries, err := os.ReadDir(handlersDir)
 	if err != nil {
 		return false, err

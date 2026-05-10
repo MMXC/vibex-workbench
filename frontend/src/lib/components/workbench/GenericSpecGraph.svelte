@@ -14,20 +14,31 @@
 		appendChildrenPaths,
 		collectL3CandidatesFromL2,
 		collectL5CandidatesFromL4,
-		extractMetaModule,
-		extractMetaOwner,
 		extractSpecName,
 		inferSpawnLayer,
-		renderL3ModuleFromTemplate,
-		renderL5SliceFromTemplate,
+		parseExistingChildPaths,
 		type ChildSpawnCandidate,
 	} from '$lib/workbench/spawn-child-specs';
+	import {
+		collectChildPathsForParent,
+		collectParentRefs,
+		resolveSpecRefToPath,
+	} from '$lib/workbench/spec-lineage';
+	import type { ConventionPayload } from '$lib/workbench/spec-convention';
+	import { specChildDraftStore } from '$lib/stores/spec-child-draft-store';
+	import { agentApiUrl } from '$lib/runtime/agent-transport';
 
 	let {
 		specPath,
 		content,
 		onSpawnComplete,
-	}: { specPath: string; content: string; onSpawnComplete?: () => void } = $props();
+		convention = null,
+	}: {
+		specPath: string;
+		content: string;
+		onSpawnComplete?: () => void;
+		convention?: ConventionPayload['convention'] | null;
+	} = $props();
 
 	const specMeta = $derived.by(() => extractSpecDisplay(content, specPath));
 
@@ -50,16 +61,6 @@
 		return specMeta.level === 'UNKNOWN' ? 'SPEC' : specMeta.level;
 	}
 
-	function laneLeft(lane: string): number {
-		const order = ['L1', 'L2', 'L3', 'L4', 'L5'];
-		const idx = Math.max(order.indexOf(lane), 2);
-		return 8 + idx * 21;
-	}
-
-	const currentLeft = $derived.by(() => laneLeft(levelShort(level)));
-	const parentLeft = $derived.by(() => Math.max(8, currentLeft - 21));
-
-	const SSE_URL = import.meta.env.VITE_SSE_URL || 'http://localhost:33338';
 	let currentSpecContent = $state('');
 	let autoGenerateTriggered = $state(false);
 	let lastAutoRefreshKey = $state('');
@@ -74,13 +75,24 @@
 	let currentPptHtml = $state('');
 	let questionMenuOpen = $state(false);
 
-	let spawnSelectedIds = $state<Record<string, boolean>>({});
-	let spawnBusy = $state(false);
 	let spawnErr = $state<string | null>(null);
 	let spawnOk = $state<string | null>(null);
 
-	/** 右侧「规格血缘」栏：默认收起，避免挤压中央 PPT */
+	/** 左侧「父链」栏：默认收起 */
+	let parentRailExpanded = $state(false);
+	/** 右侧「子血缘」栏：默认收起 */
 	let lineageRailExpanded = $state(false);
+
+	let explorerSpecs = $state<
+		{ path: string; parent?: string | null; display?: { title?: string } }[]
+	>([]);
+
+	let mountBusy = $state(false);
+	$effect(() => {
+		return specExplorerStore.subscribe(s => {
+			explorerSpecs = s.specs;
+		});
+	});
 
 	const yamlForSpawn = $derived.by(() => currentSpecContent || content);
 
@@ -92,6 +104,80 @@
 		if (!layer || !name) return [];
 		if (layer === 'L2') return collectL3CandidatesFromL2(yamlForSpawn, name);
 		return collectL5CandidatesFromL4(yamlForSpawn, name);
+	});
+
+	/** 与当前父 spec 同级的子节点 spec.name：已挂载 + children 列表中的路径解析名，用于推断列不重名 */
+	const inferredChildCandidates = $derived.by((): ChildSpawnCandidate[] => {
+		const raw = spawnCandidates.filter(c => !c.alreadyLinked);
+
+		const occupiedNames = new Set<string>();
+		for (const c of spawnCandidates) {
+			if (c.alreadyLinked) occupiedNames.add(c.specName);
+		}
+		const childPaths = [...new Set(parseExistingChildPaths(yamlForSpawn))];
+		for (const p of childPaths) {
+			const hit = explorerSpecs.find(x => normSpecPath(x.path) === normSpecPath(p));
+			const nm = (hit?.name ?? '').trim() || specBasename(p);
+			if (nm) occupiedNames.add(nm);
+		}
+
+		const seenInfer = new Set<string>();
+		const out: ChildSpawnCandidate[] = [];
+		for (const c of raw) {
+			if (occupiedNames.has(c.specName)) continue;
+			if (seenInfer.has(c.specName)) continue;
+			seenInfer.add(c.specName);
+			out.push(c);
+		}
+		return out;
+	});
+
+	function normSpecPath(p: string): string {
+		return p.replace(/\\/g, '/').trim();
+	}
+
+	function specBasename(path: string): string {
+		return (
+			path
+				.replace(/\\/g, '/')
+				.split('/')
+				.pop()
+				?.replace(/\.ya?ml$/i, '') ?? path
+		);
+	}
+
+	function lookupSpecTitle(path: string): string {
+		const n = normSpecPath(path);
+		const hit = explorerSpecs.find(x => normSpecPath(x.path) === n);
+		const t = hit?.display?.title?.trim();
+		return t || specBasename(path);
+	}
+
+	const specNameCatalog = $derived.by(() =>
+		explorerSpecs.map(x => ({
+			path: x.path,
+			name: (x.name ?? '').trim() || specBasename(x.path),
+		}))
+	);
+
+	const parentCards = $derived.by(() => {
+		const refs = collectParentRefs(yamlForSpawn);
+		return refs.map(ref => {
+			const path = resolveSpecRefToPath(ref, convention ?? null, specNameCatalog);
+			return {
+				ref,
+				path,
+				title: path ? lookupSpecTitle(path) : ref,
+			};
+		});
+	});
+
+	const existingChildCards = $derived.by(() => {
+		const paths = [...new Set(parseExistingChildPaths(yamlForSpawn))];
+		return paths.map(path => ({
+			path,
+			title: lookupSpecTitle(path),
+		}));
 	});
 
 	const hasPptFile = $derived.by(() => getPptFileOnly(currentSpecContent).length > 0);
@@ -240,7 +326,7 @@
 			.split('/')
 			.map(seg => encodeURIComponent(seg))
 			.join('/');
-		return `${SSE_URL}/api/workspace/file/${safe}?workspaceRoot=${encodeURIComponent(workspaceRoot)}`;
+		return `${agentApiUrl('/api/workspace/file/' + safe)}?workspaceRoot=${encodeURIComponent(workspaceRoot)}`;
 	}
 
 	function ensureTag(source: string, needle: string, insertBefore: string): string {
@@ -513,7 +599,7 @@
 		timeoutMs = 120000
 	): Promise<void> {
 		return new Promise((resolve, reject) => {
-			const es = new EventSource(`${SSE_URL}/api/sse/${encodeURIComponent(threadId)}`);
+			const es = new EventSource(agentApiUrl(`/api/sse/${encodeURIComponent(threadId)}`));
 			const timer = window.setTimeout(() => {
 				es.close();
 				reject(new Error('生成超时：未收到完成事件'));
@@ -594,7 +680,7 @@
 			const layerConfig = await loadLayerSlideTemplate(wsRoot, levelTag);
 			const templateFile = '.agents/ppt-layer-templates.yaml';
 			const prompt = [
-				'你是 vibex-workbench 的原型生成代理。',
+				'你是 VibeX Workbench 的原型生成代理（针对当前打开的工作区）。',
 				'必须使用 html-ppt skill 生成可运行的 spec 说明型 PPT（HTML）。',
 				`spec_path: ${specPath}`,
 				`spec_level: ${levelTag}`,
@@ -623,7 +709,7 @@
 				`spec_title_hint: ${specMeta.display.title}`,
 				`spec_summary_hint: ${specMeta.display.summary}`,
 			].join('\n');
-			await fetch(`${SSE_URL}/api/agent/execute`, {
+			await fetch(agentApiUrl('/api/agent/execute'), {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
@@ -669,38 +755,28 @@
 		}
 	}
 
-	function toSpecsRelativePath(p: string): string {
+	function navigateToSpec(targetPath: string | null | undefined, labelForErr: string) {
+		spawnErr = null;
+		if (!targetPath) {
+			spawnErr = `无法解析路径：${labelForErr}`;
+			return;
+		}
+		specExplorerStore.selectSpec(normSpecPath(targetPath));
+	}
+
+	function relSpecsPathForWrite(p: string): string {
 		const norm = p.replace(/\\/g, '/');
 		const i = norm.indexOf('specs/');
 		return i >= 0 ? norm.slice(i) : norm;
 	}
 
-	function todayYmd(): string {
-		const d = new Date();
-		const pad = (n: number) => String(n).padStart(2, '0');
-		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-	}
-
-	function toggleSpawnCandidate(id: string, checked: boolean) {
-		spawnSelectedIds = { ...spawnSelectedIds, [id]: checked };
-	}
-
-	function selectAllSpawnCandidates() {
-		const next: Record<string, boolean> = { ...spawnSelectedIds };
-		for (const c of spawnCandidates) {
-			if (!c.alreadyLinked) next[c.id] = true;
-		}
-		spawnSelectedIds = next;
-	}
-
-	async function confirmSpawnChildren() {
+	/** 扫描全库 spec.parent === 当前 spec.name，合并路径到 structure.children */
+	async function syncChildrenFromRepoByParent() {
 		spawnErr = null;
 		spawnOk = null;
-		const layer = spawnLayer;
-		if (!layer) return;
-		const picked = spawnCandidates.filter(c => spawnSelectedIds[c.id] && !c.alreadyLinked);
-		if (picked.length === 0) {
-			spawnErr = '请勾选至少一个未在 structure.children 中的候选';
+		const parentName = extractSpecName(yamlForSpawn);
+		if (!parentName) {
+			spawnErr = '无法解析当前 spec.name';
 			return;
 		}
 		const wsRoot = get(specExplorerStore).workspaceRoot;
@@ -708,76 +784,64 @@
 			spawnErr = '未绑定 workspace root';
 			return;
 		}
-		spawnBusy = true;
+		mountBusy = true;
 		try {
-			const templateRel =
-				layer === 'L2'
-					? 'spec-templates/L3-module/L3-module-template.yaml'
-					: 'spec-templates/L5-slice/L5-slice-template.yaml';
-			const templateTxt = await wailsReadSpecFile(wsRoot, templateRel);
-			const parentName = extractSpecName(yamlForSpawn);
-			const owner = extractMetaOwner(yamlForSpawn);
-			const moduleName = extractMetaModule(yamlForSpawn);
-			const ymd = todayYmd();
-			if (!parentName) throw new Error('无法解析 spec.name');
-
-			const relParent = toSpecsRelativePath(specPath);
-
-			for (const c of picked) {
-				let body: string;
-				if (layer === 'L2') {
-					body = renderL3ModuleFromTemplate(templateTxt, {
-						moduleSpecName: c.specName,
-						l2SpecName: parentName,
-						owner,
-						dateYmd: ymd,
-						titleZh: c.titleHint,
-						summaryLine: c.summaryHint,
-						descriptionParagraph: `${c.summaryHint}\n\n（由图谱「生成子收敛 spec」自动落盘；请补全 content.public_api / state_definitions。）`,
-					});
-				} else {
-					body = renderL5SliceFromTemplate(templateTxt, {
-						sliceSpecName: c.specName,
-						l4SpecName: parentName,
-						moduleName,
-						owner,
-						dateYmd: ymd,
-						titleZh: c.titleHint,
-						summaryLine: c.summaryHint,
-						descriptionParagraph: `${c.summaryHint}\n\n（由图谱「生成子收敛 spec」自动落盘；请细化 content 与验证步骤。）`,
-						behaviorRefLine: `L4「${parentName}」content.behaviors · ${c.behaviorId ?? '—'}`,
-					});
-				}
-				await wailsWriteSpecFile(wsRoot, c.relativePath, body);
-			}
-
-			const newPaths = picked.map(c => c.relativePath);
-			const patchedParent = appendChildrenPaths(yamlForSpawn, newPaths);
-			await wailsWriteSpecFile(wsRoot, relParent, patchedParent);
-			currentSpecContent = patchedParent;
 			await specExplorerStore.loadList(wsRoot);
-			spawnOk = `已生成 ${picked.length} 个子 spec，并已更新父 spec 的 structure.children`;
+			const specs = get(specExplorerStore).specs;
+			const discovered = collectChildPathsForParent(specs, parentName, {
+				excludeSelfPath: specPath,
+			});
+			if (discovered.length === 0) {
+				spawnOk = '未发现 spec.parent 指向当前名称的子 spec（已刷新列表）。';
+				return;
+			}
+			const relParent = relSpecsPathForWrite(specPath);
+			const patched = appendChildrenPaths(yamlForSpawn, discovered);
+			await wailsWriteSpecFile(wsRoot, relParent, patched);
+			currentSpecContent = patched;
+			await specExplorerStore.loadList(wsRoot);
+			spawnOk = `已合并 ${discovered.length} 条子 spec 路径到 structure.children`;
 			onSpawnComplete?.();
-			spawnSelectedIds = {};
 		} catch (e) {
 			spawnErr = e instanceof Error ? e.message : String(e);
 		} finally {
-			spawnBusy = false;
+			mountBusy = false;
+		}
+	}
+
+	async function openChildDraft(c: ChildSpawnCandidate) {
+		const layer = spawnLayer;
+		if (!layer) return;
+		spawnErr = null;
+		spawnOk = null;
+		try {
+			await specChildDraftStore.openFromCandidate({
+				parentSpecPath: specPath,
+				parentYaml: yamlForSpawn,
+				candidate: c,
+				layer,
+				onDone: () => {
+					spawnOk = `已创建 ${c.relativePath}`;
+					onSpawnComplete?.();
+				},
+			});
+		} catch (e) {
+			spawnErr = e instanceof Error ? e.message : String(e);
 		}
 	}
 
 	$effect(() => {
 		specPath;
 		content;
-		spawnSelectedIds = {};
 		spawnErr = null;
 		spawnOk = null;
 	});
 
-	/** 换文件时收起右侧栏；同文件仅重载 YAML（如生成子 spec）不收起 */
+	/** 换文件时收起两侧血缘栏 */
 	$effect(() => {
 		specPath;
 		lineageRailExpanded = false;
+		parentRailExpanded = false;
 	});
 
 	$effect(() => {
@@ -816,15 +880,59 @@
 	</div>
 
 	<div class="graph-main">
-		<div class="radial">
-		{#if specMeta.parent}
-			<div class="relation-card parent-card" style:left="{parentLeft}%" style:top="50%">
-				<span class="k">parent</span>
-				<strong>{specMeta.parent}</strong>
-			</div>
-			<span class="edge parent-edge" style:left="{parentLeft + 9}%" style:width="{currentLeft - parentLeft - 13}%"></span>
-		{/if}
+		<aside
+			class="parent-rail"
+			class:parent-rail--expanded={parentRailExpanded}
+			aria-label="父规格血缘侧栏"
+		>
+			{#if parentRailExpanded}
+				<div class="lineage-panel-inner parent-panel-inner">
+					<div class="spawn-panel-head">
+						<strong>父链（平面）</strong>
+						<span class="spawn-badge spawn-badge--muted">上游</span>
+					</div>
+					<p class="lineage-intro">
+						列出 <code>spec.parent</code>、<code>structure.parent</code>、<code>structure.dependencies</code>
+						全部引用，不做层级展开。
+					</p>
+					{#if parentCards.length === 0}
+						<p class="spawn-muted">当前 spec 未声明上游引用。</p>
+					{:else}
+						<div class="lineage-cards">
+							{#each parentCards as p (p.ref)}
+								<button
+									type="button"
+									class="lineage-card"
+									class:lineage-card--warn={!p.path}
+									onclick={() => navigateToSpec(p.path, p.ref)}
+								>
+									<strong>{p.title}</strong>
+									<small>{p.ref}</small>
+									{#if !p.path}
+										<span class="spawn-tag">路径未解析</span>
+									{/if}
+								</button>
+							{/each}
+						</div>
+					{/if}
+				</div>
+			{/if}
+			<button
+				type="button"
+				class="parent-tab"
+				onclick={() => (parentRailExpanded = !parentRailExpanded)}
+				aria-expanded={parentRailExpanded}
+				title={parentRailExpanded ? '收起父链栏' : '展开父链栏'}
+			>
+				{#if parentRailExpanded}
+					<span class="lineage-tab-chev" aria-hidden="true">‹</span>
+				{:else}
+					<span class="lineage-tab-v" aria-hidden="true">父链</span>
+				{/if}
+			</button>
+		</aside>
 
+		<div class="radial">
 		<div class="ppt-center" bind:this={pptContainerEl}>
 			<div class="ppt-head">
 				<strong>Spec HTML PPT 演示</strong>
@@ -915,18 +1023,18 @@
 				class="lineage-tab"
 				onclick={() => (lineageRailExpanded = !lineageRailExpanded)}
 				aria-expanded={lineageRailExpanded}
-				title={lineageRailExpanded ? '收起血缘栏' : '展开血缘栏（父链 / 子候选）'}
+				title={lineageRailExpanded ? '收起子血缘栏' : '展开子血缘栏'}
 			>
 				{#if lineageRailExpanded}
 					<span class="lineage-tab-chev" aria-hidden="true">›</span>
 				{:else}
-					<span class="lineage-tab-v" aria-hidden="true">血缘</span>
+					<span class="lineage-tab-v" aria-hidden="true">子链</span>
 				{/if}
 			</button>
 			{#if lineageRailExpanded}
 				<div class="lineage-panel-inner">
 					<div class="spawn-panel-head">
-						<strong>规格血缘</strong>
+						<strong>子链</strong>
 						{#if spawnLayer}
 							<span class="spawn-badge">{spawnLayer === 'L2' ? 'L2→L3' : 'L4→L5'}</span>
 						{:else}
@@ -934,66 +1042,75 @@
 						{/if}
 					</div>
 					<p class="lineage-intro">
-						右侧用于父链跳转与子 spec 草稿（展开时不遮挡左侧 PPT）。批量生成仅 L2 / L4。
+						已挂载子 spec 可点击跳转；推断项打开抽屉修订 YAML 后落盘。
 					</p>
+
+					<div class="mount-toolbar">
+						<button
+							type="button"
+							class="mount-btn"
+							onclick={() => void syncChildrenFromRepoByParent()}
+							disabled={mountBusy}
+						>
+							{mountBusy ? '扫描中…' : '按 parent 挂载到 children'}
+						</button>
+					</div>
+					<p class="mount-hint">
+						遍历仓库内 <code>spec.parent</code> = 当前 <code>spec.name</code> 的子 spec，合并相对路径到
+						<code>structure.children</code>（去重，不删已有项）。
+					</p>
+
+					<div class="spawn-section-head">
+						<strong>已有子 spec</strong>
+					</div>
+					{#if existingChildCards.length === 0}
+						<p class="spawn-muted"><code>structure.children</code> 为空。</p>
+					{:else}
+						<div class="lineage-cards">
+							{#each existingChildCards as cc (cc.path)}
+								<button
+									type="button"
+									class="lineage-card"
+									onclick={() => navigateToSpec(cc.path, cc.path)}
+								>
+									<strong>{cc.title}</strong>
+									<small>{cc.path}</small>
+								</button>
+							{/each}
+						</div>
+					{/if}
 
 					{#if spawnLayer}
 						<div class="spawn-section-head">
-							<strong>从 YAML 生成子收敛 spec</strong>
+							<strong>推断 · 待创建</strong>
 						</div>
-						{#if spawnCandidates.length === 0}
+						{#if inferredChildCandidates.length === 0}
 							<p class="spawn-muted">
-								未解析到候选。L2 需要 <code>content.l2_l3_lineage.which_modules_become_l3</code>；L4 需要
+								当前 YAML 无未挂载推断项；或需 L2 的 <code>which_modules_become_l3</code> / L4 的
 								<code>content.behaviors</code>。
 							</p>
 						{:else}
-							<div class="spawn-toolbar">
-								<button
-									type="button"
-									class="spawn-link"
-									onclick={selectAllSpawnCandidates}
-									disabled={spawnBusy}
-								>
-									全选可生成项
-								</button>
-								<button
-									type="button"
-									class="spawn-confirm"
-									onclick={() => void confirmSpawnChildren()}
-									disabled={spawnBusy}
-								>
-									{spawnBusy ? '写入中…' : '确认生成并挂载'}
-								</button>
-							</div>
-							<ul class="spawn-list">
-								{#each spawnCandidates as c (c.id)}
-									<li class="spawn-row">
-										<label class="spawn-label">
-											<input
-												type="checkbox"
-												checked={!!spawnSelectedIds[c.id]}
-												disabled={spawnBusy || c.alreadyLinked}
-												onchange={(e) =>
-													toggleSpawnCandidate(
-														c.id,
-														(e.currentTarget as HTMLInputElement).checked
-													)}
-											/>
-											<span class="spawn-path">{c.relativePath}</span>
-											{#if c.alreadyLinked}
-												<span class="spawn-tag">已在 children</span>
-											{/if}
-										</label>
-										<small class="spawn-hint-line">{c.summaryHint}</small>
-									</li>
+							<div class="lineage-cards">
+								{#each inferredChildCandidates as c (c.id)}
+									<button
+										type="button"
+										class="lineage-card lineage-card--draft"
+										onclick={() => void openChildDraft(c)}
+									>
+										<span class="draft-badge">推断</span>
+										<strong>{c.specName}</strong>
+										<small>{c.relativePath}</small>
+										<small class="card-hint">{c.summaryHint}</small>
+									</button>
 								{/each}
-							</ul>
+							</div>
 						{/if}
 					{:else}
 						<p class="spawn-muted">
-							当前为 {levelShort(level)}：暂无「一键枚举子候选」。后续将在此栏提供父 spec 打开与子草稿抽屉。
+							仅 L2 / L4 可从正文推断待创建子 spec；当前为 {levelShort(level)}。
 						</p>
 					{/if}
+
 					{#if spawnErr}
 						<p class="spawn-err">{spawnErr}</p>
 					{/if}
@@ -1102,6 +1219,120 @@
 		gap: 10px;
 	}
 
+	.parent-rail {
+		flex-shrink: 0;
+		display: flex;
+		flex-direction: row;
+		align-items: stretch;
+		align-self: stretch;
+		border-radius: 16px;
+		border: 1px solid #303746;
+		background: rgba(18, 22, 30, 0.92);
+		overflow: hidden;
+		transition: width 0.18s ease;
+	}
+
+	.parent-rail:not(.parent-rail--expanded) {
+		width: 44px;
+	}
+
+	.parent-rail.parent-rail--expanded {
+		width: min(300px, 36vw);
+		max-width: 100%;
+	}
+
+	.parent-tab {
+		flex-shrink: 0;
+		width: 44px;
+		border: none;
+		border-left: 1px solid #303746;
+		background: rgba(28, 32, 42, 0.95);
+		color: #c7d2fe;
+		cursor: pointer;
+		padding: 8px 0;
+		font-family: inherit;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.parent-tab:hover {
+		background: rgba(122, 162, 255, 0.12);
+		color: #eef0f5;
+	}
+
+	.parent-panel-inner {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.lineage-cards {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.lineage-card {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 4px;
+		text-align: left;
+		border: 1px solid #3b465d;
+		border-radius: 10px;
+		padding: 8px 10px;
+		background: rgba(12, 14, 18, 0.65);
+		color: #eef0f5;
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 12px;
+	}
+
+	.lineage-card:hover {
+		border-color: #7aa2ff;
+		background: rgba(122, 162, 255, 0.08);
+	}
+
+	.lineage-card strong {
+		font-size: 12px;
+		font-weight: 700;
+		color: #eef0f5;
+	}
+
+	.lineage-card small {
+		font-size: 10px;
+		color: #858fa1;
+		word-break: break-all;
+	}
+
+	.card-hint {
+		display: block;
+		margin-top: 2px;
+		line-height: 1.35;
+	}
+
+	.lineage-card--warn {
+		opacity: 0.88;
+		border-color: #b45309;
+	}
+
+	.lineage-card--draft {
+		border-style: dashed;
+		border-color: rgba(122, 162, 255, 0.55);
+	}
+
+	.draft-badge {
+		align-self: flex-start;
+		font-size: 9px;
+		font-weight: 800;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		padding: 2px 6px;
+		border-radius: 4px;
+		background: rgba(122, 162, 255, 0.18);
+		color: #a5c8ff;
+	}
+
 	.radial {
 		position: relative;
 		flex: 1;
@@ -1185,6 +1416,47 @@
 		font-size: 11px;
 		line-height: 1.45;
 		color: #858fa1;
+	}
+
+	.mount-toolbar {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		align-items: center;
+	}
+
+	.mount-btn {
+		border: 1px solid rgba(167, 139, 250, 0.55);
+		background: rgba(139, 92, 246, 0.14);
+		color: #ede9fe;
+		font-size: 11px;
+		font-weight: 700;
+		padding: 6px 10px;
+		border-radius: 8px;
+		cursor: pointer;
+		font-family: inherit;
+	}
+
+	.mount-btn:hover:not(:disabled) {
+		background: rgba(139, 92, 246, 0.22);
+		border-color: rgba(167, 139, 250, 0.75);
+	}
+
+	.mount-btn:disabled {
+		opacity: 0.55;
+		cursor: not-allowed;
+	}
+
+	.mount-hint {
+		margin: 0;
+		font-size: 10px;
+		line-height: 1.45;
+		color: #6f7888;
+	}
+
+	.mount-hint code {
+		font-size: 10px;
+		color: #a5b4fc;
 	}
 
 	.spawn-section-head {

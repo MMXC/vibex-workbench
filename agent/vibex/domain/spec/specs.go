@@ -31,10 +31,12 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 			Handler: MakeSpecFeatureHandler(workspaceDir, bc, setStepType),
 		},
 		{
-			Name:        "spec_validate",
-			Description: "Validate a spec YAML for syntax and required fields.",
+			Name: "spec_validate",
+			Description: "Validate a spec YAML for syntax and required fields. " +
+				"When editing specs for the user's opened project in Workbench, pass workspace_root so paths resolve under that repo (not the workbench install dir).",
 			Parameters: objectSchema(
-				reqField("spec_path", "string", "Path to the spec YAML file"),
+				reqField("spec_path", "string", "Relative path under specs/ from workspace root (e.g. specs/L1-goal/foo.yaml), or absolute path inside that workspace"),
+				optField("workspace_root", "string", "Open project root; defaults to agent WORKSPACE_DIR when omitted"),
 			),
 			Handler: MakeSpecValidateHandler(workspaceDir, setStepType),
 		},
@@ -62,13 +64,13 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 		},
 		{
 			Name:        "make_validate",
-			Description: "Run `make validate` in vibex-workbench to check all spec YAML files.",
+			Description: "Run `make validate` in the current workspace to check all spec YAML files.",
 			Parameters:  objectSchema(),
 			Handler:     MakeMakeValidateHandler(workspaceDir, setStepType),
 		},
 		{
 			Name: "make_generate",
-			Description: "Run `make generate` in vibex-workbench — the spec-to-code step. " +
+			Description: "Run `make generate` in the current workspace — the spec-to-code step. " +
 				"Creates types.ts, *.Skeleton.svelte, and stubs from spec YAML. " +
 				"Use after creating or updating a spec file. This is the core of spec-driven development.",
 			Parameters: objectSchema(),
@@ -142,6 +144,32 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 			Handler: MakeWorkspaceRunMakeHandler(workspaceDir, setStepType),
 		},
 		{
+			Name: "workspace_agent_flow_qa",
+			Description: "Run a user-workspace custom QA flow for generate/run/red-green/screenshot. " +
+				"Reads flow JSON from the opened workspace (default .agents/flows/qa-agent-flow.json) " +
+				"and executes steps sequentially. Supports step types: make/cmd/cdp_validate.",
+			Parameters: objectSchema(
+				reqField("workspace_root", "string", "Opened project root path (required)"),
+				optField("flow_path", "string", "Relative path to workflow JSON in workspace (default .agents/flows/qa-agent-flow.json)"),
+				optField("stop_on_failure", "boolean", "Stop pipeline on first failed step (default true)"),
+			),
+			Handler: MakeWorkspaceAgentFlowQAHandler(workspaceDir, setStepType),
+		},
+		{
+			Name: "cdp_validate",
+			Description: "Run CDP validation steps against a real dev/test browser endpoint. " +
+				"Use target_env.host/port (e.g. 127.0.0.1:9222) and provide steps with assertions. " +
+				"Supports text_contains / selector_visible / url_matches checks.",
+			Parameters: objectSchema(
+				reqField("plan_id", "string", "Validation plan ID"),
+				reqField("target_env", "object", "CDP endpoint: deployment/host/port/timeout_sec/session_id"),
+				optField("entry_url", "string", "Initial URL to open before steps"),
+				reqField("steps", "array", "Validation steps [{id,url,actions[],assertions[],timeout_sec}]"),
+				optField("screenshot_on_fail", "boolean", "Capture screenshots under .vibex/cdp-snapshots on assertion failure"),
+			),
+			Handler: MakeCDPValidateHandler(workspaceDir, setStepType),
+		},
+		{
 			Name:        "governance_status",
 			Description: "Summarize workspace governance state including panorama presence and spec counts by level.",
 			Parameters: objectSchema(
@@ -153,7 +181,7 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 			Name: "workspace_scaffold",
 			Description: "Scaffold a new VibeX project from scratch. " +
 				"Creates the minimal directory structure: specs/, generators/, spec-templates/, Makefile, frontend/package.json. " +
-				"Uses vibex-workbench scaffold files as templates. " +
+				"Uses built-in VibeX scaffold templates shipped with the Workbench. " +
 				"IMPORTANT: Must call state_detector FIRST to check current state. " +
 				"Do NOT scaffold into an existing 'ready' workspace.",
 			Parameters: objectSchema(
@@ -166,14 +194,34 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 			Handler: MakeWorkspaceScaffoldHandler(workspaceDir, setStepType),
 		},
 		{
+			Name: "workspace_specs_bootstrap",
+			Description: "Generate L1–L5 placeholder specs via workspace-bootstrap skill execute " +
+				"(workspace_bootstrap_contract chain: goal → skeleton → MOD shell → FEAT starter → SLICE). " +
+				"Target must be a writable workspace root. Call workspace_detect_state first. " +
+				"Requires confirm=true. Use overwrite=true to replace existing bootstrap files. " +
+				"Typically after workspace_scaffold when spec-templates/ exists, or on any repo that already has specs/ layout. " +
+				"Fallback to legacy generators/spec_workspace_bootstrap.py only when skill execute is unavailable.",
+			Parameters: objectSchema(
+				reqField("workspace_root", "string", "Target workspace root path"),
+				optField("project_slug", "string", "Kebab-case id for spec names (default: directory basename)"),
+				optField("project_name", "string", "Alias for project_slug"),
+				optField("owner", "string", "Owner username for YAML meta"),
+				optField("overwrite", "boolean", "Overwrite generated bootstrap YAMLs if they already exist (default false)"),
+				optField("confirm", "boolean", "Must be true to write"),
+			),
+			Handler: MakeWorkspaceSpecsBootstrapHandler(workspaceDir, setStepType),
+		},
+		{
 			Name: "spec_write",
 			Description: "Write or overwrite a spec YAML file at a given path. " +
 				"Use this to save edited spec content back to disk. " +
+				"MUST pass workspace_root when working on a repo opened in Workbench so files land in that project (not the Workbench install directory). " +
 				"Auto-creates parent directories if needed. " +
 				"After writing, runs a quick validation check and emits canvas.spec_modified event.",
 			Parameters: objectSchema(
-				reqField("spec_path", "string", "Relative path from workspace root (e.g. specs/project-goal/my-goal.yaml)"),
+				reqField("spec_path", "string", "Relative path under specs/ from workspace root (e.g. specs/L1-goal/my-goal.yaml)"),
 				reqField("content", "string", "Full YAML content to write"),
+				optField("workspace_root", "string", "Open project root; defaults to agent WORKSPACE_DIR when omitted"),
 				optField("validate_after", "boolean", "Run validation after write (default true)"),
 			),
 			Handler: MakeSpecWriteHandler(workspaceDir, bc, setStepType),
@@ -181,10 +229,11 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 		{
 			Name: "spec_patch_apply",
 			Description: "Apply a partial JSON patch to an existing spec YAML (field-level merge, no full-file rewrite). " +
-				"Only allows paths under specs/. Use this for safe iterative updates like prototype.intent/ui_spec.",
+				"Only allows paths under specs/. MUST pass workspace_root when patching specs for the user's opened project.",
 			Parameters: objectSchema(
-				reqField("spec_path", "string", "Relative path from workspace root (must be under specs/)"),
+				reqField("spec_path", "string", "Relative path under specs/ from workspace root"),
 				reqField("patch_json", "string", "JSON object string to merge into YAML (e.g. {\"prototype\":{\"status\":\"prototype\"}})"),
+				optField("workspace_root", "string", "Open project root; defaults to agent WORKSPACE_DIR when omitted"),
 				optField("validate_after", "boolean", "Run validation after patch (default true)"),
 			),
 			Handler: MakeSpecPatchApplyHandler(workspaceDir, bc, setStepType),

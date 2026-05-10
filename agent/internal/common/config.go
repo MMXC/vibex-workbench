@@ -23,7 +23,7 @@ type Config struct {
 
 	// Vibex-specific
 	SkillsDir    string // path to skill packs (subdirs with SKILL.md); default <workspace>/skills
-	WorkspaceDir string // vibex workbench root, default /root/vibex-workbench
+	WorkspaceDir string // project/agent workspace root; inferred from cwd when WORKSPACE_DIR unset
 	StepModels map[string]string // step_type -> model name, loaded from models.yaml
 }
 
@@ -138,7 +138,7 @@ func homeDir() string {
 func inferWorkspaceDir() string {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return "/root/vibex-workbench"
+		return "."
 	}
 	cwd = normalizeFSPath(cwd)
 	if strings.EqualFold(filepath.Base(cwd), "agent") {

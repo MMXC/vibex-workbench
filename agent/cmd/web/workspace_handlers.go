@@ -18,6 +18,62 @@ import (
 	"time"
 )
 
+func htmlPPTAssetSourceCandidates(wsRoot string) []string {
+	return []string{
+		filepath.Join(wsRoot, "skills", "html-ppt", "assets"),
+		filepath.Join(wsRoot, "skills", "html-ppt", "html-ppt", "assets"),
+		filepath.Join(wsRoot, ".agents", "skills", "html-ppt", "assets"),
+	}
+}
+
+// ensurePPTAssetsCopied copies html-ppt assets into workspace .vibex/assets if missing.
+// Existing files are kept to avoid clobbering user customizations.
+func ensurePPTAssetsCopied(wsRoot string) error {
+	dstRoot := filepath.Join(wsRoot, ".vibex", "assets")
+	if err := os.MkdirAll(dstRoot, 0o755); err != nil {
+		return err
+	}
+
+	var srcRoot string
+	for _, c := range htmlPPTAssetSourceCandidates(wsRoot) {
+		if info, err := os.Stat(c); err == nil && info.IsDir() {
+			srcRoot = c
+			break
+		}
+	}
+	if srcRoot == "" {
+		return fmt.Errorf("html-ppt assets source not found")
+	}
+
+	return filepath.Walk(srcRoot, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(srcRoot, path)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+		dst := filepath.Join(dstRoot, rel)
+		if info.IsDir() {
+			return os.MkdirAll(dst, 0o755)
+		}
+		if _, err := os.Stat(dst); err == nil {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(dst, data, 0o644)
+	})
+}
+
 // ── detect-state ──────────────────────────────────────────────────
 
 // workspaceDetectStateRequest is the POST body for /api/workspace/detect-state.
@@ -233,6 +289,180 @@ func workspaceScaffoldHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+func resolveRepoScriptCandidates(relParts ...string) []string {
+	if vx := strings.TrimSpace(os.Getenv("VIBEX_WORKBENCH_ROOT")); vx != "" {
+		parts := append([]string{vx}, relParts...)
+		return []string{filepath.Join(parts...)}
+	}
+	exe, err := os.Executable()
+	dir := filepath.Dir(os.Args[0])
+	if err == nil && exe != "" {
+		edir := filepath.Dir(exe)
+		baseA := filepath.Join(dir, "..")
+		baseB := filepath.Join(edir, "..")
+		return []string{
+			filepath.Join(append([]string{baseA}, relParts...)...),
+			filepath.Join(append([]string{baseB}, relParts...)...),
+			filepath.Join(append([]string{edir}, relParts...)...),
+			filepath.Join(append([]string{dir}, relParts...)...),
+		}
+	}
+	return []string{
+		filepath.Join(append([]string{filepath.Join(dir, "..")}, relParts...)...),
+	}
+}
+
+func firstExisting(paths []string) string {
+	for _, p := range paths {
+		ap, err := filepath.Abs(p)
+		if err != nil {
+			ap = p
+		}
+		if _, err := os.Stat(ap); err == nil {
+			return ap
+		}
+	}
+	return ""
+}
+
+type workspaceSpecsBootstrapRequest struct {
+	WorkspaceRoot string `json:"workspace_root"`
+	WorkspaceRootAlt string `json:"workspaceRoot"`
+	ProjectSlug   string `json:"project_slug"`
+	ProjectName   string `json:"project_name"`
+	Owner         string `json:"owner"`
+	Confirm       bool   `json:"confirm"`
+	Overwrite     bool   `json:"overwrite"`
+}
+
+// workspaceSpecsBootstrapHandler POST /api/workspace/spec-bootstrap
+// Preferred: skill execute (.agents/skills/workspace-bootstrap/scripts/execute.py)
+// Fallback: generators/spec_workspace_bootstrap.py.
+func workspaceSpecsBootstrapHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req workspaceSpecsBootstrapRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+		http.Error(w, "bad json: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	wsRoot := req.WorkspaceRoot
+	if wsRoot == "" {
+		wsRoot = req.WorkspaceRootAlt
+	}
+	if wsRoot == "" {
+		wsRoot = cfg.WorkspaceDir
+	}
+	if wsRoot == "" {
+		wsRoot = os.Getenv("WORKSPACE_ROOT")
+	}
+	if wsRoot == "" {
+		http.Error(w, "workspaceRoot required", http.StatusBadRequest)
+		return
+	}
+
+	if !req.Confirm {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok":    false,
+			"error": "需确认：前端必须传入 confirm: true",
+		})
+		return
+	}
+
+	skillScript := firstExisting(resolveRepoScriptCandidates(
+		".agents", "skills", "workspace-bootstrap", "scripts", "execute.py",
+	))
+	legacyScript := firstExisting(resolveRepoScriptCandidates("generators", "spec_workspace_bootstrap.py"))
+	scriptPath := skillScript
+	useLegacy := false
+	if scriptPath == "" {
+		scriptPath = legacyScript
+		useLegacy = true
+	}
+	if scriptPath == "" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok":    false,
+			"error": "workspace-bootstrap skill execute not found（且 legacy script 缺失）— 设置 VIBEX_WORKBENCH_ROOT 或从仓库根运行 agent",
+		})
+		return
+	}
+
+	projectSlug := strings.TrimSpace(req.ProjectSlug)
+	if projectSlug == "" {
+		projectSlug = strings.TrimSpace(req.ProjectName)
+	}
+	owner := strings.TrimSpace(req.Owner)
+	if owner == "" {
+		owner = "user"
+	}
+
+	args := []string{"python3", scriptPath}
+	if useLegacy {
+		args = append(args, wsRoot, "--owner", owner, "--json")
+		if projectSlug != "" {
+			args = append(args, "--project-slug", projectSlug)
+		}
+		if req.Overwrite {
+			args = append(args, "--overwrite")
+		}
+	} else {
+		args = append(args, "--workspace-root", wsRoot, "--owner", owner, "--confirm", "--json")
+		if projectSlug != "" {
+			args = append(args, "--project-slug", projectSlug)
+		}
+		if req.Overwrite {
+			args = append(args, "--overwrite")
+		}
+	}
+
+	cmdCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(cmdCtx, args[0], args[1:]...)
+	// generators/ 的上一级为 Workbench 源码/安装根（含 generators、spec-templates），供脚本解析默认路径
+	cmd.Dir = filepath.Dir(filepath.Dir(scriptPath))
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	outBytes := stdout.Bytes()
+	if len(outBytes) == 0 {
+		outBytes = stderr.Bytes()
+	}
+
+	var result map[string]interface{}
+	if json.Unmarshal(outBytes, &result) == nil && len(result) > 0 {
+		if err != nil {
+			result["_exec_error"] = err.Error()
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(result)
+		return
+	}
+
+	fail := map[string]interface{}{
+		"ok":     false,
+		"stdout": stdout.String(),
+		"stderr": stderr.String(),
+	}
+	if err != nil {
+		fail["error"] = err.Error()
+	} else {
+		fail["error"] = "spec_workspace_bootstrap 输出不可解析"
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusInternalServerError)
+	json.NewEncoder(w).Encode(fail)
+}
+
 // ── spec read ──────────────────────────────────────────────────────
 
 // workspaceSpecReadHandler GET /api/workspace/spec/read
@@ -341,14 +571,18 @@ func workspaceFileHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Compatibility fallback for html-ppt generated links:
 	// .vibex/ppt/*.html references ../assets/* → .vibex/assets/*
-	// We map it to skills/html-ppt/assets/*.
+	// If not present, auto-copy assets into workspace and then serve.
 	slashRel := filepath.ToSlash(cleanRel)
 	if strings.HasPrefix(slashRel, ".vibex/assets/") {
+		_ = ensurePPTAssetsCopied(wsRoot)
+		if info, statErr := os.Stat(target); statErr == nil && !info.IsDir() {
+			http.ServeFile(w, r, target)
+			return
+		}
 		sub := strings.TrimPrefix(slashRel, ".vibex/assets/")
-		candidates := []string{
-			filepath.Join(wsRoot, "skills", "html-ppt", "assets", filepath.FromSlash(sub)),
-			filepath.Join(wsRoot, "skills", "html-ppt", "html-ppt", "assets", filepath.FromSlash(sub)),
-			filepath.Join(wsRoot, ".agents", "skills", "html-ppt", "assets", filepath.FromSlash(sub)),
+		candidates := make([]string, 0, 3)
+		for _, root := range htmlPPTAssetSourceCandidates(wsRoot) {
+			candidates = append(candidates, filepath.Join(root, filepath.FromSlash(sub)))
 		}
 		for _, candidate := range candidates {
 			if info, statErr := os.Stat(candidate); statErr == nil && !info.IsDir() {
@@ -427,6 +661,27 @@ type workspaceRunMakeRequest struct {
 	Target        string `json:"target"`
 }
 
+type workspaceTreeNode struct {
+	Name  string `json:"name"`
+	Path  string `json:"path"`
+	Type  string `json:"type"` // file | dir
+	Size  int64  `json:"size,omitempty"`
+	Mtime int64  `json:"mtime,omitempty"`
+}
+
+type workspaceGitStatusFile struct {
+	Path   string `json:"path"`
+	Index  string `json:"index"`
+	Work   string `json:"worktree"`
+	Status string `json:"status"`
+}
+
+type workspaceGitCommitRequest struct {
+	WorkspaceRoot string `json:"workspace_root"`
+	SpecPath      string `json:"spec_path"`
+	Message       string `json:"message"`
+}
+
 // workspaceVerifySpecsRequest is the POST body for /api/workspace/verify-specs.
 type workspaceVerifySpecsRequest struct {
 	WorkspaceRoot string            `json:"workspace_root"`
@@ -438,8 +693,7 @@ type workspaceVerifySpecsRequest struct {
 
 // workspaceVerifySpecsHandler POST /api/workspace/verify-specs
 // Runs verify_specs CLI and returns the report as JSON.
-// The verify_specs binary must be built at the vibex-workbench repo root:
-//   cd /root/vibex-workbench && go build -o verify_specs ./cmd/verify_specs/
+// Build verify_specs from the repository root: go build -o verify_specs ./cmd/verify_specs/
 func workspaceVerifySpecsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -464,8 +718,7 @@ func workspaceVerifySpecsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find the verify_specs binary relative to the repo root.
-	// Agent runs from vibex-workbench repo root, so binary is at ./verify_specs.
+	// Find the verify_specs binary next to the agent executable or under cwd (./verify_specs).
 	exe, err := os.Executable()
 	binPath := "./verify_specs"
 	if err == nil {
@@ -513,7 +766,7 @@ func workspaceVerifySpecsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		// If binary not found, return a helpful error
 		if os.IsNotExist(err) {
-			http.Error(w, `{"error":"verify_specs binary not found. Build it with: cd /root/vibex-workbench && go build -o verify_specs ./cmd/verify_specs/"}`, http.StatusServiceUnavailable)
+			http.Error(w, `{"error":"verify_specs binary not found. Build from repo root: go build -o verify_specs ./cmd/verify_specs/"}`, http.StatusServiceUnavailable)
 			return
 		}
 		// Return JSON even on failure (the binary outputs JSON with exit code 1)
@@ -605,6 +858,254 @@ func workspaceRunMakeHandler(w http.ResponseWriter, r *http.Request) {
 		"exitCode": exitCode,
 		"timeout":  timedOut,
 		"target":   target,
+	})
+}
+
+// workspaceTreeHandler GET /api/workspace/tree?workspaceRoot=...&path=...
+func workspaceTreeHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	wsRoot := r.URL.Query().Get("workspaceRoot")
+	if wsRoot == "" {
+		wsRoot = cfg.WorkspaceDir
+	}
+	if wsRoot == "" {
+		wsRoot = os.Getenv("WORKSPACE_ROOT")
+	}
+	if wsRoot == "" {
+		http.Error(w, "workspaceRoot required", http.StatusBadRequest)
+		return
+	}
+	wsRoot = filepath.Clean(wsRoot)
+
+	rel := strings.TrimSpace(r.URL.Query().Get("path"))
+	if rel == "" {
+		rel = "."
+	}
+	cleanRel := filepath.Clean(rel)
+	if cleanRel == "." {
+		cleanRel = ""
+	}
+	if strings.HasPrefix(cleanRel, "..") {
+		http.Error(w, "forbidden: path traversal detected", http.StatusForbidden)
+		return
+	}
+	target := filepath.Join(wsRoot, cleanRel)
+	if !strings.HasPrefix(filepath.Clean(target), wsRoot) {
+		http.Error(w, "forbidden: path traversal detected", http.StatusForbidden)
+		return
+	}
+	entries, err := os.ReadDir(target)
+	if err != nil {
+		http.Error(w, "read dir failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	nodes := make([]workspaceTreeNode, 0, len(entries))
+	for _, e := range entries {
+		name := e.Name()
+		if strings.HasPrefix(name, ".git") || strings.HasPrefix(name, ".sessions") {
+			continue
+		}
+		full := filepath.Join(target, name)
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		relPath, err := filepath.Rel(wsRoot, full)
+		if err != nil {
+			continue
+		}
+		node := workspaceTreeNode{
+			Name:  name,
+			Path:  filepath.ToSlash(relPath),
+			Type:  "file",
+			Size:  info.Size(),
+			Mtime: info.ModTime().Unix(),
+		}
+		if e.IsDir() {
+			node.Type = "dir"
+		}
+		nodes = append(nodes, node)
+	}
+	sort.Slice(nodes, func(i, j int) bool {
+		if nodes[i].Type != nodes[j].Type {
+			return nodes[i].Type == "dir"
+		}
+		return strings.ToLower(nodes[i].Name) < strings.ToLower(nodes[j].Name)
+	})
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"ok":    true,
+		"path":  filepath.ToSlash(cleanRel),
+		"nodes": nodes,
+	})
+}
+
+// workspaceReadFileHandler GET /api/workspace/read-file?workspaceRoot=...&path=...
+func workspaceReadFileHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	wsRoot := r.URL.Query().Get("workspaceRoot")
+	if wsRoot == "" {
+		wsRoot = cfg.WorkspaceDir
+	}
+	if wsRoot == "" {
+		wsRoot = os.Getenv("WORKSPACE_ROOT")
+	}
+	if wsRoot == "" {
+		http.Error(w, "workspaceRoot required", http.StatusBadRequest)
+		return
+	}
+	path := strings.TrimSpace(r.URL.Query().Get("path"))
+	if path == "" {
+		http.Error(w, "path required", http.StatusBadRequest)
+		return
+	}
+	cleanPath := filepath.Clean(path)
+	if strings.HasPrefix(cleanPath, "..") {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	absPath := filepath.Join(wsRoot, cleanPath)
+	if !strings.HasPrefix(filepath.Clean(absPath), filepath.Clean(wsRoot)) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		http.Error(w, "read failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	const max = 512 * 1024
+	truncated := false
+	if len(data) > max {
+		data = data[:max]
+		truncated = true
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"ok":        true,
+		"path":      filepath.ToSlash(cleanPath),
+		"content":   string(data),
+		"truncated": truncated,
+	})
+}
+
+// workspaceGitStatusHandler GET /api/workspace/git/status?workspaceRoot=...
+func workspaceGitStatusHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	wsRoot := r.URL.Query().Get("workspaceRoot")
+	if wsRoot == "" {
+		wsRoot = cfg.WorkspaceDir
+	}
+	if wsRoot == "" {
+		wsRoot = os.Getenv("WORKSPACE_ROOT")
+	}
+	if wsRoot == "" {
+		http.Error(w, "workspaceRoot required", http.StatusBadRequest)
+		return
+	}
+	cmd := exec.Command("git", "status", "--porcelain")
+	cmd.Dir = wsRoot
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := cmd.Run(); err != nil {
+		http.Error(w, "git status failed: "+out.String(), http.StatusInternalServerError)
+		return
+	}
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	files := make([]workspaceGitStatusFile, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" || len(line) < 4 {
+			continue
+		}
+		idx := string(line[0])
+		wt := string(line[1])
+		path := strings.TrimSpace(line[3:])
+		files = append(files, workspaceGitStatusFile{
+			Path:   path,
+			Index:  idx,
+			Work:   wt,
+			Status: strings.TrimSpace(idx + wt),
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"ok":    true,
+		"files": files,
+		"count": len(files),
+	})
+}
+
+// workspaceGitCommitBySpecHandler POST /api/workspace/git/commit-spec
+func workspaceGitCommitBySpecHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req workspaceGitCommitRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad json: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	wsRoot := req.WorkspaceRoot
+	if wsRoot == "" {
+		wsRoot = cfg.WorkspaceDir
+	}
+	if wsRoot == "" {
+		wsRoot = os.Getenv("WORKSPACE_ROOT")
+	}
+	if wsRoot == "" {
+		http.Error(w, "workspaceRoot required", http.StatusBadRequest)
+		return
+	}
+	msg := strings.TrimSpace(req.Message)
+	if msg == "" {
+		http.Error(w, "message required", http.StatusBadRequest)
+		return
+	}
+	specPath := strings.TrimSpace(req.SpecPath)
+	if specPath != "" {
+		msg = fmt.Sprintf("%s\n\nspec: %s", msg, specPath)
+	}
+
+	addCmd := exec.Command("git", "add", "-A")
+	addCmd.Dir = wsRoot
+	var addOut bytes.Buffer
+	addCmd.Stdout = &addOut
+	addCmd.Stderr = &addOut
+	if err := addCmd.Run(); err != nil {
+		http.Error(w, "git add failed: "+addOut.String(), http.StatusInternalServerError)
+		return
+	}
+
+	commitCmd := exec.Command("git", "commit", "-m", msg)
+	commitCmd.Dir = wsRoot
+	var commitOut bytes.Buffer
+	commitCmd.Stdout = &commitOut
+	commitCmd.Stderr = &commitOut
+	if err := commitCmd.Run(); err != nil {
+		text := commitOut.String()
+		if strings.Contains(strings.ToLower(text), "nothing to commit") {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": "nothing to commit", "output": text})
+			return
+		}
+		http.Error(w, "git commit failed: "+text, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"ok":     true,
+		"output": commitOut.String(),
 	})
 }
 
