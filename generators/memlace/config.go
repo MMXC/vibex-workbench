@@ -19,7 +19,7 @@ type Config struct {
 	// Clarifications 澄清会话存储路径（默认 .memlace/clarifications）
 	Clarifications string `json:"clarifications"`
 
-	// WorkDir vibex-workbench 根目录（默认 cwd）
+	// WorkDir 当前仓库/工作区根目录（默认 cwd）
 	WorkDir string `json:"work_dir"`
 
 	// HermesLink 是否链接 Hermes 偏好（true = MemoryStore 指向 ~/.hermes/memories）
