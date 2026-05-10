@@ -16,6 +16,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"vibex-workbench/pkg/speclayout"
 )
 
 func htmlPPTAssetSourceCandidates(wsRoot string) []string {
@@ -651,6 +653,60 @@ func workspaceSpecWriteHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"ok": true, "path": req.Path})
+}
+
+type workspaceSpecsInitLayoutRequest struct {
+	WorkspaceRoot string `json:"workspace_root"`
+}
+
+// workspaceSpecsInitLayoutHandler POST /api/workspace/specs/init-layout
+// Ensures canonical specs/L1-goal … L5-slice / _governance directories (idempotent).
+func workspaceSpecsInitLayoutHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req workspaceSpecsInitLayoutRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+		http.Error(w, "bad json: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	wsRoot := req.WorkspaceRoot
+	if wsRoot == "" {
+		wsRoot = cfg.WorkspaceDir
+	}
+	if wsRoot == "" {
+		wsRoot = os.Getenv("WORKSPACE_ROOT")
+	}
+	if wsRoot == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok":    false,
+			"error": "workspace_root required",
+		})
+		return
+	}
+	wsRoot = filepath.Clean(wsRoot)
+
+	created, skipped, err := speclayout.EnsureCanonicalDirs(wsRoot)
+	resp := map[string]interface{}{
+		"ok":      err == nil,
+		"created": created,
+		"skipped": skipped,
+	}
+	if err != nil {
+		resp["error"] = err.Error()
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	} else {
+		w.WriteHeader(http.StatusOK)
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 // ── run-make ─────────────────────────────────────────────────────

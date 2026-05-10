@@ -64,11 +64,18 @@ export interface CanvasNode {
   id: string;  // 
   eventId?: string;  // 
   threadId?: string;  // 
-  nodeType?: input | sequence | iteration | branch | subagent | gate | output;  // 
+  nodeType?:
+    | 'input'
+    | 'sequence'
+    | 'iteration'
+    | 'branch'
+    | 'subagent'
+    | 'gate'
+    | 'output';
   label?: string;  // 
   x?: number;  // 
   y?: number;  // 
-  status: pending | running | done | error;  // 
+  status: 'pending' | 'running' | 'done' | 'error';  // 
   color?: string;  // 
   payload?: Record<string, unknown>;  // 
 }
@@ -77,7 +84,7 @@ export interface CanvasConnection {
   id: string;  // 
   fromNodeId?: string;  // 
   toNodeId?: string;  // 
-  type: sequence | iteration-loop;  // 
+  type: 'sequence' | 'iteration-loop';  // 
 }
 
 export interface SSEEventSubscription {
@@ -87,16 +94,17 @@ export interface SSEEventSubscription {
 }
 
 export interface RouteDecision {
-  route?: goal | feature | bug;  // 
-  confidence?: number (0-1);  // 
+  route?: 'goal' | 'feature' | 'bug';  // 
+  /** Semantic confidence score in 0..1 */
+  confidence?: number;
   reason?: string;  // 
 }
 
 export interface ClarificationSession {
   id: string;  // 
   threadId?: string;  // 
-  route?: goal | feature | bug;  // 
-  state?: idle | receiving | clarification_loop | terminating;  // 
+  route?: 'goal' | 'feature' | 'bug';  // 
+  state?: 'idle' | 'receiving' | 'clarification_loop' | 'terminating';  // 
   subState?: string | null;  // 
   questions?: Clarification[];  // 
   answers?: Clarification[];  // 
@@ -108,7 +116,7 @@ export interface ClarificationSession {
 
 export interface Clarification {
   id: string;  // 
-  type: ask | answer;  // 
+  type: 'ask' | 'answer';  // 
   question?: string;  // 
   answer?: string | null;  // 
   timestamp?: Date;  // 
@@ -117,18 +125,18 @@ export interface Clarification {
 export interface Suggestion {
   id: string;  // 
   content: string;  // 
-  type: style | direction | detail | boundary;  // 
+  type: 'style' | 'direction' | 'detail' | 'boundary';  // 
   accepted?: boolean | null;  // 
 }
 
 export interface ConfirmedIO {
   id: string;  // 
   threadId?: string;  // 
-  route?: goal | feature | bug;  // 
+  route?: 'goal' | 'feature' | 'bug';  // 
   input?: string;  // 
   output?: string;  // 
   boundary?: string;  // 
-  confirmedBy?: user_confirmation | screenshot_confirmed;  // 
+  confirmedBy?: 'user_confirmation' | 'screenshot_confirmed';  // 
   confirmedAt?: Date;  // 
   specId?: string | null;  // 
   prototypePath?: string | null;  // 
@@ -143,7 +151,7 @@ export interface BugReport {
   reproduceSteps?: string[];  // 
   specId?: string;  // 
   rootCause?: string | null;  // 
-  status: open | fixed | wontfix;  // 
+  status: 'open' | 'fixed' | 'wontfix';  // 
   changelog?: BugChangelogEntry[];  // 
 }
 
@@ -187,26 +195,26 @@ export interface LayoutState {
   rightSidebarWidth?: number;  // 
   leftSidebarOpen?: boolean;  // 
   rightSidebarOpen?: boolean;  // 
-  viewMode?: mermaid_or_canvas;  // dsl-canvas 的视图模式，值: mermaid | canvas
+  viewMode?: 'mermaid' | 'canvas';  // dsl-canvas 的视图模式
 }
 
 export interface ConversationThread {
   id: string;  // 
   title?: string;  // 
-  route?: route_type;  // 
+  route?: 'goal' | 'feature' | 'bug';  // 
   messages?: ConversationMessage[];  // 
-  confirmedIO?: ConfirmedIO_or_null;  // 
+  confirmedIO?: ConfirmedIO | null;  // 
   createdAt: Date;  // 
   isActive?: boolean;  // 
 }
 
 export interface ConversationMessage {
   id: string;  // 
-  role?: user_or_agent;  // 
+  role?: 'user' | 'agent' | 'assistant';  // 
   content: string;  // 
   timestamp?: Date;  // 
-  route?: route_type;  // 
-  clarificationType?: clarification_type;  // clarification loop 中的消息类型
+  route?: 'goal' | 'feature' | 'bug';  // 
+  clarificationType?: 'ask' | 'suggest' | 'answer' | null;  // clarification loop 中的消息类型
 }
 
 // ============================================================
@@ -416,4 +424,12 @@ export interface StepLog {
   timestamp?: Date;
 }
 
-export type Thread = ConversationThread;
+/** Workbench thread row (thread-store ↔ IndexedDB); dates as ISO strings */
+export interface Thread {
+  id: string;
+  title?: string;
+  goal?: string;
+  status?: string;
+  createdAt: string;
+  updatedAt: string;
+}

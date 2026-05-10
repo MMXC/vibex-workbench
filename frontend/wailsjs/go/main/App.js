@@ -22,6 +22,10 @@ export function GetWorkspaceRoot() {
   return window['go']['main']['App']['GetWorkspaceRoot']();
 }
 
+export function InitSpecsLayout(arg1) {
+  return window['go']['main']['App']['InitSpecsLayout'](arg1);
+}
+
 export function KillAgent(arg1, arg2) {
   return window['go']['main']['App']['KillAgent'](arg1, arg2);
 }

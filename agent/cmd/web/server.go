@@ -113,6 +113,14 @@ type profileJSON struct {
 	RequiredSkills   []string `json:"required_skills"`
 }
 
+// defaultSkillAgentToolNames — workspace / Git / CI style skill agents (shell + files + skills + bg + subagents).
+var defaultSkillAgentToolNames = []string{
+	"bash", "read_file", "write_file", "append_file", "todo_set",
+	"bash_bg", "bg_wait", "bg_list",
+	"skill_list", "skill_load", "skill_unload",
+	"subagent_spawn", "subagent_wait",
+}
+
 func toAllowSet(names ...string) map[string]struct{} {
 	if len(names) == 0 {
 		return nil
@@ -139,11 +147,7 @@ func isSafeProfileName(profileName string) bool {
 	return true
 }
 
-func loadAgentProfileFromFile(profileName string) (agentProfileConfig, bool) {
-	if !isSafeProfileName(profileName) {
-		return agentProfileConfig{}, false
-	}
-	path := filepath.Join(cfg.WorkspaceDir, ".agents", "profiles", profileName+".json")
+func loadProfileJSON(path string, fromSkillDir bool) (agentProfileConfig, bool) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return agentProfileConfig{}, false
@@ -153,11 +157,87 @@ func loadAgentProfileFromFile(profileName string) (agentProfileConfig, bool) {
 		log.Printf("[agent-profile] invalid profile json %s: %v", path, err)
 		return agentProfileConfig{}, false
 	}
-	return agentProfileConfig{
-		DeveloperMessage: strings.TrimSpace(raw.DeveloperMessage),
-		AllowedTools:     toAllowSet(raw.AllowedTools...),
-		RequiredSkills:   raw.RequiredSkills,
-	}, true
+	devMsg := strings.TrimSpace(raw.DeveloperMessage)
+	allowed := toAllowSet(raw.AllowedTools...)
+	if fromSkillDir && len(raw.AllowedTools) == 0 {
+		allowed = toAllowSet(defaultSkillAgentToolNames...)
+	}
+	cfg := agentProfileConfig{
+		DeveloperMessage: devMsg,
+		AllowedTools:     allowed,
+		RequiredSkills:   append([]string(nil), raw.RequiredSkills...),
+	}
+	cfg = enrichAgentProfileWhenEmptyMessage(cfg)
+	return cfg, true
+}
+
+// mergeSkillCoLocatedAgentJSON overlays `.agents/skills/<name>/agent.json` when `.agents/agents/<name>.json` exists.
+func mergeSkillCoLocatedAgentJSON(base, name string, cfg agentProfileConfig) agentProfileConfig {
+	p := filepath.Join(base, ".agents", "skills", name, "agent.json")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return cfg
+	}
+	var raw profileJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		log.Printf("[agent-profile] invalid overlay json %s: %v", p, err)
+		return cfg
+	}
+	if len(cfg.RequiredSkills) == 0 && len(raw.RequiredSkills) > 0 {
+		cfg.RequiredSkills = append([]string(nil), raw.RequiredSkills...)
+	}
+	if len(raw.AllowedTools) > 0 {
+		cfg.AllowedTools = toAllowSet(raw.AllowedTools...)
+	}
+	return cfg
+}
+
+func enrichAgentProfileWhenEmptyMessage(p agentProfileConfig) agentProfileConfig {
+	if strings.TrimSpace(p.DeveloperMessage) != "" {
+		return p
+	}
+	if len(p.RequiredSkills) != 1 || skillRegistry == nil {
+		return p
+	}
+	n := skills.NormalizeName(p.RequiredSkills[0])
+	def, ok := skillRegistry.Get(n)
+	if !ok {
+		return p
+	}
+	p.DeveloperMessage = fmt.Sprintf(
+		"You are the specialized `%s` agent. Follow the loaded SKILL.md workflow (steps, guardrails, output) exactly; avoid unrelated VibeX tools unless this skill explicitly requires them.\n\nSkill summary: %s",
+		def.Name,
+		def.Description,
+	)
+	return p
+}
+
+func loadAgentProfileFromFile(profileName string) (agentProfileConfig, bool) {
+	if !isSafeProfileName(profileName) {
+		return agentProfileConfig{}, false
+	}
+	name := strings.TrimSpace(strings.ToLower(profileName))
+	base := cfg.WorkspaceDir
+
+	if cfg, ok := loadProfileJSON(filepath.Join(base, ".agents", "profiles", name+".json"), false); ok {
+		return cfg, true
+	}
+
+	if msg, req, allow, ok := common.LoadSpecializedAgent(base, name, "web"); ok {
+		cfg := agentProfileConfig{
+			DeveloperMessage: strings.TrimSpace(msg),
+			AllowedTools:     toAllowSet(allow...),
+			RequiredSkills:   append([]string(nil), req...),
+		}
+		cfg = mergeSkillCoLocatedAgentJSON(base, name, cfg)
+		cfg = enrichAgentProfileWhenEmptyMessage(cfg)
+		return cfg, true
+	}
+
+	if cfg, ok := loadProfileJSON(filepath.Join(base, ".agents", "skills", name, "agent.json"), true); ok {
+		return cfg, true
+	}
+	return agentProfileConfig{}, false
 }
 
 func ensureProfileSkillsLoaded(state *threadState, profile agentProfileConfig) error {
@@ -506,8 +586,8 @@ func effectiveWorkspaceRoot(workspaceRoot string) (string, error) {
 	if cfg.WorkspaceDir != abs {
 		cfg.WorkspaceDir = abs
 		cfg.SkillsDir = filepath.Join(abs, "skills")
-		if reg, err := skills.LoadRegistryFromDir(cfg.SkillsDir); err != nil {
-			log.Printf("warning: skills dir %s not found: %v", cfg.SkillsDir, err)
+		if reg, err := skills.LoadWorkspaceSkillsRegistry(abs); err != nil {
+			log.Printf("warning: skills registry merge failed for %s: %v", abs, err)
 			skillRegistry = skills.NewRegistry()
 		} else {
 			skillRegistry = reg

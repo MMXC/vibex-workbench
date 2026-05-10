@@ -162,7 +162,9 @@
 	{#if unknownSpecs.length > 0}
 		<div class="unknown">
 			<strong>未分类 specs</strong>
-			<span>{unknownSpecs.length} 个文件未匹配 L1-L5 层级，可从左侧资源树查看。</span>
+			<span
+				>{unknownSpecs.length} 个文件未匹配 L1-L5 层级，可从左侧资源树查看。请使用标题栏右上角「初始化 specs」生成标准目录（L1–L5 桶）后再写入 YAML。</span
+			>
 		</div>
 	{/if}
 </section>

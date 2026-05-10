@@ -42,9 +42,9 @@ func RunInteractive() error {
 	rawClient := common.NewClient(cfg)
 	llm := adapters.NewLLMClient(rawClient, cfg.BaseURL, cfg.Model)
 
-	skillRegistry, err := skills.LoadRegistryFromDir(cfg.SkillsDir)
+	skillRegistry, err := skills.LoadWorkspaceSkillsRegistry(cfg.WorkspaceDir)
 	if err != nil {
-		fmt.Printf("warning: failed to load skills from %s: %v\n", cfg.SkillsDir, err)
+		fmt.Printf("warning: failed to merge skills for workspace %s: %v\n", cfg.WorkspaceDir, err)
 		skillRegistry = skills.NewRegistry()
 	}
 	parentSkills := skills.NewState()

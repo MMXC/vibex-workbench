@@ -14,6 +14,8 @@ export function DetectWorkspaceState(arg1:string):Promise<main.WorkspaceState>;
 
 export function GetWorkspaceRoot():Promise<string>;
 
+export function InitSpecsLayout(arg1:string):Promise<Record<string, any>>;
+
 export function KillAgent(arg1:context.Context,arg2:number):Promise<void>;
 
 export function KillGoBackend(arg1:context.Context):Promise<void>;

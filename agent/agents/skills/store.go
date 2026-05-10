@@ -25,6 +25,29 @@ func NewRegistry() *Registry {
 	return &Registry{skills: make(map[string]Definition)}
 }
 
+// LoadWorkspaceSkillsRegistry merges `<root>/skills` and `<root>/.agents/skills` (later overlays earlier on name collision).
+func LoadWorkspaceSkillsRegistry(workspaceRoot string) (*Registry, error) {
+	root := strings.TrimSpace(workspaceRoot)
+	merged := NewRegistry()
+	if root == "" {
+		return merged, nil
+	}
+	dirs := []string{
+		filepath.Join(root, "skills"),
+		filepath.Join(root, ".agents", "skills"),
+	}
+	for _, dir := range dirs {
+		reg, err := LoadRegistryFromDir(dir)
+		if err != nil {
+			return nil, err
+		}
+		for _, def := range reg.List() {
+			merged.skills[def.Name] = def
+		}
+	}
+	return merged, nil
+}
+
 func LoadRegistryFromDir(dir string) (*Registry, error) {
 	registry := NewRegistry()
 

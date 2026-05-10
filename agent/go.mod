@@ -2,9 +2,14 @@ module vibex/agent
 
 go 1.22.2
 
-require github.com/openai/openai-go/v3 v3.8.0
+require (
+	github.com/openai/openai-go/v3 v3.8.0
+	vibex-workbench v0.0.0-00010101000000-000000000000
+)
 
 replace vibex/generators/memlace => ../generators/memlace
+
+replace vibex-workbench => ../
 
 require (
 	github.com/chromedp/chromedp v0.10.0
@@ -25,5 +30,5 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
-	golang.org/x/sys v0.29.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
 )

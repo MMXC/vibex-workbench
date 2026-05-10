@@ -11,12 +11,14 @@
 	} from '$lib/wails-runtime';
 	import { openDirectoryNativeFirst } from '$lib/wails-dialogs';
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
+	import { wailsInitSpecsLayout } from '$lib/wails-filesystem';
 
 	let { title = 'VibeX Workbench' }: { title?: string } = $props();
 
 	let fileMenuOpen = $state(false);
 	let menuWrapperEl = $state<HTMLElement | null>(null);
 	let isMaximized = $state(false);
+	let specsLayoutBusy = $state(false);
 
 	async function refreshMaximizedState() {
 		isMaximized = await windowIsMaximized();
@@ -40,6 +42,32 @@
 	}
 
 	/** 打开项目：弹目录选择 → 同步 store → 触发事件 → 跳转 */
+	function isWorkspaceOpen(): boolean {
+		const r = $specExplorerStore.workspaceRoot;
+		return !!r && (r.includes('/') || r.includes('\\'));
+	}
+
+	/** 代码侧创建标准 specs/L1…L5 目录，不依赖 agent 随意命名。 */
+	async function initSpecsLayout() {
+		const root = $specExplorerStore.workspaceRoot;
+		if (!isWorkspaceOpen()) return;
+		specsLayoutBusy = true;
+		try {
+			const res = await wailsInitSpecsLayout(root);
+			if (res.ok) {
+				const c = (res.created?.length ?? 0) > 0 ? `新建 ${res.created?.join(', ')}` : '目录已存在，未新建';
+				console.info('[titlebar] specs 布局:', c, res);
+			} else {
+				console.error('[titlebar] InitSpecsLayout:', res.error);
+			}
+			await specExplorerStore.loadList(root);
+		} catch (e) {
+			console.error('[titlebar] InitSpecsLayout failed:', e);
+		} finally {
+			specsLayoutBusy = false;
+		}
+	}
+
 	async function openProject() {
 		console.warn('[titlebar] openProject clicked');
 		fileMenuOpen = false;
@@ -113,6 +141,16 @@
 	</div>
 
 	<div class="trail">
+		<button
+			type="button"
+			class="init-specs-btn"
+			title="在当前工作区创建标准 specs 目录（L1-goal … L5-slice，已存在则跳过）"
+			aria-label="初始化 specs 目录结构"
+			disabled={!isWorkspaceOpen() || specsLayoutBusy}
+			onclick={() => void initSpecsLayout()}
+		>
+			{specsLayoutBusy ? '…' : '初始化 specs'}
+		</button>
 		<span class="run-pill">make validate ✓</span>
 		<span class="run-pill warn">backend path</span>
 		<button type="button" class="icon-btn" title="设置" aria-label="设置">
@@ -347,6 +385,34 @@
 		gap: 6px;
 		margin-left: auto;
 		height: 100%;
+		--wails-draggable: no-drag;
+	}
+
+	.init-specs-btn {
+		height: 24px;
+		padding: 0 10px;
+		border-radius: 5px;
+		border: 1px solid var(--wb-border-2, #465064);
+		background: var(--wb-bg-panel-2, #1c202a);
+		color: var(--wb-text, #eef0f5);
+		font: inherit;
+		font-size: 11px;
+		font-weight: 500;
+		cursor: pointer;
+		white-space: nowrap;
+		transition:
+			background 120ms ease,
+			opacity 120ms ease;
+	}
+
+	.init-specs-btn:hover:not(:disabled) {
+		background: rgba(122, 162, 255, 0.14);
+		border-color: rgba(122, 162, 255, 0.35);
+	}
+
+	.init-specs-btn:disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
 	}
 
 	.run-pill {

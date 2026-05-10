@@ -305,6 +305,49 @@ export async function wailsWriteSpecFile(
 	if (!r.ok) throw new Error(await r.text());
 }
 
+export type SpecsInitLayoutResult = {
+	ok: boolean;
+	created?: string[];
+	skipped?: string[];
+	error?: string;
+};
+
+/** Create canonical specs/L1-goal … / L5-slice / _governance dirs under workspace (idempotent). */
+export async function wailsInitSpecsLayout(root: string): Promise<SpecsInitLayoutResult> {
+	if (!root || !isLikelyFullPath(root)) {
+		throw new Error(`Invalid workspace root (not full path): ${root}`);
+	}
+
+	const app = getGoApp();
+	if (isWails() && app && typeof (app as any).InitSpecsLayout === 'function') {
+		try {
+			return (await (app as any).InitSpecsLayout(root)) as SpecsInitLayoutResult;
+		} catch (e) {
+			console.error('[wails-filesystem] InitSpecsLayout Wails call failed:', e);
+			throw e;
+		}
+	}
+	if (isWails()) {
+		throw new Error('Wails binding missing: App.InitSpecsLayout');
+	}
+
+	const r = await fetch('/api/workspace/specs/init-layout', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ workspace_root: root }),
+	});
+	let j: SpecsInitLayoutResult;
+	try {
+		j = (await r.json()) as SpecsInitLayoutResult;
+	} catch {
+		return { ok: false, error: await r.text() };
+	}
+	if (!r.ok && !j?.error) {
+		return { ok: false, error: `HTTP ${r.status}` };
+	}
+	return j;
+}
+
 // ── DetectWorkspaceState ────────────────────────────────────────
 
 /**

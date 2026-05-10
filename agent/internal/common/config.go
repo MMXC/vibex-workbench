@@ -22,9 +22,9 @@ type Config struct {
 	DebugHTTP     bool
 
 	// Vibex-specific
-	SkillsDir    string // path to skill packs (subdirs with SKILL.md); default <workspace>/skills
-	WorkspaceDir string // project/agent workspace root; inferred from cwd when WORKSPACE_DIR unset
-	StepModels map[string]string // step_type -> model name, loaded from models.yaml
+	SkillsDir    string            // path to skill packs (subdirs with SKILL.md); default <workspace>/skills
+	WorkspaceDir string            // project/agent workspace root; inferred from cwd when WORKSPACE_DIR unset
+	StepModels   map[string]string // step_type -> model name, loaded from models.yaml
 }
 
 func LoadConfig() Config {
@@ -50,7 +50,7 @@ func LoadConfig() Config {
 		SubAgentModel: getenv("SUBAGENT_MODEL", model),
 		DebugHTTP:     getenvBool("DEBUG_HTTP", false),
 		SkillsDir:     skillsDir,
-		WorkspaceDir: workspaceDir,
+		WorkspaceDir:  workspaceDir,
 		StepModels:    loadStepModels(workspaceDir),
 	}
 }
@@ -183,7 +183,7 @@ func normalizeBaseURL(v string) string {
 
 // jsonModels is the shape of models.json
 type jsonModels struct {
-	Default    string                       `json:"default"`
+	Default    string                    `json:"default"`
 	StepModels map[string]stepModelEntry `json:"step_models"`
 }
 

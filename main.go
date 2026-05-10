@@ -30,6 +30,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"vibex-workbench/pkg/designkit"
 	"vibex-workbench/pkg/protoshellmanifest"
+	"vibex-workbench/pkg/speclayout"
 	"vibex-workbench/pkg/verify"
 )
 
@@ -766,6 +767,23 @@ func (a *App) WriteSpecFile(root, path, content string) error {
 		return fmt.Errorf("WriteSpecFile write: %w", err)
 	}
 	return nil
+}
+
+// InitSpecsLayout creates canonical specs/L1–L5 folders under the opened workspace (idempotent).
+func (a *App) InitSpecsLayout(root string) map[string]interface{} {
+	if root == "" {
+		root = a.workspaceRoot
+	}
+	created, skipped, err := speclayout.EnsureCanonicalDirs(root)
+	out := map[string]interface{}{
+		"ok":      err == nil,
+		"created": created,
+		"skipped": skipped,
+	}
+	if err != nil {
+		out["error"] = err.Error()
+	}
+	return out
 }
 
 // WorkspaceState 工作区状态检测结果
