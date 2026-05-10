@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FEAT-spec-editor_L5 — Spec Editor 实现层</title>
+<link rel="stylesheet" id="theme-link" href="../assets/themes/blueprint.css">
+<link rel="stylesheet" href="../assets/animations/animations.css">
+<style>
+:root {
+  --accent: #0ea5e9;
+  --accent-dim: #0369a1;
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --border: #334155;
+  --text-1: #f1f5f9;
+  --text-2: #94a3b8;
+  --code-bg: #020617;
+}
+.flow-diagram {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 1rem;
+  align-items: center;
+  padding: 1.5rem;
+  background: var(--surface);
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+.flow-arrow { color: var(--accent); font-size: 1.5rem; }
+.flow-box {
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  text-align: center;
+  font-size: 0.85rem;
+}
+.io-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+.io-box {
+  background: var(--surface);
+  border-left: 3px solid var(--accent);
+  padding: 1rem;
+  border-radius: 0 6px 6px 0;
+}
+.io-box code {
+  background: var(--code-bg);
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: var(--accent);
+}
+.behavior-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+}
+.behavior-id {
+  display: inline-block;
+  background: var(--accent);
+  color: var(--bg);
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  margin-right: 0.5rem;
+}
+.spec-tree {
+  font-family: monospace;
+  font-size: 0.85rem;
+  line-height: 1.8;
+  padding: 1rem;
+  background: var(--code-bg);
+  border-radius: 6px;
+}
+.allowed { color: #4ade80; }
+.forbidden { color: #f87171; }
+.verification-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+.risk-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: var(--surface);
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+}
+.risk-icon { color: #f87171; }
+.dep-list {
+  list-style: none;
+  padding: 0;
+}
+.dep-list li {
+  padding: 0.5rem 1rem;
+  background: var(--surface);
+  margin-bottom: 0.5rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  border-left: 3px solid var(--accent-dim);
+}
+</style>
+</head>
+<body>
+
+<section class="slide is-active" data-slide="1">
+  <div class="slide-inner">
+    <div class="deck-header">
+      <span class="deck-title">FEAT-spec-editor_L5</span>
+      <span class="deck-meta">v0.1 · L5-implementation · hermes</span>
+    </div>
+    <div class="slide-content" style="text-align:center; padding-top: 3rem;">
+      <div style="font-size:0.7rem; color: var(--accent); letter-spacing: 0.2em; margin-bottom: 1rem;">IMPLEMENTATION SPEC</div>
+      <h1 style="font-size: 2.8rem; margin-bottom: 0.5rem;">spec editor</h1>
+      <h2 style="font-size: 1.2rem; color: var(--accent); font-weight: normal; margin-bottom: 2rem;">读取 & 写入 specs/ 目录下的 YAML 文件</h2>
+      <div style="display: flex; justify-content: center; gap: 2rem; margin-top: 2rem;">
+        <div class="flow-box"><strong>L5-implementation</strong><br><span style="color:var(--text-2)">前端 + 后端联动</span></div>
+        <div class="flow-box"><strong>status: proposal</strong><br><span style="color:var(--text-2)">2026-04-26</span></div>
+        <div class="flow-box"><strong>owner: hermes</strong><br><span style="color:var(--text-2)">frontend 模块</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-slide="2">
+  <div class="deck-header"><span class="deck-title">FEAT-spec-editor_L5 — 问题背景</span></div>
+  <div class="slide-content">
+    <h2 style="margin-bottom: 1.5rem;">🔍 问题背景</h2>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+      <div>
+        <h3 style="color: var(--accent); font-size: 1rem; margin-bottom: 1rem;">现状痛点</h3>
+        <ul style="line-height: 2; padding-left: 1.2rem;">
+          <li>spec 文件需要手工编辑 YAML，缺乏可视化界面</li>
+          <li>编辑后无法实时验证 YAML 格式是否正确</li>
+          <li>spec 文件分布在多级目录 (L1~L5)，查找困难</li>
+          <li>保存后缺少自动 lint 反馈</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="color: var(--accent); font-size: 1rem; margin-bottom: 1rem;">解决方案</h3>
+        <ul style="line-height: 2; padding-left: 1.2rem;">
+          <li>SpecExplorer — 树形展示所有 spec 文件</li>
+          <li>SpecViewer — YAML 内容展示 + 在线编辑</li>
+          <li>保存时自动触发 <code>make lint-specs</code></li>
+          <li>lint 结果展示在 Output tab</li>
+        </ul>
+      </div>
+    </div>
+    <div class="flow-diagram" style="margin-top: 1.5rem;">
+      <div class="flow-box">SpecExplorer<br><span style="color:var(--text-2)">点击文件节点</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box">SpecViewer<br><span style="color:var(--text-2)">展示 & 编辑 YAML</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box">POST /api/workspace/specs/write<br><span style="color:var(--text-2)">保存 + lint-specs</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-slide="3">
+  <div class="deck-header"><span class="deck-title">FEAT-spec-editor_L5 — I/O 契约</span></div>
+  <div class="slide-content">
+    <h2 style="margin-bottom: 1.5rem;">📦 Input / Output / Boundary</h2>
+    <div class="io-grid">
+      <div>
+        <h3 style="color: var(--accent); margin-bottom: 0.75rem;">📥 Input</h3>
+        <div class="io-box">
+          <p style="margin-bottom: 0.75rem;">用户在 <strong>SpecExplorer</strong> 点击文件节点，或在 <strong>SpecViewer</strong> 点击「编辑」按钮</p>
+          <code>POST /api/workspace/specs/write</code>
+          <p style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-2);">{ path, content } — 写入 spec YAML</p>
+        </div>
+      </div>
+      <div>
+        <h3 style="color: var(--accent); margin-bottom: 0.75rem;">📤 Output</h3>
+        <div class="io-box">
+          <p style="margin-bottom: 0.5rem;"><strong>读取：</strong><code>GET /api/workspace/specs/read/{path}</code> → YAML 文本</p>
+          <p style="margin-bottom: 0.5rem;"><strong>写入：</strong><code>POST /api/workspace/specs/write</code> → { success, error }</p>
+          <p style="margin-bottom: 0;"><strong>保存后：</strong>触发 <code>make lint-specs</code> → 显示验证结果</p>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top: 1.5rem; padding: 1rem; background: #7f1d1d; border-radius: 6px; border-left: 4px solid #f87171;">
+      <h3 style="color: #f87171; margin-bottom: 0.5rem;">🚧 Boundary（边界约束）</h3>
+      <p style="font-size: 0.9rem;">只读写 <code>specs/</code> 目录下的 YAML 文件，<strong style="color: #f87171;">不读写其他目录</strong></p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-slide="4">
+  <div class="deck-header"><span class="deck-title">FEAT-spec-editor_L5 — Spec 层级位置</span></div>
+  <div class="slide-content">
+    <h2 style="margin-bottom: 1.5rem;">🗂️ 在总 spec 体系中的位置</h2>
+    <div class="spec-tree">
+      <span style="color: var(--accent);">specs/</span>
+      <br>├── L1-goal/
+      <br>├── L2-skeleton/
+      <br>├── L3-interface/
+      <br>├── L4-component/
+      <br>├── L5-slice/
+      <br>│   └── FEAT-spec-editor_L5.yaml  <span style="color: var(--accent);">← 当前</span>
+      <br>└── ...
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem;">
+      <div style="padding: 1rem; background: var(--surface); border-radius: 6px;">
+        <h3 style="color: var(--accent); font-size: 0.9rem; margin-bottom: 0.5rem;">👆 父 Spec</h3>
+        <p><strong>FEAT-spec-editor</strong></p>
+        <p style="font-size: 0.8rem; color: var(--text-2);">定义 spec 编辑器的整体需求</p>
+      </div>
+      <div style="padding: 1rem; background: var(--surface); border-radius: 6px;">
+        <h3 style="color: var(--accent); font-size: 0.9rem; margin-bottom: 0.5rem;">👇 子 Spec</h3>
+        <p><strong>无</strong></p>
+        <p style="font-size: 0.8rem; color: var(--text-2);">L5 为实现层叶子节点</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-slide="5">
+  <div class="deck-header"><span class="deck-title">FEAT-spec-editor_L5 — 相邻 Spec 关系</span></div>
+  <div class="slide-content">
+    <h2 style="margin-bottom: 1.5rem;">🔗 上下游依赖关系</h2>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+      <div>
+        <h3 style="color: #4ade80; font-size: 1rem; margin-bottom: 1rem;">⬆️ 上游输入</h3>
+        <div style="padding: 1rem; background: var(--surface); border-radius: 6px; border-top: 3px solid #4ade80;">
+          <p style="font-size: 0.9rem; margin-bottom: 0.5rem;"><strong>FEAT-spec-editor</strong> (父级)</p>
+          <p style="font-size: 0.8rem; color: var(--text-2);">提供编辑器的整体功能定义</p>
+        </div>
+        <div style="padding: 1rem; background: var(--surface); border-radius: 6px; border-top: 3px solid #4ade80; margin-top: 0.75rem;">
+          <p style="font-size: 0.9rem; margin-bottom: 0.5rem;"><strong>workspace_handlers.go</strong></p>
+          <p style="font-size: 0.8rem; color: var(--text-2);">提供 read/write HTTP 接口实现</p>
+        </div>
+      </div>
+      <div>
+        <h3 style="color: var(--accent); font-size: 1rem; margin-bottom: 1rem;">⬇️ 下游影响</h3>
+        <div style="padding: 1rem; background: var(--surface); border-radius: 6px; border-top: 3px solid var(--accent);">
+          <p style="font-size: 0.9rem; margin-bottom: 0.5rem;"><strong>SpecExplorer.svelte</strong></p>
+          <p style="font-size: 0.8rem; color: var(--text-2);">依赖文件列表读取功能</p>
+        </div>
+        <div style="padding: 1rem; background: var(--surface); border-radius: 6px; border-top: 3px solid var(--accent); margin-top: 0.75rem;">
+          <p style="font-size: 0.9rem; margin-bottom: 0.5rem;"><strong>Output Tab</strong></p>
+          <p style="font-size: 0.8rem; color: var(--text-2);">展示 lint-specs 验证结果</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-slide="6">
+  <div class="deck-header"><span class="deck-title">FEAT-spec-editor_L5 — 核心行为</span></div>
+  <div class="slide-content">
+    <h2 style="margin-bottom: 1.5rem;">⚙️ 实现行为 (Behaviors)</h2>
+    <div class="behavior-card">
+      <span class="behavior-id">L5-B1</span>
+      <strong>读取 spec 文件列表</strong>
+      <p style="font-size: 0.85rem; color: var(--text-2); margin-top: 0.5rem; margin-bottom: 0;">
+        <code>onMount → GET /api/workspace/specs/list</code> → 更新 spec_tree_store，显示树形结构按 L1~L5 分组
+      </p>
+    </div>
+    <div class="behavior-card">
+      <span class="behavior-id">L5-B2</span>
+      <strong>读取 spec 内容</strong>
+      <p style="font-size: 0.85rem; color: var(--text-2); margin-top: 0.5rem; margin-bottom: 0;">
+        点击节点 → <code>GET /api/workspace/specs/read/{path}</code> → 展示 YAML 内容在 SpecViewer textarea
+      </p>
+    </div>
+    <div class="behavior-card">
+      <span class="behavior-id">L5-B3</span>
+      <strong>保存 spec 修改</strong>
+      <p style="font-size: 0.85rem; color: var(--text-2); margin-top: 0.5rem; margin-bottom: 0;">
+        <code>POST /api/workspace/specs/write { path, content }</code> → 保存成功 → 调用 <code>make lint-specs</code> → 更新 Output tab
+      </p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-slide="7">
+  <div class="deck-header"><span class="deck-title">FEAT-spec-editor_L5 — 实现边界</span></div>
+  <div class="slide-content">
+    <h2 style="margin-bottom: 1.5rem;">✅ 允许 / 🚫 禁止</h2>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+      <div>
+        <h3 style="color: #4ade80; font-size: 1rem; margin-bottom: 1rem;">✅ 允许 (Allowed)</h3>
+        <ul style="line-height: 2; padding-left: 1.2rem;">
+          <li>SpecExplorer 组件 — spec 文件列表读取</li>
+          <li>SpecViewer 组件 — YAML 内容展示 + 编辑</li>
+          <li>specs_write_handler — 写盘 + 调用 make lint-specs</li>
+          <li>specs_read_handler — 读 YAML 文件</li>
+          <li>前端 YAML 编辑器 (textarea + js-yaml 预览)</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="color: #f87171; font-size: 1rem; margin-bottom: 1rem;">🚫 禁止 (Forbidden)</h3>
+        <ul style="line-height: 2; padding-left: 1.2rem;">
+          <li>禁止读写 <code>specs/</code> 目录外的文件</li>
+          <li>禁止在 SpecViewer 保存后不触发 lint-specs</li>
+          <li>禁止前端直接调用 make 命令</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-slide="8">
+  <div class="deck-header"><span class="deck-title">FEAT-spec-editor_L5 — 关键风险</span></div>
+  <div class="slide-content">
+    <h2 style="margin-bottom: 1.5rem;">⚠️ 失败条件 / 关键风险</h2>
+    <div class="risk-item"><span class="risk-icon">⚠</span><div>前端读取不存在的 spec 文件不报错</div></div>
+    <div class="risk-item"><span class="risk-icon">⚠</span><div>保存 YAML 后不触发 lint-specs</div></div>
+    <div class="risk-item"><span class="risk-icon">⚠</span><div>specs_write_handler 读写 specs/ 外路径</div></div>
+    <div class="risk-item"><span class="risk-icon">⚠</span><div>lint 输出未展示在 Output tab</div></div>
+    <div style="margin-top: 1.5rem; padding: 1rem; background: var(--surface); border-radius: 6px;">
+      <h3 style="color: var(--accent); font-size: 0.9rem; margin-bottom: 0.75rem;">📋 验证方式</h3>
+      <div style="font-size: 0.8rem; font-family: monospace; background: var(--code-bg); padding: 0.75rem; border-radius: 4px;">
+        <p>cd /root/v-test && python3 generators/validate_specs.py 2>&1 | tail -5</p>
+        <p>cd /root/v-test && curl -s 'http://localhost:33338/api/workspace/specs/read/specs/L1-goal/entry.yaml' | head -10</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-slide="9">
+  <div class="deck-header"><span class="deck-title">FEAT-spec-editor_L5 — 依赖文件</span></div>
+  <div class="slide-content">
+    <h2 style="margin-bottom: 1.5rem;">📁 关键依赖文件</h2>
+    <ul class="dep-list">
+      <li>
+        <strong>agent/cmd/web/workspace_handlers.go</strong>
+        <p style="margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--text-2);">
+          specs_read_handler 和 specs_write_handler 实现在此文件
+        </p>
+      </li>
+      <li>
+        <strong>generators/validate_specs.py</strong>
+        <p style="margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--text-2);">
+          make lint-specs 实际调用 validate_specs.py
+        </p>
+      </li>
+      <li>
+        <strong>frontend/src/lib/components/workbench/SpecViewer.svelte</strong>
+        <p style="margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--text-2);">
+          spec YAML 内容展示和编辑组件
+        </p>
+      </li>
+      <li>
+        <strong>frontend/src/lib/components/workbench/SpecExplorer.svelte</strong>
+        <p style="margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--text-2);">
+          受影响文件：spec 文件列表读取组件
+        </p>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<section class="slide" data-slide="10">
+  <div class="deck-header"><span class="deck-title">FEAT-spec-editor_L5 — 总结</span></div>
+  <div class="slide-content" style="text-align: center; padding-top: 2rem;">
+    <h2 style="margin-bottom: 2rem;">📌 总结</h2>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; text-align: left;">
+      <div style="padding: 1.25rem; background: var(--surface); border-radius: 8px; border-top: 3px solid var(--accent);">
+        <h3 style="color: var(--accent); font-size: 0.9rem; margin-bottom: 0.75rem;">核心功能</h3>
+        <p style="font-size: 0.85rem; line-height: 1.6;">spec 文件的读取、编辑、保存与 lint 验证闭环</p>
+      </div>
+      <div style="padding: 1.25rem; background: var(--surface); border-radius: 8px; border-top: 3px solid var(--accent);">
+        <h3 style="color: var(--accent); font-size: 0.9rem; margin-bottom: 0.75rem;">关键约束</h3>
+        <p style="font-size: 0.85rem; line-height: 1.6;">只操作 specs/ 目录 · 保存必触发 lint · 不直接调 make</p>
+      </div>
+      <div style="padding: 1.25rem; background: var(--surface); border-radius: 8px; border-top: 3px solid var(--accent);">
+        <h3 style="color: var(--accent); font-size: 0.9rem; margin-bottom: 0.75rem;">状态</h3>
+        <p style="font-size: 0.85rem; line-height: 1.6;">v0.1 · proposal · 2026-04-26</p>
+      </div>
+    </div>
+    <div style="margin-top: 2rem; padding: 1rem; background: var(--surface); border-radius: 8px; display: inline-block;">
+      <p style="margin: 0; font-size: 0.9rem;">
+        <strong style="color: var(--accent);">parent:</strong> FEAT-spec-editor &nbsp;|&nbsp;
+        <strong style="color: var(--accent);">module:</strong> frontend &nbsp;|&nbsp;
+        <strong style="color: var(--accent);">owner:</strong> hermes
+      </p>
+    </div>
+  </div>
+</section>
+
+<script src="../assets/runtime.js"></script>
+</body>
+</html>

@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>vibex-workbench MVP — Spec Deck</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" id="theme-link" href="../assets/themes/corporate-clean.css">
+  <link rel="stylesheet" href="../assets/animations/animations.css">
+</head>
+<body>
+<main class="deck">
+
+<!-- ========== Slide 1: Cover ========== -->
+<section class="slide" data-slide="1">
+  <div class="cover-bg"></div>
+  <div class="cover-content">
+    <div class="cover-label">L1 PROJECT GOAL</div>
+    <h1 class="cover-title">vibex-workbench MVP</h1>
+    <p class="cover-subtitle">空仓库 → 边做边长：Spec-Driven Development 闭环</p>
+    <div class="cover-meta">
+      <span class="meta-item">v0.2</span>
+      <span class="meta-divider">|</span>
+      <span class="meta-item">2026-04-29</span>
+      <span class="meta-divider">|</span>
+      <span class="meta-item">hermes</span>
+    </div>
+    <div class="cover-status">
+      <span class="status-badge status-proposal">implementation</span>
+    </div>
+  </div>
+</section>
+
+<!-- ========== Slide 2: As-Is / To-Be Gap ========== -->
+<section class="slide" data-slide="2">
+  <header class="slide-header">
+    <span class="header-icon">⚡</span>
+    <h2 class="header-title">As-Is → To-Be 差距分析</h2>
+  </header>
+  <div class="slide-body">
+    <div class="comparison-grid">
+      <div class="col as-is">
+        <div class="col-header danger">AS-IS 现状</div>
+        <ul class="col-list">
+          <li class="list-item danger">❌ 无标准化脚手架</li>
+          <li class="list-item danger">❌ Spec 编写依赖人工</li>
+          <li class="list-item danger">❌ 校验/生成需手动终端</li>
+          <li class="list-item danger">❌ 无目录状态感知</li>
+          <li class="list-item danger">❌ 无统一仓库根约束</li>
+        </ul>
+      </div>
+      <div class="col-gap">
+        <div class="gap-arrow">→</div>
+      </div>
+      <div class="col to-be">
+        <div class="col-header success">TO-BE 目标</div>
+        <ul class="col-list">
+          <li class="list-item success">✓ 最小可跑脚手架生成</li>
+          <li class="list-item success">✓ Spec 可读可写 + 校验</li>
+          <li class="list-item success">✓ UI 一键触发 make</li>
+          <li class="list-item success">✓ 三态探测 (空/半/就绪)</li>
+          <li class="list-item success">✓ 仓库根统一绑定</li>
+        </ul>
+      </div>
+    </div>
+    <div class="gap-summary">
+      <div class="gap-item">
+        <span class="gap-label">差距数量</span>
+        <span class="gap-value">5 项核心能力</span>
+      </div>
+      <div class="gap-item">
+        <span class="gap-label">验证状态</span>
+        <span class="gap-value success-text">全部 e2e 通过 ✓</span>
+      </div>
+      <div class="gap-item">
+        <span class="gap-label">生命周期</span>
+        <span class="gap-value">proposal → implementation</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== Slide 3: MVP 5 Capabilities ========== -->
+<section class="slide" data-slide="3">
+  <header class="slide-header">
+    <span class="header-icon">🎯</span>
+    <h2 class="header-title">MVP 5 项核心能力 (AC1–AC5)</h2>
+  </header>
+  <div class="slide-body">
+    <div class="capability-grid">
+      <div class="cap-card">
+        <div class="cap-id ac1">AC1</div>
+        <div class="cap-content">
+          <h3 class="cap-title">仓库根绑定</h3>
+          <p class="cap-desc">统一 workspace_root，所有读写/命令在该目录下执行</p>
+          <div class="cap-api">POST /api/workspace/detect-state</div>
+        </div>
+      </div>
+      <div class="cap-card">
+        <div class="cap-id ac2">AC2</div>
+        <div class="cap-content">
+          <h3 class="cap-title">三态探测</h3>
+          <p class="cap-desc">区分 empty / partial / ready，UI 展示 badge + 建议</p>
+          <div class="cap-api">state + hasSpecDir + hasGenerators</div>
+        </div>
+      </div>
+      <div class="cap-card">
+        <div class="cap-id ac3">AC3</div>
+        <div class="cap-content">
+          <h3 class="cap-title">脚手架确认写入</h3>
+          <p class="cap-desc">显式确认门槛，落地 specs/ + gen.py + Makefile</p>
+          <div class="cap-api">POST /api/workspace/scaffold</div>
+        </div>
+      </div>
+      <div class="cap-card">
+        <div class="cap-id ac4">AC4</div>
+        <div class="cap-content">
+          <h3 class="cap-title">Spec 可读可写</h3>
+          <p class="cap-desc">GET/POST spec 文件，保存触发校验，完整闭环</p>
+          <div class="cap-api">GET/POST /api/workspace/spec</div>
+        </div>
+      </div>
+      <div class="cap-card">
+        <div class="cap-id ac5">AC5</div>
+        <div class="cap-content">
+          <h3 class="cap-title">校验/生成一触即达</h3>
+          <p class="cap-desc">UI 触发 make validate/generate，失败显示错误摘要</p>
+          <div class="cap-api">POST /api/workspace/run-make</div>
+        </div>
+      </div>
+    </div>
+    <div class="flow-diagram">
+      <span class="flow-step">用户选目录</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-step">状态探测</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-step">确认脚手架</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-step">编写 Spec</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-step">校验/生成</span>
+    </div>
+  </div>
+</section>
+
+<!-- ========== Slide 4: System Architecture ========== -->
+<section class="slide" data-slide="4">
+  <header class="slide-header">
+    <span class="header-icon">🏗️</span>
+    <h2 class="header-title">系统架构概览</h2>
+  </header>
+  <div class="slide-body">
+    <div class="arch-diagram">
+      <div class="arch-layer front-layer">
+        <div class="layer-label">Frontend</div>
+        <div class="layer-modules">
+          <div class="module">workspace/+page.svelte</div>
+          <div class="module">spec detail panel</div>
+          <div class="module">action bar</div>
+        </div>
+      </div>
+      <div class="arch-connector">↓ HTTP API ↓</div>
+      <div class="arch-layer back-layer">
+        <div class="layer-label">Backend (Go Agent)</div>
+        <div class="layer-modules">
+          <div class="module">workspace_handlers.go</div>
+          <div class="module">nanoClaudeCode</div>
+          <div class="module">memlace</div>
+        </div>
+      </div>
+      <div class="arch-connector">↓ 文件系统 ↓</div>
+      <div class="arch-layer data-layer">
+        <div class="layer-label">Generators</div>
+        <div class="layer-modules">
+          <div class="module">gen.py</div>
+          <div class="module">scaffolder.py</div>
+          <div class="module">state_detector.py</div>
+        </div>
+      </div>
+      <div class="arch-layer data-layer">
+        <div class="layer-label">Templates</div>
+        <div class="layer-modules">
+          <div class="module">spec-templates/</div>
+          <div class="module">L0–L5 YAML</div>
+          <div class="module">Makefile</div>
+        </div>
+      </div>
+    </div>
+    <div class="arch-legend">
+      <div class="legend-item"><span class="legend-dot front"></span> SvelteKit</div>
+      <div class="legend-item"><span class="legend-dot back"></span> Go Agent</div>
+      <div class="legend-item"><span class="legend-dot data"></span> Python/CLI</div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== Slide 5: Stakeholder Perspectives ========== -->
+<section class="slide" data-slide="5">
+  <header class="slide-header">
+    <span class="header-icon">👥</span>
+    <h2 class="header-title">四类视角覆盖</h2>
+  </header>
+  <div class="slide-body">
+    <div class="stakeholder-grid">
+      <div class="stake-card cto">
+        <div class="stake-icon">👔</div>
+        <h3 class="stake-title">CTO</h3>
+        <ul class="stake-concerns">
+          <li>• 战略价值：原生自举，无模板依赖</li>
+          <li>• 资源投入：e2e 自动化验证，防回归</li>
+          <li>• 风险：单仓库限制是否满足扩展需求</li>
+        </ul>
+        <div class="stake-question">MVP 后如何支持多 workspace？</div>
+      </div>
+      <div class="stake-card dev">
+        <div class="stake-icon">💻</div>
+        <h3 class="stake-title">开发</h3>
+        <ul class="stake-concerns">
+          <li>• 模块边界：agent / frontend / generators</li>
+          <li>• 接口契约：REST API 路径已定义</li>
+          <li>• 技术债：memlace (Go) 是否稳定？</li>
+        </ul>
+        <div class="stake-question">如何调试 spec → 代码链路？</div>
+      </div>
+      <div class="stake-card test">
+        <div class="stake-icon">🧪</div>
+        <h3 class="stake-title">测试</h3>
+        <ul class="stake-concerns">
+          <li>• 验证路径：AC1–AC5 e2e 脚本</li>
+          <li>• 覆盖盲区：部分删除 specs/ 场景</li>
+          <li>• 回归风险：make validate 全部 91 specs</li>
+        </ul>
+        <div class="stake-question">如何添加新 AC 验证场景？</div>
+      </div>
+      <div class="stake-card user">
+        <div class="stake-icon">👤</div>
+        <h3 class="stake-title">用户</h3>
+        <ul class="stake-concerns">
+          <li>• 体验收益：从零到可运行项目</li>
+          <li>• 流程变化：clarification 循环 + canvas</li>
+          <li>• 可见价值：TDD 开发过程可追溯</li>
+        </ul>
+        <div class="stake-question">非技术用户能否独立完成？</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== Slide 6: Decision Page ========== -->
+<section class="slide" data-slide="6">
+  <header class="slide-header">
+    <span class="header-icon">⚖️</span>
+    <h2 class="header-title">关键决策点</h2>
+  </header>
+  <div class="slide-body">
+    <div class="decision-section">
+      <h3 class="decision-q">决策 Q1: 脚手架写入策略</h3>
+      <div class="decision-options">
+        <div class="option-card recommended">
+          <div class="option-badge">✓ 推荐</div>
+          <h4>显式确认门槛 (AC3)</h4>
+          <p class="option-desc">用户必须点击确认，防止静默污染磁盘</p>
+          <div class="option-pros">pros: 安全、可追溯</div>
+          <div class="option-cons">cons: 多一步交互</div>
+        </div>
+        <div class="option-card">
+          <h4>静默自动生成</h4>
+          <p class="option-desc">检测空目录后自动写入脚手架</p>
+          <div class="option-pros">pros: 零摩擦</div>
+          <div class="option-cons">cons: 不可逆、有心理负担</div>
+        </div>
+      </div>
+    </div>
+    <div class="decision-section">
+      <h3 class="decision-q">决策 Q2: 状态探测粒度</h3>
+      <div class="decision-options">
+        <div class="option-card recommended">
+          <div class="option-badge">✓ 推荐</div>
+          <h4>三态 (empty/partial/ready)</h4>
+          <p class="option-desc">足够简单，覆盖核心场景</p>
+          <div class="option-pros">pros: 实现成本低、用户易理解</div>
+          <div class="option-cons">cons: 未来可能需更多状态</div>
+        </div>
+        <div class="option-card">
+          <h4>多态/枚举细化</h4>
+          <p class="option-desc">更多状态如: missing-config, broken-spec</p>
+          <div class="option-pros">pros: 更精细</div>
+          <div class="option-cons">cons: 过度设计、MVP 阶段不划算</div>
+        </div>
+      </div>
+    </div>
+    <div class="decision-note">
+      <strong>Why Not 模板引擎方案？</strong> MVP 目标是无模板原生自举，模板方案违背核心价值主张。
+    </div>
+  </div>
+</section>
+
+<!-- ========== Slide 7: Execution Roadmap ========== -->
+<section class="slide" data-slide="7">
+  <header class="slide-header">
+    <span class="header-icon">📅</span>
+    <h2 class="header-title">执行路线图</h2>
+  </header>
+  <div class="slide-body">
+    <div class="timeline">
+      <div class="timeline-phase done">
+        <div class="phase-marker">✓</div>
+        <div class="phase-content">
+          <h4 class="phase-title">Phase 1: Proposal</h4>
+          <p class="phase-date">2026-04-24</p>
+          <ul class="phase-tasks">
+            <li>L1 spec 创建，定义 MVP 5 项边界</li>
+            <li>AC1–AC5 端到端验证脚本</li>
+          </ul>
+          <div class="phase-owner">hermes</div>
+        </div>
+      </div>
+      <div class="timeline-phase active">
+        <div class="phase-marker">●</div>
+        <div class="phase-content">
+          <h4 class="phase-title">Phase 2: Implementation</h4>
+          <p class="phase-date">2026-04-29 → ongoing</p>
+          <ul class="phase-tasks">
+            <li>AC1–AC5 全部 e2e 验证通过</li>
+            <li>所有 L4 feature 进入 implementation</li>
+            <li>spec_coverage.py 全绿 (92 specs)</li>
+          </ul>
+          <div class="phase-owner">hermes + team</div>
+        </div>
+      </div>
+      <div class="timeline-phase">
+        <div class="phase-marker">○</div>
+        <div class="phase-content">
+          <h4 class="phase-title">Phase 3: Delivered</h4>
+          <p class="phase-date">TBD</p>
+          <ul class="phase-tasks">
+            <li>所有 L4 有 L5 slice 落地</li>
+            <li>make validate 全绿</li>
+            <li>持续迭代，无终点</li>
+          </ul>
+          <div class="phase-owner">TBD</div>
+        </div>
+      </div>
+    </div>
+    <div class="rollback-strategy">
+      <h4 class="rollback-title">回滚策略</h4>
+      <ul class="rollback-items">
+        <li><strong>Git revert:</strong> 每次 deploy 前确保 e2e 全绿</li>
+        <li><strong>e2e 超时:</strong> 标记 skip，不阻塞 deploy</li>
+        <li><strong>Slack 通知:</strong> 失败时自动通知，阻止 merge</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ========== Slide 8: Current Status Evidence ========== -->
+<section class="slide" data-slide="8">
+  <header class="slide-header">
+    <span class="header-icon">📊</span>
+    <h2 class="header-title">当前现状证据</h2>
+  </header>
+  <div class="slide-body">
+    <div class="evidence-grid">
+      <div class="evidence-card">
+        <h4 class="evidence-title">Spec 文件路径</h4>
+        <code class="evidence-path">specs/L1-goal/vibex-workbench-mvp.yaml</code>
+        <div class="evidence-status verified">✓ 存在</div>
+      </div>
+      <div class="evidence-card">
+        <h4 class="evidence-title">Lifecycle 状态</h4>
+        <code class="evidence-val">implementation</code>
+        <div class="evidence-status verified">✓ 2026-04-29 更新</div>
+      </div>
+      <div class="evidence-card">
+        <h4 class="evidence-title">e2e 验证状态</h4>
+        <code class="evidence-val">system:e2e-validated</code>
+        <div class="evidence-status verified">✓ 五项能力全通过</div>
+      </div>
+      <div class="evidence-card">
+        <h4 class="evidence-title">输出文件</h4>
+        <code class="evidence-path">.vibex/ppt/vibex-workbench-mvp.html</code>
+        <div class="evidence-status building">正在生成</div>
+      </div>
+    </div>
+    <div class="evidence-table">
+      <table>
+        <thead>
+          <tr><th>AC</th><th>描述</th><th>验证方式</th><th>状态</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>AC1</td><td>仓库根绑定</td><td>POST /api/workspace/detect-state</td><td class="status-pass">PASS</td></tr>
+          <tr><td>AC2</td><td>三态探测</td><td>state + hasSpecDir/Generators</td><td class="status-pass">PASS</td></tr>
+          <tr><td>AC3</td><td>脚手架确认写入</td><td>POST /api/workspace/scaffold</td><td class="status-pass">PASS</td></tr>
+          <tr><td>AC4</td><td>Spec 可读可写</td><td>GET/POST /api/workspace/spec</td><td class="status-pass">PASS</td></tr>
+          <tr><td>AC5</td><td>校验/生成一触即达</td><td>POST /api/workspace/run-make</td><td class="status-pass">PASS</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ========== Slide 9: Copyable Questions ========== -->
+<section class="slide" data-slide="9">
+  <header class="slide-header">
+    <span class="header-icon">❓</span>
+    <h2 class="header-title">可复制的问题清单</h2>
+  </header>
+  <div class="slide-body">
+    <p class="slide-intro">以下问题用于用户在详情抽屉继续和 agent 对话完善 spec：</p>
+    <div class="questions-grid">
+      <div class="question-col">
+        <h4 class="q-col-title">产品方向</h4>
+        <ol class="q-list">
+          <li>MVP 完成后，多 workspace 并行场景是否需要？优先级如何？</li>
+          <li>历史 spec 迁移到新仓库的方案是什么？</li>
+          <li>图谱全量编辑是否属于 L2/L3 范围？</li>
+          <li>非技术用户的 onboarding 流程如何设计？</li>
+        </ol>
+      </div>
+      <div class="question-col">
+        <h4 class="q-col-title">技术实现</h4>
+        <ol class="q-list">
+          <li>memlace (Go 轻量记忆系统) 的稳定性验收标准？</li>
+          <li>generators/state_detector.py 的边界条件覆盖是否完整？</li>
+          <li>spec → 代码生成闭环的错误处理策略？</li>
+          <li>前端 action bar 的失败告警阈值如何设定？</li>
+        </ol>
+      </div>
+      <div class="question-col">
+        <h4 class="q-col-title">测试策略</h4>
+        <ol class="q-list">
+          <li>e2e 超时 300s 标记 skip 的合理性？是否需要可配置？</li>
+          <li>部分删除 specs/ (partial state) 的回归测试覆盖？</li>
+          <li>如何保证 92 specs 变更后 make validate 全绿？</li>
+          <li>新增 AC6/AC7 时，验证脚本的扩展性？</li>
+        </ol>
+      </div>
+    </div>
+    <div class="risk-summary">
+      <h4 class="risk-title">高收益 / 高风险项</h4>
+      <div class="risk-items">
+        <div class="risk-item high-gain">
+          <span class="risk-badge">高收益</span>
+          <span>spec 图谱可视化 + canvas 可追溯</span>
+        </div>
+        <div class="risk-item high-risk">
+          <span class="risk-badge">高风险</span>
+          <span>单仓库约束限制扩展性，需提前规划</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- Keyboard Navigation & Runtime -->
+<script src="../assets/runtime.js"></script>
+<script src="../assets/vibex-ppt-nav.js"></script>
+<script src="../assets/runtime.js"><\/script>
+<script src="../assets/vibex-ppt-nav.js"><\/script>
+</body>
+</html>

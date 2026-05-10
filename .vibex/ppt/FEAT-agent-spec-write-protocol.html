@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FEAT-agent-spec-write-protocol | Spec Explainer</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" id="theme-link" href="../assets/themes/blueprint.css">
+  <link rel="stylesheet" href="../assets/animations/animations.css">
+</head>
+<body>
+
+<main class="deck">
+
+  <!-- SLIDE 1: Cover -->
+  <section class="slide is-active" data-slide="1">
+    <div class="cover-content">
+      <div class="cover-badge">L4 Feature Spec</div>
+      <h1 class="cover-title">agent spec write protocol</h1>
+      <p class="cover-subtitle">Agent 推荐 Spec 写入前的用户确认协议</p>
+      <div class="cover-meta">
+        <span class="meta-item">模块: agent</span>
+        <span class="meta-item">负责人: hermes</span>
+        <span class="meta-item">版本: 0.2</span>
+        <span class="meta-item">状态: proposal</span>
+      </div>
+      <div class="cover-footer-note">
+        父模块: MOD-spec-editor | 创建: 2026-04-27 | 更新: 2026-05-05
+      </div>
+    </div>
+    <div class="notes">
+      本页介绍今天要讲解的 L4 Feature Spec。这是一个关于 Agent 推荐 Spec 写入前的用户确认协议的规格说明。
+      目标受众包括：CTO（关注架构约束）、开发（实现路径）、测试（验证策略）、用户（体验收益）。
+    </div>
+  </section>
+
+  <!-- SLIDE 2: 功能目标 (CTO视角) -->
+  <section class="slide" data-slide="2">
+    <header class="slide-header">
+      <span class="slide-label">功能目标</span>
+      <span class="slide-audience">CTO · 架构决策</span>
+    </header>
+    <div class="slide-body">
+      <h2 class="slide-title">核心目标：约束 Agent 写盘边界</h2>
+      <div class="objectives-grid">
+        <div class="objective-card primary">
+          <div class="card-icon">🔒</div>
+          <h3>强制用户确认</h3>
+          <p>任何 agent 推荐都不能替代用户确认，未确认前 specs/write 不被调用</p>
+        </div>
+        <div class="objective-card">
+          <div class="card-icon">📁</div>
+          <h3>规范目录路径</h3>
+          <p>target_dir 必须来自 FEAT-spec-graph-expansion.level_rules，禁止 agent 自行拼接</p>
+        </div>
+        <div class="objective-card">
+          <div class="card-icon">⚡</div>
+          <h3>Prototype Gate 对齐</h3>
+          <p>涉及 prototype 物料的写盘须过 UI workflow gate，避免静默写盘</p>
+        </div>
+      </div>
+      <div class="why-box">
+        <strong>Why 做：</strong>防止 agent 污染 spec 仓库，确保 spec-first 流程可控
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <span>FEAT-agent-spec-write-protocol</span>
+      <span class="slide-number">2/9</span>
+    </footer>
+    <div class="notes">
+      为什么要做这个协议？因为当前的 agent 协作流程存在静默写盘的风险。
+      如果不约束，agent 可能直接覆盖已有的 spec，或者写到错误的目录层级。
+      这个协议本质上是给 agent 的"写权限"加了一道必须经过用户确认的门。
+    </div>
+  </section>
+
+  <!-- SLIDE 3: 协议流程 (开发视角) -->
+  <section class="slide" data-slide="3">
+    <header class="slide-header">
+      <span class="slide-label">协议流程</span>
+      <span class="slide-audience">开发 · 实现路径</span>
+    </header>
+    <div class="slide-body">
+      <h2 class="slide-title">create-child-spec 完整流程</h2>
+      <div class="flow-diagram">
+        <div class="flow-step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <strong>接收上下文</strong>
+            <span>workspace_root, parent_name, target_level, target_dir, user_goal</span>
+          </div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <strong>生成草稿摘要</strong>
+            <span>展示 spec 结构预览 + 需要澄清的问题列表</span>
+          </div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step highlight">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <strong>用户确认</strong>
+            <span>用户明确同意后才进入下一步</span>
+          </div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <strong>调用写盘 API</strong>
+            <span>POST /api/workspace/specs/write → 生成完整 YAML</span>
+          </div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <strong>运行校验</strong>
+            <span>make validate → 按 validation-and-failure.md 分类</span>
+          </div>
+        </div>
+      </div>
+      <div class="api-box">
+        <code>POST /api/workspace/specs/write</code>
+        <span>→ 写入路径必须位于 target_dir 且 parent 等于 parent_name</span>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <span>FEAT-agent-spec-write-protocol</span>
+      <span class="slide-number">3/9</span>
+    </footer>
+    <div class="notes">
+      这是 create-child-spec 的完整流程。第3步是关键的 gate：用户必须明确确认。
+      如果用户取消，不调用任何写盘 API，git status 不会出现新文件。
+      第5步的 make validate 是必须的，不能跳过。如果失败，要按 validation-and-failure.md 分类处理。
+    </div>
+  </section>
+
+  <!-- SLIDE 4: 约束规则 (测试视角) -->
+  <section class="slide" data-slide="4">
+    <header class="slide-header">
+      <span class="slide-label">约束规则</span>
+      <span class="slide-audience">测试 · 验证策略</span>
+    </header>
+    <div class="slide-body">
+      <h2 class="slide-title">三大约束 + C3 补充</h2>
+      <table class="constraints-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>约束名称</th>
+            <th>核心规则</th>
+            <th>验证方式</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="tag tag-c1">C1</span></td>
+            <td>Explicit confirmation</td>
+            <td>未确认前 specs/write 不被调用</td>
+            <td>拦截所有写盘请求直到用户确认</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag-c2">C2</span></td>
+            <td>Canonical directory</td>
+            <td>禁止 agent 自行拼接 specs/{level}/</td>
+            <td>校验 target_dir 必须来自 level_rules</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag-c3">C3</span></td>
+            <td>UI workflow gate</td>
+            <td>prototype 写盘须过 ui_workflow_run.decision</td>
+            <td>gate_blocked + 失败码分类</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="failure-codes">
+        <h4>C3 失败码分类</h4>
+        <div class="code-tags">
+          <span class="code-tag">intent_incomplete</span>
+          <span class="code-tag">ui_spec_incomplete</span>
+          <span class="code-tag">acceptance_missing</span>
+          <span class="code-tag">confirm_required</span>
+        </div>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <span>FEAT-agent-spec-write-protocol</span>
+      <span class="slide-number">4/9</span>
+    </footer>
+    <div class="notes">
+      测试需要重点关注这三个约束的验证路径。
+      C1 的验证点：确认前没有任何写盘操作，可以监控 API 调用日志。
+      C2 的验证点：检查 agent 是否正确使用 level_rules 而不是自行拼接路径。
+      C3 的验证点：prototype 相关写盘的 gate 状态，需要模拟 ui_workflow_run.decision 非 passed 的场景。
+    </div>
+  </section>
+
+  <!-- SLIDE 5: 用户故事与验收 (用户视角) -->
+  <section class="slide" data-slide="5">
+    <header class="slide-header">
+      <span class="slide-label">用户故事</span>
+      <span class="slide-audience">用户 · 体验收益</span>
+    </header>
+    <div class="slide-body">
+      <h2 class="slide-title">US-1: 自举用户的核心诉求</h2>
+      <div class="user-story-card">
+        <div class="story-as">作为 <strong>自举用户</strong></div>
+        <div class="story-want">我想要 <strong>agent 帮我起草下一层 spec，但写盘前必须确认</strong></div>
+        <div class="story-so">以便 <strong>既能加速 spec-first，也不会污染仓库</strong></div>
+      </div>
+      <div class="acceptance-criteria">
+        <h4>验收条件 (AC)</h4>
+        <div class="ac-list">
+          <div class="ac-item">
+            <span class="ac-id">AC-1</span>
+            <div class="ac-content">
+              <strong>Given:</strong> 用户未确认 agent 草稿
+              <strong>When:</strong> create-child-spec 流程进行中
+              <strong>Then:</strong> 系统不得写入任何 spec 文件
+            </div>
+          </div>
+          <div class="ac-item">
+            <span class="ac-id">AC-2</span>
+            <div class="ac-content">
+              <strong>Given:</strong> 用户确认草稿
+              <strong>When:</strong> 系统调用 specs/write
+              <strong>Then:</strong> 写入路径必须位于 target_dir 且 parent 等于 parent_name
+            </div>
+          </div>
+          <div class="ac-item">
+            <span class="ac-id">AC-3</span>
+            <div class="ac-content">
+              <strong>Given:</strong> 写入完成
+              <strong>When:</strong> 系统运行 make validate
+              <strong>Then:</strong> 结果按失败分类显示在 agent 线程和 Problems/Output 区域
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <span>FEAT-agent-spec-write-protocol</span>
+      <span class="slide-number">5/9</span>
+    </footer>
+    <div class="notes">
+      这是从用户视角看这个 feature 的价值。用户不需要懂技术细节，只需要知道：
+      1. agent 会先给一个预览，而不是直接写盘
+      2. 我可以修改或取消，不用担心污染仓库
+      3. 写盘后会自动校验，结果会展示给我
+
+      三个 AC 覆盖了完整的用户路径，从确认前、确认后、到校验结果展示。
+    </div>
+  </section>
+
+  <!-- SLIDE 6: 测试场景 -->
+  <section class="slide" data-slide="6">
+    <header class="slide-header">
+      <span class="slide-label">测试场景</span>
+      <span class="slide-audience">测试 · 覆盖盲区</span>
+    </header>
+    <div class="slide-body">
+      <h2 class="slide-title">关键测试场景</h2>
+      <div class="scenarios-grid">
+        <div class="scenario-card">
+          <div class="scenario-id">TC-1</div>
+          <h3>用户取消澄清</h3>
+          <div class="scenario-flow">
+            <span class="given">Given: agent 已生成 L4 spec 草稿</span>
+            <span class="when">When: 用户点击取消</span>
+            <span class="then">Then: 不调用 specs/write</span>
+          </div>
+          <div class="scenario-eval">✅ 验证: git status 不出现新 YAML</div>
+        </div>
+        <div class="scenario-card">
+          <div class="scenario-id">TC-2</div>
+          <h3>写盘后校验失败</h3>
+          <div class="scenario-flow">
+            <span class="given">Given: agent 草稿 parent 写错</span>
+            <span class="when">When: 用户确认写盘</span>
+            <span class="then">Then: make validate 失败并显示 parent_not_found</span>
+          </div>
+          <div class="scenario-eval">✅ 验证: 线程保留草稿，提示下一步修复</div>
+        </div>
+        <div class="scenario-card">
+          <div class="scenario-id">TC-3</div>
+          <h3>C3: prototype gate 拦截</h3>
+          <div class="scenario-flow">
+            <span class="given">Given: 写盘请求含 prototype 物料</span>
+            <span class="when">When: ui_workflow_run.decision 非 passed</span>
+            <span class="then">Then: 归类为 gate_blocked + 返回失败码</span>
+          </div>
+          <div class="scenario-eval">✅ 验证: 响应 body 含 gate_failure.code 数组</div>
+        </div>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <span>FEAT-agent-spec-write-protocol</span>
+      <span class="slide-number">6/9</span>
+    </footer>
+    <div class="notes">
+      测试需要覆盖这三个核心场景。
+      TC-1 是 Happy Path 的取消分支，验证隔离性。
+      TC-2 是失败恢复路径，验证草稿保留机制。
+      TC-3 是 C3 的新增场景，验证 prototype gate 的拦截逻辑。
+
+      回归风险：主要担心的是确认前后的状态一致性，以及校验失败时的用户体验。
+    </div>
+  </section>
+
+  <!-- SLIDE 7: 决策页 (Decision) -->
+  <section class="slide" data-slide="7">
+    <header class="slide-header">
+      <span class="slide-label">决策点</span>
+      <span class="slide-audience">CTO · 最终拍板</span>
+    </header>
+    <div class="slide-body">
+      <h2 class="slide-title">方案 A vs 方案 B vs 方案 C</h2>
+      <div class="decision-table">
+        <table>
+          <thead>
+            <tr>
+              <th>维度</th>
+              <th class="plan-a">方案 A (推荐)<br>强约束确认协议</th>
+              <th class="plan-b">方案 B<br>宽松确认协议</th>
+              <th class="plan-c">方案 C<br>静默写盘 (不选)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>用户控制力</td>
+              <td class="highlight">✅ 完全控制</td>
+              <td>⚠️ 部分控制</td>
+              <td>❌ 无控制</td>
+            </tr>
+            <tr>
+              <td>污染风险</td>
+              <td class="highlight">✅ 零风险</td>
+              <td>⚠️ 低风险</td>
+              <td>❌ 高风险</td>
+            </tr>
+            <tr>
+              <td>实现复杂度</td>
+              <td>⚠️ 中等</td>
+              <td class="highlight">✅ 低</td>
+              <td class="highlight">✅ 极低</td>
+            </tr>
+            <tr>
+              <td>与现有系统兼容性</td>
+              <td class="highlight">✅ 良好</td>
+              <td>✅ 良好</td>
+              <td>⚠️ 需重构</td>
+            </tr>
+            <tr>
+              <td>prototype gate 对齐</td>
+              <td class="highlight">✅ 完整对齐</td>
+              <td>⚠️ 部分对齐</td>
+              <td>❌ 不对齐</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="decision-conclusion">
+        <div class="conclusion-box">
+          <strong>推荐方案 A</strong>：强约束确认协议
+          <p>Why: 零污染 + 完整 prototype gate 对齐 + spec-first 流程可控</p>
+          <p>Why Not B: 缺少 C3 prototype gate 对齐，长期存在静默写盘风险</p>
+          <p>Why Not C: 明确违反 spec-first 原则，不可接受</p>
+        </div>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <span>FEAT-agent-spec-write-protocol</span>
+      <span class="slide-number">7/9</span>
+    </footer>
+    <div class="notes">
+      这是决策页，需要 CTO 做最终拍板。
+      方案 A 是推荐的，强约束 + C3 对齐。
+      方案 B 为什么不选？因为缺少 C3 prototype gate 对齐，长期会有静默写盘风险。
+      方案 C 为什么不选？直接违反 spec-first 原则，不考虑。
+
+      成本：实现中等复杂度，需要改写现有的 specs/write 调用点。
+      风险：用户可能觉得确认流程繁琐，但这是必要的护栏。
+    </div>
+  </section>
+
+  <!-- SLIDE 8: 执行页 (Execution) -->
+  <section class="slide" data-slide="8">
+    <header class="slide-header">
+      <span class="slide-label">执行计划</span>
+      <span class="slide-audience">全员 · 里程碑</span>
+    </header>
+    <div class="slide-body">
+      <h2 class="slide-title">里程碑与验收标准</h2>
+      <div class="milestone-timeline">
+        <div class="milestone">
+          <div class="milestone-phase">Phase 1</div>
+          <div class="milestone-content">
+            <h4>协议接口定义</h4>
+            <ul>
+              <li>定义 create-child-spec 的 input schema</li>
+              <li>定义 specs/write 的调用约束</li>
+              <li>定义 C3 gate_blocked 的响应格式</li>
+            </ul>
+          </div>
+          <div class="milestone-owner">负责人: hermes</div>
+        </div>
+        <div class="milestone">
+          <div class="milestone-phase">Phase 2</div>
+          <div class="milestone-content">
+            <h4>核心实现</h4>
+            <ul>
+              <li>实现确认前的写盘拦截逻辑</li>
+              <li>实现 target_dir 的 level_rules 校验</li>
+              <li>实现 C3 prototype gate 拦截</li>
+            </ul>
+          </div>
+          <div class="milestone-owner">负责人: 开发组</div>
+        </div>
+        <div class="milestone">
+          <div class="milestone-phase">Phase 3</div>
+          <div class="milestone-content">
+            <h4>测试与验证</h4>
+            <ul>
+              <li>编写 TC-1/TC-2/TC-3 测试用例</li>
+              <li>集成测试 make validate 流程</li>
+              <li>用户验收测试</li>
+            </ul>
+          </div>
+          <div class="milestone-owner">负责人: 测试组</div>
+        </div>
+      </div>
+      <div class="rollback-box">
+        <h4>回滚策略</h4>
+        <p>若 Phase 2 后发现严重问题，可回滚到 Phase 1 的协议接口定义阶段。spec YAML 变更通过 git revert 处理。</p>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <span>FEAT-agent-spec-write-protocol</span>
+      <span class="slide-number">8/9</span>
+    </footer>
+    <div class="notes">
+      这是执行页，分三个阶段。
+      Phase 1 是协议接口定义，需要产品和技术一起确认。
+      Phase 2 是核心实现，开发组负责。
+      Phase 3 是测试与验证，测试组负责。
+
+      回滚策略：如果 Phase 2 发现严重问题，可以回滚到 Phase 1。
+      YAML 变更通过 git revert 处理，这是 spec-first 的优势之一。
+    </div>
+  </section>
+
+  <!-- SLIDE 9: 可复制问题清单 (Follow-up Questions) -->
+  <section class="slide" data-slide="9">
+    <header class="slide-header">
+      <span class="slide-label">后续对话</span>
+      <span class="slide-audience">详情抽屉 · 深入完善</span>
+    </header>
+    <div class="slide-body">
+      <h2 class="slide-title">可复制的问题清单</h2>
+      <p class="slide-subtitle">以下问题用于用户在详情抽屉与 agent 继续对话完善 spec</p>
+      <div class="questions-list">
+        <div class="question-item" data-copy="create-child-spec 的 input schema 中，existing_children 的格式是什么？是 spec 路径数组还是 spec 名称数组？">1. create-child-spec 的 input schema 中，existing_children 的格式是什么？</div>
+        <div class="question-item" data-copy="specs/write API 的请求体 schema 是什么？需要包含哪些字段？">2. specs/write API 的请求体 schema 是什么？</div>
+        <div class="question-item" data-copy="make validate 的具体实现逻辑在哪里？validation-and-failure.md 的路径是什么？">3. make validate 的具体实现逻辑在哪里？</div>
+        <div class="question-item" data-copy="C3 gate_blocked 的四种失败码具体触发条件是什么？">4. C3 gate_blocked 的四种失败码具体触发条件是什么？</div>
+        <div class="question-item" data-copy="level_rules 的定义在哪里？如何新增一个合法的 target_dir？">5. level_rules 的定义在哪里？如何新增一个合法的 target_dir？</div>
+        <div class="question-item" data-copy="用户确认后的 spec 草稿存储在哪里？TTL 是多久？">6. 用户确认后的 spec 草稿存储在哪里？TTL 是多久？</div>
+        <div class="question-item" data-copy="如果用户在确认后立刻取消，是否支持回滚已写入的 YAML？">7. 如果用户在确认后立刻取消，是否支持回滚已写入的 YAML？</div>
+        <div class="question-item" data-copy="ui_workflow_run.decision 的状态机是什么？passed 的条件是什么？">8. ui_workflow_run.decision 的状态机是什么？passed 的条件是什么？</div>
+        <div class="question-item" data-copy="Prototype Gate 与这个协议的边界在哪里？哪些场景需要同时满足？">9. Prototype Gate 与这个协议的边界在哪里？</div>
+        <div class="question-item" data-copy="如果 target_level 为 L5，实现路径与 L4 有何不同？">10. 如果 target_level 为 L5，实现路径与 L4 有何不同？</div>
+        <div class="question-item" data-copy="确认流程中是否支持草稿版本对比？diff 视图如何展示？">11. 确认流程中是否支持草稿版本对比？diff 视图如何展示？</div>
+        <div class="question-item" data-copy="AC-3 中 Problems/Output 区域的具体实现路径是什么？">12. AC-3 中 Problems/Output 区域的具体实现路径是什么？</div>
+      </div>
+      <div class="copy-hint">💡 点击任意问题可复制到剪贴板</div>
+    </div>
+    <footer class="slide-footer">
+      <span>FEAT-agent-spec-write-protocol</span>
+      <span class="slide-number">9/9</span>
+    </footer>
+    <div class="notes">
+      这是结尾页，提供了 12 个可复制的问题清单。
+      用户可以点击任意问题复制，然后粘贴到详情抽屉与 agent 继续对话。
+      这些问题覆盖了：
+      - 接口定义相关 (Q1, Q2)
+      - 校验逻辑相关 (Q3, Q4)
+      - 目录规则相关 (Q5)
+      - 存储与回滚相关 (Q6, Q7)
+      - Prototype Gate 相关 (Q8, Q9)
+      - 层级差异相关 (Q10)
+      - 体验优化相关 (Q11)
+      - UI 集成相关 (Q12)
+    </div>
+  </section>
+
+</main>
+
+<script src="../assets/runtime.js"></script>
+<script src="../assets/vibex-ppt-nav.js"></script>
+<script>
+  // Copy-to-clipboard for questions list
+  document.querySelectorAll('.question-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const text = item.dataset.copy || item.textContent.replace(/^\d+\.\s*/, '');
+      navigator.clipboard.writeText(text).then(() => {
+        item.classList.add('copied');
+        setTimeout(() => item.classList.remove('copied'), 1000);
+      });
+    });
+    item.style.cursor = 'pointer';
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FEAT-make-integration_L5 — make 集成实现</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" href="../assets/themes/blueprint.css">
+  <link rel="stylesheet" href="../assets/animations.css">
+  <style>
+    :root {
+      --accent: #2196F3;
+      --accent-dim: #1565C0;
+      --bg: #0D1117;
+      --surface: #161B22;
+      --border: #30363D;
+      --text-1: #E6EDF3;
+      --text-2: #8B949E;
+      --text-3: #6E7681;
+      --code-bg: #1C2128;
+      --pass: #3FB950;
+      --fail: #F85149;
+      --warn: #D29922;
+    }
+    .slide { background: var(--bg); color: var(--text-1); font-family: 'JetBrains Mono', monospace; }
+    .slide-header { border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
+    .slide-title { font-size: 14px; color: var(--accent); letter-spacing: 0.05em; }
+    .slide-body { padding: 32px 40px; min-height: calc(100vh - 140px); }
+    .slide-footer { border-top: 1px solid var(--border); padding: 8px 24px; display: flex; justify-content: space-between; font-size: 11px; color: var(--text-3); }
+    .slide-number { color: var(--accent); }
+    h1 { font-size: 28px; margin: 0 0 24px; color: var(--text-1); border-left: 3px solid var(--accent); padding-left: 16px; }
+    h2 { font-size: 18px; margin: 20px 0 12px; color: var(--accent); }
+    h3 { font-size: 14px; margin: 16px 0 8px; color: var(--text-2); }
+    ul { margin: 8px 0; padding-left: 20px; }
+    li { margin: 6px 0; font-size: 13px; line-height: 1.5; }
+    code { background: var(--code-bg); padding: 2px 6px; border-radius: 3px; font-size: 12px; color: var(--accent); }
+    pre { background: var(--code-bg); padding: 16px; border-radius: 6px; overflow-x: auto; font-size: 11px; line-height: 1.6; margin: 12px 0; border: 1px solid var(--border); }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; margin: 2px; }
+    .tag-pass { background: rgba(63,185,80,0.2); color: var(--pass); }
+    .tag-fail { background: rgba(248,81,73,0.2); color: var(--fail); }
+    .tag-warn { background: rgba(210,153,34,0.2); color: var(--warn); }
+    .tag-info { background: rgba(33,150,243,0.2); color: var(--accent); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 16px; }
+    .card-header { font-size: 12px; color: var(--accent); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em; }
+    .card-title { font-size: 14px; color: var(--text-1); margin-bottom: 8px; }
+    .card-value { font-size: 20px; color: var(--text-1); font-weight: bold; }
+    .metric-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .metric-label { color: var(--text-2); font-size: 12px; }
+    .metric-value { color: var(--text-1); font-size: 12px; }
+    .compare-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .compare-table th { text-align: left; padding: 8px; background: var(--surface); border-bottom: 2px solid var(--accent); color: var(--accent); }
+    .compare-table td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .compare-table tr:hover { background: rgba(33,150,243,0.05); }
+    .status-ok { color: var(--pass); }
+    .status-warn { color: var(--warn); }
+    .status-fail { color: var(--fail); }
+    .check-list { list-style: none; padding: 0; }
+    .check-list li { padding-left: 20px; position: relative; }
+    .check-list li::before { content: "☐"; position: absolute; left: 0; color: var(--accent); }
+    .q-list { list-style: none; padding: 0; }
+    .q-list li { background: var(--surface); padding: 10px 14px; margin: 6px 0; border-radius: 4px; border-left: 3px solid var(--accent); font-size: 12px; }
+    .q-list li::before { content: "Q:"; color: var(--accent); margin-right: 8px; }
+    .highlight-box { background: linear-gradient(135deg, rgba(33,150,243,0.1), rgba(33,150,243,0.05)); border: 1px solid var(--accent); border-radius: 6px; padding: 16px; margin: 12px 0; }
+    .highlight-box.warn { border-color: var(--warn); background: linear-gradient(135deg, rgba(210,153,34,0.1), rgba(210,153,34,0.05)); }
+    .highlight-box.danger { border-color: var(--fail); background: linear-gradient(135deg, rgba(248,81,73,0.1), rgba(248,81,73,0.05)); }
+    .cover { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; min-height: calc(100vh - 60px); }
+    .cover h1 { font-size: 36px; border: none; padding: 0; margin-bottom: 16px; }
+    .cover .subtitle { font-size: 16px; color: var(--text-2); margin-bottom: 32px; }
+    .cover .meta { font-size: 12px; color: var(--text-3); }
+    .cover .tags { margin-top: 24px; }
+    .timeline { display: flex; gap: 16px; margin: 16px 0; }
+    .timeline-item { flex: 1; background: var(--surface); border-radius: 6px; padding: 12px; border-left: 3px solid var(--accent); }
+    .timeline-item.phase { border-left-color: var(--pass); }
+    .timeline-item.current { border-left-color: var(--warn); }
+    .timeline-item.future { border-left-color: var(--text-3); }
+    .flow-diagram { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 20px; background: var(--surface); border-radius: 6px; margin: 16px 0; }
+    .flow-node { background: var(--bg); border: 1px solid var(--accent); border-radius: 4px; padding: 8px 12px; font-size: 11px; text-align: center; }
+    .flow-arrow { color: var(--accent); font-size: 16px; }
+    .persona-section { display: flex; gap: 12px; margin: 12px 0; }
+    .persona-card { flex: 1; background: var(--surface); border-radius: 6px; padding: 14px; border-top: 3px solid var(--accent); }
+    .persona-card.cto { border-top-color: #9C27B0; }
+    .persona-card.dev { border-top-color: #2196F3; }
+    .persona-card.test { border-top-color: #4CAF50; }
+    .persona-card.user { border-top-color: #FF9800; }
+    .persona-name { font-size: 11px; color: var(--text-3); text-transform: uppercase; margin-bottom: 8px; }
+    .persona-focus { font-size: 13px; color: var(--text-1); margin-bottom: 8px; }
+    .persona-points { font-size: 11px; color: var(--text-2); padding-left: 14px; }
+  </style>
+</head>
+<body>
+<main class="deck">
+
+<!-- SLIDE 1: 封面 -->
+<section class="slide is-active" data-slide="1">
+  <div class="slide-header">
+    <span class="slide-title">FEAT-make-integration_L5</span>
+    <span>L5 · Implementation</span>
+  </div>
+  <div class="slide-body cover">
+    <h1>make 集成实现</h1>
+    <p class="subtitle">Backend 在 WORKSPACE_ROOT 执行 make {target}，实时推送 stdout/stderr 到 Output Tab</p>
+    <div class="meta">
+      <span>版本: 0.2</span> · <span>状态: proposal</span> · <span>Owner: hermes</span> · <span>Level: L5</span>
+    </div>
+    <div class="tags">
+      <span class="tag tag-info">workspace</span>
+      <span class="tag tag-info">make integration</span>
+      <span class="tag tag-warn">SSE streaming</span>
+      <span class="tag tag-pass">Wails binding guard</span>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>vibex-workbench · FEAT-make-integration</span>
+    <span class="slide-number">1 / 9</span>
+  </div>
+</section>
+
+<!-- SLIDE 2: 实现目标与完成标准 -->
+<section class="slide" data-slide="2">
+  <div class="slide-header">
+    <span class="slide-title">目标与验收</span>
+    <span>What & When Done</span>
+  </div>
+  <div class="slide-body">
+    <h1>实现目标与完成标准</h1>
+    
+    <h2>核心目标</h2>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header">🎯 输入</div>
+        <div class="card-title">用户触发路径</div>
+        <ul>
+          <li>Titlebar「lint-specs」按钮点击</li>
+          <li>Titlebar「generate」按钮点击</li>
+          <li>Output Tab「重新运行」按钮</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">🎯 输出</div>
+        <div class="card-title">Backend 执行 & 展示</div>
+        <ul>
+          <li>POST /api/workspace/run-make</li>
+          <li>Backend 在 WORKSPACE_ROOT 执行 make target</li>
+          <li>stdout/stderr 实时推送 + exit code 摘要</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>完成标准</h2>
+    <table class="compare-table">
+      <tr><th>验收项</th><th>成功条件</th><th>验证方式</th></tr>
+      <tr><td>按钮触发</td><td class="status-ok">✓ Titlebar 有 lint-specs / generate 按钮</td><td>手动点击测试</td></tr>
+      <tr><td>API 调用</td><td class="status-ok">✓ POST 正确发送 target 参数</td><td>Network 面板</td></tr>
+      <tr><td>输出展示</td><td class="status-ok">✓ Output Tab 实时显示 make 输出</td><td>观察滚动更新</td></tr>
+      <tr><td>错误展示</td><td class="status-ok">✓ make 失败时显示红色错误 + exit code</td><td>故意触发失败</td></tr>
+      <tr><td>重新运行</td><td class="status-ok">✓ Output Tab 支持「重新运行」</td><td>点击测试</td></tr>
+    </table>
+  </div>
+  <div class="slide-footer">
+    <span>vibex-workbench · FEAT-make-integration</span>
+    <span class="slide-number">2 / 9</span>
+  </div>
+</section>
+
+<!-- SLIDE 3: 现状真实实现展示 -->
+<section class="slide" data-slide="3">
+  <div class="slide-header">
+    <span class="slide-title">As-Is 现状</span>
+    <span>Current Implementation</span>
+  </div>
+  <div class="slide-body">
+    <h1>现状真实实现展示</h1>
+    
+    <h2>已实现的文件路径</h2>
+    <pre>agent/cmd/web/workspace_handlers.go  ← workspaceRunMakeHandler 入口
+frontend/src/lib/stores/workspace-output-store.ts  ← SSE 行存储
+frontend/src/lib/components/workbench/R2Dock.svelte  ← Output Tab 展示</pre>
+
+    <h2>关键调用链</h2>
+    <div class="flow-diagram">
+      <div class="flow-node">TitlebarMenu<br/><small>点击触发</small></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-node">POST<br/>/api/workspace/run-make</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-node">workspaceRunMakeHandler<br/><small>workspace_handlers.go</small></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-node">exec.Command<br/>"make" target</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-node">SSE Stream<br/>workspace_output_store</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-node">R2Dock<br/>实时展示</div>
+    </div>
+
+    <h2>Wails Binding Guard 约束</h2>
+    <div class="highlight-box">
+      <strong>SLICE-wails-binding-guard 规则：</strong>Wails 环境仅允许 <code>window.go.main.App.*</code>，禁止 Wails 内 fallback。
+      菜单触发链必须遵循：runtime events → business binding → 严格判定，禁止混合使用。
+    </div>
+
+    <h2>Forbidden 边界</h2>
+    <ul>
+      <li><span class="status-fail">✗</span> 禁止在前端直接执行 make 命令</li>
+      <li><span class="status-fail">✗</span> 禁止忽略 exit code（make 失败必须展示错误）</li>
+      <li><span class="status-fail">✗</span> 禁止跳过 workspace_root 验证</li>
+    </ul>
+  </div>
+  <div class="slide-footer">
+    <span>vibex-workbench · FEAT-make-integration</span>
+    <span class="slide-number">3 / 9</span>
+  </div>
+</section>
+
+<!-- SLIDE 4: 方案对比 (Decision Page) -->
+<section class="slide" data-slide="4">
+  <div class="slide-header">
+    <span class="slide-title">方案决策</span>
+    <span>Decision: Why & Why Not</span>
+  </div>
+  <div class="slide-body">
+    <h1>方案对比与决策</h1>
+    
+    <table class="compare-table">
+      <tr><th>维度</th><th>方案A: SSE 推送</th><th>方案B: WebSocket</th><th>方案C: HTTP 轮询</th></tr>
+      <tr>
+        <td><strong>实时性</strong></td>
+        <td class="status-ok">✓ 高（服务端推送）</td>
+        <td class="status-ok">✓ 高（双向通道）</td>
+        <td class="status-warn">△ 低（延迟取决于轮询间隔）</td>
+      </tr>
+      <tr>
+        <td><strong>实现复杂度</strong></td>
+        <td class="status-ok">✓ 中等（标准 SSE）</td>
+        <td class="status-warn">△ 高（连接管理复杂）</td>
+        <td class="status-ok">✓ 低（无状态轮询）</td>
+      </tr>
+      <tr>
+        <td><strong>资源占用</strong></td>
+        <td class="status-ok">✓ 单向，低开销</td>
+        <td class="status-warn">△ 需要维护长连接</td>
+        <td class="status-fail">✗ 频繁请求增加负载</td>
+      </tr>
+      <tr>
+        <td><strong>适用场景</strong></td>
+        <td>make 输出流、log tail</td>
+        <td>需要交互的实时场景</td>
+        <td>简单轮询场景</td>
+      </tr>
+      <tr>
+        <td><strong>推荐</strong></td>
+        <td class="status-ok">✅ <strong>采纳</strong></td>
+        <td>备选（未来交互需求）</td>
+        <td>不选（不符合实时需求）</td>
+      </tr>
+    </table>
+
+    <h2>Why / Why Not 决策说明</h2>
+    <div class="grid-2">
+      <div class="highlight-box">
+        <h3>✅ 选 SSE</h3>
+        <ul>
+          <li><strong>Why:</strong> make 输出是单向流，SSE 天然匹配</li>
+          <li><strong>Why:</strong> HTTP/1.1 兼容性好，无需 WebSocket 握手</li>
+          <li><strong>前提:</strong> Wails SSE API 可用</li>
+        </ul>
+      </div>
+      <div class="highlight-box warn">
+        <h3>✗ 不选 WebSocket</h3>
+        <ul>
+          <li><strong>Why Not:</strong> 过度设计，单向流不需要双向</li>
+          <li><strong>切换条件:</strong> 未来需要前端→后端实时交互</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>vibex-workbench · FEAT-make-integration</span>
+    <span class="slide-number">4 / 9</span>
+  </div>
+</section>
+
+<!-- SLIDE 5: 偏差分析 -->
+<section class="slide" data-slide="5">
+  <div class="slide-header">
+    <span class="slide-title">偏差分析</span>
+    <span>Gap Analysis</span>
+  </div>
+  <div class="slide-body">
+    <h1>spec 与实现偏差</h1>
+    
+    <h2>当前差距 (As-Is → To-Be)</h2>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header">⚠️ 缺失项</div>
+        <ul>
+          <li><strong>验证命令未执行:</strong> <code>cd /root/v-test && make lint-specs</code></li>
+          <li><strong>API 端点未测试:</strong> <code>/api/workspace/run-make</code></li>
+          <li><strong>exit code 展示逻辑:</strong> 需确认失败时 Problems Tab 更新</li>
+          <li><strong>重新运行按钮:</strong> Output Tab 内置逻辑待验证</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">📋 待确认项</div>
+        <ul>
+          <li>Makefile targets: lint-specs / generate / validate 是否都存在</li>
+          <li>SSE stream 路径: <code>/workspace/{threadId}/output</code></li>
+          <li>workspace_root 验证逻辑</li>
+          <li>Wails binding 在 runtime events 的边界</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>优化方向</h2>
+    <div class="highlight-box">
+      <ol>
+        <li><strong>P0:</strong> 完成 workspace_handlers.go 中 run-make handler</li>
+        <li><strong>P1:</strong> 实现 workspace-output-store.ts SSE 订阅</li>
+        <li><strong>P1:</strong> R2Dock.svelte Output Tab 实时展示</li>
+        <li><strong>P2:</strong> TitlebarMenu lint-specs / generate 按钮</li>
+        <li><strong>P2:</strong> Problems Tab 失败行高亮联动</li>
+      </ol>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>vibex-workbench · FEAT-make-integration</span>
+    <span class="slide-number">5 / 9</span>
+  </div>
+</section>
+
+<!-- SLIDE 6: 四类视角覆盖 -->
+<section class="slide" data-slide="6">
+  <div class="slide-header">
+    <span class="slide-title">受众视角</span>
+    <span>CTO / Dev / Test / User</span>
+  </div>
+  <div class="slide-body">
+    <h1>四类视角覆盖</h1>
+    
+    <div class="persona-section">
+      <div class="persona-card cto">
+        <div class="persona-name">👔 CTO</div>
+        <div class="persona-focus">架构风险 & 资源投入</div>
+        <ul class="persona-points">
+          <li>Wails binding guard 是安全边界，防止 runtime/go 混用回归</li>
+          <li>SSE vs WebSocket 选择基于场景匹配，非过度设计</li>
+          <li>workspace_root 验证防止命令注入风险</li>
+        </ul>
+      </div>
+      <div class="persona-card dev">
+        <div class="persona-name">💻 开发</div>
+        <div class="persona-focus">模块边界 & 改动面</div>
+        <ul class="persona-points">
+          <li>边界清晰：只做 UI 触发 + API + 展示，不碰 make 本身</li>
+          <li>依赖文件明确：workspace_handlers.go 等 5 个关键文件</li>
+          <li>禁止清单明确：前端禁执行 make、禁忽略 exit code</li>
+        </ul>
+      </div>
+      <div class="persona-card test">
+        <div class="persona-name">🧪 测试</div>
+        <div class="persona-focus">验证路径 & 覆盖盲区</div>
+        <ul class="persona-points">
+          <li>验证命令已定义，可自动化回归</li>
+          <li>failure_conditions 明确：非目录执行、错误未展示等</li>
+          <li>手动检查清单 4 条，覆盖核心路径</li>
+        </ul>
+      </div>
+      <div class="persona-card user">
+        <div class="persona-name">👤 用户</div>
+        <div class="persona-focus">体验收益 & 可见价值</div>
+        <ul class="persona-points">
+          <li>一键触发 lint-specs / generate，无需命令行</li>
+          <li>实时看到 make 输出，无需切换窗口</li>
+          <li>失败时红色错误提示 + Problems Tab 联动</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>vibex-workbench · FEAT-make-integration</span>
+    <span class="slide-number">6 / 9</span>
+  </div>
+</section>
+
+<!-- SLIDE 7: 验证步骤 -->
+<section class="slide" data-slide="7">
+  <div class="slide-header">
+    <span class="slide-title">验证 & 排错</span>
+    <span>Verification & Troubleshooting</span>
+  </div>
+  <div class="slide-body">
+    <h1>验证步骤与排错线索</h1>
+    
+    <h2>自动化验证命令</h2>
+    <pre># 验证 Makefile targets
+cd /root/v-test && make lint-specs 2>&1 | tail -10
+
+# 验证 validate target
+cd /root/v-test && make validate 2>&1 | tail -5
+
+# 验证 API 端点（需服务运行）
+curl -s -X POST 'http://localhost:33338/api/workspace/run-make' \
+  -H 'Content-Type: application/json' \
+  -d '{"target":"lint-specs"}' 2>/dev/null | head -20</pre>
+
+    <h2>手动检查清单</h2>
+    <ul class="check-list">
+      <li>Titlebar 有「lint-specs」和「generate」按钮</li>
+      <li>点击 lint-specs 后 Output Tab 显示 make 输出</li>
+      <li>make 失败时 Output Tab 显示红色错误标识</li>
+      <li>Output Tab 支持「重新运行」按钮点击</li>
+    </ul>
+
+    <h2>故障定位手册</h2>
+    <table class="compare-table">
+      <tr><th>故障现象</th><th>排查方向</th><th>检查点</th></tr>
+      <tr><td>按钮无响应</td><td>TitlebarMenu → runtime events → API 调用</td><td>Console 是否有 error，Network 是否发 POST</td></tr>
+      <tr><td>无输出展示</td><td>SSE 连接 → workspace_output_store → R2Dock 订阅</td><td>DevTools → Network → SSE stream 是否建立</td></tr>
+      <tr><td>输出但不滚动</td><td>R2Dock 自动滚动逻辑</td><td>检查 scrollIntoView 或 scrollTop 设置</td></tr>
+      <tr><td>exit code 显示错误</td><td>make 完成后的 status 状态更新</td><td>workspace_output_store 的 pass/fail 判定</td></tr>
+    </table>
+  </div>
+  <div class="slide-footer">
+    <span>vibex-workbench · FEAT-make-integration</span>
+    <span class="slide-number">7 / 9</span>
+  </div>
+</section>
+
+<!-- SLIDE 8: 执行计划 -->
+<section class="slide" data-slide="8">
+  <div class="slide-header">
+    <span class="slide-title">执行计划</span>
+    <span>Milestones & Rollback</span>
+  </div>
+  <div class="slide-body">
+    <h1>执行计划与回滚策略</h1>
+    
+    <h2>里程碑</h2>
+    <div class="timeline">
+      <div class="timeline-item current">
+        <strong>M1: Handler 实现</strong>
+        <div style="font-size:11px;color:var(--text-2)">workspace_handlers.go run-make</div>
+        <div style="font-size:10px;color:var(--text-3)">Owner: backend · 1d</div>
+      </div>
+      <div class="timeline-item future">
+        <strong>M2: SSE Store</strong>
+        <div style="font-size:11px;color:var(--text-2)">workspace-output-store.ts</div>
+        <div style="font-size:10px;color:var(--text-3)">Owner: frontend · 1d</div>
+      </div>
+      <div class="timeline-item future">
+        <strong>M3: Output Tab</strong>
+        <div style="font-size:11px;color:var(--text-2)">R2Dock.svelte 实时展示</div>
+        <div style="font-size:10px;color:var(--text-3)">Owner: frontend · 1d</div>
+      </div>
+      <div class="timeline-item future">
+        <strong>M4: Titlebar 按钮</strong>
+        <div style="font-size:11px;color:var(--text-2)">lint-specs / generate</div>
+        <div style="font-size:10px;color:var(--text-3)">Owner: frontend · 0.5d</div>
+      </div>
+      <div class="timeline-item future">
+        <strong>M5: 集成测试</strong>
+        <div style="font-size:11px;color:var(--text-2)">手动 + 自动化验证</div>
+        <div style="font-size:10px;color:var(--text-3)">Owner: QA · 0.5d</div>
+      </div>
+    </div>
+
+    <h2>验收标准</h2>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header">功能验收</div>
+        <ul>
+          <li>✅ make lint-specs 成功 → 绿色通过提示</li>
+          <li>✅ make 失败 → 红色错误 + Problems Tab 更新</li>
+          <li>✅ Output Tab 实时滚动到底部</li>
+          <li>✅ 重新运行按钮有效</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">非功能验收</div>
+        <ul>
+          <li>✅ workspace_root 验证生效</li>
+          <li>✅ Wails binding guard 规则遵守</li>
+          <li>✅ SSE 连接稳定，无内存泄漏</li>
+          <li>✅ 多次运行无状态残留</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>回滚策略</h2>
+    <div class="highlight-box warn">
+      <ul>
+        <li><strong>回滚条件:</strong> make 执行导致 workspace 文件损坏，或 SSE 内存泄漏 OOM</li>
+        <li><strong>回滚步骤:</strong> 禁用 Titlebar 按钮 → 回退 workspace_handlers.go → 提示用户手动执行 make</li>
+        <li><strong>灰度策略:</strong> 先对内部用户开放，观察 3 天无异常再全量</li>
+      </ul>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>vibex-workbench · FEAT-make-integration</span>
+    <span class="slide-number">8 / 9</span>
+  </div>
+</section>
+
+<!-- SLIDE 9: 问题清单 (Copyable Q&A) -->
+<section class="slide" data-slide="9">
+  <div class="slide-header">
+    <span class="slide-title">问题清单</span>
+    <span>Q&A for Spec Refinement</span>
+  </div>
+  <div class="slide-body">
+    <h1>可复制的问题清单</h1>
+    <p style="color:var(--text-2);font-size:12px;margin-bottom:16px;">
+      复制以下问题，在详情抽屉与 agent 对话以完善 spec：
+    </p>
+    
+    <ul class="q-list">
+      <li>make lint-specs / generate / validate 这三个 targets 的实际输出格式是什么？需要解析到什么粒度？</li>
+      <li>SSE stream 路径 <code>/workspace/{threadId}/output</code> 中 threadId 的来源和生命周期？</li>
+      <li>workspace_root 验证是前端做还是后端做？验证失败时返回什么错误码？</li>
+      <li>Wails binding guard 中 runtime events 和 business binding 的具体边界在哪里？</li>
+      <li>make 执行超时如何处理？是否有 timeout 配置？默认多久？</li>
+      <li>Output Tab 的滚动策略：自动滚动到底部还是用户可自由滚动后暂停自动滚动？</li>
+      <li>exit code 非 0 时，Problems Tab 的更新逻辑是追加还是全量替换？</li>
+      <li>多个 make 并发执行时（如同时点 lint-specs 和 generate），如何处理输出隔离？</li>
+      <li>make 过程中前端断开 SSE 连接，后端是否需要取消正在执行的 make 进程？</li>
+      <li>"重新运行"按钮是否需要保留上一次执行的 target 参数？</li>
+      <li>是否需要支持用户自定义 make targets？还是只支持 spec 定义的这三个？</li>
+      <li>Makefile 依赖的外部工具（如 node、go）未安装时，错误展示是否需要提示安装命令？</li>
+    </ul>
+
+    <div class="highlight-box" style="margin-top:24px;">
+      <strong>💡 使用建议:</strong> 选择 3~5 个与当前实现最相关的问题先确认，优先级排序后逐个推动 spec 完善。
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>vibex-workbench · FEAT-make-integration</span>
+    <span class="slide-number">9 / 9</span>
+  </div>
+</section>
+
+</main>
+
+<script src="../assets/runtime.js"></script>
+<script src="../assets/vibex-ppt-nav.js"></script>
+<script src="../assets/runtime.js"><\/script>
+<script src="../assets/vibex-ppt-nav.js"><\/script>
+</body>
+</html>

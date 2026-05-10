@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FEAT-workbench-transport-adapter | Workbench 传输适配层</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" id="theme-link" href="../assets/themes/blueprint.css">
+  <link rel="stylesheet" href="../assets/animations/animations.css">
+</head>
+<body>
+
+<main class="deck">
+
+<!-- ========== SLIDE 1: Cover ========== -->
+<section class="slide is-active" data-slide="1">
+  <div class="slide-bg"></div>
+  <div class="slide-body">
+    <div class="cover-block">
+      <div class="cover-badge">L4 Feature Spec</div>
+      <h1 class="cover-title">Workbench 传输适配层</h1>
+      <p class="cover-subtitle">HTTP / SSE / WS · Wails</p>
+      <div class="cover-meta">
+        <span class="meta-item">📦 FEAT-workbench-transport-adapter</span>
+        <span class="meta-item">👤 Owner: hermes</span>
+        <span class="meta-item">📅 2026-05-09</span>
+      </div>
+      <div class="cover-summary">
+        <p>架构契约：在模块侧收敛传输选型与基址；<br>功能侧只消费门面，禁止散落拼接 URL。</p>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    欢迎各位。今天我们来讲一个横切面（cross-cutting）的架构设计——Workbench 传输适配层。
+    这个 spec 解决的是：桌面壳内嵌前端同时存在多种传输通道，如何避免功能代码重复维护端口、基址和分支逻辑。
+    先看封面：这是 L4 级别，聚焦"功能级落地差距"。
+  </div>
+</section>
+
+<!-- ========== SLIDE 2: Functional Goals (CTO视角) ========== -->
+<section class="slide" data-slide="2">
+  <div class="slide-bg"></div>
+  <header class="deck-header">
+    <span class="deck-title">功能目标</span>
+    <span class="deck-audience">CTO · 战略层</span>
+  </header>
+  <div class="slide-body">
+    <h2 class="slide-heading">🎯 核心目标：统一传输入口</h2>
+    <ul class="bullet-list anim-stagger-list">
+      <li data-anim="fade-up"><strong>收敛协议选型</strong> → 模块层统一判断 Wails/浏览器/HTTP fallback</li>
+      <li data-anim="fade-up"><strong>消除重复代码</strong> → 功能代码禁止复制 SSE_URL 常量块</li>
+      <li data-anim="fade-up"><strong>双轨基址隔离</strong> → workspaceApiBase ≠ agentApiBase，日志可区分</li>
+      <li data-anim="fade-up"><strong>类型安全门面</strong> → workspace.readSpec、agent.postChat 等签名稳定</li>
+      <li data-anim="fade-up"><strong>可测可验证</strong> → grep CI + code review 双门禁</li>
+    </ul>
+    <div class="highlight-box">
+      <span class="highlight-icon">💡</span>
+      <span><strong>边界</strong>：不替换 Agent/Go 服务协议形态；不合并 SSE 与 WS 为单一通道</span>
+    </div>
+  </div>
+  <div class="notes">
+    CTO 关注的是架构风险和资源投入。这个 spec 的价值主张：
+    1. 减少技术债——不再有散落的 VITE_SSE_URL 硬编码
+    2. 提高可维护性——传输策略只在一处维护
+    3. 降低跨层 bug 风险——功能代码不关心当前是 Wails 还是 Vite 代理
+    
+    约束也很清晰：不做协议合并，只做前端收敛。这降低了实施风险。
+  </div>
+</section>
+
+<!-- ========== SLIDE 3: As-Is (Current State) ========== -->
+<section class="slide" data-slide="3">
+  <div class="slide-bg"></div>
+  <header class="deck-header">
+    <span class="deck-title">现状真实证据</span>
+    <span class="deck-audience">All · 可追溯</span>
+  </header>
+  <div class="slide-body">
+    <h2 class="slide-heading">📋 As-Is：现状与证据</h2>
+    <div class="two-col-grid">
+      <div class="card">
+        <h3 class="card-title">🔴 当前状态</h3>
+        <ul class="card-list">
+          <li>spec status: <code>proposal</code></li>
+          <li>prototype.status: <code>none</code></li>
+          <li>无现成可演示原型</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 class="card-title">📁 已有实现（部分）</h3>
+        <ul class="card-list">
+          <li>✅ agent-transport.ts（基址抽象）</li>
+          <li>✅ prototype-shell-manifest-client.ts</li>
+          <li>✅ workbench-inspector-ws.ts</li>
+          <li>⚠️ spec-slot-session-store.ts 仍含长 fetch</li>
+        </ul>
+      </div>
+    </div>
+    <div class="table-container">
+      <table class="data-table">
+        <thead>
+          <tr><th>文件路径</th><th>当前状态</th><th>与 spec 偏差</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>frontend/src/lib/runtime/agent-transport.ts</code></td><td>✅ 已实现</td><td>基址抽象完成</td></tr>
+          <tr><td><code>frontend/src/lib/wails-filesystem.ts</code></td><td>⚠️ 待验证</td><td>Wails binding 门未验证</td></tr>
+          <tr><td><code>frontend/src/lib/services/design-kit-client.ts</code></td><td>⚠️ 待对齐</td><td>双通道待统一</td></tr>
+          <tr><td><code>pkg/protoshellmanifest/manifest.go</code></td><td>✅ 已实现</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="notes">
+    这里列出了真实工作区的证据。关键点：
+    1. spec 本身处于 proposal 阶段，尚未落地
+    2. 有部分实现（DONE-T1 到 DONE-T5），但整体传输层尚未完全收敛
+    3. wails-filesystem 的验证门（verification gate）尚未通过
+    4. 没有现成的可演示原型（prototype.status: none）
+    
+    这是 L4 的典型特征：有设计文档，有部分实现，但尚未形成完整功能。
+  </div>
+</section>
+
+<!-- ========== SLIDE 4: Transport Matrix ========== -->
+<section class="slide" data-slide="4">
+  <div class="slide-bg"></div>
+  <header class="deck-header">
+    <span class="deck-title">状态矩阵</span>
+    <span class="deck-audience">Developer · 技术层</span>
+  </header>
+  <div class="slide-body">
+    <h2 class="slide-heading">🔀 传输矩阵：四轨并行</h2>
+    <div class="table-container">
+      <table class="data-table matrix-table">
+        <thead>
+          <tr><th>通道类型</th><th>传输策略</th><th>门面函数</th><th>状态</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Workspace Disk I/O</strong></td>
+            <td>Wails 优先 → 浏览器 dev 同源</td>
+            <td><code>workspace.readSpec()</code></td>
+            <td class="status-pending">⚠️ 待验证</td>
+          </tr>
+          <tr>
+            <td><strong>Workspace Kit HTTP</strong></td>
+            <td>与 disk 同轨（design-kit、manifest）</td>
+            <td><code>workspaceApiBase + kit/*</code></td>
+            <td class="status-partial">🔶 规划中</td>
+          </tr>
+          <tr>
+            <td><strong>Agent Runtime</strong></td>
+            <td>agentApiBase + REST/SSE</td>
+            <td><code>agent.postChat()</code></td>
+            <td class="status-done">✅ 已实现</td>
+          </tr>
+          <tr>
+            <td><strong>Inspector WebSocket</strong></td>
+            <td>独立 WS URL 工厂</td>
+            <td><code>inspectorWsUrl()</code></td>
+            <td class="status-done">✅ 已实现</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="highlight-box warning">
+      <span class="highlight-icon">⚠️</span>
+      <span><strong>验证门</strong>：wails-filesystem binding 需通过 probeWailsFilesystemListSpecs 才可切 Agent HTTP → Wails</span>
+    </div>
+  </div>
+  <div class="notes">
+    这是传输矩阵的核心图示。四个通道：
+    1. Workspace Disk I/O - 这是最关键的切换点。桌面端优先用 Wails binding，浏览器 dev 走同源代理
+    2. Workspace Kit HTTP - 设计工具包、manifest 等
+    3. Agent Runtime - chat、execute、SSE thread，REST + EventSource
+    4. Inspector WebSocket - 独立 URL 工厂，但仍从同一 env 读取
+    
+    验证门的意思是：在 wails-filesystem 的 binding 验证通过之前，spec-slot-session-store 必须保持走 Agent HTTP。
+  </div>
+</section>
+
+<!-- ========== SLIDE 5: Boundary & Rules ========== -->
+<section class="slide" data-slide="5">
+  <div class="slide-bg"></div>
+  <header class="deck-header">
+    <span class="deck-title">边界演示</span>
+    <span class="deck-audience">Developer · 规则层</span>
+  </header>
+  <div class="slide-body">
+    <h2 class="slide-heading">🚧 三大约束规则</h2>
+    <div class="rule-cards">
+      <div class="rule-card" data-anim="fade-up">
+        <div class="rule-id">T1</div>
+        <div class="rule-content">
+          <h3>收敛于模块</h3>
+          <p>传输策略、环境变量、Wails 探测只允许在 <code>transport*.ts</code> 中</p>
+          <p class="rule-example">❌ 禁止：业务目录出现 <code>http://localhost:33338</code></p>
+        </div>
+      </div>
+      <div class="rule-card" data-anim="fade-up">
+        <div class="rule-id">T2</div>
+        <div class="rule-content">
+          <h3>发散于功能</h3>
+          <p>各 FEAT 只调用门面：<code>workspace.readSpec</code>、<code>agent.postChat</code></p>
+          <p class="rule-example">❌ 禁止：组件内拼接完整 URL</p>
+        </div>
+      </div>
+      <div class="rule-card" data-anim="fade-up">
+        <div class="rule-id">T3</div>
+        <div class="rule-content">
+          <h3>双轨基址</h3>
+          <p><code>workspaceApiBase</code> ≠ <code>agentApiBase</code></p>
+          <p class="rule-example">❌ 禁止：混用或日志无法区分轨道</p>
+        </div>
+      </div>
+    </div>
+    <div class="highlight-box success">
+      <span class="highlight-icon">✅</span>
+      <span><strong>验证方式</strong>：grep CI（可选）+ code review 双门禁</span>
+    </div>
+  </div>
+  <div class="notes">
+    三个约束规则是 spec 的核心：
+    T1 防止硬编码扩散——所有传输策略必须在一处
+    T2 强制门面模式——功能代码只消费接口，不知道底层实现
+    T3 强制基址分离——日志里能区分"卡在同源"还是"卡在 Agent 端口"
+    
+    触发方式：如果代码 review 发现业务目录有裸 http://localhost:33338，就是违规。
+  </div>
+</section>
+
+<!-- ========== SLIDE 6: To-Be & Phases ========== -->
+<section class="slide" data-slide="6">
+  <div class="slide-bg"></div>
+  <header class="deck-header">
+    <span class="deck-title">To-Be 目标</span>
+    <span class="deck-audience">Developer · 执行层</span>
+  </header>
+  <div class="slide-body">
+    <h2 class="slide-heading">🛤️ 实现路线：四阶段交付</h2>
+    <div class="timeline">
+      <div class="timeline-item" data-anim="fade-up">
+        <div class="timeline-marker">P1</div>
+        <div class="timeline-content">
+          <h4>配置收口</h4>
+          <p>单一模块导出 agentApiBase / workspaceApiBase；替换高频 SSE_URL</p>
+          <span class="timeline-status status-done">✅ DONE-T2</span>
+        </div>
+      </div>
+      <div class="timeline-item" data-anim="fade-up">
+        <div class="timeline-marker">P2</div>
+        <div class="timeline-content">
+          <h4>Workspace 门面</h4>
+          <p>prototype-manifest、design-kit-client、wails-filesystem 同一策略</p>
+          <span class="timeline-status status-partial">🔶 进行中</span>
+        </div>
+      </div>
+      <div class="timeline-item" data-anim="fade-up">
+        <div class="timeline-marker">P3</div>
+        <div class="timeline-content">
+          <h4>Agent 门面</h4>
+          <p>spec-slot-session-store 长 fetch 迁入；SSE 路径工厂化</p>
+          <span class="timeline-status status-pending">⏳ 待开始</span>
+        </div>
+      </div>
+      <div class="timeline-item" data-anim="fade-up">
+        <div class="timeline-marker">P4</div>
+        <div class="timeline-content">
+          <h4>校验与文档</h4>
+          <p>eslint/grep 门禁；README 同步</p>
+          <span class="timeline-status status-pending">⏳ 待开始</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    四阶段交付是 spec 里定义的路线图：
+    P1 配置收口——已经完成（DONE-T2）
+    P2 Workspace 门面——进行中，需要 wails-filesystem 验证通过
+    P3 Agent 门面——待开始，涉及 spec-slot-session-store 的重构
+    P4 校验与文档——最后的收尾工作
+    
+    为什么这样分阶段？因为 P2 的 wails-filesystem 验证门是关键路径，必须先通过才能安全地切通道。
+  </div>
+</section>
+
+<!-- ========== SLIDE 7: Decision Page ========== -->
+<section class="slide" data-slide="7">
+  <div class="slide-bg"></div>
+  <header class="deck-header">
+    <span class="deck-title">决策点</span>
+    <span class="deck-audience">All · 决策层</span>
+  </header>
+  <div class="slide-body">
+    <h2 class="slide-heading">⚖️ 方案对比与决策</h2>
+    <div class="decision-grid">
+      <div class="decision-card recommended">
+        <div class="decision-badge">✅ 推荐</div>
+        <h3>渐进式迁移</h3>
+        <p>先完成 P1/P2 门面，再逐步迁移调用点</p>
+        <ul class="decision-pros">
+          <li>✓ 风险可控，每阶段可回滚</li>
+          <li>✓ 不破坏现有功能</li>
+          <li>✓ 便于 code review</li>
+        </ul>
+        <div class="decision-meta">
+          <span>成本：中等</span>
+          <span>风险：低</span>
+        </div>
+      </div>
+      <div class="decision-card">
+        <div class="decision-badge alt">⚡ 备选</div>
+        <h3>大爆炸迁移</h3>
+        <p>一次性全量替换所有调用点</p>
+        <ul class="decision-pros">
+          <li>✓ 快速达到目标状态</li>
+        </ul>
+        <ul class="decision-cons">
+          <li>✗ 风险集中，回滚困难</li>
+          <li>✗ 需要同步修改多个 FEAT</li>
+          <li>✗ 测试覆盖压力大</li>
+        </ul>
+        <div class="decision-meta">
+          <span>成本：高</span>
+          <span>风险：高</span>
+        </div>
+      </div>
+    </div>
+    <div class="highlight-box info">
+      <span class="highlight-icon">🔑</span>
+      <span><strong>Why Not 大爆炸</strong>：当前 P1/P2 验证门未通过；多个依赖 spec（MOD-ide-chrome、FEAT-workspace-selector）未同步</span>
+    </div>
+  </div>
+  <div class="notes">
+    决策页给出了两个方案的对比：
+    推荐方案是渐进式迁移——风险可控，每个阶段可以独立合并和回滚
+    备选方案是大爆炸迁移——虽然快，但风险集中
+    
+    为什么选渐进式？
+    1. wails-filesystem 的验证门尚未通过，不能盲目切通道
+    2. 多个依赖 spec 未同步，贸然迁移会破坏现有功能
+    3. 当前已有 DONE-T1 到 DONE-T5 的部分实现，需要接续而非推翻
+    
+    前提条件：如果 P2 的 wails-filesystem 验证通过，且依赖 spec 同步更新，可以考虑加速 P3/P4。
+  </div>
+</section>
+
+<!-- ========== SLIDE 8: Testing & Verification ========== -->
+<section class="slide" data-slide="8">
+  <div class="slide-bg"></div>
+  <header class="deck-header">
+    <span class="deck-title">测试与验证</span>
+    <span class="deck-audience">Testing · 质量层</span>
+  </header>
+  <div class="slide-body">
+    <h2 class="slide-heading">🧪 验证策略</h2>
+    <div class="two-col-grid">
+      <div class="card">
+        <h3 class="card-title">✅ 功能验证</h3>
+        <ul class="card-list">
+          <li><strong>Wails 验证门</strong>：probeWailsFilesystemListSpecs(workspaceRoot)</li>
+          <li><strong>基址隔离</strong>：单元测试验证 workspaceApiBase ≠ agentApiBase</li>
+          <li><strong>门面签名</strong>：快照测试确保接口稳定</li>
+          <li><strong>SSE 路径</strong>：EventSource 连接 + 消息解析</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 class="card-title">🔍 门禁检查</h3>
+        <ul class="card-list">
+          <li><strong>grep CI</strong>：业务目录禁止 <code>http://localhost:33338</code></li>
+          <li><strong>code review</strong>：新增 fetch/EventSource 需注明例外</li>
+          <li><strong>lint-specs</strong>：父子链存在性检查</li>
+        </ul>
+      </div>
+    </div>
+    <div class="table-container">
+      <table class="data-table">
+        <thead>
+          <tr><th>场景</th><th>输入</th><th>期望输出</th><th>失败处理</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Wails binding OK</td><td>desktop 模式</td><td>channel = wails_binding</td><td>fallback → http_fallback</td></tr>
+          <tr><td>Wails binding 失败</td><td>browser dev</td><td>channel = http_fallback</td><td>日志告警，非错误</td></tr>
+          <tr><td>Agent SSE 连接</td><td>getAgentApiBase()</td><td>EventSource 打开</td><td>重试 3 次 + 错误提示</td></tr>
+          <tr><td>WS Inspector 连接</td><td>httpToWsBase()</td><td>WebSocket 握手</td><td>重连 + 状态可见</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="notes">
+    测试页覆盖了功能验证和门禁检查：
+    功能验证：每种通道类型都有明确的验证步骤
+    门禁检查：grep CI + code review 防止硬编码回潮
+    
+    失败处理是重点：
+    1. Wails binding 失败不是错误，是正常回退到 http_fallback
+    2. SSE/WS 连接失败有重试机制和用户可见状态
+    3. 核心原则：降级优雅，不影响主流程
+  </div>
+</section>
+
+<!-- ========== SLIDE 9: Execution Page ========== -->
+<section class="slide" data-slide="9">
+  <div class="slide-bg"></div>
+  <header class="deck-header">
+    <span class="deck-title">执行计划</span>
+    <span class="deck-audience">All · 执行层</span>
+  </header>
+  <div class="slide-body">
+    <h2 class="slide-heading">📅 里程碑与验收</h2>
+    <div class="table-container">
+      <table class="data-table milestone-table">
+        <thead>
+          <tr><th>阶段</th><th>负责人</th><th>验收标准</th><th>回滚策略</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>P1 配置收口</strong></td>
+            <td>hermes</td>
+            <td>agentApiBase/workspaceApiBase 导出；高频 SSE_URL 已替换</td>
+            <td>git revert 单 commit</td>
+          </tr>
+          <tr>
+            <td><strong>P2 Workspace 门面</strong></td>
+            <td>hermes</td>
+            <td>wails-filesystem 验证门通过；design-kit-client 对齐</td>
+            <td>保持 agent_http_specs_bridge</td>
+          </tr>
+          <tr>
+            <td><strong>P3 Agent 门面</strong></td>
+            <td>TBD</td>
+            <td>spec-slot-session-store 不含长 fetch；SSE 路径工厂化</td>
+            <td>revert 到 P2 状态</td>
+          </tr>
+          <tr>
+            <td><strong>P4 校验与文档</strong></td>
+            <td>TBD</td>
+            <td>grep CI 通过；README 更新</td>
+            <td>lint 规则可单独 revert</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="highlight-box">
+      <span class="highlight-icon">📌</span>
+      <span><strong>关键依赖</strong>：MOD-ide-chrome、FEAT-workspace-selector 需同步更新 io_surfaces</span>
+    </div>
+  </div>
+  <div class="notes">
+    执行页给出了明确的里程碑：
+    P1 和 P2 的负责人是 hermes，已经有部分完成的工作
+    P3 和 P4 的负责人待定（TBD）
+    
+    验收标准都是可执行的：
+    - 不是"完成门面"而是"导出可用"
+    - 不是"替换 SSE_URL"而是"grep 无裸 URL"
+    
+    回滚策略很清晰：每阶段可独立回滚，不影响其他阶段。这是渐进式迁移的优势。
+  </div>
+</section>
+
+<!-- ========== SLIDE 10: Risk & Recommendation ========== -->
+<section class="slide" data-slide="10">
+  <div class="slide-bg"></div>
+  <header class="deck-header">
+    <span class="deck-title">风险与建议</span>
+    <span class="deck-audience">CTO · 决策层</span>
+  </header>
+  <div class="slide-body">
+    <h2 class="slide-heading">⚠️ 风险矩阵 & 调整建议</h2>
+    <div class="table-container">
+      <table class="data-table risk-table">
+        <thead>
+          <tr><th>风险项</th><th>概率</th><th>影响</th><th>缓解策略</th></tr>
+        </thead>
+        <tbody>
+          <tr class="risk-high">
+            <td>wails-filesystem 验证门失败</td>
+            <td>中</td>
+            <td>高</td>
+            <td>保持 agent_http_specs_bridge，不强切</td>
+          </tr>
+          <tr class="risk-medium">
+            <td>依赖 spec 同步延迟</td>
+            <td>高</td>
+            <td>中</td>
+            <td>P3 前完成 io_surfaces 声明</td>
+          </tr>
+          <tr class="risk-low">
+            <td>grep CI 误报</td>
+            <td>低</td>
+            <td>低</td>
+            <td>白名单机制（测试 mock）</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="two-col-grid">
+      <div class="card">
+        <h3 class="card-title">📝 spec 调整建议</h3>
+        <ul class="card-list">
+          <li>✅ io_surfaces 字段标准化（workspace_disk | agent | inspector）</li>
+          <li>✅ mixin 引用模式明确为"只读引用"</li>
+          <li>⚠️ 考虑增加 Wails fallback 日志规范</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 class="card-title">🎯 高收益项</h3>
+        <ul class="card-list">
+          <li>🔥 wails-filesystem 验证门通过 → 桌面端性能提升</li>
+          <li>🔥 spec-slot-session-store 重构 → 长连接管理统一</li>
+          <li>🔥 grep CI 门禁 → 代码质量基线</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    风险页给出了三个层级的风险：
+    高风险：wails-filesystem 验证门失败。这是关键路径，必须先验证才能切通道
+    中风险：依赖 spec 同步延迟。需要提前协调 MOD-ide-chrome 和 FEAT-workspace-selector
+    低风险：grep CI 误报。有白名单机制可以缓解
+    
+    spec 调整建议：
+    1. io_surfaces 字段标准化——让各 FEAT 声明自己的 I/O 面
+    2. mixin 引用模式明确为只读——避免与 parent 链冲突
+    3. Wails fallback 日志规范——方便排查"卡在哪一轨"
+  </div>
+</section>
+
+<!-- ========== SLIDE 11: Q&A Checklist ========== -->
+<section class="slide" data-slide="11">
+  <div class="slide-bg"></div>
+  <header class="deck-header">
+    <span class="deck-title">待完善清单</span>
+    <span class="deck-audience">User · 对话层</span>
+  </header>
+  <div class="slide-body">
+    <h2 class="slide-heading">❓ 可复制的问题清单</h2>
+    <p class="slide-desc">用于在详情抽屉与 agent 对话完善 spec</p>
+    <div class="checklist-grid">
+      <div class="checklist-item" data-anim="fade-up">
+        <span class="check-icon">☐</span>
+        <span>wails-filesystem 的 probe 返回 ok 的判定阈值是什么？</span>
+      </div>
+      <div class="checklist-item" data-anim="fade-up">
+        <span class="check-icon">☐</span>
+        <span>io_surfaces 字段在各 FEAT 中的标准化命名规范？</span>
+      </div>
+      <div class="checklist-item" data-anim="fade-up">
+        <span class="check-icon">☐</span>
+        <span>grep CI 的正则规则如何定义测试 mock 白名单？</span>
+      </div>
+      <div class="checklist-item" data-anim="fade-up">
+        <span class="check-icon">☐</span>
+        <span>P3 中 spec-slot-session-store 的"长 fetch"具体指哪些调用？</span>
+      </div>
+      <div class="checklist-item" data-anim="fade-up">
+        <span class="check-icon">☐</span>
+        <span>workspaceApiBase 与 agentApiBase 的 env 变量命名是否已确定？</span>
+      </div>
+      <div class="checklist-item" data-anim="fade-up">
+        <span class="check-icon">☐</span>
+        <span>双轨基址的日志格式规范（如何区分卡在哪一轨）？</span>
+      </div>
+      <div class="checklist-item" data-anim="fade-up">
+        <span class="check-icon">☐</span>
+        <span>mixin 引用模式与 parent 链的解析优先级？</span>
+      </div>
+      <div class="checklist-item" data-anim="fade-up">
+        <span class="check-icon">☐</span>
+        <span>SSE/WS 重试策略的具体参数（次数、间隔、退避）？</span>
+      </div>
+      <div class="checklist-item" data-anim="fade-up">
+        <span class="check-icon">☐</span>
+        <span>P4 的 eslint/grep 门禁如何与现有 CI 集成？</span>
+      </div>
+      <div class="checklist-item" data-anim="fade-up">
+        <span class="check-icon">☐</span>
+        <span>依赖 spec（MOD-ide-chrome）的 io_surfaces 更新计划？</span>
+      </div>
+      <div class="checklist-item" data-anim="fade-up">
+        <span class="check-icon">☐</span>
+        <span>回滚后功能降级的用户可见提示设计？</span>
+      </div>
+      <div class="checklist-item" data-anim="fade-up">
+        <span class="check-icon">☐</span>
+        <span>本 spec 与 vibex-agent 的传输边界如何对齐？</span>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    这是供用户在详情抽屉继续对话的清单。12 个问题覆盖：
+    1-2: 验证门和字段标准化
+    3-4: CI 门禁和具体实现细节
+    5-6: 基址配置和日志规范
+    7-8: mixin 解析和重试策略
+    9-10: CI 集成和依赖同步
+    11-12: 回滚提示和 Agent 对齐
+    
+    这些问题可以复制给 agent，让 agent 帮忙完善 spec 的对应部分。
+  </div>
+</section>
+
+<!-- ========== SLIDE 12: Summary ========== -->
+<section class="slide" data-slide="12">
+  <div class="slide-bg"></div>
+  <header class="deck-header">
+    <span class="deck-title">总结</span>
+    <span class="deck-audience">All · 收尾</span>
+  </header>
+  <div class="slide-body">
+    <h2 class="slide-heading">📌 核心要点回顾</h2>
+    <div class="summary-grid">
+      <div class="summary-item" data-anim="fade-up">
+        <div class="summary-icon">🎯</div>
+        <h3>目标</h3>
+        <p>模块侧收敛传输选型与基址，功能侧只消费门面</p>
+      </div>
+      <div class="summary-item" data-anim="fade-up">
+        <div class="summary-icon">📋</div>
+        <h3>现状</h3>
+        <p>proposal 阶段；P1 完成，P2 进行中；无原型</p>
+      </div>
+      <div class="summary-item" data-anim="fade-up">
+        <div class="summary-icon">🛤️</div>
+        <h3>路径</h3>
+        <p>四阶段渐进迁移；验证门是关键路径</p>
+      </div>
+      <div class="summary-item" data-anim="fade-up">
+        <div class="summary-icon">⚠️</div>
+        <h3>风险</h3>
+        <p>wails-filesystem 验证门 + 依赖 spec 同步</p>
+      </div>
+    </div>
+    <div class="highlight-box success">
+      <span class="highlight-icon">✅</span>
+      <span><strong>下一步行动</strong>：完成 P2 的 wails-filesystem 验证门 → 推进 P3 Agent 门面</span>
+    </div>
+    <div class="nav-hint">
+      <p>键盘 ← → 翻页 | T 切换主题 | A 切换动画 | S 演讲者模式 | F 全屏</p>
+    </div>
+  </div>
+  <div class="notes">
+    总结页回顾了四个核心要点：
+    目标——架构契约，收敛传输层
+    现状——proposal 阶段，部分完成
+    路径——四阶段渐进迁移
+    风险——验证门和依赖同步
+    
+    下一步行动很清晰：先完成 wails-filesystem 验证门，这是 P2 的关键路径。
+    
+    键盘提示：← → 翻页，T 切换主题，A 切换动画，S 打开演讲者模式，F 全屏。
+  </div>
+</section>
+
+</main>
+
+<footer class="deck-footer">
+  <span class="footer-title">FEAT-workbench-transport-adapter</span>
+  <span class="slide-number">1 / 12</span>
+</footer>
+
+<script src="../assets/runtime.js"></script>
+<script src="../assets/vibex-ppt-nav.js"></script>
+
+</body>
+</html>

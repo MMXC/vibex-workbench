@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FEAT-agent-implementation-context-injection</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" id="theme-link" href="../assets/themes/blueprint.css">
+  <link rel="stylesheet" href="../assets/animations/animations.css">
+</head>
+<body>
+  <main class="deck">
+
+    <!-- Slide 1: Cover -->
+    <section class="slide" data-slide="1">
+      <div class="cover-bg"></div>
+      <div class="cover-content">
+        <div class="label">L4 · Feature Spec</div>
+        <h1>Agent Implementation<br>Context Injection</h1>
+        <p class="subtitle">实现前上下文注入 · 避免重复失败 · 加速 spec 落地</p>
+        <div class="meta-row">
+          <span class="badge">status: proposal</span>
+          <span class="badge">module: agent</span>
+          <span class="badge">owner: hermes</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 2: 功能目标 -->
+    <section class="slide" data-slide="2">
+      <header class="slide-header">
+        <h2>功能目标</h2>
+        <p class="tag">what & why</p>
+      </header>
+      <div class="content-grid cols-2">
+        <div class="card">
+          <h3>🎯 核心目标</h3>
+          <ul class="bullet-list">
+            <li>在 agent 实现 spec 前，自动组装并注入上下文摘要</li>
+            <li>摘要包含：历史 checkpoint、失败分类、下一步建议</li>
+            <li>避免重复读错文件、重跑无效方案</li>
+          </ul>
+        </div>
+        <div class="card highlight">
+          <h3>📦 产出物</h3>
+          <ul class="bullet-list">
+            <li>一段 bounded context block</li>
+            <li>标记 stale_journal / memory_only</li>
+            <li>标记 known_failures / must_not_repeat</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout">
+        <strong>Why:</strong> 当前 agent 实现新 spec 时完全"盲启动"，无法感知历史 journal 和 memplace 经验，导致重复踩坑。
+      </div>
+    </section>
+
+    <!-- Slide 3: As-Is 现状 -->
+    <section class="slide" data-slide="3">
+      <header class="slide-header">
+        <h2>As-Is 现状</h2>
+        <p class="tag">current state · no context injection</p>
+      </header>
+      <div class="flow-diagram">
+        <div class="node">Agent 收到新 spec</div>
+        <div class="arrow">→</div>
+        <div class="node muted">无历史上下文</div>
+        <div class="arrow">→</div>
+        <div class="node muted">盲搜索 / 盲尝试</div>
+        <div class="arrow">→</div>
+        <div class="node muted">重复踩坑</div>
+      </div>
+      <div class="evidence-box">
+        <h4>🔍 现状证据</h4>
+        <table class="data-table">
+          <tr><th>维度</th><th>现状</th><th>问题</th></tr>
+          <tr><td>journal 读取</td><td>不自动读取</td><td>agent 不知道上次失败原因</td></tr>
+          <tr><td>memplace 命中</td><td>不触发提示</td><td>相似失败可能重演</td></tr>
+          <tr><td>spec 优先级</td><td>无显式规则</td><td>新旧信息冲突时无处理</td></tr>
+          <tr><td>上下文大小</td><td>无限制</td><td>可能塞入过多历史日志</td></tr>
+        </table>
+      </div>
+      <div class="callout warning">
+        <strong>Why Not 直接套用:</strong> 当前无任何注入机制，agent 完全依赖实时搜索，无法复用历史决策。
+      </div>
+    </section>
+
+    <!-- Slide 4: To-Be 目标 -->
+    <section class="slide" data-slide="4">
+      <header class="slide-header">
+        <h2>To-Be 目标</h2>
+        <p class="tag">target state · bounded injection</p>
+      </header>
+      <div class="flow-diagram">
+        <div class="node highlight">Agent 收到新 spec</div>
+        <div class="arrow">→</div>
+        <div class="node highlight">组装上下文</div>
+        <div class="arrow">→</div>
+        <div class="node highlight">bounded injection</div>
+        <div class="arrow">→</div>
+        <div class="node success">有上下文支撑的实现</div>
+      </div>
+      <div class="content-grid cols-3">
+        <div class="card">
+          <h4>1. 读取 Journal</h4>
+          <ul class="bullet-list small">
+            <li>target spec journal</li>
+            <li>parent / child / sibling journal</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>2. 检索 Memplace</h4>
+          <ul class="bullet-list small">
+            <li>高相关历史摘要</li>
+            <li>标记 memory_only</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>3. 压缩输出</h4>
+          <ul class="bullet-list small">
+            <li>按 priority_order 截断</li>
+            <li>标记 stale / known_failures</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 5: 注入策略与偏差分析 -->
+    <section class="slide" data-slide="5">
+      <header class="slide-header">
+        <h2>注入策略与偏差分析</h2>
+        <p class="tag">policy & gap analysis</p>
+      </header>
+      <div class="content-grid cols-2">
+        <div class="card">
+          <h3>📋 注入上限 (max_items)</h3>
+          <table class="data-table">
+            <tr><th>类型</th><th>上限</th></tr>
+            <tr><td>current_spec_checkpoints</td><td>5</td></tr>
+            <tr><td>related_spec_checkpoints</td><td>3</td></tr>
+            <tr><td>memory_hits</td><td>5</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <h3>🔀 优先级顺序</h3>
+          <ol class="step-list">
+            <li>current spec</li>
+            <li>current L5 parent</li>
+            <li>direct child L5</li>
+            <li>sibling L5 (shared files)</li>
+            <li>memplace/memlace hits</li>
+          </ol>
+        </div>
+      </div>
+      <div class="gap-analysis">
+        <h4>📐 偏差分析</h4>
+        <div class="grid-2col">
+          <div class="gap-item">
+            <span class="label error">偏差 A</span>
+            <p>无 journal 时依赖 memplace → 标记 memory_only，降低置信度</p>
+          </div>
+          <div class="gap-item">
+            <span class="label warn">偏差 B</span>
+            <p>摘要超出限制 → 按 priority_order 截断，保留高优先级</p>
+          </div>
+          <div class="gap-item">
+            <span class="label info">约束 C1</span>
+            <p>Bounded injection：不把完整 journal 直接注入</p>
+          </div>
+          <div class="gap-item">
+            <span class="label success">约束 C2</span>
+            <p>Spec wins：当前 spec 与摘要冲突时，spec 优先</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 6: 决策页 (CTO/开发视角) -->
+    <section class="slide" data-slide="6">
+      <header class="slide-header">
+        <h2>决策页</h2>
+        <p class="tag">decision · CTO & Dev</p>
+      </header>
+      <div class="decision-matrix">
+        <table class="data-table full">
+          <tr><th>方案</th><th>描述</th><th>优势</th><th>风险</th><th>决策</th></tr>
+          <tr class="highlight-row">
+            <td><strong>推荐：受限注入</strong></td>
+            <td>max_items 限制 + priority_order + spec wins</td>
+            <td>防止上下文爆炸；保证当前 spec 权威性</td>
+            <td>可能遗漏低优先级历史</td>
+            <td><span class="badge success">✓ 采用</span></td>
+          </tr>
+          <tr>
+            <td>备选：无限注入</td>
+            <td>全量 journal + memplace 摘要</td>
+            <td>不遗漏任何历史</td>
+            <td>上下文过长，LLM 稀释关键信息</td>
+            <td><span class="badge">✗ 放弃</span></td>
+          </tr>
+          <tr>
+            <td>备选：仅 journal</td>
+            <td>忽略 memplace，只读 journal</td>
+            <td>简化实现</td>
+            <td>无 journal 时完全无上下文</td>
+            <td><span class="badge">✗ 放弃</span></td>
+          </tr>
+        </table>
+      </div>
+      <div class="content-grid cols-3">
+        <div class="card perspective cto">
+          <h4>👔 CTO</h4>
+          <p>控制上下文体积，避免 token 浪费；保证 spec 优先，避免 agent 被旧信息误导。</p>
+        </div>
+        <div class="card perspective dev">
+          <h4>💻 开发</h4>
+          <p>实现简单：读取 → 截断 → 注入；可调试性强，标记清晰。</p>
+        </div>
+        <div class="card perspective risk">
+          <h4>⚠️ 风险</h4>
+          <p>journal 过期时标记 stale；memplace 置信度不足时标记 memory_only。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 7: 验证与风险 (测试/用户视角) -->
+    <section class="slide" data-slide="7">
+      <header class="slide-header">
+        <h2>验证与风险</h2>
+        <p class="tag">testing · user · risk</p>
+      </header>
+      <div class="content-grid cols-2">
+        <div class="card">
+          <h3>🧪 测试场景</h3>
+          <div class="test-item">
+            <strong>TC-1: 同一 L5 二次实现</strong>
+            <p>Given: L5 有 journal，记录 build_error</p>
+            <p>When: agent 重新开始实现</p>
+            <p>Then: 摘要包含 build_error、涉及文件、避免重复动作</p>
+          </div>
+          <div class="test-item">
+            <strong>TC-2: memplace 命中但 journal 不存在</strong>
+            <p>Given: memplace 有摘要，无 journal</p>
+            <p>When: agent 组装上下文</p>
+            <p>Then: 标记 memory_only，降低置信度</p>
+          </div>
+        </div>
+        <div class="card">
+          <h3>👥 用户/业务视角</h3>
+          <ul class="bullet-list">
+            <li><strong>加速交付：</strong>agent 不重复踩坑，迭代更快</li>
+            <li><strong>质量提升：</strong>避免已知失败重演</li>
+            <li><strong>透明度：</strong>显式标记数据来源（journal vs memory）</li>
+          </ul>
+          <div class="callout info">
+            <strong>Why Not 跳过验证:</strong> 无测试会导致边界情况（空 journal、超长摘要）未覆盖。
+          </div>
+        </div>
+      </div>
+      <div class="risk-matrix">
+        <h4>🚨 风险矩阵</h4>
+        <table class="data-table">
+          <tr><th>风险</th><th>概率</th><th>影响</th><th>缓解</th></tr>
+          <tr><td>过期 journal 覆盖当前 spec</td><td>低</td><td>高</td><td>C2: spec wins 强制约束</td></tr>
+          <tr><td>上下文超出 LLM 窗口</td><td>中</td><td>中</td><td>C1: bounded injection</td></tr>
+          <tr><td>memplace 误判高置信度</td><td>低</td><td>中</td><td>memory_only 标记 + 降权</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <!-- Slide 8: 执行页 -->
+    <section class="slide" data-slide="8">
+      <header class="slide-header">
+        <h2>执行页</h2>
+        <p class="tag">execution · milestones</p>
+      </header>
+      <div class="timeline">
+        <div class="milestone">
+          <span class="phase">M1</span>
+          <div class="milestone-content">
+            <h4>上下文组装器实现</h4>
+            <p>负责人: hermes · 验收: 读取 journal + memplace 并按 max_items 截断</p>
+          </div>
+        </div>
+        <div class="milestone">
+          <span class="phase">M2</span>
+          <div class="milestone-content">
+            <h4>注入策略集成</h4>
+            <p>负责人: hermes · 验收: spec wins / stale_journal / memory_only 标记正确</p>
+          </div>
+        </div>
+        <div class="milestone">
+          <span class="phase">M3</span>
+          <div class="milestone-content">
+            <h4>TC-1/TC-2 测试覆盖</h4>
+            <p>负责人: QA · 验收: 二次实现时摘要包含历史；memory_only 场景置信度正确</p>
+          </div>
+        </div>
+      </div>
+      <div class="content-grid cols-2">
+        <div class="card">
+          <h4>🔄 回滚策略</h4>
+          <ul class="bullet-list small">
+            <li>若注入后 agent 行为异常，禁用上下文注入</li>
+            <li>保持 agent 原有 prompt 结构不变</li>
+            <li>通过 feature flag 控制开/关</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>✅ 验收标准</h4>
+          <ul class="bullet-list small">
+            <li>AC-1: journal 存在时摘要包含 checkpoint</li>
+            <li>AC-2: memplace 命中标记 memory_only</li>
+            <li>AC-3: 超出限制按 priority_order 截断</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 9: 可复制的问题清单 -->
+    <section class="slide" data-slide="9">
+      <header class="slide-header">
+        <h2>可复制的问题清单</h2>
+        <p class="tag">spec refinement · follow-up</p>
+      </header>
+      <div class="checklist-grid">
+        <div class="checklist-item"><input type="checkbox"> <span>journal 文件的路径规范是否已确定？</span></div>
+        <div class="checklist-item"><input type="checkbox"> <span>max_items 的数值是否有 benchmark 依据？</span></div>
+        <div class="checklist-item"><input type="checkbox"> <span>priority_order 中 sibling 的"shared files"如何判定？</span></div>
+        <div class="checklist-item"><input type="checkbox"> <span>memplace 置信度阈值是多少？</span></div>
+        <div class="checklist-item"><input type="checkbox"> <span>memory_only 降权比例是多少？</span></div>
+        <div class="checklist-item"><input type="checkbox"> <span>stale_journal 的过期时间如何定义？</span></div>
+        <div class="checklist-item"><input type="checkbox"> <span>feature flag 名称和开关位置？</span></div>
+        <div class="checklist-item"><input type="checkbox"> <span>注入块在 agent prompt 中的位置？</span></div>
+        <div class="checklist-item"><input type="checkbox"> <span>如何验证"不重复踩坑"？需要埋点吗？</span></div>
+        <div class="checklist-item"><input type="checkbox"> <span>与 memplace/memlace 的交互接口是否已定义？</span></div>
+        <div class="checklist-item"><input type="checkbox"> <span>日志/审计：注入上下文是否需要记录？</span></div>
+        <div class="checklist-item"><input type="checkbox"> <span>当前 spec 与 parent spec 的冲突处理优先级？</span></div>
+      </div>
+      <div class="callout">
+        <strong>下一步:</strong> 在详情抽屉中与 agent 逐条确认上述问题，更新 spec 后进入 design 阶段。
+      </div>
+    </section>
+
+  </main>
+
+  <script src="../assets/runtime.js"></script>
+  <script src="../assets/vibex-ppt-nav.js"></script>
+<script src="../assets/runtime.js"><\/script>
+<script src="../assets/vibex-ppt-nav.js"><\/script>
+</body>
+</html>

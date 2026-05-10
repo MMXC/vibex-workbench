@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>vibex-workbench-skeleton | L2 技术骨架</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" id="theme-link" href="../assets/themes/swiss-grid.css">
+  <link rel="stylesheet" href="../assets/animations/animations.css">
+</head>
+<body>
+<main class="deck">
+
+<!-- ========== SLIDE 1: Cover ========== -->
+<section class="slide" data-slide="1">
+  <div class="slide-inner">
+    <header class="deck-header">
+      <span class="deck-logo">VIBEX</span>
+      <span class="deck-tag">L2 SKELETON</span>
+    </header>
+    <div class="cover-content">
+      <div class="cover-badge">技术骨架规格</div>
+      <h1 class="cover-title">vibex-workbench-skeleton</h1>
+      <p class="cover-subtitle">基于 127 个 L3/L4/L5 子规格 + 工作区实现状态</p>
+      <div class="cover-meta">
+        <span>版本: 0.1</span>
+        <span>状态: proposal</span>
+        <span>Owner: hermes</span>
+        <span>2026-04-24</span>
+      </div>
+      <div class="cover-hint">
+        <kbd>←</kbd><kbd>→</kbd> 导航 · <kbd>S</kbd> 演讲者模式 · <kbd>T</kbd> 切换主题
+      </div>
+    </div>
+    <footer class="deck-footer">
+      <span class="slide-number">1 / 9</span>
+    </footer>
+  </div>
+  <div class="notes">
+    欢迎各位！今天我来介绍 vibex-workbench 项目的技术骨架设计。
+    这是 L2 层级的规格，定义了整个项目的模块划分和技术选型。
+    我们的目标是把 L1 的愿景"空目录 → 边做边长"拆解成可交付的架构。
+    127 个子规格（6个L3模块 + 46个L4功能 + 73个L5切片）将基于这个骨架展开。
+  </div>
+</section>
+
+<!-- ========== SLIDE 2: Project Overview - As-Is vs To-Be ========== -->
+<section class="slide" data-slide="2">
+  <div class="slide-inner">
+    <header class="deck-header">
+      <span class="deck-logo">VIBEX</span>
+      <span class="deck-tag">L2 OVERVIEW</span>
+    </header>
+    <h2 class="slide-title">项目全景：现状与目标</h2>
+    <div class="slide-grid two-col">
+      <div class="col-box">
+        <div class="box-header danger">❌ AS-IS 现状</div>
+        <ul class="feature-list">
+          <li><span class="tag tag-red">部分实现</span> agent/cmd/web/ + SSE 框架</li>
+          <li><span class="tag tag-red">部分实现</span> HTTP 路由骨架（backend）</li>
+          <li><span class="tag tag-red">部分实现</span> SvelteKit 基础 + services 层</li>
+          <li><span class="tag tag-yellow">待开发</span> workspace API、spec editor、canvas</li>
+          <li><span class="tag tag-yellow">待开发</span> scaffolder.py、state_detector.py</li>
+        </ul>
+      </div>
+      <div class="col-box">
+        <div class="box-header success">✓ TO-BE 目标</div>
+        <ul class="feature-list">
+          <li><span class="tag tag-green">目标</span> 6 个技术模块清晰划分</li>
+          <li><span class="tag tag-green">目标</span> 127 个子规格完整覆盖</li>
+          <li><span class="tag tag-green">目标</span> workspace API 全链路打通</li>
+          <li><span class="tag tag-green">目标</span> IDE-Chrome UI + Build Panel</li>
+          <li><span class="tag tag-green">目标</span> 无 Auth（MVP 阶段）、纯本地运行</li>
+        </ul>
+      </div>
+    </div>
+    <div class="highlight-box">
+      <strong>核心约束：</strong>WORKSPACE_ROOT 贯穿全链路 · 仓库根唯一性 · 无远程依赖
+    </div>
+    <footer class="deck-footer">
+      <span class="slide-number">2 / 9</span>
+    </footer>
+  </div>
+  <div class="notes">
+    先看现状和目标的对比。现状是"部分实现"状态——agent 有骨架、backend 有路由、frontend 有基础——但核心功能缺失。
+    目标是完整的 6 模块架构，覆盖 127 个子规格。
+    关键约束：WORKSPACE_ROOT 必须贯穿全链路，这是 L1 规格定的，不能改。
+  </div>
+</section>
+
+<!-- ========== SLIDE 3: System Architecture ========== -->
+<section class="slide" data-slide="3">
+  <div class="slide-inner">
+    <header class="deck-header">
+      <span class="deck-logo">VIBEX</span>
+      <span class="deck-tag">L2 ARCHITECTURE</span>
+    </header>
+    <h2 class="slide-title">系统架构：6 模块 + 技术栈</h2>
+    <div class="slide-grid architecture-diagram">
+      <div class="arch-layer">
+        <div class="arch-label">USER INTERFACE</div>
+        <div class="arch-modules">
+          <div class="arch-module highlight">frontend (SvelteKit)</div>
+          <div class="arch-module">ide-chrome</div>
+        </div>
+      </div>
+      <div class="arch-arrow">↓ SSE / HTTP</div>
+      <div class="arch-layer">
+        <div class="arch-label">AGENT CORE</div>
+        <div class="arch-modules">
+          <div class="arch-module highlight">agent (nanoClaudeCode)</div>
+        </div>
+      </div>
+      <div class="arch-arrow">↓</div>
+      <div class="arch-layer">
+        <div class="arch-label">BACKEND</div>
+        <div class="arch-modules">
+          <div class="arch-module highlight">backend (Go HTTP)</div>
+        </div>
+      </div>
+      <div class="arch-arrow">↓</div>
+      <div class="arch-layer">
+        <div class="arch-label">GENERATORS</div>
+        <div class="arch-modules">
+          <div class="arch-module">scaffolder</div>
+          <div class="arch-module">state_detector</div>
+          <div class="arch-module">spec-templates</div>
+        </div>
+      </div>
+    </div>
+    <div class="tech-stack-row">
+      <div class="tech-badge">Go 1.22+</div>
+      <div class="tech-badge">Node.js 20+</div>
+      <div class="tech-badge">Python 3.11+</div>
+      <div class="tech-badge">SvelteKit</div>
+      <div class="tech-badge">nanoClaudeCode</div>
+      <div class="tech-badge">memlace (stdlib)</div>
+    </div>
+    <footer class="deck-footer">
+      <span class="slide-number">3 / 9</span>
+    </footer>
+  </div>
+  <div class="notes">
+    架构图从上到下看：用户界面层（SvelteKit frontend + ide-chrome）通过 SSE 和 HTTP 与 agent 通信。
+    Agent 层用 nanoClaudeCode 作为推理引擎，配合 memlace 轻量记忆系统。
+    Backend 是 Go HTTP 服务，负责路由和业务逻辑。
+    最底层是 generators，包含脚手架生成、状态检测、模板管理。
+    技术栈选型理由：Go 适合 agent 高并发、TypeScript 适合前端快速迭代、Python 适合脚本工具。
+  </div>
+</section>
+
+<!-- ========== SLIDE 4: Module Matrix ========== -->
+<section class="slide" data-slide="4">
+  <div class="slide-inner">
+    <header class="deck-header">
+      <span class="deck-logo">VIBEX</span>
+      <span class="deck-tag">L2 MODULES</span>
+    </header>
+    <h2 class="slide-title">模块矩阵：职责划分 + L3 规格映射</h2>
+    <table class="module-table">
+      <thead>
+        <tr>
+          <th>模块</th>
+          <th>代码路径</th>
+          <th>L3 规格</th>
+          <th>核心职责</th>
+          <th>状态</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>agent</strong></td>
+          <td>agent/cmd/web/</td>
+          <td>46× L4 features</td>
+          <td>ClaudeCode 引擎、SSE 通信、tool handlers</td>
+          <td><span class="tag tag-yellow">骨架</span></td>
+        </tr>
+        <tr>
+          <td><strong>backend</strong></td>
+          <td>backend/</td>
+          <td>—</td>
+          <td>HTTP 路由、workspace API</td>
+          <td><span class="tag tag-yellow">骨架</span></td>
+        </tr>
+        <tr>
+          <td><strong>frontend</strong></td>
+          <td>frontend/</td>
+          <td>MOD-spec-editor, MOD-workspace-root</td>
+          <td>SvelteKit UI、services 层</td>
+          <td><span class="tag tag-yellow">部分</span></td>
+        </tr>
+        <tr>
+          <td><strong>ide-chrome</strong></td>
+          <td>frontend/ide-chrome/</td>
+          <td>MOD-ide-chrome</td>
+          <td>IDE 风格 UI 组件</td>
+          <td><span class="tag tag-red">缺失</span></td>
+        </tr>
+        <tr>
+          <td><strong>generators</strong></td>
+          <td>generators/</td>
+          <td>MOD-scaffolding, MOD-state-detection</td>
+          <td>脚手架生成、状态检测</td>
+          <td><span class="tag tag-yellow">部分</span></td>
+        </tr>
+        <tr>
+          <td><strong>spec-templates</strong></td>
+          <td>.agents/</td>
+          <td>L0–L5 全套</td>
+          <td>规格模板定义</td>
+          <td><span class="tag tag-green">完整</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="highlight-box">
+      <strong>治理规则：</strong>modules_matrix 为描述性信息，L3 spec 必须遵循但可适度偏离（需在 L3 spec 中说明原因）
+    </div>
+    <footer class="deck-footer">
+      <span class="slide-number">4 / 9</span>
+    </footer>
+  </div>
+  <div class="notes">
+    这个表格是模块矩阵，每个模块都有明确的代码路径、L3 规格映射、核心职责。
+    注意：spec-templates 是唯一完整的模块，L0-L5 模板齐全。
+    其他模块都有不同程度的缺失。ide-chrome 完全是红牌——还没有开始做。
+    治理规则强调：L3 作者必须遵循模块边界，但如果合理偏离需要说明原因。
+  </div>
+</section>
+
+<!-- ========== SLIDE 5: API Design & Entry Points ========== -->
+<section class="slide" data-slide="5">
+  <div class="slide-inner">
+    <header class="deck-header">
+      <span class="deck-logo">VIBEX</span>
+      <span class="deck-tag">L2 API</span>
+    </header>
+    <h2 class="slide-title">API 设计：Workspace API + 入口点</h2>
+    <div class="slide-grid two-col">
+      <div class="col-box">
+        <div class="box-header">关键 Endpoints (base: /api)</div>
+        <table class="api-table">
+          <tr><td class="method get">GET</td><td>/workspace/detect-state</td></tr>
+          <tr><td class="method post">POST</td><td>/workspace/scaffold</td></tr>
+          <tr><td class="method post">POST</td><td>/workspace/run-make</td></tr>
+          <tr><td class="method get">GET</td><td>/workspace/specs/list</td></tr>
+          <tr><td class="method get">GET</td><td>/workspace/specs/read</td></tr>
+          <tr><td class="method post">POST</td><td>/workspace/specs/write</td></tr>
+          <tr><td class="method post">POST</td><td>/chat</td></tr>
+          <tr><td class="method get">GET</td><td>/events/stream</td></tr>
+        </table>
+      </div>
+      <div class="col-box">
+        <div class="box-header">Entry Points</div>
+        <div class="entry-point">
+          <strong>Agent Entry:</strong> agent/cmd/web/main.go
+        </div>
+        <div class="entry-point">
+          <strong>Frontend Entry:</strong> frontend/src/routes/+page.svelte
+        </div>
+        <div class="entry-point">
+          <strong>Backend Entry:</strong> backend/cmd/server/main.go
+        </div>
+        <div class="entry-point">
+          <strong>Generator Entry:</strong> generators/scaffolder.py
+        </div>
+        <div class="entry-point">
+          <strong>Auth:</strong> <span class="tag tag-red">无（MVP阶段）</span>
+        </div>
+      </div>
+    </div>
+    <div class="highlight-box">
+      <strong>设计原则：</strong>RESTful + SSE 双通道 · Auth 暂不引入（MVP阶段） · workspace 是核心资源
+    </div>
+    <footer class="deck-footer">
+      <span class="slide-number">5 / 9</span>
+    </footer>
+  </div>
+  <div class="notes">
+    API 设计采用 RESTful + SSE 双通道。REST 处理命令式请求，SSE 处理流式响应。
+    workspace 是核心资源，所有操作都围绕它展开。
+    Auth 为什么没有？因为 MVP 阶段目标是"空目录 → 边做边长"，加 Auth 会拖慢进度。
+    前提条件：如果未来需要多租户或权限隔离，可以在 backend 层加 middleware。
+    切换条件：L3 规格如果提出 Auth 需求，需要单独评审。
+  </div>
+</section>
+
+<!-- ========== SLIDE 6: Four Perspectives Coverage ========== -->
+<section class="slide" data-slide="6">
+  <div class="slide-inner">
+    <header class="deck-header">
+      <span class="deck-logo">VIBEX</span>
+      <span class="deck-tag">L2 STAKEHOLDERS</span>
+    </header>
+    <h2 class="slide-title">四类视角覆盖</h2>
+    <div class="slide-grid four-grid">
+      <div class="stakeholder-card cto">
+        <div class="card-header">👔 CTO</div>
+        <ul class="stakeholder-list">
+          <li>资源投入：3 语言栈（Go/TS/Python）</li>
+          <li>风险点：127 规格的完成依赖</li>
+          <li>里程碑：L3 模块完成率</li>
+          <li>价值：架构可演进、无技术债</li>
+        </ul>
+      </div>
+      <div class="stakeholder-card dev">
+        <div class="card-header">👨‍💻 开发</div>
+        <ul class="stakeholder-list">
+          <li>模块边界清晰（6 模块矩阵）</li>
+          <li>技术栈：nanoClaudeCode + SvelteKit</li>
+          <li>规范：WORKSPACE_ROOT 约束</li>
+          <li>工具：validate_specs.py 已就绪</li>
+        </ul>
+      </div>
+      <div class="stakeholder-card test">
+        <div class="card-header">🧪 测试</div>
+        <ul class="stakeholder-list">
+          <li>可测性：模块独立验证</li>
+          <li>覆盖盲区：ide-chrome（缺失）</li>
+          <li>回归风险：L2→L3 父子规格</li>
+          <li>验证路径：make validate</li>
+        </ul>
+      </div>
+      <div class="stakeholder-card user">
+        <div class="card-header">👤 用户</div>
+        <ul class="stakeholder-list">
+          <li>核心价值：空目录 → 边做边长</li>
+          <li>体验：IDE-Chrome UI（待开发）</li>
+          <li>约束：纯本地运行</li>
+          <li>可见收益：5 项 MVP 能力已验证</li>
+        </ul>
+      </div>
+    </div>
+    <footer class="deck-footer">
+      <span class="slide-number">6 / 9</span>
+    </footer>
+  </div>
+  <div class="notes">
+    四类视角必须全部覆盖。CTO 关注资源投入和风险，开发关注模块边界和工具链，测试关注可测性和回归风险，用户关注核心价值和体验。
+    注意 ide-chrome 对测试和用户都是盲区——这是高风险项。
+    make validate 是关键验证工具，测试必须会用。
+  </div>
+</section>
+
+<!-- ========== SLIDE 7: Decision Page ========== -->
+<section class="slide" data-slide="7">
+  <div class="slide-inner">
+    <header class="deck-header">
+      <span class="deck-logo">VIBEX</span>
+      <span class="deck-tag">L2 DECISION</span>
+    </header>
+    <h2 class="slide-title">决策页：推荐方案 vs 备选方案</h2>
+    <div class="slide-grid comparison-table">
+      <table>
+        <thead>
+          <tr><th>维度</th><th>✅ 推荐方案</th><th>⚠️ 备选方案</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>模块划分</strong></td>
+            <td>6 模块（agent/backend/frontend/ide-chrome/generators/spec-templates）</td>
+            <td>合并为 4 模块（减少 ide-chrome 独立）</td>
+          </tr>
+          <tr>
+            <td><strong>WHY</strong></td>
+            <td>职责单一、便于 L3 独立演进</td>
+            <td>减少接口复杂度</td>
+          </tr>
+          <tr>
+            <td><strong>WHY-NOT</strong></td>
+            <td>—</td>
+            <td>ide-chrome 复用度低，独立更灵活</td>
+          </tr>
+          <tr>
+            <td><strong>技术栈</strong></td>
+            <td>Go + TS + Python 三语言</td>
+            <td>统一为 Go（前后端都用 Wails）</td>
+          </tr>
+          <tr>
+            <td><strong>WHY</strong></td>
+            <td>各语言优势：agent 高并发、前端快迭代、工具脚本简洁</td>
+            <td>降低维护成本</td>
+          </tr>
+          <tr>
+            <td><strong>WHY-NOT</strong></td>
+            <td>—</td>
+            <td>SvelteKit 生态成熟，Go 前端不成熟</td>
+          </tr>
+          <tr>
+            <td><strong>Auth</strong></td>
+            <td>MVP 无 Auth</td>
+            <td>引入 JWT middleware</td>
+          </tr>
+          <tr>
+            <td><strong>前提条件</strong></td>
+            <td>单用户本地场景</td>
+            <td>需要多用户或远程访问</td>
+          </tr>
+          <tr>
+            <td><strong>切换条件</strong></td>
+            <td>—</td>
+            <td>用户提出多租户需求</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="highlight-box">
+      <strong>决策原则：</strong>最小化 MVP 范围 · 模块独立演进 · 技术选型基于成熟度
+    </div>
+    <footer class="deck-footer">
+      <span class="slide-number">7 / 9</span>
+    </footer>
+  </div>
+  <div class="notes">
+    三个关键决策点：
+    1. 模块划分选 6 个而不是 4 个，因为 ide-chrome 复用度低，独立更灵活。
+    2. 技术栈选三语言而不是统一 Go，因为 SvelteKit 生态成熟，Go 前端不成熟。
+    3. Auth 暂时不加，因为 MVP 阶段单用户本地场景，不需要。
+    每个决策都有明确的 WHY 和 WHY-NOT，以及前提条件和切换条件。
+  </div>
+</section>
+
+<!-- ========== SLIDE 8: Execution Roadmap ========== -->
+<section class="slide" data-slide="8">
+  <div class="slide-inner">
+    <header class="deck-header">
+      <span class="deck-logo">VIBEX</span>
+      <span class="deck-tag">L2 EXECUTION</span>
+    </header>
+    <h2 class="slide-title">执行页：里程碑 + 负责人 + 验收标准</h2>
+    <div class="roadmap-timeline">
+      <div class="milestone">
+        <div class="milestone-header">
+          <span class="phase">Phase 1</span>
+          <span class="milestone-title">L3 模块规格完善</span>
+          <span class="owner">Owner: hermes</span>
+        </div>
+        <div class="milestone-content">
+          <div class="acceptance-criteria">
+            <strong>验收标准：</strong>
+            <ul>
+              <li>6 个 L3 模块 spec 全部有 parent 指向本 spec</li>
+              <li>modules_matrix 覆盖所有 workspace/ 核心目录</li>
+              <li>make validate 无循环依赖</li>
+            </ul>
+          </div>
+          <div class="rollback">
+            <strong>回滚策略：</strong>恢复 L3 spec 到上一个 commit
+          </div>
+        </div>
+      </div>
+      <div class="milestone">
+        <div class="milestone-header">
+          <span class="phase">Phase 2</span>
+          <span class="milestone-title">缺失模块实现</span>
+          <span class="owner">Owner: team</span>
+        </div>
+        <div class="milestone-content">
+          <div class="acceptance-criteria">
+            <strong>验收标准：</strong>
+            <ul>
+              <li>ide-chrome UI 基础可用</li>
+              <li>scaffolder.py + state_detector.py 实现</li>
+              <li>workspace API 全链路联调</li>
+            </ul>
+          </div>
+          <div class="rollback">
+            <strong>回滚策略：</strong>feature flag 禁用新模块
+          </div>
+        </div>
+      </div>
+      <div class="milestone">
+        <div class="milestone-header">
+          <span class="phase">Phase 3</span>
+          <span class="milestone-title">46 个 L4 Feature 覆盖</span>
+          <span class="owner">Owner: team</span>
+        </div>
+        <div class="milestone-content">
+          <div class="acceptance-criteria">
+            <strong>验收标准：</strong>
+            <ul>
+              <li>tool handlers 实现率 ≥ 80%</li>
+              <li>e2e 测试覆盖关键路径</li>
+            </ul>
+          </div>
+          <div class="rollback">
+            <strong>回滚策略：</strong>降级为 L3 spec 自查模式
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="deck-footer">
+      <span class="slide-number">8 / 9</span>
+    </footer>
+  </div>
+  <div class="notes">
+    执行分三个阶段：
+    Phase 1 重点是 L3 规格完善，负责人 hermes，验收标准是 make validate 通过。
+    Phase 2 重点是缺失模块实现，包括 ide-chrome 和 generators 的核心部分。
+    Phase 3 是 46 个 L4 Feature 的覆盖，这是最耗时的工作。
+    每个阶段都有回滚策略，确保即使失败也能回到稳定状态。
+  </div>
+</section>
+
+<!-- ========== SLIDE 9: Spec Refinement Questions ========== -->
+<section class="slide" data-slide="9">
+  <div class="slide-inner">
+    <header class="deck-header">
+      <span class="deck-logo">VIBEX</span>
+      <span class="deck-tag">L2 QUESTIONS</span>
+    </header>
+    <h2 class="slide-title">Spec 完善问题清单（8~12 条）</h2>
+    <p class="slide-subtitle">以下问题用于在详情抽屉与 agent 继续对话完善本规格</p>
+    <div class="question-grid">
+      <div class="question-item">
+        <span class="q-num">1</span>
+        <span class="q-text">ide-chrome 模块是否需要独立 spec（L3）？还是作为 frontend 的子模块？</span>
+      </div>
+      <div class="question-item">
+        <span class="q-num">2</span>
+        <span class="q-text">workspace API 的错误码规范尚未定义，是否需要在 L2 还是 L3 中明确？</span>
+      </div>
+      <div class="question-item">
+        <span class="q-num">3</span>
+        <span class="q-text">agent 的 tool handlers（46 个）是否有优先级排序？还是按字母序实现？</span>
+      </div>
+      <div class="question-item">
+        <span class="q-num">4</span>
+        <span class="q-text">SSE 与 HTTP 的切换条件是什么？哪些场景用 SSE，哪些用 REST？</span>
+      </div>
+      <div class="question-item">
+        <span class="q-num">5</span>
+        <span class="q-text">generators 模块的 scaffolder.py 与 state_detector.py 是否有接口契约？</span>
+      </div>
+      <div class="question-item">
+        <span class="q-num">6</span>
+        <span class="q-text">如果 spec-templates 需要版本演进，如何处理向后兼容？</span>
+      </div>
+      <div class="question-item">
+        <span class="q-num">7</span>
+        <span class="q-text">WORKSPACE_ROOT 的验证逻辑放在哪一层？backend 还是 generators？</span>
+      </div>
+      <div class="question-item">
+        <span class="q-num">8</span>
+        <span class="q-text">多语言（Go/TS/Python）的构建流程如何统一？makefile 还是 lerna？</span>
+      </div>
+      <div class="question-item">
+        <span class="q-num">9</span>
+        <span class="q-text">未来如果要引入 Auth，migration 路径是什么？需要 break change 吗？</span>
+      </div>
+      <div class="question-item">
+        <span class="q-num">10</span>
+        <span class="q-text">spec 的 status: proposal 何时升级为 implementation？触发条件是什么？</span>
+      </div>
+      <div class="question-item">
+        <span class="q-num">11</span>
+        <span class="q-text">L2 层是否有性能/可靠性/安全性的非功能性指标（QPS、SLO）？</span>
+      </div>
+      <div class="question-item">
+        <span class="q-num">12</span>
+        <span class="q-text">127 个子规格的完成率如何追踪？是否有 dashboard 或自动化报告？</span>
+      </div>
+    </div>
+    <footer class="deck-footer">
+      <span class="slide-number">9 / 9</span>
+    </footer>
+  </div>
+  <div class="notes">
+    这是 12 个关键问题，涵盖了模块划分、接口契约、优先级、性能指标、演进策略等多个维度。
+    这些问题可以在详情抽屉中与 agent 继续对话，帮助完善 L2 规格。
+    建议优先回答高风险项：问题 1（ide-chrome 模块划分）、问题 3（tool handlers 优先级）、问题 7（WORKSPACE_ROOT 验证逻辑）。
+  </div>
+</section>
+
+</main>
+<script src="../assets/runtime.js"></script>
+<script src="../assets/vibex-ppt-nav.js"></script>
+</body>
+</html>

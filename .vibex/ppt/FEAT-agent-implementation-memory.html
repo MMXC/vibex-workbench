@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FEAT-agent-implementation-memory</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" href="../assets/themes/blueprint.css">
+  <link rel="stylesheet" href="../assets/animations/animations.css">
+  <style>
+    :root {
+      --slide-max-w: 1200px;
+    }
+    .deck-header { display: none; }
+    .slide { display: flex; flex-direction: column; justify-content: center; }
+    .slide-title { font-size: 2.2rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--accent); }
+    .slide-subtitle { font-size: 1.1rem; color: var(--text-3); margin-bottom: 2rem; }
+    ul { list-style: none; padding: 0; }
+    ul li { position: relative; padding-left: 1.6rem; margin-bottom: 0.75rem; font-size: 1.05rem; }
+    ul li::before { content: "▸"; position: absolute; left: 0; color: var(--accent); }
+    .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; }
+    .card-title { font-weight: 600; color: var(--accent); margin-bottom: 0.5rem; font-size: 0.95rem; }
+    .card-body { font-size: 0.9rem; color: var(--text-2); }
+    .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .badge-yes { background: #1b4d3e; color: #4ecdc4; }
+    .badge-no  { background: #4d1b1b; color: #ff6b6b; }
+    .badge-warn { background: #3d2e0a; color: #ffd93d; }
+    .delta-box { background: var(--surface-2); border-left: 3px solid var(--accent); padding: 0.8rem 1rem; margin-bottom: 0.8rem; border-radius: 0 6px 6px 0; }
+    .delta-title { font-weight: 700; color: var(--accent); font-size: 0.9rem; margin-bottom: 0.3rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th { background: var(--surface-2); color: var(--accent); padding: 0.5rem 0.8rem; text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--border); color: var(--text-2); }
+    tr:last-child td { border-bottom: none; }
+    .tag { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 3px; font-size: 0.75rem; background: var(--surface-2); color: var(--text-3); margin-right: 0.3rem; }
+    .flow { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.8rem; font-size: 0.9rem; }
+    .flow-node { background: var(--surface-2); border: 1px solid var(--accent); border-radius: 6px; padding: 0.4rem 0.8rem; flex: 1; text-align: center; }
+    .flow-arrow { color: var(--accent); font-size: 1.2rem; }
+    .checklist { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+    .checklist li::before { content: "☐"; }
+    .checklist li { font-size: 0.88rem; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .metric { background: var(--surface-2); border-radius: 8px; padding: 1rem; text-align: center; }
+    .metric-val { font-size: 2rem; font-weight: 700; color: var(--accent); }
+    .metric-label { font-size: 0.8rem; color: var(--text-3); margin-top: 0.3rem; }
+    .slide-cover .slide-title { font-size: 2.8rem; color: var(--accent); }
+    .slide-cover .slide-subtitle { font-size: 1.2rem; }
+  </style>
+</head>
+<body>
+
+<main class="deck">
+
+<!-- ═══════════════════════════════════════════
+     SLIDE 1 – 封面
+═══════════════════════════════════════════ -->
+<section class="slide slide-cover" id="s1" data-anim="fade-up">
+  <div>
+    <p class="badge badge-yes">L4 · Feature Spec</p>
+    <h1 class="slide-title">agent implementation memory</h1>
+    <p class="slide-subtitle">写入 memplace/memlace 的压缩记忆摘要<br>用于后续检索和上下文注入</p>
+    <div style="margin-top:2rem; display:flex; gap:1rem; flex-wrap:wrap;">
+      <div class="metric">
+        <div class="metric-val">C1</div>
+        <div class="metric-label">Memory is Cache</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val">C2</div>
+        <div class="metric-label">Secret Hygiene</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val">3</div>
+        <div class="metric-label">User Stories</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val">3</div>
+        <div class="metric-label">AC</div>
+      </div>
+    </div>
+    <p style="margin-top:2rem; font-size:0.8rem; color:var(--text-3);">
+      spec: FEAT-agent-implementation-memory · owner: hermes · v0.1
+    </p>
+  </div>
+  <div class="notes">这是 L4 特性说明稿，面向 CTO / 开发 / 测试三类受众。首先讲清楚"是什么"，再讲"为什么这样做"，最后给出"怎么落地"与"失败怎么办"。</div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SLIDE 2 – 功能目标 & 受众视角
+═══════════════════════════════════════════ -->
+<section class="slide" id="s2" data-anim="fade-up">
+  <h2 class="slide-title">功能目标 · 四大受众视角</h2>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-title">🔵 CTO</div>
+      <div class="card-body">
+        <strong>关注点：</strong>架构分层、资源投入、风险边界<br>
+        memory 是 retrieval cache，不作事实源 → 避免数据一致性陷阱，降低维护成本。<br>
+        <span class="tag">架构风险：低</span>
+        <span class="tag">投入：中等</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🟡 开发</div>
+      <div class="card-body">
+        <strong>关注点：</strong>模块边界、改动面、技术债<br>
+        记忆写入路径：journal checkpoint → memory adapter → memplace/memlace。<br>
+        冲突时刷新 → 不污染事实源，技术债可控。
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🟢 测试</div>
+      <div class="card-body">
+        <strong>关注点：</strong>可测性、覆盖盲区、验证路径<br>
+        TC-1：checkpoint 同步到 memory → 摘要不含 secret。<br>
+        TC-2：memory 与 journal 冲突 → 标记 stale_memory。
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🟣 用户 / Agent</div>
+      <div class="card-body">
+        <strong>关注点：</strong>减少重复搜索、避免重复失败<br>
+        US-1：按 spec name 查询 → 返回最近失败、文件路径、验证摘要。
+      </div>
+    </div>
+  </div>
+  <div class="notes">四个视角各一卡片，每张聚焦一个受众最关心的问题。不要堆砌，点到即止。</div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SLIDE 3 – As-Is 现状真实展示
+═══════════════════════════════════════════ -->
+<section class="slide" id="s3" data-anim="fade-up">
+  <h2 class="slide-title">As-Is · 现状证据（工作区可验证）</h2>
+  <div class="two-col">
+    <div>
+      <div class="delta-box">
+        <div class="delta-title">🔍 spec 已知事实</div>
+        <ul>
+          <li>spec 路径：<code>specs/L4-feature/FEAT-agent-implementation-memory.yaml</code></li>
+          <li>parent: <code>MOD-spec-editor</code></li>
+          <li>owner: <code>hermes</code> · status: <strong>proposal</strong></li>
+          <li>prototype.file: <em>（空）</em> → 无现成 UI 原型</li>
+          <li>constraints: C1（cache 不作事实源）、C2（secret 过滤）</li>
+        </ul>
+      </div>
+      <div class="delta-box">
+        <div class="delta-title">📦 io_contract 边界</div>
+        <ul>
+          <li><strong>输入：</strong>journal checkpoint、spec name、files touched、failure categories、validation summaries</li>
+          <li><strong>输出：</strong>memplace/memlace 压缩摘要</li>
+          <li><strong>事实源：</strong>spec + specs/journal/*.implementation.yaml</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <div class="delta-box">
+        <div class="delta-title">📊 behavior 已定义（4 步）</div>
+        <div class="flow"><div class="flow-node">1. checkpoint 写 journal</div><span class="flow-arrow">→</span></div>
+        <div class="flow"><div class="flow-node">2. 生成短摘要</div><span class="flow-arrow">→</span></div>
+        <div class="flow"><div class="flow-node">3. 写入 memplace/memlace</div><span class="flow-arrow">→</span></div>
+        <div class="flow"><div class="flow-node">4. 读取时先查 memory，回读 journal 验证</div><span class="flow-arrow">→</span></div>
+        <div class="flow"><div class="flow-node">⚠ 冲突时刷新 &amp; 标记 stale_memory</div></div>
+      </div>
+      <div class="delta-box">
+        <div class="delta-title">⚠ 当前缺陷（推测）</div>
+        <ul>
+          <li>memplace/memlace 尚未实现</li>
+          <li>secret pattern filter 未实现</li>
+          <li>stale_memory 标记逻辑未定义</li>
+          <li>无 memory adapter 组件</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="notes">现状必须来自可验证证据。这里引用了 spec YAML 的真实 key：io_contract、constraints、behavior、prototype。prototype.file 为空 → 没有 UI 原型需要单独展示。</div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SLIDE 4 – To-Be 目标 & 偏差分析
+═══════════════════════════════════════════ -->
+<section class="slide" id="s4" data-anim="fade-up">
+  <h2 class="slide-title">To-Be · 目标 vs. 现状偏差</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>目标项</th>
+        <th>To-Be 期望</th>
+        <th>As-Is 现状</th>
+        <th>偏差等级</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>记忆写入流程</td>
+        <td>journal checkpoint → memory adapter → memplace/memlace</td>
+        <td>memory adapter 未实现</td>
+        <td><span class="badge badge-warn">高</span></td>
+      </tr>
+      <tr>
+        <td>Secret 过滤</td>
+        <td>写入前执行 secret pattern filter</td>
+        <td>无 filter 逻辑</td>
+        <td><span class="badge badge-warn">高</span></td>
+      </tr>
+      <tr>
+        <td>冲突处理</td>
+        <td>标记 stale_memory，以 journal 为准</td>
+        <td>stale_memory 机制未定义</td>
+        <td><span class="badge badge-warn">高</span></td>
+      </tr>
+      <tr>
+        <td>记忆索引</td>
+        <td>按 spec name、file path、failure category 建索引</td>
+        <td>memplace/memlace 存储结构未定义</td>
+        <td><span class="badge badge-warn">高</span></td>
+      </tr>
+      <tr>
+        <td>读取验证路径</td>
+        <td>先查 memory，再回读 journal 验证</td>
+        <td>回读逻辑未实现</td>
+        <td><span class="badge badge-warn">中</span></td>
+      </tr>
+    </tbody>
+  </table>
+  <div style="margin-top:1rem; display:flex; gap:1rem;">
+    <span class="tag">所有偏差均源于 proposal 阶段，尚未进入实现</span>
+    <span class="tag">prototype.file 为空，无 UI 原型参照</span>
+  </div>
+  <div class="notes">表格清晰展示 to-be vs as-is 差距，每行标注偏差等级。核心结论：所有功能均未实现，需从头构建。</div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SLIDE 5 – 优化方向 & Why / Why-Not
+═══════════════════════════════════════════ -->
+<section class="slide" id="s5" data-anim="fade-up">
+  <h2 class="slide-title">优化方向 · Why / Why-Not 决策</h2>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-title">✅ 方案 A：独立 memory adapter 模块</div>
+      <div class="card-body">
+        <strong>why：</strong>解耦 journal 写入与记忆生成，便于独立测试和替换存储后端。<br>
+        <strong>why not B（嵌入 journal writer）：</strong>journal writer 职责膨胀，单一职责被破坏；journal writer 改动风险高。<br>
+        <strong>why not C（直接写 memplace/memlace）：</strong>无摘要逻辑，索引质量差；冲突处理无法统一。<br>
+        <span class="tag">前提：memplace/memlace 存储 schema 先行定义</span>
+      </span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">✅ 方案 B：secret pattern filter 为独立 gate</div>
+      <div class="card-body">
+        <strong>why：</strong>安全红线不可绕过，独立 gate 便于审计和复用（其他写入路径）。<br>
+        <strong>why not A（写入后扫描）：</strong>泄漏已发生，无法回滚；不符合安全设计原则。<br>
+        <span class="tag">前提：定义覆盖 token、env、credential 的 pattern 集合</span>
+        <span class="tag">切换条件：pattern 新增时 filter 实时生效</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">✅ 方案 C：stale_memory 置信度降级策略</div>
+      <div class="card-body">
+        <strong>why：</strong>避免频繁刷新 cost；保留历史线索供回溯。<br>
+        <strong>why not A（强制刷新）：</strong>写入放大，journal 频繁更新时性能下降。<br>
+        <strong>why not B（直接废弃旧记录）：</strong>丢失失败模式上下文，不利于根因分析。<br>
+        <span class="tag">前提：memplace/memlace 支持置信度字段</span>
+        <span class="tag">切换条件：journal timestamp 新于 memory 时触发</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">⚡ 关键约束（硬规则，不可绕过）</div>
+      <div class="card-body">
+        <span class="badge badge-no">C1</span> memplace/memlace 不作为最终事实源<br>
+        <span class="badge badge-no">C2</span> memory 摘要不得包含 token/secret/完整 env value<br>
+        <span class="badge badge-warn">切换条件</span> 事实源始终是 spec + specs/journal/*.implementation.yaml
+      </div>
+    </div>
+  </div>
+  <div class="notes">每张卡片回答 why / why-not，并标注前提条件和切换条件。覆盖开发视角的"方案怎么选"和 CTO 视角的"风险边界"。</div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SLIDE 6 – 决策页
+═══════════════════════════════════════════ -->
+<section class="slide" id="s6" data-anim="fade-up">
+  <h2 class="slide-title">决策页 · 推荐方案 & 成本风险</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>决策项</th>
+        <th>推荐方案</th>
+        <th>备选</th>
+        <th>取舍理由</th>
+        <th>成本</th>
+        <th>风险</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>模块位置</td>
+        <td><span class="badge badge-yes">A: 独立 adapter</span></td>
+        <td>嵌入 journal writer</td>
+        <td>解耦优先，测试成本低</td>
+        <td>新增 1 模块</td>
+        <td>低</td>
+      </tr>
+      <tr>
+        <td>Secret 处理</td>
+        <td><span class="badge badge-yes">B: 前置 gate</span></td>
+        <td>写入后扫描</td>
+        <td>安全红线不可妥协</td>
+        <td>pattern 库维护</td>
+        <td>中（pattern 漏配）</td>
+      </tr>
+      <tr>
+        <td>冲突处理</td>
+        <td><span class="badge badge-yes">C: 置信度降级</span></td>
+        <td>强制刷新 / 废弃</td>
+        <td>平衡 cost 与上下文保留</td>
+        <td>schema 扩展</td>
+        <td>低</td>
+      </tr>
+      <tr>
+        <td>索引策略</td>
+        <td><span class="badge badge-yes">spec+file+category 三维索引</span></td>
+        <td>全文检索</td>
+        <td>精确召回优先，性能好</td>
+        <td>索引维护逻辑</td>
+        <td>低</td>
+      </tr>
+    </tbody>
+  </table>
+  <div style="margin-top:1.2rem;">
+    <div class="delta-box">
+      <div class="delta-title">⚠ 风险与验证</div>
+      <ul>
+        <li><strong>R1：</strong>pattern 漏配导致 secret 泄漏 → 缓解：测试 TC-3 覆盖已知 pattern + 定期 regex 审查</li>
+        <li><strong>R2：</strong>memory 与 journal 不同步 → 缓解：每次注入前强制回读 journal，memory 仅作加速层</li>
+        <li><strong>R3：</strong>memplace/memlace 存储损坏 → 缓解：定期从 journal 重建，memory 幂等可覆盖</li>
+      </ul>
+    </div>
+  </div>
+  <div class="notes">决策页必须有推荐/备选/取舍/成本/风险五列。这里覆盖了 CTO（成本风险）和开发（方案选型）视角。</div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SLIDE 7 – 执行页
+═══════════════════════════════════════════ -->
+<section class="slide" id="s7" data-anim="fade-up">
+  <h2 class="slide-title">执行页 · 里程碑 & 验收标准</h2>
+  <div class="two-col">
+    <div>
+      <div class="delta-box">
+        <div class="delta-title">🗺 里程碑（M1–M3）</div>
+        <ul>
+          <li><strong>M1（Week 1）：</strong>定义 memplace/memlace schema；实现 secret pattern filter 并通过 TC-3</li>
+          <li><strong>M2（Week 2）：</strong>实现 memory adapter（journal → memory → memplace）；通过 TC-1/TC-2</li>
+          <li><strong>M3（Week 3）：</strong>集成读取验证路径；实现 stale_memory 标记；全链路回归测试</li>
+        </ul>
+      </div>
+      <div class="delta-box">
+        <div class="delta-title">👤 负责人</div>
+        <ul>
+          <li>记忆模块开发：hermes</li>
+          <li>安全审查（secret filter）：需安全 owner 评审</li>
+          <li>测试：QA team（基于 TC-1/2/3）</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <div class="delta-box">
+        <div class="delta-title">✅ 验收标准（AC）</div>
+        <ul>
+          <li><strong>AC-1：</strong>journal 追加 checkpoint → memory adapter 同步 → memplace/memlace 出现压缩摘要</li>
+          <li><strong>AC-2：</strong>memory 摘要与 journal 冲突 → 标记 stale_memory 并以 journal 为准</li>
+          <li><strong>AC-3：</strong>memory 摘要含疑似 secret → 系统拒绝或脱敏该字段</li>
+        </ul>
+      </div>
+      <div class="delta-box">
+        <div class="delta-title">🔄 回滚策略</div>
+        <ul>
+          <li>memplace/memlace 损坏 → 从 specs/journal/*.implementation.yaml 重建</li>
+          <li>adapter 异常 → 降级：跳过 memory 层，直接读 journal</li>
+          <li>secret filter 误拦截 → 增加 pattern 白名单热更新机制</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="notes">执行页覆盖测试视角（验收标准）和运维视角（回滚策略）。里程碑 M1–M3 清晰，负责人明确。</div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SLIDE 8 – 可复制问题清单 & 总结
+═══════════════════════════════════════════ -->
+<section class="slide" id="s8" data-anim="fade-up">
+  <h2 class="slide-title">可复制问题清单 · 详情抽屉对话引导</h2>
+  <p style="color:var(--text-3); font-size:0.9rem; margin-bottom:1rem;">以下问题用于 agent 详情抽屉继续对话，完善 spec 细节：</p>
+  <ul class="checklist">
+    <li>memplace/memlace 存储选型：SQLite / JSON 文件 / KV store？</li>
+    <li>secret pattern filter 初始覆盖哪些 pattern？（token、env、credential）</li>
+    <li>stale_memory 置信度字段 schema 如何定义？</li>
+    <li>memory adapter 是同步还是异步触发？</li>
+    <li>写入失败时的重试策略是什么？</li>
+    <li>memplace/memlace 容量上限？过期清理策略？</li>
+    <li>索引字段 spec name / file path / failure_category 的分词策略？</li>
+    <li>memory 与 journal 冲突的判定规则（timestamp 精度、schema 对比）？</li>
+    <li>TC-3（secret 过滤）的测试用例具体覆盖哪些 pattern？</li>
+    <li>回滚时从 journal 重建 memory 的操作手册在哪？</li>
+    <li>adapter 降级路径是否有监控告警？</li>
+    <li>memory adapter 的性能基准（写入延迟、查询 QPS）要求是多少？</li>
+  </ul>
+  <div style="margin-top:1.5rem;">
+    <div class="delta-box">
+      <div class="delta-title">📌 潜在风险优先级</div>
+      <ul style="display:flex; flex-wrap:wrap; gap:0.5rem; list-style:none; padding:0;">
+        <li><span class="badge badge-no">🔴 高</span> secret filter 漏配（后果：数据泄漏）</li>
+        <li><span class="badge badge-warn">🟡 中</span> memory 与 journal 不同步（后果：上下文错误注入）</li>
+        <li><span class="badge badge-yes">🟢 低</span> 存储性能瓶颈（后果：响应延迟）</li>
+      </ul>
+    </div>
+  </div>
+  <div class="notes">结尾必须给"可复制的问题清单"。8~12 条，覆盖开发/测试/安全/运维四类问题，便于用户在详情抽屉继续和 agent 对话完善 spec。</div>
+</section>
+
+</main>
+
+<script src="../assets/runtime.js"></script>
+<script src="../assets/vibex-ppt-nav.js"></script>
+</body>
+</html>

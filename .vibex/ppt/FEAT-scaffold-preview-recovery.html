@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FEAT: Scaffold Preview Recovery — Spec 说明演示</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" href="../assets/themes/blueprint.css">
+  <link rel="stylesheet" href="../assets/animations/animations.css">
+  <style>
+    :root {
+      --slide-max-w: 1200px;
+      --gap: 1.5rem;
+    }
+    .deck { width: 100%; max-width: var(--slide-max-w); margin: 0 auto; }
+
+    /* ── 通用布局 ── */
+    .slide-header { margin-bottom: 2rem; }
+    .slide-header h2 { font-size: 1.8rem; color: var(--primary); margin-bottom: 0.25rem; }
+    .slide-header p { font-size: 0.9rem; color: var(--text-2); }
+
+    /* ── 表格通用 ── */
+    .tbl { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .tbl th, .tbl td { padding: 0.6rem 0.75rem; border: 1px solid var(--border); text-align: left; }
+    .tbl th { background: var(--primary); color: #fff; }
+    .tbl tr:nth-child(even) td { background: var(--surface-2); }
+    .tbl td code { background: var(--bg); padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.8rem; }
+
+    /* ── 列表 ── */
+    .bullet { padding-left: 1.25rem; }
+    .bullet li { margin-bottom: 0.5rem; line-height: 1.5; }
+
+    /* ── 流程图 ── */
+    .flow-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 1rem 0; }
+    .flow-node { background: var(--primary); color: #fff; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; }
+    .flow-node.alt { background: var(--accent); }
+    .flow-node.warn { background: var(--warning); color: #000; }
+    .flow-arrow { color: var(--text-2); font-size: 1.2rem; }
+
+    /* ── 四象限 ── */
+    .quad { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+    .quad-cell { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+    .quad-cell h4 { color: var(--primary); margin-bottom: 0.5rem; font-size: 0.9rem; }
+    .quad-cell ul { font-size: 0.8rem; padding-left: 1rem; }
+    .quad-cell ul li { margin-bottom: 0.25rem; }
+
+    /* ── 对比卡片 ── */
+    .compare-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin: 1rem 0; }
+    .card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+    .card h4 { font-size: 0.9rem; margin-bottom: 0.5rem; color: var(--primary); }
+    .card ul { font-size: 0.8rem; padding-left: 1rem; }
+    .card ul li { margin-bottom: 0.25rem; }
+    .card.good { border-color: var(--success); }
+    .card.bad  { border-color: var(--danger); }
+
+    /* ── 风险矩阵 ── */
+    .risk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin: 1rem 0; }
+    .risk-item { background: var(--surface-2); border-left: 3px solid var(--danger); padding: 0.75rem; border-radius: 0 6px 6px 0; }
+    .risk-item h5 { font-size: 0.85rem; margin-bottom: 0.25rem; }
+    .risk-item p { font-size: 0.75rem; color: var(--text-2); }
+
+    /* ── 问题清单 ── */
+    .qa-list { display: grid; gap: 0.5rem; margin: 1rem 0; }
+    .qa-item { display: flex; gap: 0.5rem; align-items: flex-start; background: var(--surface-2); padding: 0.6rem 0.8rem; border-radius: 6px; font-size: 0.82rem; }
+    .qa-item::before { content: '❓'; flex-shrink: 0; }
+    .qa-item code { background: var(--bg); padding: 0.05rem 0.25rem; border-radius: 3px; }
+
+    /* ── timeline ── */
+    .timeline { border-left: 2px solid var(--primary); padding-left: 1.5rem; margin: 1rem 0; }
+    .tl-item { position: relative; margin-bottom: 1.25rem; }
+    .tl-item::before { content: ''; position: absolute; left: -1.6rem; top: 0.3rem; width: 10px; height: 10px; background: var(--primary); border-radius: 50%; }
+    .tl-item h4 { font-size: 0.9rem; color: var(--primary); margin-bottom: 0.2rem; }
+    .tl-item p { font-size: 0.78rem; color: var(--text-2); }
+    .tl-item .tag { display: inline-block; font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 4px; margin-top: 0.25rem; }
+    .tag-dev  { background: #e8f4fd; color: #0366d6; }
+    .tag-test { background: #f0fdf4; color: #28a745; }
+    .tag-ops  { background: #fff8e6; color: #d69e2e; }
+
+    /* ── cover ── */
+    .cover-badge { display: inline-block; background: var(--primary); color: #fff; padding: 0.2rem 0.8rem; border-radius: 20px; font-size: 0.75rem; margin-bottom: 1rem; }
+    .cover-meta { margin-top: 2rem; font-size: 0.8rem; color: var(--text-2); }
+    .cover-meta span { display: block; margin-bottom: 0.25rem; }
+  </style>
+</head>
+<body>
+
+<main class="deck">
+
+  <!-- ═══════════════════════════════════════ SLIDE 1: 封面 ═══════════════════════════════════════ -->
+  <section class="slide is-active" id="s1">
+    <div class="deck-header" data-layer="header"></div>
+    <div style="text-align:center; padding: 3rem 1rem;">
+      <span class="cover-badge">L4 Feature Spec</span>
+      <h1 style="font-size:2.2rem; margin-bottom:0.5rem; color:var(--primary);">Scaffold Preview Recovery</h1>
+      <p style="font-size:1rem; color:var(--text-2); margin-bottom:1rem;">
+        可确认的写入预览 · 跳过/创建/冲突列表 · 失败恢复建议
+      </p>
+      <div style="display:inline-flex; gap:0.5rem; flex-wrap:wrap; justify-content:center; margin-top:0.5rem;">
+        <span class="tag tag-dev">开发</span>
+        <span class="tag tag-test">测试</span>
+        <span class="tag tag-ops">运维/用户</span>
+      </div>
+      <div class="cover-meta">
+        <span>📁 specs/L4-feature/FEAT-scaffold-preview-recovery.yaml</span>
+        <span>🎯 prototype.file: <code>.vibex/scaffold/preview-recovery.html</code></span>
+        <span>🔖 Version: 0.1.0-draft</span>
+      </div>
+    </div>
+    <div class="deck-footer"></div>
+    <div class="slide-number">1 / 8</div>
+    <aside class="notes">各位好，今天我们来讲一个 L4 功能特性：Scaffold Preview Recovery。核心解决的是用户在预览模式下写入文件时的确认机制缺失问题，以及失败后的恢复路径。这个特性会直接影响开发者的日常体验，也是 CTO 关心的稳定性风险点。</aside>
+  </section>
+
+  <!-- ═══════════════════════════════════════ SLIDE 2: 功能目标 ═══════════════════════════════ -->
+  <section class="slide" id="s2">
+    <div class="deck-header" data-layer="header"></div>
+    <div class="slide-header">
+      <h2>🎯 功能目标（To-Be）</h2>
+      <p>解决什么用户痛点，达到什么状态</p>
+    </div>
+    <div class="quad">
+      <div class="quad-cell">
+        <h4>🧑‍💻 开发者</h4>
+        <ul>
+          <li>预览写入前有确认预览（diff-like）</li>
+          <li>操作失败有明确回退路径</li>
+          <li>不再丢失工作进度</li>
+        </ul>
+      </div>
+      <div class="quad-cell">
+        <h4>🔧 测试工程师</h4>
+        <ul>
+          <li>每条 recovery_rule 有独立验收用例</li>
+          <li>覆盖 6 种触发条件</li>
+          <li>日志可追踪每一步操作</li>
+        </ul>
+      </div>
+      <div class="quad-cell">
+        <h4>👥 最终用户</h4>
+        <ul>
+          <li>冲突时可选 跳过/创建/覆盖</li>
+          <li>失败时有结构化恢复建议</li>
+          <li>操作结果有确认对话框</li>
+        </ul>
+      </div>
+      <div class="quad-cell">
+        <h4>🏢 CTO / 架构</h4>
+        <ul>
+          <li>IO 错误不阻塞主流程</li>
+          <li>幂等写入保证数据一致性</li>
+          <li>支持 dry_run 模式验证</li>
+        </ul>
+      </div>
+    </div>
+    <div style="margin-top:1rem; background:var(--surface-2); padding:0.75rem 1rem; border-radius:8px; border-left:3px solid var(--primary);">
+      <strong style="font-size:0.85rem;">核心约束驱动：</strong>
+      <code style="font-size:0.8rem; margin-left:0.5rem;">constraints.io.confirm_write</code> +
+      <code style="font-size:0.8rem; margin-left:0.5rem;">constraints.io.recovery_rule</code> +
+      <code style="font-size:0.8rem; margin-left:0.5rem;">constraints.io.fail_suggest</code>
+    </div>
+    <div class="deck-footer"></div>
+    <div class="slide-number">2 / 8</div>
+    <aside class="notes">这张图展示了四个视角的共同目标：开发者要确定性、测试要可验证、用户要好体验、CTO 要稳定性。三个约束键是整个 feature 的技术锚点——confirm_write 解决确认问题，recovery_rule 解决失败恢复，fail_suggest 解决用户迷茫。</aside>
+  </section>
+
+  <!-- ═══════════════════════════════════════ SLIDE 3: As-Is 现状 ═══════════════════════════════ -->
+  <section class="slide" id="s3">
+    <div class="deck-header" data-layer="header"></div>
+    <div class="slide-header">
+      <h2>📋 As-Is 现状分析</h2>
+      <p>当前行为 vs 期望行为差距</p>
+    </div>
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>场景</th>
+          <th>当前行为（As-Is）</th>
+          <th>期望行为（To-Be）</th>
+          <th>差距</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>file.exists → overwrite</code></td>
+          <td>静默覆盖，无确认</td>
+          <td>显示 diff，确认后写入</td>
+          <td>⚠️ 高 — 数据丢失风险</td>
+        </tr>
+        <tr>
+          <td><code>io.error → fallback</code></td>
+          <td>直接抛出，流程中断</td>
+          <td>按 recovery_rule 降级，写日志</td>
+          <td>⚠️ 高 — 不可恢复</td>
+        </tr>
+        <tr>
+          <td><code>conflict.detect</code></td>
+          <td>无冲突检测机制</td>
+          <td>展示冲突列表，用户三选一</td>
+          <td>⚠️ 中 — 体验缺失</td>
+        </tr>
+        <tr>
+          <td><code>dry_run</code></td>
+          <td>未实现</td>
+          <td>支持预览写入结果</td>
+          <td>⚠️ 中 — 无验证手段</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="flow-row" style="margin-top:1.5rem;">
+      <div class="flow-node warn">用户触发写入</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-node warn">当前：无确认</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-node warn">当前：失败=崩溃</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-node alt">目标：diff确认</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-node alt">目标：recovery降级</div>
+    </div>
+    <div class="deck-footer"></div>
+    <div class="slide-number">3 / 8</div>
+    <aside class="notes">现状分析用表格呈现四个关键场景的差距。最高风险是静默覆盖和 IO 错误直接崩溃——这直接影响用户数据安全和产品稳定性。flow-row 用红色表示当前问题，蓝色表示目标行为，形成直观对比。</aside>
+  </section>
+
+  <!-- ═══════════════════════════════════════ SLIDE 4: 原型现状 ═══════════════════════════════ -->
+  <section class="slide" id="s4">
+    <div class="deck-header" data-layer="header"></div>
+    <div class="slide-header">
+      <h2>🖥️ 原型现状（Prototype）</h2>
+      <p>文件路径与可用性结论</p>
+    </div>
+    <div class="compare-row">
+      <div class="card">
+        <h4>📂 文件位置</h4>
+        <ul>
+          <li><code>.vibex/scaffold/preview-recovery.html</code></li>
+          <li>类型：<strong>单文件原型</strong></li>
+          <li>功能：Scaffold Preview 交互原型</li>
+        </ul>
+      </div>
+      <div class="card good">
+        <h4>✅ 可用性结论</h4>
+        <ul>
+          <li>基础交互框架已就绪</li>
+          <li>缺失：confirm_write UI</li>
+          <li>缺失：recovery_rule 联动</li>
+          <li>缺失：conflict dialog</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>📊 待补功能</h4>
+        <ul>
+          <li>confirm modal / diff view</li>
+          <li>conflict resolution panel</li>
+          <li>fail_suggest overlay</li>
+          <li>dry_run indicator</li>
+        </ul>
+      </div>
+    </div>
+    <div style="margin-top:1rem; padding:0.75rem; background:var(--surface-2); border-radius:8px; font-size:0.82rem;">
+      <strong>🔗 原型深链：</strong>
+      <code>.vibex/scaffold/preview-recovery.html</code>
+      <span style="color:var(--text-2); margin-left:1rem;">→ 用于 L5 原型验证阶段，可直接嵌入 iframe 演示</span>
+    </div>
+    <div class="deck-footer"></div>
+    <div class="slide-number">4 / 8</div>
+    <aside class="notes">原型文件存在，但功能不完整。原型已经展示了 scaffold preview 的基础交互框架，但 confirm_write、recovery_rule 联动、conflict dialog 都还没实现。这是我们后续开发的依据，也是验收时的检查点。</aside>
+  </section>
+
+  <!-- ═══════════════════════════════════════ SLIDE 5: 状态矩阵 ═══════════════════════════════ -->
+  <section class="slide" id="s5">
+    <div class="deck-header" data-layer="header"></div>
+    <div class="slide-header">
+      <h2>📊 状态矩阵（State Matrix）</h2>
+      <p>各 IO 操作的结果状态 × Recovery 策略</p>
+    </div>
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>操作</th>
+          <th>Success</th>
+          <th>FileExists</th>
+          <th>IOError</th>
+          <th>PermissionDenied</th>
+          <th>Recovery Rule</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>write_file</code></td>
+          <td style="color:var(--success)">✅ 正常写入</td>
+          <td style="color:var(--warning)">⚠️ 需 confirm</td>
+          <td style="color:var(--danger)">❌ 降级 skip</td>
+          <td style="color:var(--danger)">❌ 降级 skip</td>
+          <td>graceful_skip</td>
+        </tr>
+        <tr>
+          <td><code>create_dir</code></td>
+          <td style="color:var(--success)">✅ 正常创建</td>
+          <td style="color:var(--success)">✅ 已存在 OK</td>
+          <td style="color:var(--warning)">⚠️ 重试→skip</td>
+          <td style="color:var(--danger)">❌ 降级 skip</td>
+          <td>retry_then_skip</td>
+        </tr>
+        <tr>
+          <td><code>dry_run</code></td>
+          <td style="color:var(--success)">✅ 预览生成</td>
+          <td style="color:var(--success)">✅ 预览 diff</td>
+          <td style="color:var(--success)">✅ 仅预览</td>
+          <td style="color:var(--success)">✅ 仅预览</td>
+          <td>preview_only</td>
+        </tr>
+        <tr>
+          <td><code>confirm_write</code></td>
+          <td style="color:var(--success)">✅ 用户确认写入</td>
+          <td style="color:var(--warning)">⚠️ 需确认覆盖</td>
+          <td style="color:var(--danger)">❌ 显示建议</td>
+          <td style="color:var(--danger)">❌ 显示建议</td>
+          <td>user_decision</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="font-size:0.78rem; color:var(--text-2); margin-top:0.75rem;">
+      说明：Loading 状态通过 dry_run 模拟；Empty 状态对应 create_dir；Error 状态对应 IOError / PermissionDenied
+    </p>
+    <div class="deck-footer"></div>
+    <div class="slide-number">5 / 8</div>
+    <aside class="notes">状态矩阵是测试工程师最重要的参考。它覆盖了所有 IO 操作的 4 种结果状态，以及对应的 recovery rule。每一种红色（Error）状态都必须有明确的 fail_suggest 显示给用户，测试要逐行验收。</aside>
+  </section>
+
+  <!-- ═══════════════════════════════════════ SLIDE 6: 边界演示（Boundary Cases） ═══════════════════════════════ -->
+  <section class="slide" id="s6">
+    <div class="deck-header" data-layer="header"></div>
+    <div class="slide-header">
+      <h2>🚧 边界演示（Boundary Cases）</h2>
+      <p>constraints.rules 触发方式与行为</p>
+    </div>
+    <div class="compare-row">
+      <div class="card bad">
+        <h4>❌ 权限拒绝</h4>
+        <ul>
+          <li>触发：只读目录写入</li>
+          <li>行为：降级 skip + 日志</li>
+          <li>UI：fail_suggest 显示重试路径</li>
+          <li>规则：<code>graceful_skip</code></li>
+        </ul>
+      </div>
+      <div class="card bad">
+        <h4>❌ 磁盘满</h4>
+        <ul>
+          <li>触发：写入时 ENOSPC</li>
+          <li>行为：中断 + 建议清理</li>
+          <li>UI：fail_suggest 带清理命令</li>
+          <li>规则：<code>graceful_skip</code></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>⚠️ 路径冲突</h4>
+        <ul>
+          <li>触发：文件已存在</li>
+          <li>行为：弹窗三选一</li>
+          <li>选项：跳过/创建副本/覆盖</li>
+          <li>规则：<code>user_decision</code></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>⚠️ 嵌套目录创建失败</h4>
+        <ul>
+          <li>触发：父目录不存在且无权限</li>
+          <li>行为：按 depth 分层重试</li>
+          <li>规则：<code>retry_then_skip</code></li>
+        </ul>
+      </div>
+    </div>
+    <div style="margin-top:1rem; padding:0.75rem; background:var(--surface-2); border-radius:8px; font-size:0.82rem; border-left:3px solid var(--warning);">
+      <strong>📌 验证要点：</strong>每个边界 case 必须有独立测试用例覆盖。边界条件是 bug 高发区，测试要特别关注错误消息的可读性。
+    </div>
+    <div class="deck-footer"></div>
+    <div class="slide-number">6 / 8</div>
+    <aside class="notes">边界演示选取了最高频的 4 种失败场景。权限拒绝和磁盘满是系统级错误，要给出具体的修复建议；路径冲突是用户级决策，UI 要清晰展示三个选项；嵌套目录创建是递归深度相关的边界。每个都对应具体的 constraints.rule。</aside>
+  </section>
+
+  <!-- ═══════════════════════════════════════ SLIDE 7: 决策页 ═══════════════════════════════ -->
+  <section class="slide" id="s7">
+    <div class="deck-header" data-layer="header"></div>
+    <div class="slide-header">
+      <h2>⚖️ 决策页（Decision）</h2>
+      <p>推荐方案 vs 备选方案 vs 取舍理由</p>
+    </div>
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>决策点</th>
+          <th>推荐方案 A</th>
+          <th>备选方案 B</th>
+          <th>不选 B 的理由</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>确认写入时机</td>
+          <td><strong>pre-write confirm</strong><br>写入前弹窗 diff 预览</td>
+          <td>post-write rollback<br>写入后检测冲突再回滚</td>
+          <td>B 有数据损坏风险，回滚成本高</td>
+        </tr>
+        <tr>
+          <td>失败恢复策略</td>
+          <td><strong>graceful_skip</strong><br>跳过失败项，继续执行其他项</td>
+          <td>fail_fast<br>遇到错误立即停止</td>
+          <td>B 丢失已执行工作的价值，用户体验差</td>
+        </tr>
+        <tr>
+          <td>冲突处理方式</td>
+          <td><strong>user_decision</strong><br>弹窗三选一（skip/副本/覆盖）</td>
+          <td>auto_overwrite<br>静默覆盖（当前行为）</td>
+          <td>A 防止数据丢失，B 风险过高</td>
+        </tr>
+        <tr>
+          <td>dry_run 实现</td>
+          <td><strong>shadow_mode</strong><br>影子模式执行，不写文件</td>
+          <td>preview_file<br>生成 .preview 文件</td>
+          <td>A 更直观，B 产生垃圾文件</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="margin-top:1rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+      <div style="flex:1; background:var(--success); color:#fff; padding:0.6rem; border-radius:6px; font-size:0.8rem;">
+        <strong>✅ 成本：</strong>需要改造 IO 层，预计 2 sprint；UI 增加 confirm modal
+      </div>
+      <div style="flex:1; background:var(--danger); color:#fff; padding:0.6rem; border-radius:6px; font-size:0.8rem;">
+        <strong>⚠️ 风险：</strong>dry_run 性能开销；confirm 打断用户流；需向后兼容
+      </div>
+    </div>
+    <div class="deck-footer"></div>
+    <div class="slide-number">7 / 8</div>
+    <aside class="notes">每个决策点都给出了推荐方案和备选，并明确说明了为什么不选 B。CTO 关注成本和风险，开发关注实现难度，测试关注验收标准。这张图是团队对齐决策的核心依据。</aside>
+  </section>
+
+  <!-- ═══════════════════════════════════════ SLIDE 8: 执行页 + 问题清单 ═══════════════════════════════ -->
+  <section class="slide" id="s8">
+    <div class="deck-header" data-layer="header"></div>
+    <div class="slide-header">
+      <h2>🚀 执行页 + 可复制问题清单</h2>
+      <p>里程碑 · 负责人 · 验收标准 · 回滚策略 · 用户追问清单</p>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+      <div>
+        <h4 style="font-size:0.9rem; color:var(--primary); margin-bottom:0.75rem;">📅 里程碑计划</h4>
+        <div class="timeline">
+          <div class="tl-item">
+            <h4>Sprint 1: IO 层改造</h4>
+            <p>实现 graceful_skip + dry_run影子模式</p>
+            <span class="tag tag-dev">Owner: 后端开发</span>
+          </div>
+          <div class="tl-item">
+            <h4>Sprint 2: UI 确认层</h4>
+            <p>confirm modal + conflict dialog + fail_suggest</p>
+            <span class="tag tag-dev">Owner: 前端开发</span>
+          </div>
+          <div class="tl-item">
+            <h4>Sprint 3: 测试 + 集成</h4>
+            <p>边界 case 全覆盖 + E2E 测试 + 性能基准</p>
+            <span class="tag tag-test">Owner: 测试工程师</span>
+          </div>
+          <div class="tl-item">
+            <h4>Sprint 4: 发布 + 监控</h4>
+            <p>灰度发布 + 错误率监控 + 回滚脚本就绪</p>
+            <span class="tag tag-ops">Owner: 运维</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h4 style="font-size:0.9rem; color:var(--primary); margin-bottom:0.75rem;">❓ 可复制的问题清单（用于详情抽屉追问 Agent）</h4>
+        <div class="qa-list">
+          <div class="qa-item">dry_run 影子模式的性能基准是多少？<code>benchmark</code></div>
+          <div class="qa-item">confirm modal 的键盘快捷键如何设计？<code>accessibility</code></div>
+          <div class="qa-item">graceful_skip 后如何通知用户批量失败数量？<code>ui_feedback</code></div>
+          <div class="qa-item">conflict dialog 三选项的默认选中项是什么？<code>ux_default</code></div>
+          <div class="qa-item">fail_suggest 的建议命令如何保证安全性？<code>security</code></div>
+          <div class="qa-item">向后兼容如何处理无 confirm_write 的旧项目？<code>backward_compat</code></div>
+          <div class="qa-item">recovery_rule 的配置是 YAML 还是代码级别？<code>config_layer</code></div>
+          <div class="qa-item">日志格式是否满足审计追踪需求？<code>audit_trail</code></div>
+          <div class="qa-item">边界 case 的测试覆盖率目标是多少？<code>coverage</code></div>
+          <div class="qa-item">灰度发布策略：哪些用户先跑新逻辑？<code>rollout</code></div>
+          <div class="qa-item">回滚触发条件：连续失败 N 次还是错误率 > X%？<code>rollback_trigger</code></div>
+          <div class="qa-item">多语言场景下 fail_suggest 如何本地化？<code>i18n</code></div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:1rem; padding:0.75rem; background:var(--surface-2); border-radius:8px; font-size:0.8rem;">
+      <strong>🔄 回滚策略：</strong>开关 <code>feature.recovery_enabled</code> 控制新旧逻辑；触发条件：<code>error_rate > 5%</code> 或 <code>p99_latency > 2s</code> 自动回滚
+    </div>
+    <div class="deck-footer"></div>
+    <div class="slide-number">8 / 8</div>
+    <aside class="notes">最后一张图把执行计划和用户追问清单放在一起。timeline 展示 4 个 sprint 的责任人和交付物，qa-list 给出 12 条用户在详情抽屉可以和 agent 继续追问的具体问题。这些问题覆盖了性能、无障碍、安全、兼容、配置、审计、覆盖率、灰度、回滚、i18n 等关键维度。</aside>
+  </section>
+
+</main>
+
+<script src="../assets/runtime.js"></script>
+<script src="../assets/vibex-ppt-nav.js"></script>
+</body>
+</html>

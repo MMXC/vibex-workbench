@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FEAT-workspace-session-persistence | L4 Feature Spec</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" id="theme-link" href="../assets/themes/blueprint.css">
+  <link rel="stylesheet" href="../assets/animations/animations.css">
+</head>
+<body>
+  <main class="deck">
+    <!-- Slide 1: Cover -->
+    <section class="slide" data-anchor="cover">
+      <div class="cover-content">
+        <div class="badge-level">L4 Feature</div>
+        <h1>workspace session persistence</h1>
+        <p class="subtitle">应用重启后恢复工作区状态的技术规格说明</p>
+        <div class="meta-row">
+          <span class="meta-tag">模块: frontend</span>
+          <span class="meta-tag">负责人: hermes</span>
+          <span class="meta-tag">版本: v0.1</span>
+          <span class="meta-tag">状态: proposal</span>
+        </div>
+        <div class="constraint-chips">
+          <span class="chip">C1: 单工作区</span>
+          <span class="chip">C2: 恢复时校验</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 2: Function Goal -->
+    <section class="slide" data-anchor="goal">
+      <div class="slide-header">
+        <h2>功能目标</h2>
+        <span class="slide-num">02 / 08</span>
+      </div>
+      <div class="content-grid">
+        <div class="goal-card primary">
+          <div class="icon-box">🎯</div>
+          <h3>核心目标</h3>
+          <p>App 重启后恢复上次 workspace root、最近选中 spec、center view、last workspace state</p>
+        </div>
+        <div class="goal-card">
+          <div class="icon-box">👤</div>
+          <h3>用户价值</h3>
+          <p>不用每次重新选择目录并定位文件，提升连续工作流效率</p>
+        </div>
+        <div class="goal-card">
+          <div class="icon-box">🔧</div>
+          <h3>技术边界</h3>
+          <p>只负责单 workspace session 的持久化和恢复，不替代多 workspace 并行或 path safety</p>
+        </div>
+      </div>
+      <div class="fields-table">
+        <h4>需持久化的 Session 字段</h4>
+        <table>
+          <thead>
+            <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>workspace_root</td><td>string</td><td>规范化后的工作区根路径</td></tr>
+            <tr><td>selected_spec_path</td><td>string</td><td>最近选中的 spec 文件路径</td></tr>
+            <tr><td>center_view</td><td>string</td><td>当前视图模式 (specs/run/make)</td></tr>
+            <tr><td>last_workspace_state</td><td>enum</td><td>detected/unknown/invalid</td></tr>
+            <tr><td>last_detected_at</td><td>timestamp</td><td>最后状态探测时间</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Slide 3: As-Is / To-Be Gap -->
+    <section class="slide" data-anchor="as-is-to-be">
+      <div class="slide-header">
+        <h2>现状与目标差距</h2>
+        <span class="slide-num">03 / 08</span>
+      </div>
+      <div class="comparison-grid">
+        <div class="as-is">
+          <h3>❌ As-Is 现状</h3>
+          <ul>
+            <li>App 重启后工作区状态完全丢失</li>
+            <li>每次启动需重新选择 workspace root</li>
+            <li>无法恢复上次查看的 spec 文件</li>
+            <li>视图模式每次回到默认状态</li>
+            <li>workspace state 每次需完整重新探测</li>
+          </ul>
+        </div>
+        <div class="gap-arrow">→</div>
+        <div class="to-be">
+          <h3>✅ To-Be 目标</h3>
+          <ul>
+            <li>启动时自动加载上次 session</li>
+            <li>自动恢复 workspace_root 并重新 detect-state</li>
+            <li>恢复 selected_spec_path（如文件存在）</li>
+            <li>恢复 center_view 视图模式</li>
+            <li>session root 不存在时优雅降级到选择页</li>
+          </ul>
+        </div>
+      </div>
+      <div class="gap-summary">
+        <div class="gap-item">
+          <span class="gap-label">用户痛点</span>
+          <span>高频切换项目时，每次重启需手动恢复工作流</span>
+        </div>
+        <div class="gap-item">
+          <span class="gap-label">技术差距</span>
+          <span>缺少 session 持久化机制 + path guard 校验</span>
+        </div>
+        <div class="gap-item">
+          <span class="gap-label">实现前提</span>
+          <span>依赖 MOD-workspace-root 的 path guard 和 detect-state</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 4: State Matrix -->
+    <section class="slide" data-anchor="state-matrix">
+      <div class="slide-header">
+        <h2>状态矩阵</h2>
+        <span class="slide-num">04 / 08</span>
+      </div>
+      <div class="matrix-table">
+        <table>
+          <thead>
+            <tr>
+              <th>启动条件</th>
+              <th>Session 状态</th>
+              <th>检测结果</th>
+              <th>系统行为</th>
+              <th>UI 反馈</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>valid session + root exists</td>
+              <td>✅ 已保存</td>
+              <td>✅ path guard pass</td>
+              <td>恢复 workspace 并 detect-state</td>
+              <td>显示恢复的 root</td>
+            </tr>
+            <tr>
+              <td>valid session + root deleted</td>
+              <td>⚠️ root mismatch</td>
+              <td>❌ path guard fail</td>
+              <td>清空 session，回到选择页</td>
+              <td>提示重新选择</td>
+            </tr>
+            <tr>
+              <td>valid session + root unsafe</td>
+              <td>⚠️ unsafe path</td>
+              <td>❌ security check fail</td>
+              <td>清空 session，拒绝恢复</td>
+              <td>安全警告提示</td>
+            </tr>
+            <tr>
+              <td>no session / empty</td>
+              <td>❌ 无数据</td>
+              <td>—</td>
+              <td>进入 workspace 选择流程</td>
+              <td>显示选择对话框</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="loading-states">
+        <h4>Loading / Empty / Error 状态设计</h4>
+        <div class="state-cards">
+          <div class="state-card loading">
+            <span class="state-icon">⏳</span>
+            <span class="state-label">Loading</span>
+            <span class="state-desc">恢复 session 中...</span>
+          </div>
+          <div class="state-card empty">
+            <span class="state-icon">📂</span>
+            <span class="state-label">Empty</span>
+            <span class="state-desc">无 session，引导选择 workspace</span>
+          </div>
+          <div class="state-card error">
+            <span class="state-icon">⚠️</span>
+            <span class="state-label">Error</span>
+            <span class="state-desc">path 不安全，显示原因</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 5: Boundary Demo (Constraints) -->
+    <section class="slide" data-anchor="boundary">
+      <div class="slide-header">
+        <h2>边界场景演示</h2>
+        <span class="slide-num">05 / 08</span>
+      </div>
+      <div class="constraints-grid">
+        <div class="constraint-card">
+          <div class="constraint-header">
+            <span class="constraint-id">C1</span>
+            <h3>Single workspace only</h3>
+          </div>
+          <div class="constraint-body">
+            <p class="rule">MVP 只恢复一个最近 workspace，不维护 workspace 列表</p>
+            <div class="validation-box">
+              <span class="validation-label">验证方式</span>
+              <code>session store 只有 currentWorkspace</code>
+            </div>
+            <div class="trigger-box">
+              <span class="trigger-label">触发方式</span>
+              <p>用户 A 选择 /workspace/a → 持久化 → 用户 B 选择 /workspace/b → 覆盖 currentWorkspace</p>
+            </div>
+          </div>
+        </div>
+        <div class="constraint-card">
+          <div class="constraint-header">
+            <span class="constraint-id">C2</span>
+            <h3>Validate on restore</h3>
+          </div>
+          <div class="constraint-body">
+            <p class="rule">恢复 session 后必须重新执行 path guard 和 detect-state</p>
+            <div class="validation-box">
+              <span class="validation-label">验证方式</span>
+              <code>不直接信任持久化的 last state</code>
+            </div>
+            <div class="trigger-box">
+              <span class="trigger-label">触发方式</span>
+              <p>App 启动时：检测 last_workspace_state → 若为 unknown/invalid → 触发 detect-state</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="boundary-diagram">
+        <h4>Session 恢复流程图</h4>
+        <div class="flow-diagram">
+          <div class="flow-step">App 启动</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step">读取 Session</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step">Path Guard</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step decision">Valid?</div>
+          <div class="flow-arrow yes">是→</div>
+          <div class="flow-step">detect-state</div>
+          <div class="flow-arrow no">否→</div>
+          <div class="flow-step">选择页</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 6: Decision Page -->
+    <section class="slide" data-anchor="decision">
+      <div class="slide-header">
+        <h2>决策与取舍</h2>
+        <span class="slide-num">06 / 08</span>
+      </div>
+      <div class="decision-grid">
+        <div class="decision-card recommended">
+          <div class="decision-header">
+            <span class="decision-badge">推荐</span>
+            <h3>方案 A: LocalStorage + Session Store</h3>
+          </div>
+          <div class="decision-body">
+            <div class="decision-pros">
+              <h4>✅ 优势</h4>
+              <ul>
+                <li>实现简单，无后端依赖</li>
+                <li>重启即可恢复，用户感知即时</li>
+                <li>不影响其他 workspace 功能</li>
+              </ul>
+            </div>
+            <div class="decision-cons">
+              <h4>⚠️ 局限</h4>
+              <ul>
+                <li>跨设备无法同步</li>
+                <li>单用户单最近 session</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="decision-card alternative">
+          <div class="decision-header">
+            <span class="decision-badge alt">备选</span>
+            <h3>方案 B: IndexedDB 多 workspace 列表</h3>
+          </div>
+          <div class="decision-body">
+            <div class="decision-pros">
+              <h4>✅ 优势</h4>
+              <ul>
+                <li>支持多 workspace 快速切换</li>
+                <li>可存储更多元数据</li>
+              </ul>
+            </div>
+            <div class="decision-cons">
+              <h4>❌ 代价</h4>
+              <ul>
+                <li>超出 MVP 范围</li>
+                <li>UI 复杂度提升</li>
+                <li>需要 workspace 列表管理 UI</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="decision-summary">
+        <div class="decision-row">
+          <span class="decision-label">推荐方案</span>
+          <span class="decision-value">方案 A (MVP)</span>
+        </div>
+        <div class="decision-row">
+          <span class="decision-label">Why A</span>
+          <span class="decision-value">最小化实现，快速验证用户体验价值，方案 B 可作为 v2 扩展</span>
+        </div>
+        <div class="decision-row">
+          <span class="decision-label">Why Not B</span>
+          <span class="decision-value">当前 L4 scope 为单 workspace 闭环，多 workspace 需独立 spec</span>
+        </div>
+        <div class="decision-row">
+          <span class="decision-label">前提条件</span>
+          <span class="decision-value">MOD-workspace-root 的 path guard 和 detect-state 必须可用</span>
+        </div>
+        <div class="decision-row">
+          <span class="decision-label">切换条件</span>
+          <span class="decision-value">若用户反馈需要多 workspace 切换 → 触发 v2 spec</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 7: Execution Page -->
+    <section class="slide" data-anchor="execution">
+      <div class="slide-header">
+        <h2>执行计划</h2>
+        <span class="slide-num">07 / 08</span>
+      </div>
+      <div class="execution-grid">
+        <div class="milestones">
+          <h3>里程碑</h3>
+          <div class="timeline">
+            <div class="milestone">
+              <span class="milestone-icon">📋</span>
+              <div class="milestone-content">
+                <h4>M1: Session Store 抽象</h4>
+                <p>定义 session store 接口，支持 get/set/clear</p>
+              </div>
+            </div>
+            <div class="milestone">
+              <span class="milestone-icon">🔗</span>
+              <div class="milestone-content">
+                <h4>M2: 持久化集成</h4>
+                <p>在 workspace selection 时自动持久化</p>
+              </div>
+            </div>
+            <div class="milestone">
+              <span class="milestone-icon">🔄</span>
+              <div class="milestone-content">
+                <h4>M3: 恢复逻辑</h4>
+                <p>App 启动时读取 session + path guard + detect-state</p>
+              </div>
+            </div>
+            <div class="milestone">
+              <span class="milestone-icon">🧪</span>
+              <div class="milestone-content">
+                <h4>M4: 测试验证</h4>
+                <p>覆盖 TC-1, TC-2 及边界场景</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="exec-details">
+          <div class="detail-card">
+            <h4>👤 负责人</h4>
+            <p>hermes (frontend)</p>
+          </div>
+          <div class="detail-card">
+            <h4>✅ 验收标准</h4>
+            <ul>
+              <li>TC-1/TC-2 全通过</li>
+              <li>路径不存在时正确降级</li>
+              <li>视图恢复后 detect-state 触发</li>
+            </ul>
+          </div>
+          <div class="detail-card risk">
+            <h4>⚠️ 回滚策略</h4>
+            <ul>
+              <li>feature flag 控制开关</li>
+              <li>回滚时清除 session store</li>
+              <li>不影响 MOD-workspace-root 基础功能</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 8: Q&A - 可复制的问题清单 -->
+    <section class="slide" data-anchor="qa">
+      <div class="slide-header">
+        <h2>讨论问题清单</h2>
+        <span class="slide-num">08 / 08</span>
+      </div>
+      <div class="qa-intro">
+        <p>以下问题用于在详情抽屉与 agent 继续完善 spec：</p>
+      </div>
+      <div class="qa-grid">
+        <div class="qa-item">
+          <span class="qa-num">Q1</span>
+          <span class="qa-text">session store 的具体实现选 localStorage 还是 electron-store？跨进程如何同步？</span>
+        </div>
+        <div class="qa-item">
+          <span class="qa-num">Q2</span>
+          <span class="qa-text">session 字段需要版本号字段吗？用于未来 schema 迁移？</span>
+        </div>
+        <div class="qa-item">
+          <span class="qa-num">Q3</span>
+          <span class="qa-text">selected_spec_path 恢复时文件不存在，应该显示"文件已删除"还是自动清除？</span>
+        </div>
+        <div class="qa-item">
+          <span class="qa-num">Q4</span>
+          <span class="qa-text">center_view 的有效值范围是否需要枚举约束？validation 在哪层做？</span>
+        </div>
+        <div class="qa-item">
+          <span class="qa-num">Q5</span>
+          <span class="qa-text">last_workspace_state 的状态枚举值有哪些？unknown/detected/invalid/...？</span>
+        </div>
+        <div class="qa-item">
+          <span class="qa-num">Q6</span>
+          <span class="qa-text">detect-state 触发时机是启动时同步还是异步？异步时 UI loading 状态如何处理？</span>
+        </div>
+        <div class="qa-item">
+          <span class="qa-num">Q7</span>
+          <span class="qa-text">feature flag 设计是否需要支持 A/B 测试？当前 MVP 是否默认开启？</span>
+        </div>
+        <div class="qa-item">
+          <span class="qa-num">Q8</span>
+          <span class="qa-text">用户手动清除 session 的入口在哪？设置页还是启动时提示？</span>
+        </div>
+        <div class="qa-item">
+          <span class="qa-num">Q9</span>
+          <span class="qa-text">session 数据加密存储吗？敏感信息（如本地路径）是否需要保护？</span>
+        </div>
+        <div class="qa-item">
+          <span class="qa-num">Q10</span>
+          <span class="qa-text">v2 多 workspace 场景是否需要独立 spec？当前 C1 是否会限制未来扩展？</span>
+        </div>
+        <div class="qa-item">
+          <span class="qa-num">Q11</span>
+          <span class="qa-text">path guard 的实现路径在哪？FEAT-workspace-session-persistence 依赖它？</span>
+        </div>
+        <div class="qa-item">
+          <span class="qa-num">Q12</span>
+          <span class="qa-text">异常情况下（如磁盘满、写失败）session 保存失败如何处理？用户感知？</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="../assets/runtime.js"></script>
+  <script src="../assets/vibex-ppt-nav.js"></script>
+</body>
+</html>

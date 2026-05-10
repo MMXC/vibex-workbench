@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FEAT-new-l1-wizard L5 实现说明</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" id="theme-link" href="../assets/themes/engineering-whiteprint.css">
+  <link rel="stylesheet" href="../assets/animations.css">
+  <style>
+    .slide { display: none; }
+    .slide.is-active { display: flex; }
+    
+    /* Decision matrix table */
+    .decision-table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    .decision-table th, .decision-table td { 
+      border: 1px solid var(--border); 
+      padding: 0.5rem 0.75rem; 
+      text-align: left; 
+      font-size: 0.85rem;
+    }
+    .decision-table th { background: var(--surface-2); font-weight: 600; }
+    
+    /* Flow diagram */
+    .flow-diagram { 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      gap: 0.5rem; 
+      flex-wrap: wrap;
+      margin: 1rem 0;
+    }
+    .flow-step {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      text-align: center;
+    }
+    .flow-arrow { color: var(--text-3); font-size: 1.2rem; }
+    
+    /* State cards */
+    .state-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+      margin: 1rem 0;
+    }
+    .state-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.75rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+    .state-card code { 
+      background: var(--surface-1); 
+      padding: 0.1rem 0.3rem; 
+      border-radius: 2px;
+      font-size: 0.75rem;
+    }
+    
+    /* Checklist */
+    .checklist { list-style: none; padding: 0; margin: 0; }
+    .checklist li { 
+      padding: 0.4rem 0; 
+      border-bottom: 1px solid var(--border); 
+      font-size: 0.9rem;
+    }
+    .checklist li::before { content: "□ "; }
+    
+    /* Risk badge */
+    .risk-badge {
+      display: inline-block;
+      padding: 0.1rem 0.4rem;
+      border-radius: 3px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+    .risk-high { background: #ef4444; color: white; }
+    .risk-med { background: #f59e0b; color: white; }
+    .risk-low { background: #22c55e; color: white; }
+  </style>
+</head>
+<body>
+  <main class="deck">
+
+    <!-- Slide 1: Cover -->
+    <section class="slide is-active" data-slide="1">
+      <div class="deck-header">
+        <span class="deck-title">FEAT-new-l1-wizard_L5</span>
+        <span class="deck-meta">L5 实现说明 · 2026-04-27</span>
+      </div>
+      <div class="slide-content" style="flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+        <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.15em; color: var(--text-3); margin-bottom: 1rem;">Implementation Spec · Level 5</div>
+        <h1 style="font-size: 2.5rem; margin-bottom: 0.5rem;">New L1 Wizard</h1>
+        <p style="color: var(--text-2); max-width: 600px; margin-bottom: 2rem;">
+          新建 L1 项目级 spec 的引导式创建流程<br>
+          <code style="font-size: 0.85rem;">frontend/src/lib/components/workbench/NewL1Wizard.svelte</code>
+        </p>
+        <div style="display: flex; gap: 1rem; font-size: 0.8rem;">
+          <span class="risk-badge risk-low">CTO</span>
+          <span class="risk-badge risk-low">开发</span>
+          <span class="risk-badge risk-low">测试</span>
+          <span class="risk-badge risk-low">用户</span>
+        </div>
+      </div>
+      <div class="deck-footer">
+        <span>hermes · vibex-workbench</span>
+        <span class="slide-number">1 / 9</span>
+      </div>
+    </section>
+
+    <!-- Slide 2: Goals & Criteria -->
+    <section class="slide" data-slide="2">
+      <div class="deck-header">
+        <span class="deck-title">实现目标与完成标准</span>
+        <span class="deck-meta">L5 · Goals & Criteria</span>
+      </div>
+      <div class="slide-content">
+        <h2 style="margin-bottom: 1.5rem;">🎯 实现目标</h2>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+          <div>
+            <h3 style="font-size: 0.9rem; color: var(--text-2); margin-bottom: 0.75rem;">To-Be 目标</h3>
+            <ul style="font-size: 0.85rem; line-height: 1.8;">
+              <li>用户在 SpecExplorer 点击「新建 L1」按钮</li>
+              <li>Wizard modal 展示表单（projectName / description / owner）</li>
+              <li>从 <code>spec-templates/L1-goal/</code> 加载模板</li>
+              <li>用户填写 → 点击生成 → 文件写入</li>
+              <li>成功：modal 关闭 → 新 spec 高亮选中</li>
+              <li>失败：显示错误，modal 保持</li>
+            </ul>
+          </div>
+          <div>
+            <h3 style="font-size: 0.9rem; color: var(--text-2); margin-bottom: 0.75rem;">✅ 完成标准</h3>
+            <ul style="font-size: 0.85rem; line-height: 1.8;">
+              <li>TC-newl1-1: 正常创建 → 文件存在，占位符正确替换</li>
+              <li>TC-newl1-2: 重名拒绝 → wizardError 显示，modal 不关闭</li>
+              <li>TC-newl1-3: 空项目名 → 前置校验阻断 API 调用</li>
+              <li>模板 fetch 失败时 fallback 到内置最小模板</li>
+              <li>API 错误时正确捕获并展示</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="deck-footer">
+        <span>hermes · vibex-workbench</span>
+        <span class="slide-number">2 / 9</span>
+      </div>
+    </section>
+
+    <!-- Slide 3: As-Is State -->
+    <section class="slide" data-slide="3">
+      <div class="deck-header">
+        <span class="deck-title">现状真实实现展示</span>
+        <span class="deck-meta">L5 · As-Is State</span>
+      </div>
+      <div class="slide-content">
+        <h2 style="margin-bottom: 1rem;">📂 当前代码状态</h2>
+        <div class="state-grid">
+          <div class="state-card">
+            <div style="color: var(--text-2); font-size: 0.7rem; margin-bottom: 0.25rem;">文件路径</div>
+            <code>SpecExplorer.svelte</code>
+          </div>
+          <div class="state-card">
+            <div style="color: var(--text-2); font-size: 0.7rem; margin-bottom: 0.25rem;">目标文件</div>
+            <code>NewL1Wizard.svelte</code>
+            <div style="color: var(--warning); font-size: 0.65rem;">⚠ 待创建</div>
+          </div>
+          <div class="state-card">
+            <div style="color: var(--text-2); font-size: 0.7rem; margin-bottom: 0.25rem;">模板位置</div>
+            <code>spec-templates/L1-goal/</code>
+          </div>
+          <div class="state-card">
+            <div style="color: var(--text-2); font-size: 0.7rem; margin-bottom: 0.25rem;">API 端点</div>
+            <code>POST /api/workspace/specs/write</code>
+          </div>
+        </div>
+        <h3 style="font-size: 0.9rem; margin: 1.5rem 0 0.5rem;">🔍 现状分析</h3>
+        <ul style="font-size: 0.85rem; line-height: 1.7;">
+          <li><strong>NewL1Wizard.svelte 不存在</strong> — 需要从零实现 wizard modal 组件</li>
+          <li><strong>SpecExplorer.svelte 需添加</strong> — showNewL1Wizard 状态 + 按钮 + 刷新逻辑</li>
+          <li><strong>模板加载未实现</strong> — 需要 fetch spec-templates/L1-goal/L1-goal-template.yaml</li>
+          <li><strong>API 调用链未建立</strong> — POST /api/workspace/specs/write</li>
+        </ul>
+        <div style="margin-top: 1rem; padding: 0.75rem; background: var(--surface-2); border-radius: 4px; font-size: 0.8rem;">
+          <strong>Gap:</strong> 当前没有任何 L1 创建入口，用户需手动编写 YAML
+        </div>
+      </div>
+      <div class="deck-footer">
+        <span>hermes · vibex-workbench</span>
+        <span class="slide-number">3 / 9</span>
+      </div>
+    </section>
+
+    <!-- Slide 4: Technical Design -->
+    <section class="slide" data-slide="4">
+      <div class="deck-header">
+        <span class="deck-title">技术实现设计</span>
+        <span class="deck-meta">L5 · Technical Design</span>
+      </div>
+      <div class="slide-content">
+        <h2 style="margin-bottom: 1rem;">⚙️ 核心实现方案</h2>
+        <div class="flow-diagram">
+          <div class="flow-step">点击「新建 L1」</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-step">showNewL1Wizard = true</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-step">显示 Wizard Modal</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-step">用户填写表单</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-step">loadL1Template()</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-step">替换占位符</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-step">POST /api/write</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-step">刷新列表</div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+          <div>
+            <h3 style="font-size: 0.85rem; color: var(--text-2); margin-bottom: 0.5rem;">State 定义</h3>
+            <pre style="font-size: 0.75rem; background: var(--surface-2); padding: 0.5rem; border-radius: 4px; overflow-x: auto;">let showNewL1Wizard = $state(false)
+let wizardProjectName = $state('')
+let wizardDescription = $state('')
+let wizardOwner = $state('user')
+let wizardLoading = $state(false)
+let wizardError = $state('')</pre>
+          </div>
+          <div>
+            <h3 style="font-size: 0.85rem; color: var(--text-2); margin-bottom: 0.5rem;">占位符替换</h3>
+            <pre style="font-size: 0.75rem; background: var(--surface-2); padding: 0.5rem; border-radius: 4px; overflow-x: auto;">{{PROJECT_NAME}} → projectName
+{{DESCRIPTION}}  → description
+{{OWNER}}        → owner
+{{DATE}}         → YYYY-MM-DD</pre>
+          </div>
+        </div>
+      </div>
+      <div class="deck-footer">
+        <span>hermes · vibex-workbench</span>
+        <span class="slide-number">4 / 9</span>
+      </div>
+    </section>
+
+    <!-- Slide 5: Decision Matrix -->
+    <section class="slide" data-slide="5">
+      <div class="deck-header">
+        <span class="deck-title">方案对比与决策</span>
+        <span class="deck-meta">L5 · Decision Matrix</span>
+      </div>
+      <div class="slide-content">
+        <h2 style="margin-bottom: 1rem;">⚖️ 方案 A/B/不选理由</h2>
+        <table class="decision-table">
+          <thead>
+            <tr>
+              <th>维度</th>
+              <th>方案A: Wizard Modal</th>
+              <th>方案B: 页面跳转</th>
+              <th>方案C: 右键菜单</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>开发成本</strong></td>
+              <td>中（新建组件）</td>
+              <td>低（页面路由）</td>
+              <td>低</td>
+            </tr>
+            <tr>
+              <td><strong>用户体验</strong></td>
+              <td>⭐⭐⭐⭐ 上下文保持</td>
+              <td>⭐⭐ 打断感强</td>
+              <td>⭐⭐⭐ 发现性差</td>
+            </tr>
+            <tr>
+              <td><strong>实现复杂度</strong></td>
+              <td>中等（Svelte 组件）</td>
+              <td>简单</td>
+              <td>中等</td>
+            </tr>
+            <tr>
+              <td><strong>为何选/不选</strong></td>
+              <td style="color: var(--success);">✅ 推荐：符合现有模式</td>
+              <td>❌ 放弃：破坏导航连贯性</td>
+              <td>❌ 放弃：入口隐蔽</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top: 1rem; padding: 0.75rem; background: var(--surface-2); border-radius: 4px; font-size: 0.85rem;">
+          <strong>决策结论:</strong> 采用方案A Wizard Modal，与现有 Explorer 操作模式一致，用户无需离开当前视图。
+        </div>
+      </div>
+      <div class="deck-footer">
+        <span>hermes · vibex-workbench</span>
+        <span class="slide-number">5 / 9</span>
+      </div>
+    </section>
+
+    <!-- Slide 6: Four Perspectives -->
+    <section class="slide" data-slide="6">
+      <div class="deck-header">
+        <span class="deck-title">四类视角覆盖</span>
+        <span class="deck-meta">L5 · Audience Perspectives</span>
+      </div>
+      <div class="slide-content">
+        <h2 style="margin-bottom: 1rem;">👥 利益相关方视角</h2>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div style="background: var(--surface-2); padding: 1rem; border-radius: 4px;">
+            <h3 style="font-size: 0.9rem; margin-bottom: 0.5rem;">🧑‍💼 CTO</h3>
+            <ul style="font-size: 0.8rem; line-height: 1.6;">
+              <li>标准化 L1 创建流程，降低规范偏离风险</li>
+              <li>owner 字段强制填写，追溯清晰</li>
+              <li>模板确保必要字段不遗漏</li>
+            </ul>
+          </div>
+          <div style="background: var(--surface-2); padding: 1rem; border-radius: 4px;">
+            <h3 style="font-size: 0.9rem; margin-bottom: 0.5rem;">👨‍💻 开发</h3>
+            <ul style="font-size: 0.8rem; line-height: 1.6;">
+              <li>最小改动：仅在 SpecExplorer 添加状态和按钮</li>
+              <li>NewL1Wizard 独立组件，职责单一</li>
+              <li>API 接口已有，无需新增</li>
+            </ul>
+          </div>
+          <div style="background: var(--surface-2); padding: 1rem; border-radius: 4px;">
+            <h3 style="font-size: 0.9rem; margin-bottom: 0.5rem;">🧪 测试</h3>
+            <ul style="font-size: 0.8rem; line-height: 1.6;">
+              <li>3 个明确测试用例覆盖核心路径</li>
+              <li>可注入 fetch mock 验证 API 调用</li>
+              <li>前置校验提供可测的分支路径</li>
+            </ul>
+          </div>
+          <div style="background: var(--surface-2); padding: 1rem; border-radius: 4px;">
+            <h3 style="font-size: 0.9rem; margin-bottom: 0.5rem;">👤 用户</h3>
+            <ul style="font-size: 0.8rem; line-height: 1.6;">
+              <li>一站式创建，无需记忆 YAML 格式</li>
+              <li>实时错误反馈，体验流畅</li>
+              <li>自动选中新建文件，立即编辑</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="deck-footer">
+        <span>hermes · vibex-workbench</span>
+        <span class="slide-number">6 / 9</span>
+      </div>
+    </section>
+
+    <!-- Slide 7: Verification & Risk -->
+    <section class="slide" data-slide="7">
+      <div class="deck-header">
+        <span class="deck-title">验证步骤与风险</span>
+        <span class="deck-meta">L5 · Verification & Risk</span>
+      </div>
+      <div class="slide-content">
+        <h2 style="margin-bottom: 1rem;">🧪 验证与排错</h2>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div>
+            <h3 style="font-size: 0.9rem; color: var(--text-2); margin-bottom: 0.5rem;">验证步骤</h3>
+            <ol style="font-size: 0.8rem; line-height: 1.8; padding-left: 1.2rem;">
+              <li>刷新 SpecExplorer，按钮可见</li>
+              <li>点击「新建 L1」，modal 弹出</li>
+              <li>填写 projectName → 点击生成</li>
+              <li>检查文件 L1-goal/{name}.yaml 生成</li>
+              <li>验证文件内容占位符已替换</li>
+              <li>检查 modal 关闭 + 新文件选中</li>
+            </ol>
+          </div>
+          <div>
+            <h3 style="font-size: 0.9rem; color: var(--text-2); margin-bottom: 0.5rem;">风险清单</h3>
+            <table style="width: 100%; font-size: 0.75rem; border-collapse: collapse;">
+              <tr><td style="padding: 0.3rem;">模板文件不存在</td><td><span class="risk-badge risk-med">中</span></td><td>Fallback 内置模板</td></tr>
+              <tr><td style="padding: 0.3rem;">API 返回错误</td><td><span class="risk-badge risk-med">中</span></td><td>捕获并显示 wizardError</td></tr>
+              <tr><td style="padding: 0.3rem;">重名文件覆盖</td><td><span class="risk-badge risk-low">低</span></td><td>后端应返回错误</td></tr>
+              <tr><td style="padding: 0.3rem;">空白 projectName</td><td><span class="risk-badge risk-low">低</span></td><td>前置校验阻断</td></tr>
+            </table>
+          </div>
+        </div>
+        <div style="margin-top: 1rem; padding: 0.75rem; background: var(--surface-2); border-radius: 4px; font-size: 0.85rem;">
+          <strong>排错线索:</strong> 若文件未生成 → 检查 POST /api/workspace/specs/write 响应<br>
+          若 modal 未关闭 → 检查 res.ok 判断逻辑<br>
+          若内容未替换 → 检查正则替换是否全局匹配
+        </div>
+      </div>
+      <div class="deck-footer">
+        <span>hermes · vibex-workbench</span>
+        <span class="slide-number">7 / 9</span>
+      </div>
+    </section>
+
+    <!-- Slide 8: Execution Plan -->
+    <section class="slide" data-slide="8">
+      <div class="deck-header">
+        <span class="deck-title">执行计划</span>
+        <span class="deck-meta">L5 · Execution Plan</span>
+      </div>
+      <div class="slide-content">
+        <h2 style="margin-bottom: 1rem;">📋 执行路线图</h2>
+        <table class="decision-table">
+          <thead>
+            <tr>
+              <th>阶段</th>
+              <th>任务</th>
+              <th>负责人</th>
+              <th>验收标准</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>P1</strong></td>
+              <td>创建 NewL1Wizard.svelte 组件</td>
+              <td>hermes</td>
+              <td>组件可渲染，表单可填写</td>
+            </tr>
+            <tr>
+              <td><strong>P2</strong></td>
+              <td>实现 loadL1Template() + 占位符替换</td>
+              <td>hermes</td>
+              <td>fetch 成功/失败都能返回内容</td>
+            </tr>
+            <tr>
+              <td><strong>P3</strong></td>
+              <td>集成到 SpecExplorer：按钮 + 状态 + 刷新</td>
+              <td>hermes</td>
+              <td>点击按钮 modal 显示，生成后刷新</td>
+            </tr>
+            <tr>
+              <td><strong>P4</strong></td>
+              <td>单元测试覆盖 TC-newl1-1/2/3</td>
+              <td>QA</td>
+              <td>3 个测试用例全部通过</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top: 1rem; padding: 0.75rem; background: var(--surface-2); border-radius: 4px; font-size: 0.85rem;">
+          <strong>回滚策略:</strong> 若 P3 集成失败，删除 NewL1Wizard.svelte 并移除 SpecExplorer 中的状态/按钮引用即可完全回滚，无数据迁移风险。
+        </div>
+      </div>
+      <div class="deck-footer">
+        <span>hermes · vibex-workbench</span>
+        <span class="slide-number">8 / 9</span>
+      </div>
+    </section>
+
+    <!-- Slide 9: Discussion Checklist -->
+    <section class="slide" data-slide="9">
+      <div class="deck-header">
+        <span class="deck-title">可复制的问题清单</span>
+        <span class="deck-meta">L5 · Discussion Checklist</span>
+      </div>
+      <div class="slide-content">
+        <h2 style="margin-bottom: 1rem;">❓ 详情抽屉对话清单</h2>
+        <ul class="checklist">
+          <li>模板文件 spec-templates/L1-goal/L1-goal-template.yaml 是否已存在于工作区？</li>
+          <li>fallback 内置模板的 YAML 格式是否经过验证？</li>
+          <li>POST /api/workspace/specs/write 的 error 响应格式是什么？</li>
+          <li>文件路径 L1-goal/{name}.yaml 是否需要 URL 编码处理？</li>
+          <li>selectSpec(specPath) 方法是否已存在且签名正确？</li>
+          <li>是否需要新增「取消」按钮关闭 modal？</li>
+          <li>owner 默认值 'user' 是否符合实际场景？</li>
+          <li>是否需要防抖/节流防止重复点击？</li>
+          <li>长 projectName 是否需要截断或校验最大长度？</li>
+          <li>是否需要在创建成功后展示 Toast 提示？</li>
+          <li>模板加载时是否需要 loading 动画？</li>
+          <li>测试是否需要 mock fetch 而非真实调用 API？</li>
+        </ul>
+      </div>
+      <div class="deck-footer">
+        <span>hermes · vibex-workbench</span>
+        <span class="slide-number">9 / 9</span>
+      </div>
+    </section>
+
+  </main>
+  <script src="../assets/runtime.js"></script>
+  <script src="../assets/vibex-ppt-nav.js"></script>
+<script src="../assets/runtime.js"><\/script>
+<script src="../assets/vibex-ppt-nav.js"><\/script>
+</body>
+</html>

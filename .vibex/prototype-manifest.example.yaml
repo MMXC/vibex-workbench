@@ -1,0 +1,19 @@
+# 工作区根下权威路径：.vibex/prototype-manifest.yaml（本文件为示例，复制后改名使用）
+# 与 .vibex/prototypes/manifest.json（设计物料登记）职责不同：本文件描述「App Shell 内可打开的功能演示路由」。
+# 契约见 specs/L4-feature/FEAT-spec-prototype-shell-deck.yaml 与 SLICE-prototype-app-shell-contract。
+
+version: 1
+lastGenerated: "2026-05-08T00:00:00Z"
+routes:
+  - id: example-feature
+    path: /proto/example-feature
+    title: 示例功能演示
+    specRef: FEAT-spec-prototype-shell-deck
+    entryHtml: .vibex/prototypes/example-feature.html
+    kind: feature
+  - id: example-shell
+    path: /shell
+    title: 项目外壳（占位）
+    specRef: MOD-ide-chrome
+    entryHtml: .vibex/ppt/vibex-workbench-skeleton.html
+    kind: shell

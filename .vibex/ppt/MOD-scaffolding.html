@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="tokyo-night">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MOD-scaffolding 模块说明</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" href="../assets/themes/tokyo-night.css">
+  <link rel="stylesheet" href="../assets/animations/animations.css">
+  <style>
+    :root {
+      --accent: #7aa2f7;
+      --accent-2: #bb9af7;
+      --bg-deep: #1a1b26;
+      --text-1: #c0caf5;
+      --text-2: #565f89;
+      --border: #3b4261;
+      --success: #9ece6a;
+      --warning: #e0af68;
+      --danger: #f7768e;
+    }
+    .slide {
+      background: linear-gradient(135deg, var(--bg-deep) 0%, #16161e 100%);
+    }
+    .card {
+      background: rgba(40, 42, 64, 0.8);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .tag {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .tag-done { background: var(--success); color: var(--bg-deep); }
+    .tag-pending { background: var(--warning); color: var(--bg-deep); }
+    .tag-blocked { background: var(--danger); color: var(--bg-deep); }
+    .matrix {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .matrix-cell {
+      text-align: center;
+      padding: 16px;
+      border-radius: 8px;
+      background: rgba(0,0,0,0.2);
+    }
+    .matrix-cell h4 { margin: 0 0 8px; font-size: 14px; }
+    .matrix-cell p { margin: 0; font-size: 12px; color: var(--text-2); }
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .comparison-table th,
+    .comparison-table td {
+      padding: 12px;
+      border: 1px solid var(--border);
+      text-align: left;
+    }
+    .comparison-table th { background: rgba(122, 162, 247, 0.2); }
+    .comparison-table tr:hover { background: rgba(122, 162, 247, 0.05); }
+    .code-block {
+      background: #1e1e2e;
+      border-radius: 8px;
+      padding: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      overflow-x: auto;
+    }
+    .checklist {
+      list-style: none;
+      padding: 0;
+    }
+    .checklist li {
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .checklist li::before {
+      content: "□";
+      color: var(--accent);
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+<main class="deck">
+  <!-- Slide 1: 封面 -->
+  <section class="slide is-active" data-slide="1">
+    <div class="deck-header">
+      <span class="deck-title">MOD-scaffolding · 模块说明</span>
+      <span class="deck-meta">L3 · generators · v0.1</span>
+    </div>
+    <div class="slide-content" style="display:flex;flex-direction:column;justify-content:center;align-items:center;height:100%;text-align:center;">
+      <h1 style="font-size:48px;margin:0 0 24px;color:var(--accent);">MOD-scaffolding</h1>
+      <p style="font-size:20px;color:var(--text-1);max-width:700px;margin:0 0 32px;">
+        在目标目录生成最小可跑骨架
+      </p>
+      <div style="display:flex;gap:16px;margin-top:24px;">
+        <span class="tag tag-pending">status: proposal</span>
+        <span class="tag" style="background:var(--accent-2);color:var(--bg-deep);">level: L3</span>
+        <span class="tag" style="background:var(--border);color:var(--text-1);">generators</span>
+      </div>
+      <p style="margin-top:64px;color:var(--text-2);font-size:14px;">键盘 ← → 导航 · T 切换主题 · S 演讲者模式</p>
+    </div>
+    <div class="deck-footer">
+      <span>vibex-workbench</span>
+      <span class="slide-number">1 / 9</span>
+    </div>
+  </section>
+
+  <!-- Slide 2: 当前模块分析 -->
+  <section class="slide" data-slide="2">
+    <div class="deck-header">
+      <span class="deck-title">模块职责分析</span>
+    </div>
+    <div class="slide-content">
+      <h2 style="color:var(--accent);margin:0 0 24px;">📦 当前模块分析</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+        <div class="card">
+          <h3 style="margin:0 0 16px;color:var(--accent-2);">🎯 核心职责</h3>
+          <ul style="line-height:2;">
+            <li>在目标目录生成完整项目骨架</li>
+            <li>提供标准化目录结构</li>
+            <li>生成入口 L1 spec 文件</li>
+            <li>生成 Makefile 与验证脚本</li>
+            <li>支持可选组件开关</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3 style="margin:0 0 16px;color:var(--accent-2);">🔗 上下游关系</h3>
+          <ul style="line-height:2;">
+            <li><strong>依赖</strong>：spec-templates、现有验证脚本</li>
+            <li><strong>被依赖</strong>：vibex-workbench 初始化流程</li>
+            <li><strong>父模块</strong>：vibex-workbench-skeleton</li>
+            <li><strong>使用方</strong>：新项目初始化</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card" style="margin-top:24px;">
+        <h3 style="margin:0 0 12px;color:var(--success);">✅ 模块边界</h3>
+        <p style="margin:0;color:var(--text-1);">仅做首次脚手架生成，不做增量更新。不覆盖已有文件（幂等检查）。</p>
+      </div>
+    </div>
+    <div class="deck-footer">
+      <span>vibex-workbench</span>
+      <span class="slide-number">2 / 9</span>
+    </div>
+  </section>
+
+  <!-- Slide 3: 现状与目标对比 -->
+  <section class="slide" data-slide="3">
+    <div class="deck-header">
+      <span class="deck-title">As-Is vs To-Be</span>
+    </div>
+    <div class="slide-content">
+      <h2 style="color:var(--accent);margin:0 0 24px;">🔄 现状 (As-Is) vs 目标 (To-Be)</h2>
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>维度</th>
+            <th>As-Is (现状)</th>
+            <th>To-Be (目标)</th>
+            <th>差距</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>spec 定义</strong></td>
+            <td><span class="tag tag-pending">proposal</span> 仅完成 YAML 编写</td>
+            <td><span class="tag tag-done">done</span> 实现 gen.py 骨架</td>
+            <td>⚠️ 尚未实现</td>
+          </tr>
+          <tr>
+            <td><strong>目录结构</strong></td>
+            <td>手动创建，标准不统一</td>
+            <td>标准化生成，含幂等检查</td>
+            <td>⚠️ 缺失</td>
+          </tr>
+          <tr>
+            <td><strong>入口 L1 spec</strong></td>
+            <td>手动编写，容易遗漏</td>
+            <td>模板自动渲染</td>
+            <td>⚠️ 缺失</td>
+          </tr>
+          <tr>
+            <td><strong>Makefile</strong></td>
+            <td>分散或缺失</td>
+            <td>lint-specs / validate / generate</td>
+            <td>⚠️ 缺失</td>
+          </tr>
+          <tr>
+            <td><strong>可选组件</strong></td>
+            <td>不支持</td>
+            <td>includeAgent / includeFrontend / includePython</td>
+            <td>⚠️ 缺失</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="deck-footer">
+      <span>vibex-workbench</span>
+      <span class="slide-number">3 / 9</span>
+    </div>
+  </section>
+
+  <!-- Slide 4: 生成产物清单 -->
+  <section class="slide" data-slide="4">
+    <div class="deck-header">
+      <span class="deck-title">生成产物规划</span>
+    </div>
+    <div class="slide-content">
+      <h2 style="color:var(--accent);margin:0 0 24px;">📋 生成产物清单</h2>
+      <div class="matrix">
+        <div class="matrix-cell" style="border-left:3px solid var(--success);">
+          <h4 style="color:var(--success);">✅ 核心产物</h4>
+          <p>specs/L1-goal/ENTRY.yaml</p>
+          <p>generators/gen.py</p>
+          <p>generators/validate_specs.py</p>
+        </div>
+        <div class="matrix-cell" style="border-left:3px solid var(--success);">
+          <h4 style="color:var(--success);">✅ 核心产物</h4>
+          <p>spec-engine/validate_chain.py</p>
+          <p>Makefile</p>
+          <p>specs/.gitkeep</p>
+        </div>
+        <div class="matrix-cell" style="border-left:3px solid var(--warning);">
+          <h4 style="color:var(--warning);">🔄 可选产物</h4>
+          <p>frontend/package.json</p>
+          <p>agent/.env.example</p>
+        </div>
+      </div>
+      <div class="card" style="margin-top:24px;">
+        <h3 style="margin:0 0 12px;color:var(--accent-2);">⚡ 行为流程</h3>
+        <div class="code-block">
+检查目标目录 → 读取模板 → 渲染骨架文件 → 展示预览 → 用户确认 → 写入磁盘 → 返回摘要
+        </div>
+      </div>
+    </div>
+    <div class="deck-footer">
+      <span>vibex-workbench</span>
+      <span class="slide-number">4 / 9</span>
+    </div>
+  </section>
+
+  <!-- Slide 5: 四类视角覆盖 -->
+  <section class="slide" data-slide="5">
+    <div class="deck-header">
+      <span class="deck-title">受众视角分析</span>
+    </div>
+    <div class="slide-content">
+      <h2 style="color:var(--accent);margin:0 0 24px;">👥 四类视角覆盖</h2>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:20px;">
+        <div class="card" style="border-top:3px solid #f7768e;">
+          <h3 style="margin:0 0 12px;color:#f7768e;">🧑‍💼 CTO</h3>
+          <ul style="margin:0;line-height:1.8;font-size:14px;">
+            <li>标准化项目初始化流程</li>
+            <li>降低新人上手成本</li>
+            <li>统一代码库结构规范</li>
+            <li>降低架构腐化风险</li>
+          </ul>
+        </div>
+        <div class="card" style="border-top:3px solid #7aa2f7;">
+          <h3 style="margin:0 0 12px;color:#7aa2f7;">👨‍💻 开发</h3>
+          <ul style="margin:0;line-height:1.8;font-size:14px;">
+            <li>一键生成完整项目骨架</li>
+            <li>减少重复性初始化工作</li>
+            <li>标准化 Makefile targets</li>
+            <li>统一的验证入口</li>
+          </ul>
+        </div>
+        <div class="card" style="border-top:3px solid #9ece6a;">
+          <h3 style="margin:0 0 12px;color:#9ece6a;">🧪 测试</h3>
+          <ul style="margin:0;line-height:1.8;font-size:14px;">
+            <li>明确的目录结构便于定位</li>
+            <li>标准化 Makefile 便于 CI/CD</li>
+            <li>统一的 lint 入口</li>
+            <li>可预测的验证路径</li>
+          </ul>
+        </div>
+        <div class="card" style="border-top:3px solid #e0af68;">
+          <h3 style="margin:0 0 12px;color:#e0af68;">👤 用户/业务</h3>
+          <ul style="margin:0;line-height:1.8;font-size:14px;">
+            <li>快速启动新项目</li>
+            <li>减少配置错误</li>
+            <li>开箱即用的基础结构</li>
+            <li>清晰的入口点</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="deck-footer">
+      <span>vibex-workbench</span>
+      <span class="slide-number">5 / 9</span>
+    </div>
+  </section>
+
+  <!-- Slide 6: 决策页 -->
+  <section class="slide" data-slide="6">
+    <div class="deck-header">
+      <span class="deck-title">方案决策</span>
+    </div>
+    <div class="slide-content">
+      <h2 style="color:var(--accent);margin:0 0 24px;">⚖️ 决策页：脚手架生成方案</h2>
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>方案</th>
+            <th>推荐方案 A</th>
+            <th>备选方案 B</th>
+            <th>不选理由</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>策略</strong></td>
+            <td>模板引擎 + 预览确认</td>
+            <td>直接生成 + 覆盖确认</td>
+            <td>覆盖可能丢失已有工作</td>
+          </tr>
+          <tr>
+            <td><strong>幂等性</strong></td>
+            <td>检查后跳过已存在文件</td>
+            <td>直接覆盖</td>
+            <td>风险高，可能破坏现有配置</td>
+          </tr>
+          <tr>
+            <td><strong>预览</strong></td>
+            <td>写入前展示 diff 预览</td>
+            <td>跳过预览直接写入</td>
+            <td>用户无法提前确认，风险大</td>
+          </tr>
+          <tr>
+            <td><strong>增量</strong></td>
+            <td>仅首次生成</td>
+            <td>支持增量更新</td>
+            <td>复杂度高，边界难以定义</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="card" style="margin-top:24px;">
+        <h3 style="margin:0 0 12px;color:var(--warning);">⚠️ 取舍理由</h3>
+        <p style="margin:0;color:var(--text-1);">
+          选择「模板引擎+幂等检查+预览确认」是因为脚手架是高频低风险操作，
+          安全性 > 便利性。增量更新虽然方便但会带来复杂的边界问题。
+        </p>
+      </div>
+    </div>
+    <div class="deck-footer">
+      <span>vibex-workbench</span>
+      <span class="slide-number">6 / 9</span>
+    </div>
+  </section>
+
+  <!-- Slide 7: 执行页 -->
+  <section class="slide" data-slide="7">
+    <div class="deck-header">
+      <span class="deck-title">执行计划</span>
+    </div>
+    <div class="slide-content">
+      <h2 style="color:var(--accent);margin:0 0 24px;">🚀 执行页：里程碑与验收</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+        <div class="card">
+          <h3 style="margin:0 0 16px;color:var(--success);">📅 里程碑</h3>
+          <ul style="line-height:2.2;margin:0;">
+            <li><strong>M1</strong>：实现 gen.py 核心骨架</li>
+            <li><strong>M2</strong>：完成模板渲染逻辑</li>
+            <li><strong>M3</strong>：集成幂等检查</li>
+            <li><strong>M4</strong>：添加预览确认流程</li>
+            <li><strong>M5</strong>：可选组件支持</li>
+            <li><strong>M6</strong>：文档与测试</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3 style="margin:0 0 16px;color:var(--accent-2);">👤 负责人</h3>
+          <ul style="line-height:2.2;margin:0;">
+            <li><strong>hermes</strong>：模块 owner</li>
+            <li><strong>待定</strong>：测试覆盖</li>
+            <li><strong>待定</strong>：文档编写</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card" style="margin-top:20px;">
+        <h3 style="margin:0 0 12px;color:var(--success);">✅ 验收标准</h3>
+        <ul style="margin:0;line-height:1.8;">
+          <li>在空目录执行后生成完整骨架</li>
+          <li>在非空目录执行不覆盖已有文件</li>
+          <li>预览展示准确的 diff</li>
+          <li>生成的文件可通过 lint-specs</li>
+        </ul>
+      </div>
+      <div class="card" style="margin-top:16px;border:1px solid var(--danger);">
+        <h3 style="margin:0 0 8px;color:var(--danger);">🔄 回滚策略</h3>
+        <p style="margin:0;font-size:14px;">gen.py 应支持 dry-run 模式，执行前保留目标目录快照路径记录。</p>
+      </div>
+    </div>
+    <div class="deck-footer">
+      <span>vibex-workbench</span>
+      <span class="slide-number">7 / 9</span>
+    </div>
+  </section>
+
+  <!-- Slide 8: 风险与验证 -->
+  <section class="slide" data-slide="8">
+    <div class="deck-header">
+      <span class="deck-title">风险与验证</span>
+    </div>
+    <div class="slide-content">
+      <h2 style="color:var(--accent);margin:0 0 24px;">🛡️ 风险识别与验证</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+        <div class="card" style="border-left:3px solid var(--danger);">
+          <h3 style="margin:0 0 16px;color:var(--danger);">⚠️ 高风险项</h3>
+          <ul style="line-height:2;margin:0;">
+            <li><strong>覆盖已有文件</strong>：必须严格幂等检查</li>
+            <li><strong>模板渲染失败</strong>：需异常捕获与回退</li>
+            <li><strong>权限问题</strong>：目录不可写时需友好提示</li>
+            <li><strong>循环依赖</strong>：spec-chain 校验失败</li>
+          </ul>
+        </div>
+        <div class="card" style="border-left:3px solid var(--success);">
+          <h3 style="margin:0 0 16px;color:var(--success);">✅ 验证路径</h3>
+          <ul style="line-height:2;margin:0;">
+            <li>单元测试：gen.py 逻辑覆盖</li>
+            <li>集成测试：完整生成流程</li>
+            <li>幂等测试：重复执行不破坏</li>
+            <li>lint 测试：生成文件通过验证</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card" style="margin-top:20px;">
+        <h3 style="margin:0 0 12px;color:var(--warning);">🔍 可观测性</h3>
+        <p style="margin:0;color:var(--text-1);">
+          gen.py 应输出结构化日志（JSON格式），包含：操作类型、生成文件列表、跳过文件列表、耗时、错误详情。
+        </p>
+      </div>
+    </div>
+    <div class="deck-footer">
+      <span>vibex-workbench</span>
+      <span class="slide-number">8 / 9</span>
+    </div>
+  </section>
+
+  <!-- Slide 9: 可复制问题清单 -->
+  <section class="slide" data-slide="9">
+    <div class="deck-header">
+      <span class="deck-title">讨论清单</span>
+    </div>
+    <div class="slide-content">
+      <h2 style="color:var(--accent);margin:0 0 24px;">📝 可复制的问题清单</h2>
+      <p style="color:var(--text-2);margin:0 0 20px;">以下问题可用于详情抽屉与 agent 继续完善 spec：</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <ul class="checklist">
+          <li>gen.py 的 CLI 接口设计（argparse / click / typer）？</li>
+          <li>模板引擎选择（Jinja2 / cobble / 其他）？</li>
+          <li>是否支持指定特定 L1 spec 模板？</li>
+          <li>预览模式是否支持 diff 高亮展示？</li>
+          <li>幂等检查的具体实现策略？</li>
+          <li>可选组件的默认值策略？</li>
+        </ul>
+        <ul class="checklist">
+          <li>生成失败时的回滚机制？</li>
+          <li>是否支持非空目录的部分生成？</li>
+          <li>Makefile targets 的标准化命名？</li>
+          <li>validate_specs.py 的校验规则来源？</li>
+          <li>是否需要 CI/CD 集成示例？</li>
+          <li>错误码体系的设计？</li>
+        </ul>
+      </div>
+      <div class="card" style="margin-top:24px;">
+        <h3 style="margin:0 0 8px;color:var(--accent-2);">💡 潜在优化方向</h3>
+        <p style="margin:0;font-size:14px;color:var(--text-1);">
+          高收益项：增量更新支持 · 自定义模板仓库<br>
+          高风险项：覆盖策略 · 多级 spec 继承 · 并发生成
+        </p>
+      </div>
+    </div>
+    <div class="deck-footer">
+      <span>vibex-workbench</span>
+      <span class="slide-number">9 / 9</span>
+    </div>
+  </section>
+</main>
+
+<script src="../assets/runtime.js"></script>
+<script src="../assets/vibex-ppt-nav.js"></script>
+</body>
+</html>

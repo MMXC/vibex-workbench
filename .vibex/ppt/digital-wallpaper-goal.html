@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Digital Wallpaper Goal - Spec PPT</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" href="../assets/theme-blueprint.css">
+  <link rel="stylesheet" href="../assets/animations.css">
+  <style>
+    /* === Blueprint Theme Overrides === */
+    :root {
+      --primary: #1e3a5f;
+      --secondary: #2c5282;
+      --accent: #63b3ed;
+      --bg: #0d1b2a;
+      --bg-alt: #1b2838;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --border: #2d4a6f;
+      --code-bg: #0a1628;
+      --success: #68d391;
+      --warning: #f6e05e;
+      --danger: #fc8181;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'JetBrains Mono', 'Consolas', monospace; }
+    .deck { max-width: 1200px; margin: 0 auto; }
+    .slide { background: var(--bg); border: 1px solid var(--border); margin-bottom: 2rem; border-radius: 4px; }
+    .slide-header { background: var(--bg-alt); border-bottom: 2px solid var(--accent); padding: 1.5rem 2rem; }
+    .slide-header h2 { color: var(--accent); margin: 0; font-size: 1.5rem; }
+    .slide-content { padding: 2rem; min-height: 400px; }
+    .slide-footer { background: var(--bg-alt); padding: 0.75rem 2rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--text-muted); border-top: 1px solid var(--border); }
+    .page-num { color: var(--accent); font-weight: bold; }
+    h3 { color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-top: 1.5rem; }
+    ul { list-style: none; padding-left: 0; }
+    li { padding: 0.5rem 0; border-bottom: 1px dotted var(--border); position: relative; padding-left: 1.5rem; }
+    li::before { content: "▸"; position: absolute; left: 0; color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    th, td { border: 1px solid var(--border); padding: 0.75rem; text-align: left; }
+    th { background: var(--bg-alt); color: var(--accent); }
+    .tag { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 3px; font-size: 0.7rem; margin: 0.25rem; }
+    .tag-why { background: var(--success); color: #000; }
+    .tag-why-not { background: var(--danger); color: #000; }
+    .tag-req { background: var(--warning); color: #000; }
+    .tag-risk { background: var(--danger); color: #fff; }
+    .highlight { background: var(--code-bg); padding: 1rem; border-left: 3px solid var(--accent); margin: 1rem 0; font-size: 0.85rem; overflow-x: auto; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .card { background: var(--bg-alt); border: 1px solid var(--border); border-radius: 4px; padding: 1rem; }
+    .card h4 { color: var(--accent); margin-top: 0; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+    .diagram { background: var(--code-bg); padding: 1.5rem; border-radius: 4px; text-align: center; font-size: 0.8rem; }
+    .diagram-box { display: inline-block; padding: 0.5rem 1rem; border: 2px solid var(--accent); border-radius: 4px; margin: 0.25rem; }
+    .diagram-arrow { display: inline-block; margin: 0 0.5rem; color: var(--accent); }
+    .question-list { background: var(--code-bg); padding: 1.5rem; border-radius: 4px; margin-top: 1rem; }
+    .question-item { padding: 0.5rem 0; border-bottom: 1px dotted var(--border); cursor: pointer; }
+    .question-item:hover { color: var(--accent); }
+    .cover { text-align: center; padding: 4rem 2rem; }
+    .cover h1 { font-size: 2.5rem; color: var(--accent); margin-bottom: 0.5rem; }
+    .cover .subtitle { font-size: 1.2rem; color: var(--text-muted); margin-bottom: 2rem; }
+    .cover .meta { font-size: 0.85rem; color: var(--text-muted); margin-top: 3rem; }
+    .status-badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 3px; font-size: 0.75rem; margin-left: 0.5rem; }
+    .status-as-is { background: #fc8181; color: #000; }
+    .status-to-be { background: #68d391; color: #000; }
+    .status-gap { background: #f6e05e; color: #000; }
+    .nav-hint { text-align: center; padding: 1rem; color: var(--text-muted); font-size: 0.8rem; border-top: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+  <main class="deck">
+
+    <!-- Slide 1: Cover -->
+    <section class="slide" id="slide-1">
+      <div class="slide-header"><h2>Digital Wallpaper - L1 Goal Spec</h2></div>
+      <div class="slide-content cover">
+        <h1>动态壁纸目标规格</h1>
+        <p class="subtitle">从静态图像到动态交互的架构演进</p>
+        <div class="meta">
+          <p>SPEC: <strong>digital-wallpaper-goal</strong></p>
+          <p>LEVEL: L1-Goal | THEME: Blueprint</p>
+          <p>目标：定义动态壁纸系统的能力边界与交付标准</p>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>CTO / 开发 / 测试 / 用户 受众</span>
+        <span class="page-num">1 / 8</span>
+      </div>
+    </section>
+
+    <!-- Slide 2: Background & Context -->
+    <section class="slide" id="slide-2">
+      <div class="slide-header"><h2>背景与动机</h2></div>
+      <div class="slide-content">
+        <h3>现状问题 (As-Is)</h3>
+        <ul>
+          <li><strong>静态壁纸</strong>：壁纸为纯静态 PNG/JPG，无交互能力</li>
+          <li><strong>更新困难</strong>：壁纸更换依赖用户手动操作，无自动化机制</li>
+          <li><strong>资源浪费</strong>：未利用桌面环境的实时渲染能力</li>
+          <li><strong>平台碎片</strong>：Windows/macOS/Linux 各有一套实现逻辑</li>
+        </ul>
+        <h3>目标愿景 (To-Be)</h3>
+        <ul>
+          <li><strong>动态渲染</strong>：支持 WebGL/Canvas 动画的实时壁纸</li>
+          <li><strong>自动更新</strong>：壁纸内容随时间/事件/用户偏好自动变化</li>
+          <li><strong>统一接口</strong>：跨平台抽象层，隐藏实现差异</li>
+          <li><strong>低功耗运行</strong>：智能降频/暂停机制控制资源占用</li>
+        </ul>
+        <div class="highlight">
+          <strong>核心差距 (Gap)</strong>：当前仅支持图像文件，未来需支持实时渲染管线与事件驱动更新
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>受众: CTO / 开发</span>
+        <span class="page-num">2 / 8</span>
+      </div>
+    </section>
+
+    <!-- Slide 3: IO Contract -->
+    <section class="slide" id="slide-3">
+      <div class="slide-header"><h2>IO 契约定义</h2></div>
+      <div class="slide-content">
+        <h3>输入 (Inputs)</h3>
+        <table>
+          <tr><th>接口</th><th>类型</th><th>说明</th><th>约束</th></tr>
+          <tr><td>wallpaper.source</td><td>URL/File/Stream</td><td>壁纸数据源</td><td>支持 PNG/JPG/WebGL/Canvas</td></tr>
+          <tr><td>wallpaper.config</td><td>JSON</td><td>配置参数</td><td>fps/quality/pauseOnBattery</td></tr>
+          <tr><td>wallpaper.events</td><td>EventEmitter</td><td>外部触发事件</td><td>time/daynight/userActivity</td></tr>
+          <tr><td>wallpaper.metadata</td><td>JSON</td><td>元数据</td><td>title/author/tags</td></tr>
+        </table>
+        <h3>输出 (Outputs)</h3>
+        <table>
+          <tr><th>接口</th><th>类型</th><th>说明</th><th>约束</th></tr>
+          <tr><td>wallpaper.render()</td><td>Promise&lt;void&gt;</td><td>触发渲染</td><td>异步，支持取消</td></tr>
+          <tr><td>wallpaper.onFrame(cb)</td><td>Callback</td><td>帧回调</td><td>可选择订阅</td></tr>
+          <tr><td>wallpaper.perf</td><td>Stats</td><td>性能指标</td><td>fps/memory/gpu%</td></tr>
+          <tr><td>wallpaper.state</td><td>State</td><td>当前状态</td><td>playing/paused/error</td></tr>
+        </table>
+        <h3>决策点</h3>
+        <div class="card">
+          <p><span class="tag tag-why">为何用 EventEmitter?</span> 解耦渲染逻辑与事件源，便于插件扩展</p>
+          <p><span class="tag tag-why-not">为何不用 Promise?</span> 壁纸状态为持续流，非单次完成</p>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>受众: 开发 / 测试</span>
+        <span class="page-num">3 / 8</span>
+      </div>
+    </section>
+
+    <!-- Slide 4: Architecture & Structure -->
+    <section class="slide" id="slide-4">
+      <div class="slide-header"><h2>系统结构与位置</h2></div>
+      <div class="slide-content">
+        <h3>模块分层架构</h3>
+        <div class="diagram">
+          <div class="diagram-box">UI Layer<br><small>用户界面/配置面板</small></div>
+          <span class="diagram-arrow">→</span>
+          <div class="diagram-box">Core Engine<br><small>渲染引擎/资源管理</small></div>
+          <span class="diagram-arrow">→</span>
+          <div class="diagram-box">Platform Adapter<br><small>Windows/macOS/Linux</small></div>
+          <span class="diagram-arrow">→</span>
+          <div class="diagram-box">Native Runtime<br><small>系统级壁纸 API</small></div>
+        </div>
+        <h3>文件结构</h3>
+        <div class="highlight">
+          <pre>src/
+├── core/
+│   ├── renderer.ts      # WebGL/Canvas 渲染器
+│   ├── resource.ts      # 资源加载与缓存
+│   └── state.ts         # 状态机
+├── adapters/
+│   ├── windows.ts       # Windows 实现
+│   ├── macos.ts         # macOS 实现
+│   └── linux.ts         # Linux 实现
+├── plugins/
+│   ├── time-sync.ts     # 时间同步插件
+│   └── weather.ts       # 天气插件
+└── index.ts             # 统一导出
+        </pre>
+        </div>
+        <h3>决策点</h3>
+        <div class="card">
+          <p><span class="tag tag-why">为何分离 Adapter?</span> 平台 API 差异大，集中管理便于维护</p>
+          <p><span class="tag tag-why-not">为何不用 Electron?</span> 原生壁纸需要系统级集成，Electron 性能开销过大</p>
+          <p><span class="tag tag-req">前提条件</span>：各平台需安装对应运行时依赖</p>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>受众: 开发</span>
+        <span class="page-num">4 / 8</span>
+      </div>
+    </section>
+
+    <!-- Slide 5: Implementation & Risk -->
+    <section class="slide" id="slide-5">
+      <div class="slide-header"><h2>实现方案与风险</h2></div>
+      <div class="slide-content">
+        <h3>方案对比</h3>
+        <table>
+          <tr><th>维度</th><th>方案 A: WebGL 直绘</th><th>方案 B: Canvas2D</th><th>方案 C: 视频帧</th></tr>
+          <tr><td>性能</td><td>★★★★★</td><td>★★★☆☆</td><td>★★★★☆</td></tr>
+          <tr><td>交互能力</td><td>完整</td><td>受限</td><td>无</td></tr>
+          <tr><td>包体积</td><td>+5MB</td><td>+1MB</td><td>+20MB</td></tr>
+          <tr><td>兼容性</td><td>需 GPU</td><td>广泛</td><td>最佳</td></tr>
+          <tr><td>推荐</td><td>✅ 首选</td><td>⚠️ 降级</td><td>❌ 不选</td></tr>
+        </table>
+        <h3>风险矩阵</h3>
+        <div class="grid-2">
+          <div class="card">
+            <h4>技术风险</h4>
+            <ul>
+              <li><span class="tag tag-risk">高</span> GPU 驱动兼容性</li>
+              <li><span class="tag tag-risk">中</span> 内存泄漏 (WebGL Context)</li>
+              <li><span class="tag tag-risk">低</span> 平台 API 变更</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h4>业务风险</h4>
+            <ul>
+              <li><span class="tag tag-risk">中</span> 用户接受度 (性能感知)</li>
+              <li><span class="tag tag-risk">低</span> 安全审核 (Windows Store)</li>
+            </ul>
+          </div>
+        </div>
+        <h3>缓解措施</h3>
+        <ul>
+          <li><strong>GPU 降级</strong>：检测失败时自动切换 Canvas2D</li>
+          <li><strong>内存监控</strong>：定期触发 GC，设置上限阈值</li>
+          <li><strong>用户控制</strong>：提供质量/帧率/暂停选项</li>
+        </ul>
+      </div>
+      <div class="slide-footer">
+        <span>受众: CTO / 开发</span>
+        <span class="page-num">5 / 8</span>
+      </div>
+    </section>
+
+    <!-- Slide 6: Verification & Testing -->
+    <section class="slide" id="slide-6">
+      <div class="slide-header"><h2>验证与测试策略</h2></div>
+      <div class="slide-content">
+        <h3>测试分层</h3>
+        <div class="diagram">
+          <div class="diagram-box">单元测试<br><small>Jest / Vitest</small></div>
+          <span class="diagram-arrow">→</span>
+          <div class="diagram-box">集成测试<br><small>Mock Platform</small></div>
+          <span class="diagram-arrow">→</span>
+          <div class="diagram-box">E2E 测试<br><small>Playwright</small></div>
+          <span class="diagram-arrow">→</span>
+          <div class="diagram-box">性能基准<br><small>PerfDog</small></div>
+        </div>
+        <h3>验收标准</h3>
+        <table>
+          <tr><th>指标</th><th>目标值</th><th>最低可接受</th><th>测试方法</th></tr>
+          <tr><td>帧率</td><td>60 FPS</td><td>30 FPS</td><td>内置 FPS 计数器</td></tr>
+          <tr><td>内存</td><td>&lt;200MB</td><td>&lt;500MB</td><td>Chrome DevTools</td></tr>
+          <tr><td>启动时间</td><td>&lt;2s</td><td>&lt;5s</td><td>Performance API</td></tr>
+          <tr><td>CPU 空闲</td><td>&lt;1%</td><td>&lt;5%</td><td>任务管理器</td></tr>
+          <tr><td>GPU 占用</td><td>&lt;10%</td><td>&lt;30%</td><td>GPUView</td></tr>
+        </table>
+        <h3>用户验收</h3>
+        <ul>
+          <li><strong>功能验收</strong>：壁纸正常显示/切换/暂停</li>
+          <li><strong>感知验收</strong>：用户无明显卡顿/发热感知</li>
+          <li><strong>回归验收</strong>：现有静态壁纸功能不受影响</li>
+        </ul>
+      </div>
+      <div class="slide-footer">
+        <span>受众: 测试 / 用户</span>
+        <span class="page-num">6 / 8</span>
+      </div>
+    </section>
+
+    <!-- Slide 7: Decision & Execution -->
+    <section class="slide" id="slide-7">
+      <div class="slide-header"><h2>决策与执行计划</h2></div>
+      <div class="slide-content">
+        <h3>关键决策</h3>
+        <table>
+          <tr><th>决策点</th><th>选择</th><th>Why</th><th>Why Not</th><th>切换条件</th></tr>
+          <tr><td>渲染引擎</td><td>WebGL</td><td>性能最优，交互完整</td><td>Canvas2D 性能不足</td><td>GPU 不可用时降级</td></tr>
+          <tr><td>插件架构</td><td>EventEmitter</td><td>解耦，扩展性强</td><td>硬编码更简单但难维护</td><td>-</td></tr>
+          <tr><td>平台适配</td><td>分离 Adapter</td><td>代码复用，维护成本低</td><td>单一文件实现简单</td><td>某平台 API 剧变</td></tr>
+          <tr><td>更新机制</td><td>时间/事件驱动</td><td>用户无感，体验好</td><td>轮询浪费资源</td><td>事件源不可用时降级</td></tr>
+        </table>
+        <h3>里程碑计划</h3>
+        <ul>
+          <li><strong>M1 (Week 1-2)</strong>：Core Engine + Windows Adapter + 单元测试</li>
+          <li><strong>M2 (Week 3-4)</strong>：macOS/Linux Adapter + 集成测试</li>
+          <li><strong>M3 (Week 5-6)</strong>：插件系统 + E2E 测试</li>
+          <li><strong>M4 (Week 7-8)</strong>：性能优化 + 发布准备</li>
+        </ul>
+        <div class="highlight">
+          <strong>前提条件</strong>：开发环境需安装 Rust (Windows) / Swift (macOS) / C++ (Linux) 编译链
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>受众: CTO</span>
+        <span class="page-num">7 / 8</span>
+      </div>
+    </section>
+
+    <!-- Slide 8: Summary & Questions -->
+    <section class="slide" id="slide-8">
+      <div class="slide-header"><h2>总结与可复制问题清单</h2></div>
+      <div class="slide-content">
+        <h3>Spec 要点回顾</h3>
+        <ul>
+          <li><strong>目标</strong>：将静态壁纸升级为支持 WebGL 实时渲染的动态壁纸系统</li>
+          <li><strong>架构</strong>：UI → Core Engine → Platform Adapter → Native Runtime</li>
+          <li><strong>契约</strong>：EventEmitter 事件驱动，统一 IO 接口</li>
+          <li><strong>风险</strong>：GPU 兼容性、内存泄漏、平台 API 差异</li>
+          <li><strong>验收</strong>：60 FPS / &lt;200MB / &lt;2s 启动</li>
+        </ul>
+        <h3>可复制的问题清单</h3>
+        <div class="question-list">
+          <div class="question-item">1. 当前 GPU 兼容性检测逻辑是否完善？需要覆盖哪些已知驱动问题？</div>
+          <div class="question-item">2. WebGL Context 泄漏的具体触发条件是什么？需要设计什么测试用例？</div>
+          <div class="question-item">3. 多显示器场景下壁纸渲染的优先级和资源分配策略？</div>
+          <div class="question-item">4. 电池/性能模式切换时的降频策略具体阈值是多少？</div>
+          <div class="question-item">5. 插件沙箱隔离的安全边界如何定义？哪些 API 需要限制？</div>
+          <div class="question-item">6. 壁纸资源（Shader/纹理）的热更新机制是否需要？</div>
+          <div class="question-item">7. 跨平台 Adapter 的抽象接口是否足够覆盖所有平台特性？</div>
+          <div class="question-item">8. 用户上传自定义 Shader 的安全审查流程？</div>
+          <div class="question-item">9. 日志/遥测数据的隐私合规方案？</div>
+          <div class="question-item">10. 与第三方壁纸服务（Wallpaper Engine 兼容）的接口协议？</div>
+          <div class="question-item">11. 性能监控指标的告警阈值和告警渠道？</div>
+          <div class="question-item">12. 灰度发布和回滚机制的具体实现？</div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>受众: 全部</span>
+        <span class="page-num">8 / 8</span>
+      </div>
+    </section>
+
+  </main>
+
+  <div class="nav-hint">使用 ← → 键或点击切换页面 | 按 F 键全屏</div>
+
+  <script src="../assets/runtime.js"></script>
+  <script src="../assets/vibex-ppt-nav.js"></script>
+</body>
+</html>

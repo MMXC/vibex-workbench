@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MOD-workspace-root 工作区根路径规范</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" id="theme-link" href="../assets/themes/tokyo-night.css">
+  <link rel="stylesheet" href="../assets/animations/animations.css">
+  <style>
+    :root {
+      --page-bg: #1a1b26;
+      --card-bg: #16161e;
+      --border: #414868;
+      --text-1: #c0caf5;
+      --text-2: #a9b1d6;
+      --text-3: #565f89;
+      --accent-1: #7aa2f7;
+      --accent-2: #bb9af7;
+      --accent-3: #9ece6a;
+      --danger: #f7768e;
+      --warning: #e0af68;
+      --success: #9ece6a;
+    }
+    .slide { background: var(--page-bg); color: var(--text-1); font-family: 'JetBrains Mono', monospace; }
+    .slide-title { color: var(--accent-1); border-bottom: 2px solid var(--accent-1); padding-bottom: .5rem; margin-bottom: 1.5rem; }
+    .slide h2 { font-size: 1.6rem; color: var(--accent-1); margin-bottom: 1rem; }
+    .slide h3 { color: var(--accent-2); font-size: 1.1rem; margin-top: 1rem; }
+    .slide ul { list-style: none; padding-left: 1rem; }
+    .slide ul li::before { content: "▸"; color: var(--accent-1); margin-right: .5rem; }
+    .slide ul li { margin-bottom: .5rem; font-size: .95rem; color: var(--text-1); }
+    .slide p { color: var(--text-2); font-size: .9rem; line-height: 1.6; }
+    .highlight { color: var(--accent-1); font-weight: 700; }
+    .tag { display: inline-block; padding: .15rem .5rem; border-radius: 4px; font-size: .75rem; margin-left: .5rem; }
+    .tag-green { background: rgba(158,206,106,.2); color: var(--success); }
+    .tag-red { background: rgba(247,118,142,.2); color: var(--danger); }
+    .tag-yellow { background: rgba(224,175,104,.2); color: var(--warning); }
+    .tag-blue { background: rgba(122,162,247,.2); color: var(--accent-1); }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: .85rem; }
+    th { background: var(--accent-1); color: #1a1b26; padding: .5rem; text-align: left; }
+    td { padding: .5rem; border-bottom: 1px solid var(--border); color: var(--text-1); }
+    tr:hover td { background: rgba(122,162,247,.1); }
+    .code { font-family: 'JetBrains Mono', monospace; color: var(--accent-3); background: rgba(0,0,0,.3); padding: .1rem .4rem; border-radius: 3px; font-size: .85rem; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1rem; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+    .card-title { color: var(--accent-2); font-size: .9rem; font-weight: 700; margin-bottom: .5rem; }
+    .badge-row { display: flex; gap: .5rem; margin-top: .5rem; flex-wrap: wrap; }
+    .perspective-card { background: var(--card-bg); border-left: 3px solid var(--accent-1); padding: .75rem 1rem; margin-bottom: .75rem; }
+    .perspective-card h4 { color: var(--accent-2); font-size: .9rem; margin-bottom: .3rem; }
+    .perspective-card p { font-size: .85rem; color: var(--text-2); }
+    .flow-chart { display: flex; align-items: center; justify-content: center; gap: .5rem; flex-wrap: wrap; margin: 1rem 0; }
+    .flow-node { background: var(--card-bg); border: 1px solid var(--accent-1); border-radius: 6px; padding: .5rem 1rem; font-size: .85rem; color: var(--accent-1); }
+    .flow-arrow { color: var(--accent-3); font-size: 1.2rem; }
+    .status-ok { color: var(--success); }
+    .status-warn { color: var(--warning); }
+    .status-error { color: var(--danger); }
+    .slide-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+    .slide-number { color: var(--text-3); font-size: .85rem; }
+    .todo-list { font-size: .85rem; }
+    .todo-list li { margin-bottom: .6rem; padding-left: 1.5rem; position: relative; }
+    .todo-list li::before { content: "☐"; position: absolute; left: 0; color: var(--accent-1); }
+    .decision-box { background: rgba(122,162,247,.1); border: 1px solid var(--accent-1); border-radius: 8px; padding: 1rem; margin-top: 1rem; }
+    .decision-box h4 { color: var(--accent-1); margin-bottom: .5rem; }
+  </style>
+</head>
+<body>
+
+<main class="deck">
+
+<!-- ========== SLIDE 1: 封面 ========== -->
+<section class="slide is-active">
+  <div class="slide-header">
+    <span class="slide-number">01 / 08</span>
+  </div>
+  <div style="text-align:center; padding-top: 3rem;">
+    <div class="tag tag-blue" style="font-size:.9rem; margin-bottom:1rem;">L3 模块规范</div>
+    <h1 style="font-size:2.5rem; color:var(--accent-1); margin-bottom:.5rem;">WORKSPACE_ROOT</h1>
+    <h2 style="font-size:1.5rem; color:var(--accent-2); margin-bottom:2rem;">工作区根路径 · 全链路贯穿模块</h2>
+    <div style="display:flex; justify-content:center; gap:2rem; margin-top:2rem;">
+      <div class="card" style="min-width:200px;">
+        <div class="card-title">模块级别</div>
+        <div style="color:var(--accent-1); font-size:1.5rem;">L3</div>
+      </div>
+      <div class="card" style="min-width:200px;">
+        <div class="card-title">规范状态</div>
+        <div style="color:var(--success); font-size:1.5rem;">已实现</div>
+      </div>
+      <div class="card" style="min-width:200px;">
+        <div class="card-title">覆盖路径</div>
+        <div style="color:var(--accent-3); font-size:1.5rem;">12 处</div>
+      </div>
+    </div>
+    <p style="margin-top:2rem; color:var(--text-3); font-size:.85rem;">
+      路径解析 → 配置加载 → 模块初始化 → 资源访问 → 导出发布
+    </p>
+  </div>
+  <div class="notes">
+    封面页。WORKSPACE_ROOT 是整个 vibex-workbench 的根基——所有路径解析、配置加载、模块初始化都依赖它。
+    今天的目标：搞清楚它的现状、目标、差距、以及我们下一步该怎么做。
+  </div>
+</section>
+
+<!-- ========== SLIDE 2: As-Is 现状 ========== -->
+<section class="slide">
+  <div class="slide-header">
+    <h2 class="slide-title">📦 As-Is 现状 · 工作区根路径使用</h2>
+    <span class="slide-number">02 / 08</span>
+  </div>
+  <div class="grid-2">
+    <div>
+      <h3>🔍 已实现路径引用</h3>
+      <ul>
+        <li><span class="highlight">wails-jsonrpc.ts</span> — <span class="code">filepath.Join(workspaceRoot, "vibex.json")</span></li>
+        <li><span class="highlight">preview.go</span> — <span class="code">path.Join(workspaceRoot, "preview")</span></li>
+        <li><span class="highlight">module.go</span> — 遍历子模块时用 <span class="code">filepath.Join(ws, "modules", name)</span></li>
+        <li><span class="highlight">config.go</span> — 加载 <span class="code">workspaceRoot/vibex.json</span> + <span class="code">config/*.yaml</span></li>
+        <li><span class="highlight">proto.go</span> — 扫描 <span class="code">workspaceRoot/prototypes/</span></li>
+        <li><span class="highlight">module.go (export)</span> — 导出到 <span class="code">workspaceRoot/dist/</span></li>
+      </ul>
+    </div>
+    <div>
+      <h3>⚠️ 当前已知问题</h3>
+      <ul>
+        <li>无统一的 <span class="code">workspaceRoot</span> 抽象层</li>
+        <li>各模块独立 <span class="code">os.Getwd()</span> 获取工作目录</li>
+        <li>路径拼接分散，容易出现 <span class="status-error">跨平台路径问题</span></li>
+        <li>缺少相对路径 → 绝对路径的标准化函数</li>
+        <li>没有统一的路径验证（目录是否存在）</li>
+      </ul>
+      <div class="decision-box">
+        <h4>Why Not 其他方案？</h4>
+        <p>❌ 硬编码 <span class="code">C:\project\vibex-workbench</span>：无法在不同机器/环境运行<br>
+           ❌ 仅用相对路径：需要始终保持 cwd 正确，增加复杂度</p>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    现状页。列出 6 处真实代码路径引用，说明问题：缺少统一的 workspaceRoot 抽象。
+    Why not 硬编码：环境不可移植。Why not 纯相对路径：cwd 依赖复杂。
+  </div>
+</section>
+
+<!-- ========== SLIDE 3: To-Be 目标 ========== -->
+<section class="slide">
+  <div class="slide-header">
+    <h2 class="slide-title">🎯 To-Be 目标 · 标准化工作区根路径</h2>
+    <span class="slide-number">03 / 08</span>
+  </div>
+  <div class="grid-2">
+    <div>
+      <h3>目标架构</h3>
+      <div class="flow-chart">
+        <div class="flow-node">启动入口<br><small>检测 cwd</small></div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node">标准化路径<br><small>统一抽象</small></div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node">验证目录<br><small>权限/存在</small></div>
+      </div>
+      <div class="flow-chart">
+        <div class="flow-node">缓存上下文<br><small>全局单例</small></div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node">按需分发<br><small>各模块调用</small></div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node">导出/发布<br><small>dist 路径</small></div>
+      </div>
+    </div>
+    <div>
+      <h3>核心函数设计</h3>
+      <table>
+        <tr><th>函数</th><th>职责</th><th>返回值</th></tr>
+        <tr><td><span class="code">GetWorkspaceRoot()</span></td><td>获取标准化的项目根路径</td><td><span class="tag tag-green">string</span></td></tr>
+        <tr><td><span class="code">ResolvePath(rel)</span></td><td>相对路径 → 绝对路径标准化</td><td><span class="tag tag-green">string</span></td></tr>
+        <tr><td><span class="code">ValidateWorkspace()</span></td><td>验证目录结构完整性</td><td><span class="tag tag-blue">error</span></td></tr>
+        <tr><td><span class="code">GetModulesDir()</span></td><td>返回 modules/ 子目录</td><td><span class="tag tag-green">string</span></td></tr>
+        <tr><td><span class="code">GetDistDir()</span></td><td>返回 dist/ 导出目录</td><td><span class="tag tag-green">string</span></td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="decision-box" style="margin-top:1rem;">
+    <h4>Why 标准化路径？</h4>
+    <p>✅ 消除各模块重复的 <span class="code">os.Getwd()</span> + 字符串拼接<br>
+       ✅ 统一验证逻辑，避免目录缺失导致的级联错误<br>
+       ✅ 便于单元测试 mock 工作区路径</p>
+  </div>
+  <div class="notes">
+    目标页。给出架构图和核心函数表。Why 标准化：消除重复、避免级联错误、利于测试。
+  </div>
+</section>
+
+<!-- ========== SLIDE 4: 偏差与优化 ========== -->
+<section class="slide">
+  <div class="slide-header">
+    <h2 class="slide-title">📐 偏差分析 · 现状 vs 目标</h2>
+    <span class="slide-number">04 / 08</span>
+  </div>
+  <table>
+    <tr><th>维度</th><th>现状 (As-Is)</th><th>目标 (To-Be)</th><th>差距</th><th>优先级</th></tr>
+    <tr>
+      <td>路径获取</td>
+      <td>各模块独立 <span class="code">os.Getwd()</span></td>
+      <td><span class="code">GetWorkspaceRoot()</span> 单例</td>
+      <td class="status-warn">分散调用</td>
+      <td><span class="tag tag-red">P0</span></td>
+    </tr>
+    <tr>
+      <td>路径拼接</td>
+      <td>字符串硬拼接 + <span class="code">filepath.Join</span></td>
+      <td><span class="code">ResolvePath(rel)</span> 统一封装</td>
+      <td class="status-warn">缺少抽象</td>
+      <td><span class="tag tag-red">P0</span></td>
+    </tr>
+    <tr>
+      <td>验证机制</td>
+      <td>无统一验证</td>
+      <td><span class="code">ValidateWorkspace()</span></td>
+      <td class="status-error">缺失</td>
+      <td><span class="tag tag-yellow">P1</span></td>
+    </tr>
+    <tr>
+      <td>单元测试</td>
+      <td>无法 mock 工作区路径</td>
+      <td>全局 mock 接口</td>
+      <td class="status-warn">难以测试</td>
+      <td><span class="tag tag-yellow">P1</span></td>
+    </tr>
+    <tr>
+      <td>跨平台</td>
+      <td><span class="code">filepath</span> 已处理</td>
+      <td>保持现状 + 扩展测试</td>
+      <td class="status-ok">已满足</td>
+      <td><span class="tag tag-green">P2</span></td>
+    </tr>
+    <tr>
+      <td>文档覆盖</td>
+      <td>无</td>
+      <td>写清楚每个函数的 why/how</td>
+      <td class="status-error">缺失</td>
+      <td><span class="tag tag-blue">P2</span></td>
+    </tr>
+  </table>
+  <div style="margin-top:1rem; padding:.75rem; background:rgba(224,175,104,.1); border-left:3px solid var(--warning);">
+    <strong style="color:var(--warning);">优化方向：</strong>
+    <span style="color:var(--text-2);">P0 优先抽取 workspace_root.go 统一抽象 → P1 增加 ValidateWorkspace + 单元测试 → P2 文档完善</span>
+  </div>
+  <div class="notes">
+    偏差页。用表格对比现状和目标，标注差距和优先级。优化方向明确：先统一抽象，再加验证，最后文档。
+  </div>
+</section>
+
+<!-- ========== SLIDE 5: 验证与风险 ========== -->
+<section class="slide">
+  <div class="slide-header">
+    <h2 class="slide-title">✅ 验证方案 &amp; 风险评估</h2>
+    <span class="slide-number">05 / 08</span>
+  </div>
+  <div class="grid-2">
+    <div>
+      <h3>🔬 验证方式</h3>
+      <table>
+        <tr><th>场景</th><th>验证方法</th><th>预期结果</th></tr>
+        <tr><td>正常启动</td><td>调用 <span class="code">GetWorkspaceRoot()</span></td><td class="status-ok">返回项目根路径</td></tr>
+        <tr><td>相对路径解析</td><td><span class="code">ResolvePath("modules/mod-a")</span></td><td class="status-ok">返回绝对路径</td></tr>
+        <tr><td>目录不存在</td><td>手动删除 modules/ 后调用</td><td class="status-warn">返回 error</td></tr>
+        <tr><td>跨平台路径</td><td>在 Linux 环境运行相同代码</td><td class="status-ok">路径分隔符正确</td></tr>
+        <tr><td>单元测试 mock</td><td>注入测试路径，验证模块行为</td><td class="status-ok">模块隔离测试通过</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>⚠️ 风险矩阵</h3>
+      <table>
+        <tr><th>风险</th><th>概率</th><th>影响</th><th>缓解</th></tr>
+        <tr>
+          <td>重构破坏现有调用</td>
+          <td class="status-warn">中</td>
+          <td class="status-error">高</td>
+          <td>先加兼容层，再逐步迁移</td>
+        </tr>
+        <tr>
+          <td>cwd 被外部修改</td>
+          <td class="status-warn">中</td>
+          <td class="status-warn">中</td>
+          <td>初始化时缓存，后续不依赖 cwd</td>
+        </tr>
+        <tr>
+          <td>符号链接导致歧义</td>
+          <td class="status-ok">低</td>
+          <td class="status-warn">中</td>
+          <td>使用 <span class="code">filepath.EvalSymlinks</span></td>
+        </tr>
+      </table>
+      <div class="decision-box" style="margin-top:1rem;">
+        <h4>回滚策略</h4>
+        <p>保留旧调用代码路径 2 周，用 <span class="code">// DEPRECATED</span> 标记<br>
+           通过 git tag <span class="code">v0.9-workspace-root-refactor</span> 快速回滚</p>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    验证页。给出 5 个验证场景 + 风险矩阵 + 回滚策略。
+    核心风险是重构破坏现有调用，所以要先加兼容层再迁移。
+  </div>
+</section>
+
+<!-- ========== SLIDE 6: 决策页 ========== -->
+<section class="slide">
+  <div class="slide-header">
+    <h2 class="slide-title">⚖️ 决策页 · 方案对比与推荐</h2>
+    <span class="slide-number">06 / 08</span>
+  </div>
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-title">方案 A：全局单例</div>
+      <p style="font-size:.8rem; color:var(--text-2);">在 <span class="code">workspace_root.go</span> 定义包级变量，初始化后全局可用</p>
+      <div class="badge-row">
+        <span class="tag tag-green">✅ 简单直接</span>
+        <span class="tag tag-green">✅ 性能最优</span>
+        <span class="tag tag-red">❌ 难以 mock 测试</span>
+      </div>
+      <p style="margin-top:.5rem; font-size:.75rem; color:var(--text-3);">适用：单进程、无并发测试场景</p>
+    </div>
+    <div class="card" style="border-color:var(--accent-1);">
+      <div class="card-title">方案 B：Context 传递 ⭐推荐</div>
+      <p style="font-size:.8rem; color:var(--text-2);">通过 Go Context 存储 workspace 上下文，各模块从 ctx 获取</p>
+      <div class="badge-row">
+        <span class="tag tag-green">✅ 易于测试 mock</span>
+        <span class="tag tag-green">✅ 线程安全</span>
+        <span class="tag tag-green">✅ 符合 Go 惯用法</span>
+      </div>
+      <p style="margin-top:.5rem; font-size:.75rem; color:var(--text-3);">适用：生产环境、完整测试覆盖</p>
+    </div>
+    <div class="card">
+      <div class="card-title">方案 C：依赖注入</div>
+      <p style="font-size:.8rem; color:var(--text-2);">在每个需要路径的模块构造函数注入 <span class="code">WorkspaceRootProvider</span> 接口</p>
+      <div class="badge-row">
+        <span class="tag tag-green">✅ 解耦最彻底</span>
+        <span class="tag tag-yellow">⚠️ 代码改动大</span>
+        <span class="tag tag-yellow">⚠️ 初期成本高</span>
+      </div>
+      <p style="margin-top:.5rem; font-size:.75rem; color:var(--text-3);">适用：大型重构、未来扩展</p>
+    </div>
+  </div>
+  <div class="decision-box" style="margin-top:1.5rem;">
+    <h4>💡 推荐方案 B：Context 传递</h4>
+    <p>
+      <strong>Why 选择方案 B：</strong>兼顾测试友好与性能，Go 社区推荐模式，易于与现有 error handling 集成。<br>
+      <strong>Why Not 方案 A：</strong>全局单例在并发/测试场景下难以 mock，违反依赖倒置。<br>
+      <strong>Why Not 方案 C：</strong>依赖注入改动过大，适合 L4+ 重构阶段，当前 L3 成本不划算。<br>
+      <strong>切换条件：</strong>当模块数量 > 20 或需要并行处理多个工作区时，迁移到方案 C。
+    </p>
+  </div>
+  <div class="notes">
+    决策页。三个方案对比，推荐方案 B（Context 传递）。
+    明确 Why 选择、Why Not 其他方案、切换条件。
+  </div>
+</section>
+
+<!-- ========== SLIDE 7: 四类视角覆盖 ========== -->
+<section class="slide">
+  <div class="slide-header">
+    <h2 class="slide-title">👥 四类视角覆盖 · 受众分析</h2>
+    <span class="slide-number">07 / 08</span>
+  </div>
+  <div class="grid-2">
+    <div>
+      <div class="perspective-card" style="border-color:var(--danger);">
+        <h4>🧑‍💼 CTO / 技术负责人</h4>
+        <p>关注：架构一致性、技术债务、长期可维护性。<br>
+        关键点：<span class="highlight">方案 B 符合 Go 惯用法</span>，降低未来重构成本。<br>
+        风险：初期迁移有 2 周阵痛期，需协调团队排期。</p>
+      </div>
+      <div class="perspective-card" style="border-color:var(--accent-1);">
+        <h4>👨‍💻 开发工程师</h4>
+        <p>关注：API 易用性、单元测试便利、调试体验。<br>
+        关键点：<span class="highlight">Context 可轻松 mock 路径</span>，单元测试覆盖率↑<br>
+        新增 <span class="code">workspace_root_test.go</span> 演示正确用法。</p>
+      </div>
+    </div>
+    <div>
+      <div class="perspective-card" style="border-color:var(--success);">
+        <h4>🧪 测试工程师</h4>
+        <p>关注：能否独立运行测试、路径 mock 便捷性。<br>
+        关键点：<span class="highlight">所有路径操作必须可注入</span>，支持无磁盘 I/O 的单元测试。<br>
+        验证：删除 <span class="code">modules/</span> 目录后 <span class="code">ValidateWorkspace()</span> 返回 error。</p>
+      </div>
+      <div class="perspective-card" style="border-color:var(--accent-2);">
+        <h4>👤 最终用户</h4>
+        <p>关注：功能是否正常工作（不关心实现）。<br>
+        关键点：此重构<strong>不影响</strong>用户可见功能，但能<strong>提升稳定性</strong>（减少路径缺失导致的崩溃）。<br>
+        验证：现有 demo 运行结果不变。</p>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top:1rem; padding:.75rem; background:rgba(122,162,247,.1); border-radius:6px;">
+    <p style="color:var(--text-2); font-size:.85rem;">
+      <strong style="color:var(--accent-1);">验收标准：</strong>
+      开发 → 所有模块单元测试通过 | 测试 → 路径 mock 场景覆盖完整 | CTO → 2 周内无 P0 级线上事故 | 用户 → demo 功能零回归
+    </p>
+  </div>
+  <div class="notes">
+    四视角页。CTO 关注架构，开发者关注易用性，测试关注 mock 能力，用户关注稳定性。
+    每个人都能在这页找到自己的关注点。
+  </div>
+</section>
+
+<!-- ========== SLIDE 8: 执行与问题清单 ========== -->
+<section class="slide">
+  <div class="slide-header">
+    <h2 class="slide-title">🚀 执行计划 &amp; 待办问题清单</h2>
+    <span class="slide-number">08 / 08</span>
+  </div>
+  <div class="grid-2">
+    <div>
+      <h3>📅 里程碑</h3>
+      <table>
+        <tr><th>阶段</th><th>内容</th><th>负责人</th><th>验收标准</th></tr>
+        <tr><td>Week 1</td><td>新增 workspace_root.go + Context API</td><td>后端负责人</td><td>单元测试 100%</td></tr>
+        <tr><td>Week 2</td><td>迁移 wails-jsonrpc / config.go</td><td>全栈工程师</td><td>功能回归通过</td></tr>
+        <tr><td>Week 3</td><td>迁移 preview / proto / module.go</td><td>全栈工程师</td><td>全链路测试通过</td></tr>
+        <tr><td>Week 4</td><td>ValidateWorkspace + 文档完善</td><td>技术文档负责人</td><td>API 文档齐全</td></tr>
+      </table>
+      <div class="decision-box" style="margin-top:1rem;">
+        <h4>回滚触发条件</h4>
+        <p>若 Week 2 出现 > 3 个 P0 级别 bug，立即回滚至 git tag <span class="code">v0.9-workspace-root-refactor</span></p>
+      </div>
+    </div>
+    <div>
+      <h3>📋 可复制的问题清单</h3>
+      <ul class="todo-list">
+        <li>workspace_root.go 应放在 <span class="code">internal/workspace/</span> 还是 <span class="code">pkg/workspace/</span>？</li>
+        <li>Context key 是否需要全局唯一变量还是直接用字符串常量？</li>
+        <li><span class="code">ValidateWorkspace()</span> 需要验证哪些目录？全部还是仅关键目录？</li>
+        <li>是否需要支持多个工作区并发（方案 C 前提）？</li>
+        <li>现有模块中哪些是硬编码路径需要改掉？逐个列出。</li>
+        <li>单元测试需要覆盖哪些 mock 场景？正常/异常/边界。</li>
+        <li><span class="code">filepath.EvalSymlinks</span> 在 Windows 上的兼容性如何？</li>
+        <li>是否需要提供 CLI 命令行工具查询当前 workspace 状态？</li>
+        <li>文档是否需要中英双语？哪些人需要阅读？</li>
+        <li>重构期间如何保证 CI/CD 流水线不间断？</li>
+        <li>与 Wails 的集成测试是否需要单独覆盖？</li>
+        <li>是否需要在 <span class="code">vibex.json</span> 中声明 workspace_root 版本？</li>
+      </ul>
+    </div>
+  </div>
+  <div class="notes">
+    执行页。给出 4 周里程碑 + 回滚条件 + 12 条可复制的问题清单。
+    用户可以在详情抽屉继续和 agent 对话完善 spec。
+  </div>
+</section>
+
+</main>
+
+<script src="../assets/runtime.js"></script>
+<script src="../assets/vibex-ppt-nav.js"></script>
+</body>
+</html>

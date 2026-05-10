@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="blueprint">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FEAT: Agent Workspace Awareness</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" href="../assets/themes/blueprint.css">
+  <link rel="stylesheet" href="../assets/animations/animations.css">
+  <style>
+    .slide { display: none; }
+    .slide.is-active { display: flex; }
+    .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+    .grid-3col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+    .tag { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.85rem; margin: 0.25rem; }
+    .tag-green { background: var(--accent-1); color: var(--bg-1); }
+    .tag-yellow { background: var(--accent-2); color: var(--bg-1); }
+    .tag-red { background: var(--accent-3); color: var(--bg-1); }
+    .comparison-table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    .comparison-table th, .comparison-table td { padding: 0.75rem; border: 1px solid var(--border); text-align: left; }
+    .comparison-table th { background: var(--bg-2); }
+    .checklist { list-style: none; padding: 0; }
+    .checklist li { padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
+    .flow-diagram { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+    .flow-box { padding: 1rem 1.5rem; border: 2px solid var(--accent-1); border-radius: 8px; text-align: center; }
+    .flow-arrow { font-size: 1.5rem; color: var(--accent-1); }
+  </style>
+</head>
+<body>
+<main class="deck">
+<!-- Slide 1: Cover -->
+<section class="slide is-active" data-anim="fade-up">
+  <div class="deck-header">
+    <span class="deck-title">FEAT: Agent Workspace Awareness</span>
+    <span class="deck-tag">L4 Feature Spec</span>
+  </div>
+  <div class="slide-content" style="flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+    <h1 style="font-size: 2.5rem; margin-bottom: 1rem;">Agent Workspace Awareness</h1>
+    <p style="font-size: 1.25rem; opacity: 0.8; max-width: 600px;">注入 agent 的 workspace awareness block，智能处理 empty/partial/ready 状态下的下一步建议</p>
+    <div style="margin-top: 2rem;">
+      <span class="tag tag-green">Workspace Context</span>
+      <span class="tag tag-yellow">Context State Machine</span>
+      <span class="tag tag-red">Smart Fallback</span>
+    </div>
+    <aside class="notes">封面页。主题：Agent 工作区感知能力。核心价值：让 AI agent 理解当前工作区上下文，减少无效交互。</aside>
+  </div>
+  <div class="deck-footer">
+    <span>vibex-workbench</span>
+    <span class="slide-number">1 / 8</span>
+  </div>
+</section>
+
+<!-- Slide 2: CTO Perspective -->
+<section class="slide" data-anim="fade-up">
+  <div class="deck-header">
+    <span class="deck-title">CTO 视角</span>
+    <span class="deck-tag">Business Value & Risk</span>
+  </div>
+  <div class="slide-content">
+    <h2>业务价值与架构风险</h2>
+    <div class="grid-2col" style="margin-top: 1.5rem;">
+      <div>
+        <h3 style="color: var(--accent-1);">✅ 为什么做</h3>
+        <ul>
+          <li><strong>减少 agent 上下文不足导致的重复对话</strong> — 降低 token 消耗与响应延迟</li>
+          <li><strong>标准化工作区感知接口</strong> — 为未来多 agent 协作奠定基础</li>
+          <li><strong>差异化竞争优势</strong> — 竞品缺乏的细粒度工作区感知能力</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="color: var(--accent-2);">⚠️ 架构风险</h3>
+        <ul>
+          <li><strong>上下文膨胀风险</strong> — workspace context 过大导致 token 超限</li>
+          <li><strong>性能回退</strong> — 文件系统扫描延迟影响首响时间</li>
+          <li><strong>状态机复杂度</strong> — empty/partial/ready 三态转换逻辑耦合</li>
+        </ul>
+      </div>
+    </div>
+    <div style="margin-top: 1.5rem; padding: 1rem; border: 1px solid var(--border); border-radius: 8px;">
+      <strong>前提条件：</strong>context_manager 必须在 L3 完成，当前处于 L4 阶段依赖上游交付<br>
+      <strong>切换条件：</strong>若 context_manager 延期超过 2 周，考虑降级为 lightweight workspace path only
+    </div>
+    <aside class="notes">CTO 视角：关注业务价值与风险。核心问题：这个功能值得投入吗？答案是肯定的，但需要控制上下文膨胀风险。</aside>
+  </div>
+  <div class="deck-footer">
+    <span>vibex-workbench</span>
+    <span class="slide-number">2 / 8</span>
+  </div>
+</section>
+
+<!-- Slide 3: Developer Perspective -->
+<section class="slide" data-anim="fade-up">
+  <div class="deck-header">
+    <span class="deck-title">开发视角</span>
+    <span class="deck-tag">Implementation & Boundaries</span>
+  </div>
+  <div class="slide-content">
+    <h2>模块边界与实现方案</h2>
+    <div class="flow-diagram" style="margin: 1.5rem 0;">
+      <div class="flow-box"><strong>context_manager</strong><br><small>L3 已交付</small></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box" style="border-color: var(--accent-2);"><strong>workspace_context</strong><br><small>本功能核心</small></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box"><strong>awareness_injector</strong><br><small>注入层</small></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box"><strong>agent_context</strong><br><small>输出</small></div>
+    </div>
+    <div class="grid-2col">
+      <div>
+        <h3 style="color: var(--accent-1);">实现要点</h3>
+        <ul>
+          <li><code>workspace_context.py</code> — 聚合工作区元数据、文件树、活跃文件</li>
+          <li><code>awareness_injector.py</code> — 统一注入接口，支持懒加载</li>
+          <li><code>state_machine.py</code> — empty/partial/ready 三态转换</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="color: var(--accent-2);">Why Not 其他方案</h3>
+        <ul>
+          <li><strong>方案B（每个 agent 独立感知）</strong> — 代码重复，维护成本高</li>
+          <li><strong>方案C（全局快照）</strong> — 实时性差，context 过期风险</li>
+          <li><strong>最终选择</strong> — 统一注入层 + 状态机，集中可控</li>
+        </ul>
+      </div>
+    </div>
+    <aside class="notes">开发视角：关注模块边界和实现方案。核心是 workspace_context 和 awareness_injector 的组合。状态机处理三态转换。</aside>
+  </div>
+  <div class="deck-footer">
+    <span>vibex-workbench</span>
+    <span class="slide-number">3 / 8</span>
+  </div>
+</section>
+
+<!-- Slide 4: Testing Perspective -->
+<section class="slide" data-anim="fade-up">
+  <div class="deck-header">
+    <span class="deck-title">测试视角</span>
+    <span class="deck-tag">Verification & Coverage</span>
+  </div>
+  <div class="slide-content">
+    <h2>可测性与验证路径</h2>
+    <div class="grid-2col" style="margin-top: 1.5rem;">
+      <div>
+        <h3 style="color: var(--accent-1);">✅ 可测性设计</h3>
+        <ul>
+          <li><strong>单元测试</strong> — state_machine 状态转换覆盖率 &gt; 90%</li>
+          <li><strong>集成测试</strong> — workspace_context 与 context_manager 对接</li>
+          <li><strong>E2E 测试</strong> — agent 在三种状态下的行为验证</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="color: var(--accent-2);">⚠️ 回归风险</h3>
+        <ul>
+          <li>awareness_injector 改动可能影响所有 agent 行为</li>
+          <li>状态机边界条件（fast path detection）难以 mock</li>
+          <li>文件树变更检测的时序依赖</li>
+        </ul>
+      </div>
+    </div>
+    <table class="comparison-table" style="margin-top: 1rem;">
+      <tr><th>测试场景</th><th>验证点</th><th>优先级</th></tr>
+      <tr><td>empty → partial</td><td>降级建议生成</td><td>P0</td></tr>
+      <tr><td>partial → ready</td><td>context 补全</td><td>P0</td></tr>
+      <tr><td>ready 稳定</td><td>context 有效性</td><td>P1</td></tr>
+      <tr><td>文件树变更</td><td>感知更新延迟 &lt; 500ms</td><td>P1</td></tr>
+    </table>
+    <aside class="notes">测试视角：关注可测性和验证路径。P0 是状态转换，P1 是性能指标。回归风险集中在注入层。</aside>
+  </div>
+  <div class="deck-footer">
+    <span>vibex-workbench</span>
+    <span class="slide-number">4 / 8</span>
+  </div>
+</section>
+
+<!-- Slide 5: User Perspective -->
+<section class="slide" data-anim="fade-up">
+  <div class="deck-header">
+    <span class="deck-title">用户视角</span>
+    <span class="deck-tag">Experience & Value</span>
+  </div>
+  <div class="slide-content">
+    <h2>体验收益与可见价值</h2>
+    <div class="grid-3col" style="margin-top: 1.5rem;">
+      <div style="text-align: center; padding: 1.5rem; border: 1px solid var(--border); border-radius: 8px;">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🚀</div>
+        <h3>首响质量提升</h3>
+        <p>agent 基于工作区上下文直接给出精准建议，减少"需要更多信息"的无效对话</p>
+      </div>
+      <div style="text-align: center; padding: 1.5rem; border: 1px solid var(--border); border-radius: 8px;">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">💡</div>
+        <h3>智能降级引导</h3>
+        <p>工作区为空或部分就绪时，主动给出下一步行动建议，而非静默失败</p>
+      </div>
+      <div style="text-align: center; padding: 1.5rem; border: 1px solid var(--border); border-radius: 8px;">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔄</div>
+        <h3>状态透明可见</h3>
+        <p>用户可感知 agent 当前的工作区感知状态，增强信任与可控感</p>
+      </div>
+    </div>
+    <div style="margin-top: 1.5rem;">
+      <h3>用户路径变化</h3>
+      <div class="flow-diagram">
+        <div class="flow-box"><strong>As-Is</strong><br><small>用户反复描述上下文</small></div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-box" style="border-color: var(--accent-1);"><strong>To-Be</strong><br><small>agent 自动感知 + 主动确认</small></div>
+      </div>
+    </div>
+    <aside class="notes">用户视角：关注体验收益。核心价值是减少无效对话、智能降级、状态透明。用户路径从"反复描述"变为"agent 自动感知"。</aside>
+  </div>
+  <div class="deck-footer">
+    <span>vibex-workbench</span>
+    <span class="slide-number">5 / 8</span>
+  </div>
+</section>
+
+<!-- Slide 6: Decision Page -->
+<section class="slide" data-anim="fade-up">
+  <div class="deck-header">
+    <span class="deck-title">决策页</span>
+    <span class="deck-tag">Decision Matrix</span>
+  </div>
+  <div class="slide-content">
+    <h2>推荐方案与取舍</h2>
+    <table class="comparison-table">
+      <tr><th>维度</th><th>方案A（推荐）</th><th>方案B（备选）</th><th>方案C（不选）</th></tr>
+      <tr>
+        <td><strong>实现方式</strong></td>
+        <td>统一注入层 + 状态机</td>
+        <td>每个 agent 独立感知</td>
+        <td>全局定时快照</td>
+      </tr>
+      <tr>
+        <td><strong>开发成本</strong></td>
+        <td>中（集中实现）</td>
+        <td>高（重复实现）</td>
+        <td>低（但功能弱）</td>
+      </tr>
+      <tr>
+        <td><strong>可维护性</strong></td>
+        <td>✅ 高</td>
+        <td>❌ 低</td>
+        <td>✅ 中</td>
+      </tr>
+      <tr>
+        <td><strong>实时性</strong></td>
+        <td>✅ 高</td>
+        <td>✅ 高</td>
+        <td>❌ 低</td>
+      </tr>
+      <tr>
+        <td><strong>上下文膨胀</strong></td>
+        <td>⚠️ 需控制大小</td>
+        <td>✅ 按需</td>
+        <td>❌ 固定大小过期</td>
+      </tr>
+    </table>
+    <div style="margin-top: 1rem; padding: 1rem; border: 1px solid var(--accent-1); border-radius: 8px;">
+      <strong>推荐方案A</strong>：统一注入层 + 状态机，集中可控，支持懒加载。<br>
+      <strong>成本与风险</strong>：开发周期 2 周，需上游 context_manager 按时交付。
+    </div>
+    <aside class="notes">决策页：推荐方案A。统一注入层 + 状态机是最佳平衡点。方案B重复代码，方案C功能太弱。</aside>
+  </div>
+  <div class="deck-footer">
+    <span>vibex-workbench</span>
+    <span class="slide-number">6 / 8</span>
+  </div>
+</section>
+
+<!-- Slide 7: Execution Page -->
+<section class="slide" data-anim="fade-up">
+  <div class="deck-header">
+    <span class="deck-title">执行页</span>
+    <span class="deck-tag">Milestones & Rollback</span>
+  </div>
+  <div class="slide-content">
+    <h2>里程碑与验收标准</h2>
+    <div class="grid-2col" style="margin-top: 1.5rem;">
+      <div>
+        <h3 style="color: var(--accent-1);">里程碑</h3>
+        <ul>
+          <li><strong>Week 1</strong>：workspace_context 核心实现</li>
+          <li><strong>Week 2</strong>：awareness_injector + 状态机</li>
+          <li><strong>Week 3</strong>：集成测试 + 性能调优</li>
+          <li><strong>Week 4</strong>：E2E 验证 + 文档</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="color: var(--accent-2);">验收标准</h3>
+        <ul>
+          <li>empty/partial/ready 三态转换正确率 100%</li>
+          <li>context 注入延迟 &lt; 100ms</li>
+          <li>单元测试覆盖率 &gt; 90%</li>
+          <li>无破坏性变更（向后兼容）</li>
+        </ul>
+      </div>
+    </div>
+    <div style="margin-top: 1.5rem; padding: 1rem; border: 1px solid var(--accent-3); border-radius: 8px;">
+      <h3>回滚策略</h3>
+      <p><strong>触发条件</strong>：E2E 测试失败率 &gt; 5% 或 context 膨胀导致 OOM</p>
+      <p><strong>回滚步骤</strong>：禁用 awareness_injector → 回退 workspace_context 版本 → 通知相关方</p>
+    </div>
+    <aside class="notes">执行页：4周里程碑，2周核心实现 + 1周测试 + 1周验收。回滚策略：禁用注入层即可快速回退。</aside>
+  </div>
+  <div class="deck-footer">
+    <span>vibex-workbench</span>
+    <span class="slide-number">7 / 8</span>
+  </div>
+</section>
+
+<!-- Slide 8: Problem Checklist -->
+<section class="slide" data-anim="fade-up">
+  <div class="deck-header">
+    <span class="deck-title">问题清单</span>
+    <span class="deck-tag">Copy-paste Checklist</span>
+  </div>
+  <div class="slide-content">
+    <h2>可复制的问题清单</h2>
+    <p style="opacity: 0.7; margin-bottom: 1rem;">用于用户在详情抽屉继续与 agent 对话完善 spec</p>
+    <ul class="checklist">
+      <li>1. workspace_context 的最大 context size 上限是多少？超限时的截断策略？</li>
+      <li>2. empty 状态下降级建议的生成逻辑优先级如何定义？</li>
+      <li>3. partial → ready 的转换阈值（需要多少上下文才算 ready）？</li>
+      <li>4. 文件树变更检测的 polling interval 是否可配置？默认多少？</li>
+      <li>5. awareness_injector 懒加载的触发条件是什么？首次请求还是启动时预加载？</li>
+      <li>6. 如何处理 git repo 与 non-git workspace 的差异？</li>
+      <li>7. 多窗口场景下，活跃文件的感知逻辑是否按 window 隔离？</li>
+      <li>8. context_manager 的接口变更是否会破坏 awareness_injector？如何解耦？</li>
+      <li>9. 性能基准：1000 文件的工作区，完整 context 生成时间目标？</li>
+      <li>10. 是否需要提供 debug 模式，展示当前 workspace context 内容？</li>
+      <li>11. 国际化（i18n）支持：降级建议文案是否需要多语言？</li>
+      <li>12. 未来扩展：支持远程工作区感知的可能性与接口预留？</li>
+    </ul>
+    <aside class="notes">问题清单：12条问题，用于与 agent 进一步对话完善 spec。涵盖 size limit、转换阈值、性能基准等关键点。</aside>
+  </div>
+  <div class="deck-footer">
+    <span>vibex-workbench</span>
+    <span class="slide-number">8 / 8</span>
+  </div>
+</section>
+
+</main>
+<script src="../assets/runtime.js"></script>
+<script src="../assets/vibex-ppt-nav.js"></script>
+</body>
+</html>
