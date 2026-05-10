@@ -377,6 +377,7 @@
 					<GenericSpecGraph
 						specPath={selectedPath}
 						content={raw}
+						convention={convention}
 						onSpawnComplete={bumpSpecContentReload}
 					/>
 				{/if}

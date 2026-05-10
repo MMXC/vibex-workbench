@@ -135,6 +135,21 @@ export const specCommands: SpecCommand[] = [
 		sample: '/implement-loop "循环直至实现"',
 		description: '实现、验证、修复循环直到通过或阻塞',
 	},
+	/** 与控制台「新旧项目分流」按钮一致；预填后可在 Composer 中改 root 说明 */
+	{
+		name: '/spec-init-chain',
+		levels: ['L1', 'L2', 'L3', 'L4', 'L5', 'IMPL', 'UNKNOWN'],
+		sample:
+			'/workspace "按「新项目 / 无既有 spec」推进：先与用户澄清项目 slug 与目标边界，再调用 workspace_specs_bootstrap（或 POST /api/workspace/spec-bootstrap，overwrite=false）生成 L1–L5 占位链；遵循 .agents/skills/workspace-bootstrap。写盘前必须用户确认。"',
+		description: '新仓库：澄清澈后初始化 L1–L5 spec 链',
+	},
+	{
+		name: '/spec-legacy-align',
+		levels: ['L1', 'L2', 'L3', 'L4', 'L5', 'IMPL', 'UNKNOWN'],
+		sample:
+			'/workspace "按「已有代码 / 旧项目」推进：先 workspace_detect_state 与 /governance 看 parent 链与槽位缺口，与用户澄清是「文档对齐」还是「增量补链」；禁止默认 overwrite 已有 YAML；必要时 verify_spec_suite。仅在用户明确要求时覆盖文件。"',
+		description: '旧项目：检测、治理与增量补链',
+	},
 ];
 
 function createSpecAgentContextStore() {

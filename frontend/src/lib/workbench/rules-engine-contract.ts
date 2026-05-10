@@ -50,9 +50,78 @@ export type RepairDecisionPayload = {
 
 export type RepairEnvelopePayload = {
 	failed_node_id?: string;
+	failed_node_ref?: {
+		node_id: string;
+		kind?: string;
+		graph_id?: string;
+		label?: string;
+	};
 	error_message: string;
 	failure_type: string;
 	inputs_snapshot?: Record<string, unknown>;
 	tool_name?: string;
 	call_id?: string;
+};
+
+export type ValidationItemRunResult = {
+	item_id: string;
+	ok: boolean;
+	channel: 'tdd_run' | 'qa_playwright' | 'verify_specs' | 'make_validate' | 'cdp_validate' | 'unknown';
+	source?: 'custom_agent_flow' | 'legacy_qa' | 'builtin';
+	started_at: string;
+	finished_at?: string;
+	output?: string;
+	error?: string;
+	exit_code?: number;
+	not_implemented?: boolean;
+};
+
+export type OrchestrationTracePayload = {
+	phase: RulesPipelinePhase;
+	node: {
+		node_id: string;
+		kind?: string;
+		graph_id?: string;
+		label?: string;
+	};
+	previous_phase?: RulesPipelinePhase;
+	parent_invocation_id?: string;
+	run_id?: string;
+	child_run_id?: string;
+	timestamp_unix?: number;
+	payload_ref?: string;
+	outcome_summary?: string;
+};
+
+export type TestEnvDeploymentMode = 'user_managed' | 'agent_managed' | 'wails_embedded';
+
+export type CDPTargetEnvRef = {
+	deployment?: TestEnvDeploymentMode;
+	host?: string;
+	port?: number;
+	timeout_sec?: number;
+	session_id?: string;
+};
+
+export type CDPAssertion = {
+	id?: string;
+	type: string;
+	selector?: string;
+	value?: string;
+};
+
+export type CDPValidationStep = {
+	id?: string;
+	url?: string;
+	actions?: Record<string, unknown>[];
+	assertions?: CDPAssertion[];
+	timeout_sec?: number;
+};
+
+export type CDPValidationPlan = {
+	plan_id: string;
+	target_env: CDPTargetEnvRef;
+	entry_url?: string;
+	steps: CDPValidationStep[];
+	screenshot_on_fail?: boolean;
 };

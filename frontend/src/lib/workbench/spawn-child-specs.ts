@@ -127,6 +127,7 @@ export function collectL3CandidatesFromL2(
 			if (!moduleKey) continue;
 			const specName = moduleKeyToModSpecName(moduleKey);
 			const relativePath = `specs/L3-module/${specName}.yaml`;
+			if (out.some(c => c.specName === specName)) continue;
 			const note = compactNote(r?.l3_note ?? r?.note);
 			const titleHint = humanizeModule(moduleKey);
 			const summaryHint =
@@ -209,6 +210,7 @@ export function collectL5CandidatesFromL4(
 				(typeof r?.id === 'string' && r.id.trim()) || `B${idx}`;
 			const specName = buildSliceName(l4SpecName, behaviorId);
 			const relativePath = `specs/L5-slice/${specName}.yaml`;
+			if (out.some(c => c.specName === specName)) continue;
 			const trigger = typeof r?.trigger === 'string' ? r.trigger.split(/\n/)[0].trim() : '';
 			const titleHint = `${behaviorId} · ${trigger.slice(0, 48)}${trigger.length > 48 ? '…' : ''}`;
 			const summaryHint =
@@ -329,4 +331,39 @@ export function renderL5SliceFromTemplate(templateYaml: string, v: RenderL5Vars)
 		'# 由 agent / 开发者在本切片 spec 中补充具体模板片段'
 	);
 	return out;
+}
+
+/** 为抽屉草稿生成完整 YAML（单候选） */
+export function draftYamlForChildCandidate(
+	layer: SpawnLayer,
+	templateYaml: string,
+	parentYaml: string,
+	candidate: ChildSpawnCandidate,
+	dateYmd: string
+): string {
+	const parentName = extractSpecName(parentYaml) ?? '';
+	const owner = extractMetaOwner(parentYaml);
+	const moduleName = extractMetaModule(parentYaml);
+	if (layer === 'L2') {
+		return renderL3ModuleFromTemplate(templateYaml, {
+			moduleSpecName: candidate.specName,
+			l2SpecName: parentName,
+			owner,
+			dateYmd,
+			titleZh: candidate.titleHint,
+			summaryLine: candidate.summaryHint,
+			descriptionParagraph: `${candidate.summaryHint}\n\n（草稿：在抽屉中修订后写入磁盘。）`,
+		});
+	}
+	return renderL5SliceFromTemplate(templateYaml, {
+		sliceSpecName: candidate.specName,
+		l4SpecName: parentName,
+		moduleName,
+		owner,
+		dateYmd,
+		titleZh: candidate.titleHint,
+		summaryLine: candidate.summaryHint,
+		descriptionParagraph: `${candidate.summaryHint}\n\n（草稿：在抽屉中修订后写入磁盘。）`,
+		behaviorRefLine: `L4「${parentName}」content.behaviors · ${candidate.behaviorId ?? '—'}`,
+	});
 }

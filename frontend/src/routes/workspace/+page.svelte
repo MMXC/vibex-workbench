@@ -8,6 +8,8 @@
   import { openDirectoryNativeFirst } from '$lib/wails-dialogs';
 
   let workspaceRoot = $state('');
+  /** 可选；空则使用目录名作为 project slug（spec_workspace_bootstrap） */
+  let projectSlug = $state('');
   let state = $state<{state: string, signals: any[], suggestions: string[]} | null>(null);
   let loading = $state(false);
   let error = $state('');
@@ -47,6 +49,41 @@
         error = data.error || data.errors?.join('\n') || 'scaffold 失败';
       } else {
         await detectState();
+      }
+    } catch (e: any) {
+      error = e.message;
+    } finally {
+      loading = false;
+    }
+  }
+
+  /** 通过 workspace-bootstrap skill（agent 澄清入口）生成 L1→L5 占位链 */
+  async function specBootstrapChain() {
+    if (!workspaceRoot) return;
+    loading = true;
+    error = '';
+    try {
+      const res = await fetch('/api/workspace/spec-bootstrap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_root: workspaceRoot,
+          project_slug: projectSlug.trim(),
+          confirm: true,
+          overwrite: false,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        error =
+          data.error ||
+          data._spawn_message ||
+          data._exec_error ||
+          (typeof data.stderr === 'string' ? data.stderr : '') ||
+          'spec-bootstrap 失败';
+      } else {
+        await detectState();
+        await fetchSpecList();
       }
     } catch (e: any) {
       error = e.message;
@@ -296,6 +333,16 @@
         📁 浏览…
       </button>
     </div>
+    <div class="slug-row">
+      <label class="slug-label" for="project-slug">Spec 项目短名（kebab，可空=目录名）</label>
+      <input
+        id="project-slug"
+        type="text"
+        bind:value={projectSlug}
+        placeholder="my-app"
+        class="ws-input slug-input"
+      />
+    </div>
 
     {#if error}
       <div class="error-box">{error}</div>
@@ -329,11 +376,25 @@
           <button onclick={scaffold} disabled={loading} class="btn-primary">
             📦 初始化脚手架
           </button>
+          <button onclick={specBootstrapChain} disabled={loading || !workspaceRoot} class="btn-secondary" title="通过 agent skill 初始化分层 spec 占位链">
+            🤖 Agent 初始化 Spec（L1–L5）
+          </button>
+        </div>
+      {/if}
+
+      {#if state.state === 'partial'}
+        <div class="action-row">
+          <button onclick={specBootstrapChain} disabled={loading || !workspaceRoot} class="btn-secondary" title="通过 agent skill 初始化分层 spec 占位链">
+            🤖 Agent 初始化 Spec（L1–L5）
+          </button>
         </div>
       {/if}
 
       {#if ready}
         <div class="action-row">
+          <button onclick={specBootstrapChain} disabled={loading || !workspaceRoot} class="btn-secondary" title="通过 agent skill 初始化分层 spec 占位链">
+            🤖 Agent 初始化 Spec（L1–L5）
+          </button>
           <button onclick={() => runMake('validate')} disabled={loading} class="btn-secondary">
             ✅ 校验 Spec
           </button>
@@ -491,6 +552,21 @@
     display: flex;
     gap: 8px;
     margin-bottom: 12px;
+  }
+  .slug-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .slug-label {
+    font-size: 12px;
+    color: #6c7086;
+  }
+  .slug-input {
+    flex: 0 1 260px;
+    max-width: 320px;
   }
   .ws-input {
     flex: 1;

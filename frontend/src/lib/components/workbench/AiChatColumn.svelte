@@ -12,9 +12,10 @@
 
 	interface Props {
 		onsubmit?: (content: string, mode: string) => Promise<void> | void;
+	onquickaction?: (action: 'detect' | 'init' | 'align' | 'validate') => void;
 	}
 
-	let { onsubmit }: Props = $props();
+let { onsubmit, onquickaction }: Props = $props();
 
 	let dims = $state<WorkbenchLayoutDims>({
 		sidebarLeftPx: 260,
@@ -24,6 +25,7 @@
 	});
 
 	let rootEl = $state<HTMLElement | undefined>(undefined);
+let showHistory = $state(false);
 
 	$effect(() => {
 		const unsub = workbenchLayoutStore.subscribe(v => {
@@ -61,18 +63,37 @@
 		window.addEventListener('pointermove', move);
 		window.addEventListener('pointerup', end);
 	}
+
+	function triggerQuickAction(action: 'detect' | 'init' | 'align' | 'validate') {
+		onquickaction?.(action);
+	}
 </script>
 
 <div class="ai-column" bind:this={rootEl}>
 	<div class="hdr">
 		<div>
 			<span class="hdr-title">Agent Workspace</span>
-			<span class="hdr-sub">Context · Commands · Draft output</span>
+			<span class="hdr-sub">Focused Chat · Actions · Composer</span>
 		</div>
-		<span class="hdr-dot" title="SSE / backend"></span>
+		<div class="hdr-tools">
+			<span class="hdr-dot" title="SSE / backend"></span>
+			<button
+				type="button"
+				class="history-btn"
+				class:active={showHistory}
+				title="会话历史"
+				aria-label="打开会话历史"
+				onclick={() => (showHistory = !showHistory)}
+			>
+				🕘
+			</button>
+		</div>
 	</div>
-	<div class="thread-region">
-		<ThreadList />
+	<div class="quick-actions" aria-label="快捷操作">
+		<button type="button" onclick={() => triggerQuickAction('detect')}>检测状态</button>
+		<button type="button" onclick={() => triggerQuickAction('init')}>新项目初始化</button>
+		<button type="button" onclick={() => triggerQuickAction('align')}>旧项目对齐</button>
+		<button type="button" onclick={() => triggerQuickAction('validate')}>治理校验</button>
 	</div>
 	<div class="chat-region">
 		<ConversationPanel />
@@ -86,6 +107,33 @@
 	<div class="composer-region" style:height="{dims.aiComposerBarPx}px">
 		<Composer {onsubmit} />
 	</div>
+
+	{#if showHistory}
+		<div
+			class="history-overlay"
+			role="button"
+			tabindex="0"
+			aria-label="关闭会话历史抽屉"
+			onclick={() => (showHistory = false)}
+			onkeydown={(e) => (e.key === 'Escape' || e.key === 'Enter') && (showHistory = false)}
+		>
+			<div
+				class="history-drawer"
+				role="dialog"
+				tabindex="-1"
+				aria-label="会话历史"
+				onclick={(e) => e.stopPropagation()}
+			>
+				<div class="history-head">
+					<strong>会话历史</strong>
+					<button type="button" onclick={() => (showHistory = false)}>关闭</button>
+				</div>
+				<div class="history-list-wrap">
+					<ThreadList />
+				</div>
+			</div>
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -137,15 +185,52 @@
 		box-shadow: 0 0 12px rgba(34, 197, 94, 0.65);
 	}
 
-	.thread-region {
-		flex-shrink: 0;
-		max-height: min(28vh, 200px);
-		min-height: 88px;
-		overflow: hidden;
+	.hdr-tools {
 		display: flex;
-		flex-direction: column;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.history-btn {
+		width: 28px;
+		height: 28px;
+		border-radius: 8px;
+		border: 1px solid #303746;
+		background: #12151c;
+		color: #a3abb9;
+		cursor: pointer;
+	}
+
+	.history-btn:hover,
+	.history-btn.active {
+		color: #eef0f5;
+		border-color: #7aa2ff;
+		background: rgba(122, 162, 255, 0.18);
+	}
+
+	.quick-actions {
+		flex-shrink: 0;
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+		padding: 10px 12px;
 		border-bottom: 1px solid #303746;
-		background: rgba(12, 14, 19, 0.32);
+		background: rgba(12, 14, 19, 0.26);
+	}
+
+	.quick-actions button {
+		border: 1px solid #3a4356;
+		background: #11141b;
+		color: #d7deea;
+		border-radius: 10px;
+		padding: 6px 8px;
+		font-size: 11.5px;
+		cursor: pointer;
+	}
+
+	.quick-actions button:hover {
+		border-color: #7aa2ff;
+		background: rgba(122, 162, 255, 0.14);
 	}
 
 	.chat-region {
@@ -186,5 +271,51 @@
 		flex: 1;
 		min-height: 0;
 		overflow: auto;
+	}
+
+	.history-overlay {
+		position: absolute;
+		inset: 0;
+		background: rgba(7, 10, 16, 0.52);
+		z-index: 30;
+		display: flex;
+		justify-content: flex-end;
+	}
+
+	.history-drawer {
+		width: min(340px, 92%);
+		height: 100%;
+		background: #0f1218;
+		border-left: 1px solid #303746;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.history-head {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 10px 12px;
+		border-bottom: 1px solid #303746;
+	}
+
+	.history-head strong {
+		font-size: 12px;
+		color: #eef0f5;
+	}
+
+	.history-head button {
+		border: 1px solid #303746;
+		background: #11141b;
+		color: #a3abb9;
+		border-radius: 8px;
+		padding: 4px 8px;
+		cursor: pointer;
+	}
+
+	.history-list-wrap {
+		flex: 1;
+		min-height: 0;
+		overflow: hidden;
 	}
 </style>

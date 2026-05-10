@@ -10,6 +10,14 @@
 	} from '$lib/services/design-kit-client';
 	import { wailsReadSpecFile } from '$lib/wails-filesystem';
 	import { evaluatePrototypeGate } from '$lib/workbench/ui-workflow-gate';
+	import {
+		buildFeatureShellRoute,
+		deriveEntryHtmlForFeature,
+	} from '$lib/workbench/prototype-shell-manifest';
+	import {
+		fetchPrototypeManifest,
+		registerPrototypeManifestRoute,
+	} from '$lib/services/prototype-shell-manifest-client';
 
 	let { session }: { session: SpecSlotSession } = $props();
 
@@ -18,14 +26,52 @@
 	let err = $state<string | null>(null);
 	let designBody = $state<string | null>(null);
 	let designOpen = $state(false);
+	let shellManifestExists = $state(false);
+	let shellManifestPath = $state<string | null>(null);
+	let shellRouteCount = $state(0);
+	let shellBusy = $state('');
+	let shellErr = $state<string | null>(null);
+	let shellEntryOverride = $state('');
 	/** 可由 Agent 根据 `.vibex/graph/` 回填；留空时请先跑「预填：页面/CSS 图谱分析」 */
 	let sourcePath = $state('');
 	let lastSpecSnippet = $state<string | null>(null);
 
 	const root = $derived($specExplorerStore.workspaceRoot?.trim() ?? '');
 	const gate = $derived(evaluatePrototypeGate(session.content ?? ''));
+	const shellPreview = $derived(
+		buildFeatureShellRoute({
+			specName: session.spec.name,
+			specPath: session.spec.path,
+			displayTitle: session.spec.display?.title ?? session.spec.name,
+			yamlContent: session.content ?? '',
+			entryHtmlOverride: shellEntryOverride.trim() || null,
+		})
+	);
 	/** 仅「extract 写入 prototypes」需 Gate；初始化 DESIGN/README 不阻塞 */
 	const canExtractWrite = $derived(gate.canCommitPrototype);
+
+	async function refreshShellManifest() {
+		shellErr = null;
+		if (!root) {
+			shellManifestExists = false;
+			shellManifestPath = null;
+			shellRouteCount = 0;
+			return;
+		}
+		shellBusy = 'manifest';
+		try {
+			const m = await fetchPrototypeManifest(root);
+			if (!m.ok) {
+				shellErr = m.error ?? 'manifest read failed';
+				return;
+			}
+			shellManifestExists = !!m.exists;
+			shellManifestPath = m.manifestPath ?? '.vibex/prototype-manifest.yaml';
+			shellRouteCount = m.data?.routes?.length ?? 0;
+		} finally {
+			shellBusy = '';
+		}
+	}
 
 	async function refresh() {
 		err = null;
@@ -37,6 +83,7 @@
 		try {
 			status = await fetchDesignKitStatus(root);
 			if (!status.ok) err = status.error ?? 'status failed';
+			await refreshShellManifest();
 		} finally {
 			busy = '';
 		}
@@ -129,6 +176,44 @@
 	}
 
 	/** 预填「图谱 + 源码」分析任务，供 Agent 结合 graphifyy / 代码图与实际文件后再 extract */
+	async function onRegisterShellManifest() {
+		if (!root) return;
+		shellBusy = 'register';
+		shellErr = null;
+		try {
+			const r = await registerPrototypeManifestRoute({
+				workspaceRoot: root,
+				specName: session.spec.name,
+				specPath: session.spec.path,
+				displayTitle: session.spec.display?.title ?? session.spec.name,
+				yamlContent: session.content ?? '',
+				entryHtml: shellEntryOverride.trim() || null,
+			});
+			if (!r.ok) {
+				shellErr = r.error ?? 'register failed';
+				return;
+			}
+			await refreshShellManifest();
+		} finally {
+			shellBusy = '';
+		}
+	}
+
+	function onPrefillShellManifest() {
+		const entry = deriveEntryHtmlForFeature({
+			specPath: session.spec.path,
+			yamlContent: session.content ?? '',
+			override: shellEntryOverride.trim() || null,
+		});
+		specSlotSessionStore.prefillActiveChat(
+			[
+				'请将当前功能注册到 App Shell 路由 manifest（若尚未创建则从示例复制 `.vibex/prototype-manifest.example.yaml` 为 `.vibex/prototype-manifest.yaml`）。',
+				`建议条目：id=${shellPreview.id} · path=${shellPreview.path} · specRef=${session.spec.name} · entryHtml=${entry}`,
+				'Shell 消费侧实现见 specs/L4-feature/FEAT-spec-prototype-shell-deck.yaml。',
+			].join('\n')
+		);
+	}
+
 	function onPrefillGraphAnalysis() {
 		const hint = sourcePath.trim();
 		specSlotSessionStore.prefillActiveChat(
@@ -219,6 +304,49 @@
 				<pre>{designBody}</pre>
 			</details>
 		{/if}
+
+		<div class="shell-block" aria-label="App Shell 路由 manifest">
+			<span class="k">App Shell · prototype-manifest</span>
+			<p class="shell-hint">
+				写入工作区 <code>{shellManifestPath ?? '.vibex/prototype-manifest.yaml'}</code>
+				（与 <code>.vibex/prototypes/manifest.json</code> 设计物料登记不同）。
+			</p>
+			<div class="row">
+				<span class="pill" class:ok={shellManifestExists} class:miss={!shellManifestExists}>
+					manifest {shellManifestExists ? '已有' : '未创建'}
+				</span>
+				<span class="pill ok">routes {shellRouteCount}</span>
+			</div>
+			<label class="shell-entry">
+				<span>entryHtml 覆盖（可选，默认取 prototype.file 或 .vibex/prototypes/&lt;spec&gt;.html）</span>
+				<input
+					type="text"
+					bind:value={shellEntryOverride}
+					placeholder={shellPreview.entryHtml}
+					spellcheck="false"
+				/>
+			</label>
+			<div class="actions">
+				<button
+					type="button"
+					class="primary"
+					disabled={!!busy || !!shellBusy}
+					onclick={() => onRegisterShellManifest()}
+				>
+					{shellBusy === 'register' ? '写入中…' : '注册到 Shell manifest'}
+				</button>
+				<button type="button" disabled={!!busy || !!shellBusy} onclick={() => refreshShellManifest()}>
+					{shellBusy === 'manifest' ? '…' : '刷新状态'}
+				</button>
+				<button type="button" disabled={!!busy} onclick={() => onPrefillShellManifest()}>
+					预填对话（说明 manifest）
+				</button>
+			</div>
+			{#if shellErr}
+				<p class="err">{shellErr}</p>
+			{/if}
+			<pre class="snippet shell-snippet" title="即将写入的路由预览">{JSON.stringify(shellPreview, null, 2)}</pre>
+		</div>
 	{/if}
 </div>
 
@@ -380,5 +508,49 @@
 		background: #0a0c10;
 		border: 1px solid #242b38;
 		white-space: pre-wrap;
+	}
+
+	.shell-block {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 10px 12px;
+		margin: 10px 0 0;
+		border: 1px solid rgba(122, 162, 255, 0.35);
+		border-radius: 14px;
+		background: rgba(14, 18, 28, 0.95);
+	}
+
+	.shell-hint {
+		margin: 0;
+		font-size: 10px;
+		line-height: 1.45;
+		color: #858fa1;
+	}
+
+	.shell-hint code {
+		font-size: 10px;
+		color: #a5b4fc;
+	}
+
+	.shell-entry {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		font-size: 10px;
+		color: #858fa1;
+	}
+
+	.shell-entry input {
+		border: 1px solid #303746;
+		border-radius: 10px;
+		padding: 7px 10px;
+		background: #0a0c10;
+		color: #e2e8f0;
+		font-size: 11px;
+	}
+
+	.shell-snippet {
+		max-height: 140px;
 	}
 </style>

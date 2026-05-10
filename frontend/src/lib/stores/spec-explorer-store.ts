@@ -13,13 +13,22 @@ export type SpecReturnTarget = 'dashboard' | null;
 export type SpecExplorerState = {
 	leftActivity: LeftActivity;
 	selectedSpecPath: string | null;
+	selectedFilePath: string | null;
 	centerView: SpecCenterView;
 	dashboardLevel: SpecDashboardLevel;
 	returnTarget: SpecReturnTarget;
 	/** 当前 workspace 根路径，切换时驱动 SpecExplorer 刷新文件树 */
 	workspaceRoot: string;
 	/** 规格文件列表（从 store 加载） */
-	specs: { path: string; level: number; name: string; status: string; display?: SpecDisplay; slots?: SpecSlotModel }[];
+	specs: {
+		path: string;
+		level: number;
+		name: string;
+		status: string;
+		parent?: string | null;
+		display?: SpecDisplay;
+		slots?: SpecSlotModel;
+	}[];
 	/** 列表加载中 */
 	specsLoading: boolean;
 	/** 列表加载错误 */
@@ -29,6 +38,7 @@ export type SpecExplorerState = {
 const initial: SpecExplorerState = {
 	leftActivity: 'explorer',
 	selectedSpecPath: null,
+	selectedFilePath: null,
 	centerView: 'graph',
 	dashboardLevel: 'goal',
 	returnTarget: 'dashboard',
@@ -63,6 +73,7 @@ function createSpecExplorerStore() {
 					level: f.level,
 					name: f.name,
 					status: f.status,
+					parent: f.parent,
 					display: f.display,
 					slots: f.slots,
 				})),
@@ -93,8 +104,18 @@ function createSpecExplorerStore() {
 			update(s => ({
 				...s,
 				selectedSpecPath: path,
+				selectedFilePath: null,
 				centerView: 'graph',
 				returnTarget: path ? returnTarget : s.returnTarget,
+			}));
+		},
+
+		selectFile(path: string | null) {
+			update(s => ({
+				...s,
+				selectedFilePath: path,
+				selectedSpecPath: null,
+				centerView: 'text',
 			}));
 		},
 
@@ -102,6 +123,7 @@ function createSpecExplorerStore() {
 			update(s => ({
 				...s,
 				selectedSpecPath: null,
+				selectedFilePath: null,
 				centerView: 'graph',
 				returnTarget: 'dashboard',
 			}));
@@ -121,6 +143,7 @@ function createSpecExplorerStore() {
 				...s,
 				workspaceRoot: root,
 				selectedSpecPath: null,
+				selectedFilePath: null,
 			}));
 			// 切换后自动加载列表
 			loadList(root);

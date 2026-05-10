@@ -1,4 +1,4 @@
-import { parse as parseYaml } from 'yaml';
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 
 export type SpecLevelToken = 'L1' | 'L2' | 'L3' | 'L4' | 'L5' | 'IMPL' | 'UNKNOWN';
 export type SpecSlotStatus = 'present' | 'empty' | 'missing' | 'na';
@@ -215,6 +215,37 @@ export function fallbackDisplayTitle(name: string): string {
 		.filter(Boolean)
 		.slice(0, 5)
 		.join(' ');
+}
+
+/** HTML 演示稿路径：必须在顶层 `spec.ppt_file`（相对仓库根）。兼容读取旧字段 `prototype.ppt_file`。 */
+export function getSpecPptFileFromYaml(yamlText: string): string {
+	try {
+		const doc = parseYaml(yamlText) as Record<string, unknown> | null;
+		if (!doc) return '';
+		const spec = asRecord(doc.spec);
+		const fromSpec = asString(spec?.ppt_file);
+		if (fromSpec && fromSpec.toLowerCase().endsWith('.html')) return fromSpec;
+		const proto = asRecord(doc.prototype);
+		const legacy = asString(proto?.ppt_file);
+		if (legacy && legacy.toLowerCase().endsWith('.html')) return legacy;
+		return '';
+	} catch {
+		return '';
+	}
+}
+
+/** 写入 `spec.ppt_file`，并删除遗留的 `prototype.ppt_file`（若存在）。 */
+export function upsertSpecBlockPptFile(yamlText: string, nextPath: string): string {
+	const doc = (parseYaml(yamlText) ?? {}) as Record<string, unknown>;
+	const spec = ((doc.spec ?? {}) as Record<string, unknown>) || {};
+	spec.ppt_file = nextPath;
+	doc.spec = spec;
+	if (doc.prototype && typeof doc.prototype === 'object') {
+		const proto = { ...(doc.prototype as Record<string, unknown>) };
+		if ('ppt_file' in proto) delete proto.ppt_file;
+		doc.prototype = proto;
+	}
+	return stringifyYaml(doc);
 }
 
 export function extractSpecDisplay(content: string, path: string): SpecDisplayMeta {

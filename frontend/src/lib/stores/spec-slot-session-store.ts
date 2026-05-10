@@ -1,6 +1,7 @@
 import { get, writable } from 'svelte/store';
 import { stripReasoningTags } from '$lib/stores/thread-store';
 import type { SpecDisplayMeta, SpecSlotSummary } from '$lib/workbench/spec-display';
+import { getSpecPptFileFromYaml, upsertSpecBlockPptFile } from '$lib/workbench/spec-display';
 import {
 	createSlotPlanGraph,
 	extractHtmlFromMarkdown,
@@ -14,9 +15,12 @@ import {
 	type RoutePreview,
 } from '$lib/services/tool-routing-client';
 import { specExplorerStore } from '$lib/stores/spec-explorer-store';
+import { agentApiUrl } from '$lib/runtime/agent-transport';
 import type {
+	OrchestrationTracePayload,
 	RepairDecisionPayload,
 	StrongValidationPlan,
+	ValidationItemRunResult,
 	VerificationSubmission,
 } from '$lib/workbench/rules-engine-contract';
 
@@ -76,6 +80,15 @@ export type SpecSlotSession = {
 	strongValidationPlan?: StrongValidationPlan | null;
 	/** 用户 RED/GREEN 提交 */
 	verificationSubmission?: VerificationSubmission | null;
+	/** 强校验逐条运行结果 */
+	validationRuns?: Record<string, ValidationItemRunResult>;
+	/** Inspector trace（验证节点） */
+	traceEvents?: OrchestrationTracePayload[];
+	/** Spec 关联演示 HTML（用于图谱泳道区域展示） */
+	pptDemoPath?: string | null;
+	pptDemoHtml?: string | null;
+	pptDemoLoading?: boolean;
+	pptDemoError?: string | null;
 	/** 最近一次纠错决策（SSE repair.decision） */
 	lastRepairDecision?: RepairDecisionPayload | null;
 	updatedAt: string;
@@ -94,7 +107,6 @@ type OpenSlotSessionInput = {
 };
 
 const STORAGE_KEY = 'vibex-spec-slot-sessions';
-const SSE_URL = import.meta.env.VITE_SSE_URL || 'http://localhost:33338';
 const useMockBackend =
 	import.meta.env.VITE_MOCK_SSE === '1' || import.meta.env.VITE_MOCK_SSE === 'true';
 
@@ -110,6 +122,25 @@ function id(): string {
 
 function sessionKey(specPath: string, slotId: string): string {
 	return `${specPath.replace(/\\/g, '/')}::${slotId}`;
+}
+
+function basenameNoExt(path: string): string {
+	const p = path.replace(/\\/g, '/').split('/').pop() ?? 'spec';
+	return p.replace(/\.[^.]+$/, '');
+}
+
+function derivePptPath(specPath: string, content: string): string {
+	const explicit = getSpecPptFileFromYaml(content);
+	if (explicit) return explicit;
+	return `.vibex/ppt/${basenameNoExt(specPath)}.html`;
+}
+
+function derivePptPathFromSession(session: SpecSlotSession): string {
+	return derivePptPath(session.spec.path, session.content ?? '');
+}
+
+function delay(ms: number): Promise<void> {
+	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function seedStrongValidationPlan(specPath: string, slotId: string): StrongValidationPlan | null {
@@ -178,6 +209,12 @@ function loadState(): SpecSlotSessionState {
 				chatPrefill: s.chatPrefill ?? null,
 				strongValidationPlan: s.strongValidationPlan ?? null,
 				verificationSubmission: s.verificationSubmission ?? null,
+				validationRuns: s.validationRuns ?? {},
+				traceEvents: s.traceEvents ?? [],
+				pptDemoPath: s.pptDemoPath ?? null,
+				pptDemoHtml: s.pptDemoHtml ?? null,
+				pptDemoLoading: s.pptDemoLoading ?? false,
+				pptDemoError: s.pptDemoError ?? null,
 				lastRepairDecision: s.lastRepairDecision ?? null,
 			};
 		}
@@ -246,7 +283,7 @@ function buildPrompt(session: SpecSlotSession, userInput: string): string {
 		...(session.slot.id === 'prototype'
 			? [
 					'[Design Kit / 原型物料]',
-					'工作区约定：.vibex/design/DESIGN.md（栈、令牌、组件边界）；可交付 HTML 放在 .vibex/prototypes/；当前 spec 的 prototype.file 引用相对工作区根路径。',
+					'工作区约定：.vibex/design/DESIGN.md（栈、令牌、组件边界）；可交付 HTML 放在 .vibex/prototypes/；演示用 HTML PPT 路径写在顶层 spec.ppt_file（相对工作区根），不要写入 prototype。',
 					'生成或修改原型前须对齐 DESIGN.md；写入当前 spec 的 prototype 字段须经用户明确确认后再 specs/write；写入物料文件使用原型槽工具条 extract/scaffold（已 confirm）。',
 					'[/Design Kit]',
 					'',
@@ -403,6 +440,65 @@ function createSpecSlotSessionStore() {
 		});
 	}
 
+	async function emitInspectorTrace(trace: OrchestrationTracePayload) {
+		if (useMockBackend) return;
+		try {
+			await fetch(agentApiUrl('/api/workbench/inspector/trace'), {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(trace),
+			});
+		} catch {
+			// best-effort only
+		}
+	}
+
+	function appendTraceEvent(key: string, trace: OrchestrationTracePayload) {
+		commit(state => {
+			const session = state.sessions[key];
+			if (!session) return state;
+			const next = [...(session.traceEvents ?? []), trace].slice(-80);
+			return {
+				...state,
+				sessions: {
+					...state.sessions,
+					[key]: {
+						...session,
+						traceEvents: next,
+						updatedAt: nowIso(),
+					},
+				},
+			};
+		});
+	}
+
+type ParsedValidationTemplate = {
+	tool: string;
+	args: Record<string, unknown>;
+};
+
+/**
+ * Parse StrongValidationItem.tool_call_template.
+ * Supported:
+ * 1) plain name: "cdp_validate"
+ * 2) JSON: {"tool":"cdp_validate","arguments":{...}}
+ * 3) JSON: {"name":"cdp_validate","args":{...}}
+ */
+function parseValidationTemplate(raw: string | undefined): ParsedValidationTemplate | null {
+	const src = String(raw ?? '').trim();
+	if (!src) return null;
+	if (!src.startsWith('{')) return { tool: src, args: {} };
+	try {
+		const v = JSON.parse(src) as Record<string, unknown>;
+		const tool = String(v.tool ?? v.name ?? '').trim();
+		const argsRaw = (v.arguments ?? v.args ?? {}) as Record<string, unknown>;
+		if (!tool) return null;
+		return { tool, args: argsRaw && typeof argsRaw === 'object' ? argsRaw : {} };
+	} catch {
+		return { tool: src, args: {} };
+	}
+}
+
 	async function refreshToolRouting(key: string) {
 		const state = get({ subscribe });
 		const session = state.sessions[key];
@@ -509,6 +605,12 @@ function createSpecSlotSessionStore() {
 							chatPrefill: existing.chatPrefill ?? null,
 							strongValidationPlan: seededPlan,
 							verificationSubmission: existing.verificationSubmission ?? null,
+							validationRuns: existing.validationRuns ?? {},
+							traceEvents: existing.traceEvents ?? [],
+							pptDemoPath: existing.pptDemoPath ?? derivePptPathFromSession(existing),
+							pptDemoHtml: existing.pptDemoHtml ?? null,
+							pptDemoLoading: existing.pptDemoLoading ?? false,
+							pptDemoError: existing.pptDemoError ?? null,
 							lastRepairDecision: existing.lastRepairDecision ?? null,
 							updatedAt: nowIso(),
 						}
@@ -537,6 +639,12 @@ function createSpecSlotSessionStore() {
 							chatPrefill: null,
 							strongValidationPlan: seededPlan,
 							verificationSubmission: null,
+							validationRuns: {},
+							traceEvents: [],
+							pptDemoPath: derivePptPath(input.spec.path, input.content),
+							pptDemoHtml: null,
+							pptDemoLoading: false,
+							pptDemoError: null,
 							lastRepairDecision: null,
 							updatedAt: nowIso(),
 						};
@@ -577,6 +685,9 @@ function createSpecSlotSessionStore() {
 					slot_id: session.slot.id,
 					spec_path: session.spec.path,
 					outcome,
+					artifact_refs: Object.values(session.validationRuns ?? {})
+						.filter(r => !!r.output)
+						.map(r => `${r.item_id}:${(r.output || '').slice(0, 120)}`),
 					notes: notes?.trim() || undefined,
 				};
 				const msg: SpecSlotMessage = {
@@ -636,6 +747,404 @@ function createSpecSlotSessionStore() {
 					},
 				};
 			});
+		},
+		recordTraceEvent(trace: OrchestrationTracePayload) {
+			const key = get({ subscribe }).activeKey;
+			if (!key) return;
+			appendTraceEvent(key, trace);
+		},
+		async refreshPptDemoActive() {
+			const state = get({ subscribe });
+			const key = state.activeKey;
+			const session = key ? state.sessions[key] : null;
+			if (!key || !session) return;
+			const path = session.pptDemoPath || derivePptPathFromSession(session);
+			commit(s => {
+				const active = s.sessions[key];
+				if (!active) return s;
+				return {
+					...s,
+					sessions: {
+						...s.sessions,
+						[key]: { ...active, pptDemoPath: path, pptDemoError: null, updatedAt: nowIso() },
+					},
+				};
+			});
+			try {
+				const q = new URLSearchParams({ path });
+				const wsRoot = get(specExplorerStore).workspaceRoot;
+				if (wsRoot) q.set('workspaceRoot', wsRoot);
+				const r = await fetch(`${agentApiUrl('/api/workspace/specs/read')}?${q.toString()}`);
+				if (!r.ok) throw new Error(await r.text());
+				const j = (await r.json()) as { content?: string };
+				commit(s => {
+					const active = s.sessions[key];
+					if (!active) return s;
+					return {
+						...s,
+						sessions: {
+							...s.sessions,
+							[key]: {
+								...active,
+								pptDemoPath: path,
+								pptDemoHtml: String(j.content ?? ''),
+								pptDemoLoading: false,
+								pptDemoError: null,
+								updatedAt: nowIso(),
+							},
+						},
+					};
+				});
+			} catch (e) {
+				commit(s => {
+					const active = s.sessions[key];
+					if (!active) return s;
+					return {
+						...s,
+						sessions: {
+							...s.sessions,
+							[key]: {
+								...active,
+								pptDemoPath: path,
+								pptDemoHtml: null,
+								pptDemoLoading: false,
+								pptDemoError: e instanceof Error ? e.message : String(e),
+								updatedAt: nowIso(),
+							},
+						},
+					};
+				});
+			}
+		},
+		async generatePptDemoActive() {
+			const state = get({ subscribe });
+			const key = state.activeKey;
+			const session = key ? state.sessions[key] : null;
+			if (!key || !session) return;
+			const wsRoot = get(specExplorerStore).workspaceRoot;
+			const path = session.pptDemoPath || derivePptPathFromSession(session);
+			commit(s => {
+				const active = s.sessions[key];
+				if (!active) return s;
+				return {
+					...s,
+					sessions: {
+						...s.sessions,
+						[key]: {
+							...active,
+							pptDemoPath: path,
+							pptDemoLoading: true,
+							pptDemoError: null,
+							updatedAt: nowIso(),
+						},
+					},
+				};
+			});
+			const prompt = [
+				'请加载并使用 html-ppt 技能，为当前 spec 生成一份可演示的单文件 HTML 说明稿。',
+				`spec_path=${session.spec.path}`,
+				`output_path=${path}`,
+				'要求：内容覆盖目标、模块、关键流程、验证要点；深色主题；支持键盘翻页；必须使用 write_file 实际写入 output_path。',
+				`spec_yaml:\n${session.content.slice(0, 12000)}`,
+			].join('\n\n');
+			try {
+				await fetch(agentApiUrl('/api/chat'), {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						threadId: session.threadId,
+						input: prompt,
+						workspaceRoot: wsRoot,
+					}),
+				});
+				for (let i = 0; i < 30; i++) {
+					await delay(2000);
+					const q = new URLSearchParams({ path });
+					if (wsRoot) q.set('workspaceRoot', wsRoot);
+					const r = await fetch(`${agentApiUrl('/api/workspace/specs/read')}?${q.toString()}`);
+					if (!r.ok) continue;
+					const j = (await r.json()) as { content?: string };
+					const html = String(j.content ?? '');
+					if (!html.trim()) continue;
+					let nextContent = session.content;
+					try {
+						const patched = upsertSpecBlockPptFile(session.content, path);
+						const wr = await fetch(agentApiUrl('/api/workspace/specs/write'), {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({
+								workspace_root: wsRoot,
+								path: session.spec.path,
+								content: patched,
+							}),
+						});
+						if (wr.ok) nextContent = patched;
+					} catch {
+						// don't block preview rendering on spec write failure
+					}
+					commit(s => {
+						const active = s.sessions[key];
+						if (!active) return s;
+						return {
+							...s,
+							sessions: {
+								...s.sessions,
+								[key]: {
+									...active,
+									content: nextContent,
+									pptDemoHtml: html,
+									pptDemoLoading: false,
+									pptDemoError: null,
+									updatedAt: nowIso(),
+								},
+							},
+						};
+					});
+					return;
+				}
+				throw new Error('生成超时：未检测到 HTML 文件写入');
+			} catch (e) {
+				commit(s => {
+					const active = s.sessions[key];
+					if (!active) return s;
+					return {
+						...s,
+						sessions: {
+							...s.sessions,
+							[key]: {
+								...active,
+								pptDemoLoading: false,
+								pptDemoError: e instanceof Error ? e.message : String(e),
+								updatedAt: nowIso(),
+							},
+						},
+					};
+				});
+			}
+		},
+		async runValidationItem(itemId: string) {
+			const state = get({ subscribe });
+			const key = state.activeKey;
+			const session = key ? state.sessions[key] : null;
+			const item = session?.strongValidationPlan?.items.find(i => i.id === itemId);
+			if (!key || !session || !item) return;
+			const started = nowIso();
+			const wsRoot = get(specExplorerStore).workspaceRoot;
+			const parsedTemplate = parseValidationTemplate(item.tool_call_template);
+			const templateTool = String(parsedTemplate?.tool ?? '').trim();
+			const templateArgs = parsedTemplate?.args ?? {};
+			const tmpl = templateTool.toLowerCase();
+			const command = String(item.command ?? '').trim().toLowerCase();
+			const channel: ValidationItemRunResult['channel'] = tmpl.includes('cdp_validate')
+				? 'cdp_validate'
+				: tmpl.includes('qa') || command.includes('playwright')
+					? 'qa_playwright'
+					: tmpl.includes('verify_specs') || command.includes('verify_specs')
+						? 'verify_specs'
+						: tmpl.includes('tdd_run')
+							? 'tdd_run'
+							: command.includes('make validate') || tmpl.includes('make_validate')
+								? 'make_validate'
+								: 'unknown';
+			const beginTrace: OrchestrationTracePayload = {
+				phase: 'strong_validation_plan',
+				node: { node_id: `validation:${item.id}`, kind: channel, label: item.label || item.id },
+				run_id: session.threadId,
+				timestamp_unix: Math.floor(Date.now() / 1000),
+				outcome_summary: 'run_clicked',
+			};
+			appendTraceEvent(key, beginTrace);
+			void emitInspectorTrace(beginTrace);
+			let result: ValidationItemRunResult = {
+				item_id: item.id,
+				ok: false,
+				channel,
+				started_at: started,
+				finished_at: nowIso(),
+				error: 'unknown validation channel',
+			};
+			try {
+				if (channel === 'qa_playwright') {
+					// 优先联动“用户工作区自定义 agent 流程”验证；
+					// 若未配置则回退到 legacy qa/run。
+					const flowPath = String(templateArgs.flow_path ?? '.agents/flows/qa-agent-flow.json');
+					const flowResp = await fetch(agentApiUrl('/api/workspace/agent-flow-qa/run'), {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ workspace_root: wsRoot, flow_path: flowPath }),
+					});
+					const flowData = (await flowResp.json()) as Record<string, unknown>;
+					const customFound = Boolean(flowData.custom_agent_found);
+					if (customFound) {
+						const startupOk = Boolean(flowData.startup_ok);
+						const testOk = Boolean(flowData.test_ok);
+						const returnOk = Boolean(flowData.return_ok);
+						const flowOk = Boolean(flowData.ok);
+						result = {
+							item_id: item.id,
+							ok: flowOk && startupOk && testOk && returnOk,
+							channel,
+							source: 'custom_agent_flow',
+							started_at: started,
+							finished_at: nowIso(),
+							output: [
+								`custom_agent_found=${customFound}`,
+								`startup_ok=${startupOk}`,
+								`test_ok=${testOk}`,
+								`return_ok=${returnOk}`,
+								typeof flowData.error === 'string' && flowData.error ? `error=${flowData.error}` : '',
+							]
+								.filter(Boolean)
+								.join('\n'),
+							error:
+								flowOk && startupOk && testOk && returnOk
+									? undefined
+									: String(flowData.error ?? 'custom agent flow qa failed'),
+						};
+					} else {
+						const scenario = String(templateArgs.scenario ?? 'spec-verify');
+						const tags = String(templateArgs.tags ?? '');
+						const r = await fetch(agentApiUrl('/api/workspace/qa/run'), {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ workspace_root: wsRoot, scenario, tags }),
+						});
+						const data = (await r.json()) as Record<string, unknown>;
+						result = {
+							item_id: item.id,
+							ok: Boolean(data.ok ?? data.passed),
+							channel,
+							source: 'legacy_qa',
+							started_at: started,
+							finished_at: nowIso(),
+							output: String(data.output ?? ''),
+							exit_code: Number(data.exit_code ?? 0),
+							error: data.ok ? undefined : String(data.error ?? ''),
+						};
+					}
+				} else if (channel === 'verify_specs') {
+					const format = String(templateArgs.format ?? 'summary');
+					const checks = String(templateArgs.checks ?? '');
+					const levels = String(templateArgs.levels ?? '');
+					const r = await fetch(agentApiUrl('/api/workspace/verify-specs'), {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ workspace_root: wsRoot, format, checks, levels }),
+					});
+					const txt = await r.text();
+					result = {
+						item_id: item.id,
+						ok: r.ok,
+						channel,
+						started_at: started,
+						finished_at: nowIso(),
+						output: txt.slice(0, 2000),
+						error: r.ok ? undefined : txt.slice(0, 300),
+					};
+				} else if (channel === 'make_validate') {
+					const target = String(templateArgs.target ?? 'validate');
+					const r = await fetch(agentApiUrl('/api/workspace/run-make'), {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ workspace_root: wsRoot, target }),
+					});
+					const data = (await r.json()) as Record<string, unknown>;
+					result = {
+						item_id: item.id,
+						ok: Boolean(data.ok),
+						channel,
+						started_at: started,
+						finished_at: nowIso(),
+						output: String(data.output ?? '').slice(0, 2000),
+						exit_code: Number(data.exitCode ?? 0),
+					};
+				} else if (channel === 'tdd_run') {
+					await fetch(agentApiUrl('/api/chat'), {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							threadId: session.threadId,
+							input: `请使用 tdd_run 运行当前槽位对应 spec 的测试并返回 RED/GREEN 摘要。spec_path=${session.spec.path}`,
+							workspaceRoot: wsRoot,
+						}),
+					});
+					result = {
+						item_id: item.id,
+						ok: true,
+						channel,
+						started_at: started,
+						finished_at: nowIso(),
+						output: '已触发 tdd_run（结果见会话流）',
+					};
+				} else if (channel === 'cdp_validate') {
+					const defaults = {
+						plan_id: `${session.slot.id}:${item.id}:${Date.now()}`,
+						target_env: { deployment: 'user_managed', host: '127.0.0.1', port: 9222, timeout_sec: 30 },
+						entry_url: 'http://localhost:5173/workbench',
+						steps: [{ id: item.id, assertions: [{ id: 'a1', type: 'text_contains', selector: 'body', value: 'Spec' }] }],
+						screenshot_on_fail: true,
+					};
+					const cdpPlan = {
+						...defaults,
+						...(templateArgs as Record<string, unknown>),
+						target_env: {
+							...defaults.target_env,
+							...((templateArgs.target_env as Record<string, unknown> | undefined) ?? {}),
+						},
+					};
+					const r = await fetch(agentApiUrl('/api/workspace/cdp/validate'), {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							workspace_root: wsRoot,
+							...cdpPlan,
+						}),
+					});
+					const data = (await r.json()) as Record<string, unknown>;
+					result = {
+						item_id: item.id,
+						ok: Boolean(data.ok),
+						channel,
+						started_at: started,
+						finished_at: nowIso(),
+						output: `${String(data.error ?? '')}\n${String((data.logs as unknown[] | undefined)?.join('\n') ?? '')}`.trim(),
+						error: data.ok ? undefined : String(data.error ?? 'cdp_validate failed'),
+					};
+				}
+			} catch (e) {
+				result = {
+					item_id: item.id,
+					ok: false,
+					channel,
+					started_at: started,
+					finished_at: nowIso(),
+					error: e instanceof Error ? e.message : String(e),
+				};
+			}
+			commit(s => {
+				const active = s.sessions[key];
+				if (!active) return s;
+				return {
+					...s,
+					sessions: {
+						...s.sessions,
+						[key]: {
+							...active,
+							validationRuns: { ...(active.validationRuns ?? {}), [item.id]: result },
+							updatedAt: nowIso(),
+						},
+					},
+				};
+			});
+			const doneTrace: OrchestrationTracePayload = {
+				phase: 'user_verification',
+				node: { node_id: `validation:${item.id}`, kind: channel, label: item.label || item.id },
+				run_id: session.threadId,
+				timestamp_unix: Math.floor(Date.now() / 1000),
+				outcome_summary: result.ok ? 'ok' : result.error || 'failed',
+			};
+			appendTraceEvent(key, doneTrace);
+			void emitInspectorTrace(doneTrace);
 		},
 		/** 原型物料库等工具条：向左侧对话预填可发送文本 */
 		prefillActiveChat(text: string) {
@@ -849,8 +1358,8 @@ function createSpecSlotSessionStore() {
 
 			closeStream();
 			const streamPath = useMockBackend
-				? `${SSE_URL}/api/sse/threads/${session.threadId}`
-				: `${SSE_URL}/api/sse/${session.threadId}`;
+				? agentApiUrl(`/api/sse/threads/${session.threadId}`)
+				: agentApiUrl(`/api/sse/${session.threadId}`);
 			activeSource = new EventSource(streamPath);
 			activeSource.addEventListener('message.delta', event => {
 				try {
@@ -1037,13 +1546,13 @@ function createSpecSlotSessionStore() {
 				const fresh = get({ subscribe }).sessions[key] ?? session;
 				const prompt = buildPrompt(fresh, text);
 				if (useMockBackend) {
-					await fetch(`${SSE_URL}/api/runs`, {
+					await fetch(agentApiUrl('/api/runs'), {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ threadId: session.threadId, goal: prompt }),
 					});
 				} else {
-					await fetch(`${SSE_URL}/api/chat`, {
+					await fetch(agentApiUrl('/api/chat'), {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({

@@ -12,18 +12,21 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 		disconnectWorkbenchMessageBridge,
 	} from '$lib/workbench/workbench-message-sse-bridge';
 	import { startWorkbenchInspectorStream } from '$lib/workbench/workbench-inspector-ws';
-	import { threadStore, currentThread } from '$lib/stores/thread-store';
+	import { threadStore, currentThread, currentMessages } from '$lib/stores/thread-store';
 	import WorkbenchLayoutResizable from '$lib/components/workbench/WorkbenchLayoutResizable.svelte';
 	import ActivityBar from '$lib/components/workbench/ActivityBar.svelte';
 	import SpecExplorer from '$lib/components/workbench/SpecExplorer.svelte';
+	import GitSidebar from '$lib/components/workbench/GitSidebar.svelte';
 	import LeftPlaceholderView from '$lib/components/workbench/LeftPlaceholderView.svelte';
 	import AiChatColumn from '$lib/components/workbench/AiChatColumn.svelte';
 	import WorkbenchTitlebar from '$lib/components/workbench/WorkbenchTitlebar.svelte';
 	import WorkbenchCenterTabs from '$lib/components/workbench/WorkbenchCenterTabs.svelte';
 	import R2Dock from '$lib/components/workbench/R2Dock.svelte';
 	import SpecViewer from '$lib/components/workbench/SpecViewer.svelte';
+	import ReadonlyFileViewer from '$lib/components/workbench/ReadonlyFileViewer.svelte';
 	import StatusBar from '$lib/components/workbench/StatusBar.svelte';
 	import SpecSlotDrawer from '$lib/components/workbench/SpecSlotDrawer.svelte';
+	import SpecChildDraftDrawer from '$lib/components/workbench/SpecChildDraftDrawer.svelte';
 	import WindowResizeFrame from '$lib/components/workbench/WindowResizeFrame.svelte';
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
 	import {
@@ -37,8 +40,9 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 	import { wailsReadSpecFile } from '$lib/wails-filesystem';
 	import { appendOutput, clearOutput, outputText } from '$lib/stores/workspace-output-store';
 	import { extractSpecDisplay, type SpecSlotSummary } from '$lib/workbench/spec-display';
+	import { agentApiUrl, getAgentApiBase } from '$lib/runtime/agent-transport';
+	import { uiPreferencesStore } from '$lib/stores/ui-preferences-store';
 
-	const SSE_URL = import.meta.env.VITE_SSE_URL || 'http://localhost:33338';
 	const useMockBackend =
 		import.meta.env.VITE_MOCK_SSE === '1' || import.meta.env.VITE_MOCK_SSE === 'true';
 
@@ -46,6 +50,11 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 	let workspaceRoot = $state('—');
 	let backendStatus = $state<'connecting' | 'ready' | 'error'>('connecting');
 	let workspaceState = $state<'empty' | 'partial' | 'ready'>('empty');
+	let threadMessages = $state<{ role: string; content: string }[]>([]);
+	let canvasPostInFlight = $state(false);
+	let canvasAutoUiEnabled = $state(true);
+	const CANVAS_POST_TAG = '[canvas-postprocess]';
+	const processedCompletedRuns = new Set<string>();
 
 	let prevThreadId: string | null = null;
 	function isLikelyFullPath(p: string): boolean {
@@ -162,8 +171,8 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 
 	function sseConnectPath(tid: string) {
 		return useMockBackend
-			? `${SSE_URL}/api/sse/threads/${tid}`
-			: `${SSE_URL}/api/sse/${tid}`;
+			? agentApiUrl(`/api/sse/threads/${tid}`)
+			: agentApiUrl(`/api/sse/${tid}`);
 	}
 
 	function ensureLocalThread(goal: string): string {
@@ -187,6 +196,67 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 			content,
 			createdAt: new Date().toISOString(),
 		});
+	}
+
+	$effect(() => {
+		const unsub = currentMessages.subscribe(messages => {
+			threadMessages = messages.map(m => ({ role: m.role, content: m.content ?? '' }));
+		});
+		return unsub;
+	});
+
+	$effect(() => {
+		const unsub = uiPreferencesStore.subscribe(v => {
+			canvasAutoUiEnabled = v.canvasAutoUiEnabled;
+		});
+		return unsub;
+	});
+
+	async function triggerCanvasPostProcess(threadId: string, workspaceForAgent: string) {
+		if (canvasPostInFlight) return;
+		const latestAssistant = [...threadMessages].reverse().find(m => m.role === 'assistant')?.content ?? '';
+		if (!latestAssistant.trim()) return;
+		// 仅对“有结构化价值”的回复进行后处理，纯闲聊不触发
+		if (!/(\/[a-z-]+|```|^\s*[-*]\s+|^\s*\d+\.\s+)/im.test(latestAssistant)) return;
+		// 已经是 CanvasSkillPayload 的回复不再重复触发
+		if (/"template"\s*:\s*"[a-z0-9_-]+"/i.test(latestAssistant)) return;
+
+		const latestExcerpt = latestAssistant.slice(-2200);
+		const postInput = `${CANVAS_POST_TAG}
+将以下 assistant 结果转换为 CanvasSkillPayload(JSON) 供 UI 渲染：
+
+要求：
+1) 仅输出一个 \`\`\`json 代码块，且为合法 JSON；
+2) 字段至少包含 template/title/summary/blocks/actions；
+3) actions 使用 prefill_composer/request_api/open_slot/cancel 之一；
+4) 若涉及路径/请求，在 blocks.data 中显式展示 workspace_root 和 target_path(若有)；
+5) 中文文案简洁，可直接给用户点按钮。
+
+workspace_root: ${workspaceForAgent || 'unknown'}
+
+source_assistant_result:
+${latestExcerpt}`;
+
+		canvasPostInFlight = true;
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), 10000);
+		try {
+			await fetch(agentApiUrl('/api/chat'), {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					threadId,
+					input: postInput,
+					workspaceRoot: workspaceForAgent,
+				}),
+				signal: controller.signal,
+			});
+		} catch (e) {
+			console.warn('[Workbench] canvas post-process skipped:', e);
+		} finally {
+			clearTimeout(timer);
+			canvasPostInFlight = false;
+		}
 	}
 
 	function extractCommandQuery(content: string, command: string): string {
@@ -349,9 +419,25 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 		};
 	});
 
+	$effect(() => {
+		const tid = $currentThread?.id;
+		if (!tid) return;
+		if (!canvasAutoUiEnabled) return;
+		const workspaceForAgent = workspaceRoot !== '—' ? workspaceRoot : $specExplorerStore.workspaceRoot;
+		for (const run of $runStore.runs) {
+			if (run.thread_id !== tid) continue;
+			if (run.status !== 'completed') continue;
+			if (processedCompletedRuns.has(run.id)) continue;
+			processedCompletedRuns.add(run.id);
+			if ((run.goal ?? '').includes(CANVAS_POST_TAG)) continue;
+			void triggerCanvasPostProcess(tid, workspaceForAgent);
+			break;
+		}
+	});
+
 	/** Workbench → Agent Inspector：WebSocket 推送 UI 状态快照（mock 后端时关闭）。 */
 	$effect(() => {
-		const handle = startWorkbenchInspectorStream(SSE_URL, { disabled: useMockBackend });
+		const handle = startWorkbenchInspectorStream(getAgentApiBase(), { disabled: useMockBackend });
 		return () => handle.close();
 	});
 
@@ -413,13 +499,13 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 		try {
 			const threadKey = effectiveTid || prevThreadId;
 			if (useMockBackend) {
-				await fetch(`${SSE_URL}/api/runs`, {
+				await fetch(agentApiUrl('/api/runs'), {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ threadId: threadKey, goal: inputWithContext }),
 				});
 			} else {
-				await fetch(`${SSE_URL}/api/chat`, {
+				await fetch(agentApiUrl('/api/chat'), {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
@@ -432,6 +518,36 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 		} catch (e) {
 			console.error('[Workbench] Failed to start run:', e);
 		}
+	}
+
+	function handleQuickAction(action: 'detect' | 'init' | 'align' | 'validate') {
+		const workspaceForAgent = workspaceRoot !== '—' ? workspaceRoot : $specExplorerStore.workspaceRoot;
+		const rootHint = workspaceForAgent ? `当前工作区: ${workspaceForAgent}。` : '当前未绑定工作区，请先选择目录。';
+		if (action === 'detect') {
+			specAgentContextStore.prefillCommand(
+				`/workspace "${rootHint} 请先执行 workspace_detect_state 并解释 empty/partial/ready 的依据。"`
+			);
+			return;
+		}
+		if (action === 'init') {
+			specAgentContextStore.prefillCommand(
+				`/workspace "${rootHint} 按新项目流程澄清需求后执行 workspace_specs_bootstrap（confirm=true, overwrite=false），再给出 L1-L5 链与下一步建议。"`
+			);
+			return;
+		}
+		if (action === 'align') {
+			specAgentContextStore.prefillCommand(
+				`/workspace "${rootHint} 按旧项目流程：先 detect_state + governance，再澄清是对齐文档还是补缺失层级；默认不覆盖现有 spec。"`
+			);
+			return;
+		}
+		specAgentContextStore.prefillCommand(
+			`/validate "${rootHint} 对当前 specs 执行 parent 链、槽位完整度与治理一致性校验，并给出修复优先级。"`
+		);
+	}
+
+	function toggleCanvasAutoUi() {
+		uiPreferencesStore.toggleCanvasAutoUi();
 	}
 </script>
 
@@ -449,10 +565,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 			{#if $specExplorerStore.leftActivity === 'explorer'}
 				<SpecExplorer />
 			{:else if $specExplorerStore.leftActivity === 'git'}
-				<LeftPlaceholderView
-					title="源代码管理"
-					hint="Git 状态与提交将在此展示；当前为占位。"
-				/>
+				<GitSidebar />
 			{:else if $specExplorerStore.leftActivity === 'search'}
 				<LeftPlaceholderView title="搜索" hint="全局搜索 specs 与代码；当前为占位。" />
 			{:else}
@@ -463,13 +576,15 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 		{#snippet main()}
 			{#if $specExplorerStore.selectedSpecPath}
 				<SpecViewer />
+			{:else if $specExplorerStore.selectedFilePath}
+				<ReadonlyFileViewer />
 			{:else}
 				<WorkbenchCenterTabs />
 			{/if}
 		{/snippet}
 
 		{#snippet rightPanel()}
-			<AiChatColumn onsubmit={handleSubmit} />
+			<AiChatColumn onsubmit={handleSubmit} onquickaction={handleQuickAction} />
 		{/snippet}
 
 		{#snippet dock()}
@@ -481,10 +596,13 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 				{workspaceRoot}
 				{backendStatus}
 				{workspaceState}
+				{canvasAutoUiEnabled}
+				ontoggleCanvasAutoUi={toggleCanvasAutoUi}
 			/>
 		{/snippet}
 	</WorkbenchLayoutResizable>
 	<SpecSlotDrawer />
+	<SpecChildDraftDrawer />
 	<WindowResizeFrame />
 </div>
 

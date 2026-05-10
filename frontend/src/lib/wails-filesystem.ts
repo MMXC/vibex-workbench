@@ -20,6 +20,8 @@ export interface WailsSpecFile {
 	level: number;  // 1-5
 	name: string;    // frontmatter.name 或文件名
 	status: string; // frontmatter.status
+	/** spec.parent（便于血缘挂载等） */
+	parent?: string | null;
 	display?: SpecDisplay;
 	slots?: SpecSlotModel;
 }
@@ -45,13 +47,63 @@ function isLikelyFullPath(p: string): boolean {
 	return p.includes('/') || p.includes('\\');
 }
 
+/** 同步探测：当前 WebView 是否具备 Go App 及 disk 相关 binding（不发磁盘请求）。 */
+export type WailsFilesystemBindingStatus = {
+	isWailsRuntime: boolean;
+	hasGoApp: boolean;
+	bindings: {
+		ListSpecs: boolean;
+		ReadSpecFile: boolean;
+		WriteSpecFile: boolean;
+		DetectWorkspaceState: boolean;
+	};
+};
+
+export function getWailsFilesystemBindingStatus(): WailsFilesystemBindingStatus {
+	const app = getGoApp();
+	const fn = (n: string) => {
+		if (!app) return false;
+		return typeof (app as Record<string, unknown>)[n] === 'function';
+	};
+	return {
+		isWailsRuntime: isWails(),
+		hasGoApp: !!app,
+		bindings: {
+			ListSpecs: fn('ListSpecs'),
+			ReadSpecFile: fn('ReadSpecFile'),
+			WriteSpecFile: fn('WriteSpecFile'),
+			DetectWorkspaceState: fn('DetectWorkspaceState'),
+		},
+	};
+}
+
 /**
- * 检查 Wails binding 方法是否存在。
- * 在 Wails runtime 完全 init 前，window.go.main.App.* 方法尚不存在。
+ * 烟雾测试：使用与业务相同的 `wailsListSpecs` 路径验证 disk 通路。
+ * - 浏览器 dev：期望走 HTTP 回落且返回 spec 列表。
+ * - Wails：期望 ListSpecs binding 存在且调用成功后再考虑把槽位 specs I/O 从 Agent HTTP 迁到本模块。
  */
-function hasBinding(name: string): boolean {
-	const rt = getRuntime();
-	return !!(rt && (rt as any).ListSpecs !== undefined);
+export async function probeWailsFilesystemListSpecs(workspaceRoot: string): Promise<{
+	ok: boolean;
+	specCount: number;
+	channel: 'wails_binding' | 'http_fallback';
+	error?: string;
+}> {
+	const before = getWailsFilesystemBindingStatus();
+	try {
+		const files = await wailsListSpecs(workspaceRoot);
+		const channel =
+			before.isWailsRuntime && before.bindings.ListSpecs ? 'wails_binding' : 'http_fallback';
+		return { ok: true, specCount: files.length, channel };
+	} catch (e) {
+		const channel =
+			before.isWailsRuntime && before.bindings.ListSpecs ? 'wails_binding' : 'http_fallback';
+		return {
+			ok: false,
+			specCount: 0,
+			channel,
+			error: e instanceof Error ? e.message : String(e),
+		};
+	}
 }
 
 function levelTokenToNumber(level: string): number {
@@ -123,6 +175,7 @@ async function enrichSpecFiles(root: string, files: WailsSpecFile[]): Promise<Wa
 					level: file.level || levelTokenToNumber(meta.level) || inferLevelFromPath(path),
 					name: meta.name || file.name,
 					status: meta.status || file.status,
+					parent: meta.parent ?? undefined,
 					display: meta.display,
 					slots: meta.slots,
 				};

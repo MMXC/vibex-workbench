@@ -78,6 +78,7 @@
 			`/add "新增 ${card.label} ${card.en} spec。层级 L${card.level}。${parentHint} 先生成可确认草案，不要直接写文件。"`
 		);
 	}
+
 </script>
 
 <section class="dashboard" aria-label="Spec 总控制台">

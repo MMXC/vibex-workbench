@@ -10,6 +10,7 @@ import { threadStore } from '$lib/stores/thread-store';
 import { runStore } from '$lib/stores/run-store';
 import { artifactStore } from '$lib/stores/artifact-store';
 import { canvasStore } from '$lib/stores/canvas-store';
+import { getAgentApiBase } from '$lib/runtime/agent-transport';
 
 type SSEEventHandler = (data: unknown) => void;
 
@@ -192,7 +193,7 @@ const HANDLERS: Record<string, SSEEventHandler> = {
 
 class SSEConsumer {
   private es: EventSource | null = null;
-  private url: string = import.meta.env.VITE_SSE_URL || 'http://localhost:33338';
+  private url: string = getAgentApiBase();
   private retryCount = 0;
   private maxRetries = 5;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;

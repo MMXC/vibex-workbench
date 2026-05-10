@@ -25,6 +25,18 @@
 	}
 
 	const routeDecisions = $derived.by(() => session.routePreview?.decisions ?? []);
+	const verificationPlan = $derived.by(() => session.strongValidationPlan ?? null);
+	const verificationItems = $derived.by(() => verificationPlan?.items ?? []);
+	const verificationRuns = $derived.by(() => session.validationRuns ?? {});
+	const verificationTrace = $derived.by(() => session.traceEvents ?? []);
+	const verificationRequired = $derived.by(
+		() =>
+			(session.slot.id === 'prototype' || session.slot.id === 'implementation') &&
+			verificationItems.length > 0
+	);
+	const verificationReady = $derived.by(() =>
+		verificationRequired ? !!session.verificationSubmission : true
+	);
 	const iterNodes = $derived.by(() => session.iterationNodes ?? []);
 	const iterEdges = $derived.by(() => session.iterationEdges ?? []);
 	const iterCursorId = $derived.by(() => session.iterationCursorId);
@@ -232,6 +244,8 @@
 
 			<div class="route-card compact">
 				<span class="k">Iteration Graph（动态）</span>
+				<details class="iter-collapsible">
+					<summary class="iter-collapsible-sum">查看运行泳道与节点轨迹</summary>
 				{#if iterNodes.length > 0}
 					<div class="iter-toolbar">
 						<div class="iter-lanes">
@@ -330,21 +344,104 @@
 				{:else}
 					<p class="route-fallback">提交后会实时显示 run/planning/tool 调用迭代轨迹。</p>
 				{/if}
+				</details>
 			</div>
 		</div>
 	</details>
 
 	{#if session.slot.id === 'prototype'}
-		<details class="drawer kit-drawer">
-			<summary class="drawer-sum">设计物料库 · DESIGN.md / 从页面提取</summary>
+		<details class="drawer kit-drawer" open>
+			<summary class="drawer-sum">设计物料库 · DESIGN.md / 从页面提取 · Shell 路由</summary>
 			<div class="drawer-body kit-body">
 				<SpecSlotPrototypeKitBar {session} />
 			</div>
 		</details>
 	{/if}
 
+	<details class="drawer verify-drawer" open={verificationRequired}>
+		<summary class="drawer-sum">强校验 · Verification Bar</summary>
+		<div class="drawer-body verify-body">
+			{#if verificationItems.length === 0}
+				<p class="route-fallback">当前槽位暂无 StrongValidationPlan 条目。</p>
+			{:else}
+				<div class="verify-items">
+					{#each verificationItems as item (item.id)}
+						<div class="verify-item">
+							<div class="verify-meta">
+								<strong>{item.label || item.id}</strong>
+								<small>{item.tool_call_template || item.command || 'no command/template'}</small>
+								{#if item.timeout_sec || item.expect_signal}
+									<small>
+										{item.timeout_sec ? `${item.timeout_sec}s` : ''}
+										{item.expect_signal ? ` · expect ${item.expect_signal}` : ''}
+									</small>
+								{/if}
+							</div>
+							<div class="verify-actions">
+								<button type="button" onclick={() => specSlotSessionStore.runValidationItem(item.id)}>
+									运行
+								</button>
+								{#if verificationRuns[item.id]}
+									<span class="verify-run {verificationRuns[item.id].ok ? 'ok' : 'fail'}">
+										{verificationRuns[item.id].ok
+											? 'OK'
+											: verificationRuns[item.id].not_implemented
+												? '待实现'
+												: 'FAIL'}
+									</span>
+									{#if verificationRuns[item.id].source}
+										<span class="verify-source">
+											{verificationRuns[item.id].source === 'custom_agent_flow'
+												? 'Custom Agent Flow'
+												: verificationRuns[item.id].source === 'legacy_qa'
+													? 'Legacy QA'
+													: 'Builtin'}
+										</span>
+									{/if}
+								{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+				<div class="verify-submit">
+					<button type="button" class="verify-green" onclick={() => specSlotSessionStore.submitVerificationOutcome('passed')}>
+						标记 GREEN
+					</button>
+					<button type="button" class="verify-red" onclick={() => specSlotSessionStore.submitVerificationOutcome('failed')}>
+						标记 RED
+					</button>
+					{#if session.verificationSubmission}
+						<small class="verify-sub">
+							已提交：{session.verificationSubmission.outcome} · {session.verificationSubmission.submission_id}
+						</small>
+					{/if}
+				</div>
+			{/if}
+			{#if verificationTrace.length > 0}
+				<details>
+					<summary class="trace-sum">trace · {verificationTrace.length}</summary>
+					<div class="trace-list">
+						{#each verificationTrace.slice(-10).reverse() as t, i (`${t.node.node_id}-${i}`)}
+							<div class="trace-item">
+								<code>{t.phase}</code>
+								<span>{t.node.kind || t.node.node_id}</span>
+								<small>{t.outcome_summary || '—'}</small>
+							</div>
+						{/each}
+					</div>
+				</details>
+			{/if}
+		</div>
+	</details>
+
 	<div class="action-zone">
-		<button type="button" class="btn-confirm" onclick={() => specSlotSessionStore.confirmActiveA2UI()}>
+		<button
+			type="button"
+			class="btn-confirm"
+			disabled={!verificationReady}
+			title={!verificationReady ? '请先提交本槽位验证结果（GREEN/RED）' : undefined}
+			onclick={() => specSlotSessionStore.confirmActiveA2UI()}
+		>
 			确认
 		</button>
 		<details class="drawer action-drawer">
@@ -866,6 +963,129 @@
 		}
 	}
 
+	.verify-body {
+		max-height: 36vh;
+	}
+	.verify-items {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.verify-item {
+		display: flex;
+		justify-content: space-between;
+		gap: 10px;
+		padding: 8px 10px;
+		border: 1px solid #303746;
+		border-radius: 10px;
+		background: rgba(18, 21, 28, 0.9);
+	}
+	.verify-meta {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+	.verify-meta small {
+		color: #9aa3b5;
+		font-size: 11px;
+	}
+	.verify-actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+	.verify-actions button,
+	.verify-submit button {
+		border: 1px solid #465064;
+		border-radius: 999px;
+		background: rgba(28, 32, 42, 0.9);
+		color: #e7ebf5;
+		padding: 6px 11px;
+		font-size: 11px;
+		font-weight: 700;
+		cursor: pointer;
+	}
+	.verify-run {
+		font-size: 10px;
+		font-weight: 800;
+		padding: 2px 8px;
+		border-radius: 999px;
+		border: 1px solid #475569;
+	}
+	.verify-run.ok {
+		color: #86efac;
+		border-color: rgba(134, 239, 172, 0.45);
+	}
+	.verify-run.fail {
+		color: #fda4af;
+		border-color: rgba(253, 164, 175, 0.45);
+	}
+	.verify-submit {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-wrap: wrap;
+	}
+
+	.verify-source {
+		display: inline-flex;
+		align-items: center;
+		padding: 2px 8px;
+		border-radius: 999px;
+		border: 1px solid #3d557a;
+		background: rgba(122, 162, 255, 0.16);
+		color: #cfe0ff;
+		font-size: 10px;
+		font-weight: 700;
+	}
+	.verify-green {
+		border-color: rgba(134, 239, 172, 0.45) !important;
+		color: #86efac !important;
+	}
+	.verify-red {
+		border-color: rgba(253, 164, 175, 0.45) !important;
+		color: #fda4af !important;
+	}
+	.verify-sub {
+		font-size: 11px;
+		color: #9aa3b5;
+	}
+	.trace-sum {
+		font-size: 11px;
+		color: #72d6d0;
+	}
+	.trace-list {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		margin-top: 6px;
+	}
+	.trace-item {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+		font-size: 11px;
+		color: #cdd6e5;
+	}
+	.trace-item small {
+		color: #9aa3b5;
+	}
+
+	.iter-collapsible {
+		margin-top: 8px;
+		border-top: 1px dashed #3b4455;
+		padding-top: 8px;
+	}
+	.iter-collapsible-sum {
+		cursor: pointer;
+		font-size: 11px;
+		color: #9aa3b5;
+		font-weight: 700;
+	}
+	.iter-collapsible-sum::-webkit-details-marker {
+		display: none;
+	}
+
 	.action-zone {
 		flex-shrink: 0;
 		display: flex;
@@ -890,6 +1110,10 @@
 	.btn-confirm:hover {
 		border-color: #72d6d0;
 		background: rgba(114, 214, 208, 0.2);
+	}
+	.btn-confirm:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 
 	.action-drawer {

@@ -6,12 +6,16 @@
 		workspaceRoot?: string;
 		backendStatus?: 'connecting' | 'ready' | 'error';
 		workspaceState?: 'empty' | 'partial' | 'ready';
+		canvasAutoUiEnabled?: boolean;
+		ontoggleCanvasAutoUi?: () => void;
 	}
 
 	let {
 		workspaceRoot = '—',
 		backendStatus = 'connecting',
 		workspaceState = 'empty',
+		canvasAutoUiEnabled = true,
+		ontoggleCanvasAutoUi,
 	}: Props = $props();
 
 	const stateLabels = {
@@ -65,6 +69,16 @@
 
 	<!-- 右区：backend 状态 + 版本 -->
 	<div class="sb-right">
+		<button
+			type="button"
+			class="sb-toggle"
+			class:off={!canvasAutoUiEnabled}
+			title="通用对话结束后自动触发 Canvas 专用 Agent"
+			onclick={() => ontoggleCanvasAutoUi?.()}
+		>
+			Canvas Auto UI: {canvasAutoUiEnabled ? 'On' : 'Off'}
+		</button>
+		<span class="sb-sep" aria-hidden="true">|</span>
 		<span
 			class="sb-badge"
 			style:color={backendColors[backendStatus]}
@@ -131,5 +145,20 @@
 		color: var(--wb-muted, #6f7888);
 		font-size: 11px;
 		white-space: nowrap;
+	}
+
+	.sb-toggle {
+		border: 1px solid #3d557a;
+		background: #11203a;
+		color: #cfe0ff;
+		font-size: 11px;
+		padding: 2px 8px;
+		border-radius: 999px;
+		cursor: pointer;
+	}
+	.sb-toggle.off {
+		border-color: #5a3a3a;
+		background: #2a1717;
+		color: #f4c5c5;
 	}
 </style>

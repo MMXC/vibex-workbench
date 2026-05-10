@@ -7,18 +7,28 @@ Spec: specs/feature/workbench-shell/workbench-conversation_feature.yaml
 <script lang="ts">
   import {
     currentMessages,
+    currentThread,
     stripReasoningTags,
     type Message,
   } from '$lib/stores/thread-store';
   import { runStore, type ToolInvocation } from '$lib/stores/run-store';
+  import { aiBlocksStore } from '$lib/stores/ai-blocks-store';
 
   let messages = $state<Message[]>([]);
   let toolInvocations = $state<ToolInvocation[]>([]);
   let activeRunStatus = $state<string | null>(null);
+  let currentThreadId = $state<string | null>(null);
 
   $effect(() => {
     const unsub = currentMessages.subscribe(m => {
       messages = m;
+    });
+    return unsub;
+  });
+
+  $effect(() => {
+    const unsub = currentThread.subscribe(t => {
+      currentThreadId = t?.id ?? null;
     });
     return unsub;
   });
@@ -35,6 +45,7 @@ Spec: specs/feature/workbench-shell/workbench-conversation_feature.yaml
 
   $effect(() => {
     messages;
+    aiBlocksStore.ingestThread(currentThreadId, messages);
     queueMicrotask(() => {
       scrollEl?.scrollTo({ top: scrollEl.scrollHeight, behavior: 'smooth' });
     });

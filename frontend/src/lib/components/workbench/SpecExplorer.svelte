@@ -6,42 +6,61 @@
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
 	import { specExplorerStore, workspaceDisplayName } from '$lib/stores/spec-explorer-store';
-	import type { SpecSlotSummary } from '$lib/workbench/spec-display';
-	import { fallbackDisplayTitle } from '$lib/workbench/spec-display';
 
-	/** 手动刷新（点击 ↻ 按钮） */
-	function reload() {
-		const root = get(specExplorerStore).workspaceRoot;
-		if (!root) return;
-		specExplorerStore.loadList(root);
-	}
-
-	function depthIndent(path: string): number {
-		return path.split('/').length - 2;
-	}
-
-	function levelClass(level: number): string {
-		if (level <= 1) return 'goal';
-		if (level === 2) return 'skeleton';
-		if (level === 3) return 'module';
-		if (level === 4) return 'feature';
-		return 'slice';
-	}
-
-	function compactPath(path: string): string {
-		return path.replace(/^specs\//, '').replace(/\.ya?ml$/, '');
-	}
-
-	function slotText(slot: SpecSlotSummary | undefined): string {
-		if (!slot) return '待补充';
-		if (slot.status === 'present') return slot.count > 1 ? String(slot.count) : '✓';
-		if (slot.status === 'empty') return '无';
-		if (slot.status === 'na') return '不适用';
-		return '待补';
-	}
+	import { agentApiUrl } from '$lib/runtime/agent-transport';
+	type TreeNode = { name: string; path: string; type: 'file' | 'dir' };
+	const childrenMap = $state<Record<string, TreeNode[]>>({});
+	const expanded = $state<Record<string, boolean>>({});
+	const loadingMap = $state<Record<string, boolean>>({});
+	let treeError = $state('');
 
 	function isLikelyFullPath(path: string | null): path is string {
 		return !!path && (path.includes('/') || path.includes('\\'));
+	}
+
+	function isSpecFile(path: string): boolean {
+		return path.startsWith('specs/') && /\.ya?ml$/i.test(path);
+	}
+
+	function depthOf(path: string): number {
+		return path ? path.split('/').length - 1 : 0;
+	}
+
+	async function fetchChildren(path = '') {
+		const ws = $specExplorerStore.workspaceRoot;
+		if (!ws) return;
+		loadingMap[path] = true;
+		treeError = '';
+		try {
+			const url = `${agentApiUrl('/api/workspace/tree')}?workspaceRoot=${encodeURIComponent(ws)}&path=${encodeURIComponent(path || '.')}`;
+			const res = await fetch(url);
+			const data = await res.json();
+			if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+			childrenMap[path] = data.nodes || [];
+		} catch (e) {
+			treeError = e instanceof Error ? e.message : String(e);
+		} finally {
+			loadingMap[path] = false;
+		}
+	}
+
+	async function toggleDir(path: string) {
+		expanded[path] = !expanded[path];
+		if (expanded[path] && !childrenMap[path]) {
+			await fetchChildren(path);
+		}
+	}
+
+	function clickFile(path: string) {
+		if (isSpecFile(path)) {
+			specExplorerStore.selectSpec(path);
+		} else {
+			specExplorerStore.selectFile(path);
+		}
+	}
+
+	async function reload() {
+		await fetchChildren('');
 	}
 
 	async function restoreWorkspaceRoot() {
@@ -67,6 +86,12 @@
 	onMount(() => {
 		if (!get(specExplorerStore).workspaceRoot) void restoreWorkspaceRoot();
 	});
+
+	$effect(() => {
+		const ws = $specExplorerStore.workspaceRoot;
+		if (!ws) return;
+		void fetchChildren('');
+	});
 </script>
 
 <div class="spec-explorer">
@@ -85,53 +110,58 @@
 
 	{#if !$specExplorerStore.workspaceRoot}
 		<p class="muted pad">未设置工作区</p>
-	{:else if $specExplorerStore.specsLoading}
+	{:else if loadingMap['']}
 		<p class="muted pad">加载中…</p>
-	{:else if $specExplorerStore.specsError}
-		<p class="err pad">{$specExplorerStore.specsError}</p>
-	{:else if $specExplorerStore.specs.length === 0}
-		<p class="muted pad">无 spec 文件（点击工具栏「初始化」开始）</p>
+	{:else if treeError}
+		<p class="err pad">{treeError}</p>
+	{:else if !childrenMap[''] || childrenMap[''].length === 0}
+		<p class="muted pad">当前目录为空</p>
 	{:else}
 		<div class="tree" role="tree">
 			<div class="tree-section">
 				<span class="chevron">▾</span>
-				<span>specs</span>
-				<span class="tree-count">{$specExplorerStore.specs.length}</span>
+				<span>workspace</span>
+				<span class="tree-count">{childrenMap[''].length}</span>
 			</div>
-			{#each $specExplorerStore.specs as item (item.path)}
-				{@const title = item.display?.title || fallbackDisplayTitle(item.name)}
-				{@const summary = item.display?.summary || compactPath(item.path)}
-				{@const level = item.level > 0 ? `L${item.level}` : 'SPEC'}
-				<button
-					type="button"
-					class="ws-item"
-					class:goal={item.level <= 1}
-					class:skeleton={item.level === 2}
-					class:module={item.level === 3}
-					class:feature={item.level === 4}
-					class:slice={item.level >= 5}
-					class:active={$specExplorerStore.selectedSpecPath === item.path}
-					style:--depth-indent="{depthIndent(item.path) * 4}px"
-					onclick={() => specExplorerStore.selectSpec(item.path)}
-				>
-					<span class="ws-accent"></span>
-					<span class="ws-main">
-						<span class="ws-top">
-							<span class="ws-title">{title}</span>
-							<span class="level-badge {levelClass(item.level)}">{level}</span>
-						</span>
-						<span class="ws-summary">{summary}</span>
-						{#if item.slots}
-							<span class="slot-row" aria-label="spec 槽位完整度">
-								<span class="slot-chip" class:ok={item.slots.structure.status === 'present'}>结构 {slotText(item.slots.structure)}</span>
-								<span class="slot-chip" class:ok={item.slots.input.status === 'present' && item.slots.output.status === 'present'}>I/O {item.slots.input.status === 'present' && item.slots.output.status === 'present' ? '✓' : '待补'}</span>
-								<span class="slot-chip" class:ok={item.slots.constraints.status === 'present'}>约束 {slotText(item.slots.constraints)}</span>
-								<span class="slot-chip" class:ok={item.slots.prototype.status === 'present'}>原型 {slotText(item.slots.prototype)}</span>
-							</span>
+			{#each childrenMap[''] as node (node.path)}
+				<div class="line" style:--depth-indent="{depthOf(node.path) * 10}px">
+					{#if node.type === 'dir'}
+						<button type="button" class="tree-btn dir" onclick={() => toggleDir(node.path)}>
+							<span>{expanded[node.path] ? '▾' : '▸'}</span>
+							<span>{node.name}</span>
+						</button>
+						{#if expanded[node.path]}
+							{#if loadingMap[node.path]}
+								<div class="nested muted">加载中…</div>
+							{:else}
+								{#each childrenMap[node.path] || [] as sub (sub.path)}
+									<div class="nested" style:--depth-indent="{depthOf(sub.path) * 10}px">
+										{#if sub.type === 'dir'}
+											<button type="button" class="tree-btn dir" onclick={() => toggleDir(sub.path)}>
+												<span>{expanded[sub.path] ? '▾' : '▸'}</span>
+												<span>{sub.name}</span>
+											</button>
+										{:else}
+											<button type="button" class="tree-btn file"
+												class:active={$specExplorerStore.selectedSpecPath === sub.path || $specExplorerStore.selectedFilePath === sub.path}
+												onclick={() => clickFile(sub.path)}>
+												<span>{isSpecFile(sub.path) ? '◆' : '•'}</span>
+												<span>{sub.name}</span>
+											</button>
+										{/if}
+									</div>
+								{/each}
+							{/if}
 						{/if}
-						<span class="ws-machine">{item.status} · {compactPath(item.path)}</span>
-					</span>
-				</button>
+					{:else}
+						<button type="button" class="tree-btn file"
+							class:active={$specExplorerStore.selectedSpecPath === node.path || $specExplorerStore.selectedFilePath === node.path}
+							onclick={() => clickFile(node.path)}>
+							<span>{isSpecFile(node.path) ? '◆' : '•'}</span>
+							<span>{node.name}</span>
+						</button>
+					{/if}
+				</div>
 			{/each}
 		</div>
 	{/if}
@@ -278,182 +308,22 @@
 		gap: 7px;
 	}
 
-	.ws-item {
-		position: relative;
-		flex-shrink: 0;
-		display: flex;
-		align-items: stretch;
-		gap: 0;
+	.line, .nested { padding-left: var(--depth-indent, 0px); }
+	.tree-btn {
 		width: 100%;
-		min-height: 88px;
-		padding: 0;
+		display: flex;
+		align-items: center;
+		gap: 6px;
 		border: 1px solid transparent;
-		border-radius: 13px;
-		box-sizing: border-box;
-		background: rgba(28, 32, 42, 0.62);
+		border-radius: 8px;
+		background: transparent;
+		color: #dbe4f3;
 		cursor: pointer;
-		color: #eef0f5;
+		padding: 6px 8px;
 		text-align: left;
-		font: inherit;
-		overflow: hidden;
-		transition:
-			background 150ms ease,
-			border-color 150ms ease,
-			transform 150ms ease;
 	}
-
-	.ws-item:hover {
-		background: rgba(36, 41, 54, 0.86);
-		border-color: #465064;
-		transform: translateY(-1px);
-	}
-
-	.ws-item.active {
-		background: rgba(122, 162, 255, 0.13);
-		border-color: #7aa2ff;
-		color: #ffffff;
-	}
-
-	.ws-accent {
-		display: block;
-		flex: 0 0 5px;
-		background: #7aa2ff;
-	}
-
-	.ws-item.goal .ws-accent {
-		background: #72d6d0;
-	}
-
-	.ws-item.skeleton .ws-accent {
-		background: #87cf8a;
-	}
-
-	.ws-item.module .ws-accent {
-		background: #7aa2ff;
-	}
-
-	.ws-item.feature .ws-accent {
-		background: #efc66b;
-	}
-
-	.ws-item.slice .ws-accent {
-		background: #f09a6a;
-	}
-
-	.ws-main {
-		flex: 1;
-		min-width: 0;
-		padding: 10px 10px 9px;
-		padding-left: calc(10px + var(--depth-indent, 0px));
-		display: flex;
-		flex-direction: column;
-		gap: 5px;
-	}
-
-	.ws-top {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 8px;
-	}
-
-	.ws-title {
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		font-size: 12px;
-		font-weight: 800;
-	}
-
-	.level-badge {
-		flex-shrink: 0;
-		height: 21px;
-		display: inline-flex;
-		align-items: center;
-		border: 1px solid #465064;
-		font-family: 'Cascadia Code', ui-monospace, monospace;
-		font-size: 10px;
-		font-weight: 800;
-		letter-spacing: 0.02em;
-		line-height: 1;
-		padding: 0 8px;
-		border-radius: 999px;
-		background: rgba(12, 14, 19, 0.5);
-		color: #a3abb9;
-	}
-
-	.level-badge.goal {
-		color: #72d6d0;
-		border-color: rgba(114, 214, 208, 0.5);
-	}
-
-	.level-badge.skeleton {
-		color: #87cf8a;
-		border-color: rgba(135, 207, 138, 0.5);
-	}
-
-	.level-badge.module {
-		color: #7aa2ff;
-		border-color: rgba(122, 162, 255, 0.5);
-	}
-
-	.level-badge.feature {
-		color: #efc66b;
-		border-color: rgba(239, 198, 107, 0.5);
-	}
-
-	.level-badge.slice {
-		color: #f09a6a;
-		border-color: rgba(240, 154, 106, 0.5);
-	}
-
-	.ws-summary,
-	.ws-machine {
-		min-width: 0;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.ws-summary {
-		color: #a3abb9;
-		font-size: 11px;
-	}
-
-	.slot-row {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 4px;
-		min-width: 0;
-	}
-
-	.slot-chip {
-		display: inline-flex;
-		align-items: center;
-		height: 18px;
-		max-width: 72px;
-		padding: 0 6px;
-		border-radius: 999px;
-		border: 1px solid rgba(70, 80, 100, 0.82);
-		background: rgba(12, 14, 19, 0.34);
-		color: #858fa1;
-		font-size: 9px;
-		font-weight: 700;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.slot-chip.ok {
-		color: #72d6d0;
-		border-color: rgba(114, 214, 208, 0.44);
-		background: rgba(114, 214, 208, 0.08);
-	}
-
-	.ws-machine {
-		color: #6f7888;
-		font-family: 'Cascadia Code', ui-monospace, monospace;
-		font-size: 10px;
-	}
+	.tree-btn:hover { background: rgba(122,162,255,.09); border-color: #465064; }
+	.tree-btn.active { background: rgba(122,162,255,.16); border-color: #7aa2ff; }
+	.tree-btn.dir { color: #9dc2ff; font-weight: 600; }
+	.tree-btn.file { color: #dbe4f3; }
 </style>

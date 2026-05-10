@@ -6,13 +6,7 @@ import { get } from 'svelte/store';
 import { specExplorerStore } from '$lib/stores/spec-explorer-store';
 import { threadStore } from '$lib/stores/thread-store';
 import { specSlotSessionStore } from '$lib/stores/spec-slot-session-store';
-
-function httpToWsBase(httpUrl: string): string {
-	let u = httpUrl.trim().replace(/\/$/, '');
-	if (u.startsWith('https://')) return 'wss://' + u.slice('https://'.length);
-	if (u.startsWith('http://')) return 'ws://' + u.slice('http://'.length);
-	return u;
-}
+import { httpToWsBase } from '$lib/runtime/agent-transport';
 
 function debounce(fn: () => void, ms: number): () => void {
 	let t: ReturnType<typeof setTimeout> | undefined;
@@ -92,8 +86,18 @@ export function startWorkbenchInspectorStream(
 			attempt = 0;
 			sendSnapshot();
 		};
-		ws.onmessage = () => {
-			/* server may broadcast other subscribers */
+		ws.onmessage = event => {
+			try {
+				const env = JSON.parse(String(event.data ?? '{}')) as {
+					kind?: string;
+					params?: Record<string, unknown>;
+				};
+				if (env.kind === 'trace' && env.params) {
+					specSlotSessionStore.recordTraceEvent(env.params as any);
+				}
+			} catch {
+				/* ignore malformed broadcast */
+			}
 		};
 		ws.onerror = () => {
 			/* onclose will reconnect */

@@ -22,6 +22,10 @@ export function ListSpecs(arg1:string):Promise<Array<main.SpecFile>>;
 
 export function OpenDirectoryDialog(arg1:context.Context):Promise<string>;
 
+export function PrototypeManifestGet(arg1:string):Promise<Record<string, any>>;
+
+export function PrototypeManifestRegister(arg1:string,arg2:string):Promise<Record<string, any>>;
+
 export function ReadSpecFile(arg1:string,arg2:string):Promise<string>;
 
 export function RunAgent(arg1:context.Context,arg2:string):Promise<Record<string, any>>;

@@ -38,6 +38,14 @@ export function OpenDirectoryDialog(arg1) {
   return window['go']['main']['App']['OpenDirectoryDialog'](arg1);
 }
 
+export function PrototypeManifestGet(arg1) {
+  return window['go']['main']['App']['PrototypeManifestGet'](arg1);
+}
+
+export function PrototypeManifestRegister(arg1, arg2) {
+  return window['go']['main']['App']['PrototypeManifestRegister'](arg1, arg2);
+}
+
 export function ReadSpecFile(arg1, arg2) {
   return window['go']['main']['App']['ReadSpecFile'](arg1, arg2);
 }

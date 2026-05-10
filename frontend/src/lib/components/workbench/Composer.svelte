@@ -224,7 +224,7 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
     <textarea
       bind:this={textareaEl}
       bind:value={content}
-      placeholder='用自然语言操作工作台，或输入 /workspace /specs /validate /route /open-slot...'
+      placeholder='用自然语言操作工作台，或输入 /workspace /specs /spec-init-chain /spec-legacy-align /open-slot...'
       rows={3}
       oninput={syncCommandPalette}
       onfocus={syncCommandPalette}
