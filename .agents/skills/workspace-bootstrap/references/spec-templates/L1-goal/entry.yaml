@@ -1,0 +1,45 @@
+---
+spec:
+  version: "0.1"
+  level: "1_project_goal"
+  name: "{project-name}-goal"
+  parent: null
+  status: "proposal"
+  owner: "{owner}"
+  created: "{YYYY-MM-DD}"
+  updated: "{YYYY-MM-DD}"
+
+meta:
+  type: "project-goal"
+  owner: "{owner}"
+  created: "{YYYY-MM-DD}"
+  updated: "{YYYY-MM-DD}"
+  tags: []
+
+lifecycle:
+  current: "proposal"
+  history:
+    - status: "proposal"
+      at: "{YYYY-MM-DDTHH:MM:SS}"
+      by: "{owner}"
+      trigger: "user:manual"
+      note: "项目目标初始化"
+
+io_contract:
+  input: "用户描述的产品意图（自然语言）"
+  output: "L1 goal spec（使命、约束、价值分层）"
+  boundary: "只回答做什么/不做什么/成功什么样，不写技术实现"
+  behavior: |
+    1. 接收用户意图
+    2. 写成 L1 goal spec
+    3. 确认 spec 完整
+    4. 进入 L2 skeleton 阶段
+
+content:
+  mission: "待填写：产品的核心使命是什么"
+  target_users: "待填写：目标用户是谁"
+  constraints: []
+  product_value_layers:
+    kernel: "内核价值"
+    proof: "证明路径"
+    experience: "用户体验"

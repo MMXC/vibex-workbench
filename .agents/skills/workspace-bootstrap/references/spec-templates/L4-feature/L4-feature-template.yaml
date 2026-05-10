@@ -1,0 +1,161 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "{feature-name}"             # 功能名称
+  parent: "{l3-spec-name}"           # L3 module spec.name
+  status: "proposal"
+
+meta:
+  type: "feature"
+  module: "{module-name}"
+  owner: "{owner}"
+  created: "{YYYY-MM-DD}"
+  updated: "{YYYY-MM-DD}"
+
+lifecycle:
+  current: "proposal"
+  updated: "{YYYY-MM-DD}"
+
+display:
+  title: "{中文功能标题}"
+  summary: "{一句话说明这个功能的用户价值和触发场景}"
+  description: "{面向用户和 agent 的完整功能说明}"
+
+structure:
+  parent: "{l3-spec-name}"
+  children: []
+  dependencies: []
+  impacted_files:
+    - "{可能被 L5 实现影响的文件，可为空}"
+
+io:
+  input:
+    - "{用户操作或系统事件}"
+    - "{后端适配层：对端前端功能的 L4 名或 mixin 引用}"
+  output:
+    - "{用户可见结果或系统副作用}"
+    - "{完整交互原型参考：见 prototype 与 content.workspace_bootstrap}"
+  boundary: "L4 描述功能行为和验收；后端适配层交付通用插槽契约，业务填满在 L5。单文件内容在 L5。"
+
+constraints:
+  rules:
+    - id: "C1"
+      name: "{约束名}"
+      rule: "{约束规则}"
+      verification: "{如何验证}"
+  forbidden: []
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+io_contract:
+  input: |
+    用户操作（如：点击按钮、提交表单、发送 API 请求）
+    或系统事件（如：定时触发、文件变更）
+  output: |
+    用户可见结果（如：界面变化、API 响应）
+    + 副作用（如：数据库写入、日志输出）
+  boundary: |
+    功能边界内的行为才在 behaviors 里描述。
+    边界外由其他 L4 或 L3 处理。
+  behavior: |
+    1. 接收输入（input）
+    2. 执行业务逻辑（behaviors）
+    3. 产生输出（output）
+    4. 触发副作用
+
+# ── mixins ─────────────────────────────────────
+# mixins:
+#   - "L4-workbench_mixin-security"    # 安全横切 concern
+#   - "L4-workbench_mixin-observability"
+
+# ── content ─────────────────────────────────────
+content:
+  behaviors:
+    - id: "B1"
+      trigger: "{什么触发这个行为}"
+      action: "{具体做什么}"
+      expected_result: "{期望结果}"
+      error_handling: "{错误如何处理}"
+    # 更多 behaviors...
+
+  test_scenarios:
+    - id: "TC-{n}"
+      scenario: "{测试场景描述}"
+      given: "{前置条件}"
+      when: "{触发动作}"
+      then: "{期望结果}"
+      evaluation: |
+        {eval 评分标准：如何判断 TC 通过/部分通过/失败}
+    # 更多测试场景...
+
+  user_stories:
+    - id: "US-{n}"
+      as_a: "{用户角色}"
+      i_want: "{我想要什么}"
+      so_that: "{以便}"
+      acceptance: "{验收标准}"
+
+  constraints:
+    - id: "C1"
+      name: "{约束名}"
+      rule: "{约束规则}"
+      validation: "{如何验证}"
+
+  l4_l5_lineage:
+    summary: "{L4 定义行为，L5 定义具体文件如何生成}"
+    which_files:
+      - file: "{文件名}"
+        generated_from: "{对应的 behavior}"
+    generation_order:
+      - "{文件生成顺序（如：types → store → component）}"
+
+  # ── 新工作区初始化（与 L0 workspace_bootstrap_contract.l4 一致）──
+  workspace_bootstrap:
+    surface:
+      summary: "本 FEAT 是前端可点能力 / 后端与前端配对的适配+mixin / 纯后端能力"
+      kind: "frontend_feature | backend_adapter_mixin | backend_domain_feature"
+    interaction_prototype:
+      summary: "本功能的完整交互原型（主路径+关键异常/空态）；路径写入 prototype.file 或结构说明"
+      full_flow_ref: "{HTML/录屏/Story 等}"
+    mixin_pairing:
+      summary: "backend_adapter_mixin 时填写：与哪条前端 FEAT 同愿景、如何合并"
+      frontend_feat_spec_name: "{FEAT-xxx 或空}"
+      generic_slot_contract: |
+        {本 L4 提供的可替换通用代码边界：接口、表、路由占位等}
+    consider_promote_to_l3:
+      trigger: "新抽屉/多 feature 长期共用的壳"
+      action: "评估升格为独立 MOD（前端区），本 FEAT 改为挂在新 MOD 下"
+
+  # 自举启示：goskill goa DSL 格式可作为 L4 behaviors 的结构化参考
+  goskill_inspiration:
+    goa_style: |
+      VibeX L4 behaviors 可参考 goskill goa 格式：
+      ```yaml
+      behaviors:
+        - method: "CreateUser"
+          context:
+            input: "user registration data"
+            output: "created user + token"
+          validation:
+            - "email format"
+            - "password strength"
+      ```
+    why_reference: |
+      goa 的 context/validation 分离与 VibeX io_contract/behaviors
+      的分离哲学一致，可互相借鉴。
+
+changelog:
+  - version: "0.1"
+    date: "{YYYY-MM-DD}"
+    author: "{owner}"
+    changes:
+      - "初始功能定义"
+  - version: "0.2"
+    date: "{YYYY-MM-DD}"
+    author: "{owner}"
+    changes:
+      - "工作区初始化：io + content.workspace_bootstrap（表面类型、完整交互原型、mixin 配对、升格 L3 提示）"

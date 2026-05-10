@@ -1,0 +1,45 @@
+{
+  "template": "spec_bootstrap_flow",
+  "title": "新项目 L1-L5 初始化",
+  "summary": "先澄清边界与 slug，再执行 bootstrap，最后验证与确认。",
+  "blocks": [
+    {
+      "type": "steps",
+      "title": "执行流程",
+      "items": [
+        "workspace_detect_state",
+        "clarify requirements",
+        "workspace_specs_bootstrap",
+        "verify_spec_suite"
+      ]
+    },
+    {
+      "type": "kv",
+      "title": "运行参数",
+      "data": {
+        "workspace_root": "D:/repo/demo",
+        "overwrite": false,
+        "confirm": true
+      }
+    }
+  ],
+  "actions": [
+    {
+      "id": "bootstrap",
+      "label": "请求初始化",
+      "type": "request_api",
+      "variant": "primary",
+      "confirm": "将写入 specs/L1~L5 占位文件，是否继续？",
+      "payload": {
+        "endpoint": "/api/workspace/spec-bootstrap",
+        "method": "POST"
+      }
+    },
+    {
+      "id": "cancel",
+      "label": "取消",
+      "type": "cancel",
+      "variant": "secondary"
+    }
+  ]
+}

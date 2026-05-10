@@ -1,0 +1,136 @@
+---
+spec:
+  version: "0.1"
+  level: "3_module"
+  name: "{module-name}"              # 模块名
+  parent: "{l2-spec-name}"          # L2 skeleton spec.name
+  status: "proposal"
+
+meta:
+  type: "module"
+  module: "{module-name}"
+  owner: "{owner}"
+  created: "{YYYY-MM-DD}"
+  updated: "{YYYY-MM-DD}"
+
+lifecycle:
+  current: "proposal"
+  updated: "{YYYY-MM-DD}"
+
+display:
+  title: "{中文模块标题}"
+  summary: "{一句话说明该模块的职责和边界}"
+  description: "{面向用户和 agent 的完整模块说明}"
+
+structure:
+  parent: "{l2-spec-name}"
+  children: []
+  dependencies:
+    - "{依赖的模块或外部库，可为空}"
+  impacted_files: []
+
+io:
+  input:
+    - "{L2 skeleton 中该模块的定义}"
+    - "{前端 MOD：自 L1 主界面原型拆分出的可见区；后端 MOD：分层职责}"
+  output:
+    - "{公开 API、状态定义和模块依赖}"
+    - "{前端：该区/壳的交互原型设计；后端：本分层的规范 + 验证工具用法}"
+  boundary: "L3 只定义模块对外接口和内部状态，不展开单条用户闭环（L4）。后端分层 MOD 可滞后创建，见 workspace_bootstrap.deferred_backend。"
+
+constraints:
+  rules: []
+  forbidden: []
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+io_contract:
+  input: |
+    L2 skeleton spec 的 modules_matrix 中该模块的定义
+  output: |
+    L3 module spec，含：
+    - public_api（函数/方法签名）
+    - state_definitions（内部状态）
+    - dependencies（外部依赖）
+  boundary: |
+    L3 只定义模块的对外接口，
+    不定义调用方如何使用（那是 L4 feature 的职责）。
+  behavior: |
+    1. 解析模块职责
+    2. 定义公开 API 签名
+    3. 定义内部状态机
+    4. 输出 L3 spec
+
+content:
+  public_api:
+    - function: "{exported_function}"
+      signature: "{func(arg: Type): ReturnType}"
+      description: "{函数作用}"
+      side_effects: "{有无副作用}"
+    # 更多 API...
+
+  state_definitions:
+    - state: "{StateName}"
+      description: "{状态含义}"
+      allowed_transitions:
+        - from: "{from-state}"
+          to: "{to-state}"
+          trigger: "{触发条件}"
+    # 更多状态...
+
+  internal_structure: |
+    {模块内部组织结构的文字描述}
+
+  dependencies:
+    - name: "{库/模块名}"
+      type: "internal|external"
+      purpose: "{用途}"
+    # 更多依赖...
+
+  l3_l4_lineage:
+    summary: "{L3 定义接口，L4 使用接口实现功能}"
+    which_features:
+      - feature: "{feature-name}"
+        uses_api:
+          - "{function}"
+
+  # ── 新工作区初始化（与 L0 workspace_bootstrap_contract.l3 一致）──
+  workspace_bootstrap:
+    module_axis:
+      summary: "本 MOD 属于前端可见区拆分 / 后端分层 / 其它"
+      kind: "frontend_shell_region | backend_tier | other"
+    frontend_shell_region:
+      maps_from_l1_main_prototype: "{主界面上的分区名/坐标，与 L1 prototype 对照}"
+      region_interaction_prototype:
+        summary: "该模块区**交互**原型（可高于 L1 静态壳保真度）"
+        file_or_ref: "{路径或 Figma/链接}"
+      public_api_maps_to_ui: "public_api 中的组件/路由应对齐可见分区边界"
+    backend_tier:
+      tier: "{adapter | capability | domain | data | external | ...}"
+      norms_and_best_practices: |
+        {本分层的约定：错误模型、依赖方向、禁止事项等}
+      verification:
+        tools:
+          - "{如: golangci-lint 配置路径、契约测试命令}"
+        how_to_run: "{在新工作区第一次如何执行验证}"
+    deferred_backend:
+      created_after_frontend_l4: false
+      inferred_from_features_note: |
+        若为 true：写明由哪些 FEAT/L4 反推补挂本 MOD，并回溯更新 l3_l4_lineage。
+    promotion_from_l4:
+      note: "当多 L4 将共用同一新抽屉/弹窗壳时，可评估将壳升格为本层新的 frontend_shell_region MOD"
+
+changelog:
+  - version: "0.1"
+    date: "{YYYY-MM-DD}"
+    author: "{owner}"
+    changes:
+      - "初始模块定义"
+  - version: "0.2"
+    date: "{YYYY-MM-DD}"
+    author: "{owner}"
+    changes:
+      - "工作区初始化：io + content.workspace_bootstrap（前后端 MOD 分工、后端可滞后、区原型）"

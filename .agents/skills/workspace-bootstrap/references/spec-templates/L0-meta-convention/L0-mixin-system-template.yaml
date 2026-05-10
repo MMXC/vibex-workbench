@@ -1,0 +1,163 @@
+---
+spec:
+  version: "1.0"
+  level: "0_meta-convention"
+  name: "mixin-system"
+  parent: null
+  status: "confirmed"
+
+meta:
+  type: "meta-convention"
+  owner: "hermes"
+  created: "2026-04-23"
+
+lifecycle:
+  current: "confirmed"
+  updated: "2026-04-23"
+
+io_contract:
+  input: |
+    一个 L1–L5 spec 声明了 mixins: [...] 字段，
+    需要知道 mixin 如何合并、冲突如何解决。
+  output: |
+    合并后的 spec 数据结构（io_contract/behavior/constraints 等字段已合并），
+    或循环依赖检测错误。
+  boundary: |
+    mixin 只影响同层 spec（L2 mixin L2，L4 mixin L4）。
+    跨层引用通过 parent chain 实现，不是 mixin。
+  behavior: |
+    1. 解析主 spec 的 mixins 列表
+    2. 对每个 mixin 加载对应文件
+    3. 检测循环依赖
+    4. 按字段类型执行合并
+    5. 输出合并后 spec
+
+content:
+  summary: |
+    定义 spec 的 mixin 机制：如何引用、如何合并、如何检测循环。
+    mixin 来自横切维度，同层引用，无 diamond 问题。
+
+  mixin_declaration:
+    - field: "mixins"
+      type: "array of strings"
+      location: "spec 层级内"
+      example: |
+        spec:
+          mixins:
+            - "L4-workbench_mixin-security"
+            - "L4-workbench_mixin-observability"
+
+  mixin_file_naming: |
+    L{n}-{project}_mixin-{mixin-name}.yaml
+
+  mixin_file_structure:
+    must_contain:
+      - "spec.level（与主 spec 同层）"
+      - "spec.name（全局唯一）"
+      - "io_contract（或其中的部分字段）"
+      - "behaviors（或其中的部分条目）"
+      - "constraints"
+      - "test_scenarios"
+
+  # 字段合并规则
+  merge_rules:
+    - target: "io_contract"
+      strategy: "浅合并，后者 override 前者"
+      detail: |
+        input: 拼接
+        output: 拼接
+        boundary: 取主 spec
+        behavior: 取主 spec
+      example: |
+        base io_contract:
+          input: "接收用户意图"
+          output: "生成代码"
+        mixin io_contract:
+          input: "接收安全上下文"
+        merged:
+          input: "接收用户意图；接收安全上下文"
+          output: "生成代码"
+
+    - target: "behaviors"
+      strategy: "拼接（主 spec 在前，mixin 在后）"
+      detail: |
+        不去重，顺序保留。
+        AI agent 执行时按顺序应用。
+
+    - target: "constraints"
+      strategy: "拼接（主 spec 在前，mixin 在后）"
+      detail: |
+        不去重。
+        constraint_validator.py 全部检查。
+
+    - target: "test_scenarios"
+      strategy: "拼接"
+      detail: |
+        所有测试场景都运行。
+        任一 scenario 失败 → TC 评分 < 1.0。
+
+    - target: "meta / lifecycle"
+      strategy: "取主 spec 值，忽略 mixin"
+      detail: "meta.owner = 主 spec 的 owner"
+
+    - target: "content.{other}"
+      strategy: "取主 spec 值"
+      detail: "未声明的字段全部取主 spec"
+
+  # 循环检测
+  cycle_detection:
+    algorithm: "DFS + 着色法"
+    graph: "spec.name → mixin spec.name"
+    colors: ["white（未访问）", "gray（递归中）", "black（已完成）"]
+    cycle_signal: "访问 gray 节点 → 检测到环"
+    exit_code_on_cycle: 2
+    example: |
+      A mixins [B]       A → B
+      B mixins [C]       B → C
+      C mixins [A]  →   C → A（cycle!）
+
+  # 跨层引用 ≠ mixin
+  cross_layer_reference:
+    mechanism: "parent chain"
+    example: |
+      L4 spec parent → L3 spec name（纵向从属）
+      L4 spec mixins → 另一个 L4 spec name（同层横切）
+    rationale: |
+      跨层引用用 parent chain（纵向）；
+      同层横切用 mixin（横向）。
+      两者是正交的，不会冲突。
+
+  # 使用场景
+  when_to_use_mixin:
+    - scenario: "多个项目共享同一安全约束"
+      solution: "L4 mixin-security = 安全相关的 behaviors + constraints"
+    - scenario: "所有 feature 都需要的可观测性"
+      solution: "L4 mixin-observability = 埋点/日志/metrics 相关"
+    - scenario: "跨项目的通用错误处理"
+      solution: "L4 mixin-error-handling = 错误处理 behaviors"
+    - scenario: "技术栈统一的 API 规范"
+      solution: "L3 mixin-api = REST/gRPC 通用约束"
+
+  validation:
+    script: "validate_mixins.py"
+    checks:
+      - name: "mixin_file_exists"
+        description: "每个 mixin 名称对应文件存在"
+      - name: "mixin_level_match"
+        description: "mixin spec.level 与主 spec 同层"
+      - name: "cycle_detection"
+        description: "DFS 检测循环依赖"
+      - name: "merge_conflicts"
+        description: "同名字段合并后语义正确"
+
+changelog:
+  - version: "1.0"
+    date: "2026-04-23"
+    author: "hermes"
+    changes:
+      - "初始版本：L0-mixin-system"
+      - "定义 mixin 声明格式"
+      - "定义 5 类字段的合并策略"
+      - "定义循环检测算法（DFS 着色法）"
+      - "明确跨层引用 ≠ mixin"
+---

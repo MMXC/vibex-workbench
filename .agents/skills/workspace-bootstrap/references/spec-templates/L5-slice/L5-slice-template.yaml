@@ -1,0 +1,132 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "{slice-name}"               # slice 名称
+  parent: "{l4-spec-name}"          # L4 feature spec.name
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "{module-name}"
+  owner: "{owner}"
+  created: "{YYYY-MM-DD}"
+  updated: "{YYYY-MM-DD}"
+
+lifecycle:
+  current: "proposal"
+  updated: "{YYYY-MM-DD}"
+
+display:
+  title: "{中文实现切片标题}"
+  summary: "{一句话说明这个文件/切片要实现什么}"
+  description: "{面向用户和 agent 的完整实现说明}"
+
+structure:
+  parent: "{l4-spec-name}"
+  children: []
+  dependencies:
+    - "{依赖的文件或模块，可为空}"
+  impacted_files:
+    - "{src/generated/ComponentName.skeleton.svelte}"
+
+io:
+  input:
+    - "{对应 L4 behavior 或详细 spec}"
+    - "{后端：嵌入目标 L4 generic_slot_contract 的扩展点}"
+  output:
+    - "{生成或修改的具体文件}"
+    - "{须通过红/绿或项目约定强校验的交付说明}"
+  boundary: "L5 只管当前文件/切片职责。实现槽最重：validation 与 workspace_bootstrap.red_green_gate 对齐。"
+
+constraints:
+  rules:
+    - rule: "幂等性"
+      detail: "重复生成不应破坏开发者手写代码。"
+  forbidden: []
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+io_contract:
+  input: |
+    对应 L4 behavior 的输出（spec snippet 或 detailed spec）
+    + gen.py 的上下文（目标目录、框架版本等）
+  output: |
+    一个具体的文件（.svelte / .ts / .go / .py 等）
+    + 单元测试文件（可选）
+  boundary: |
+    L5 只管"这个文件的内容"，不管其他文件。
+    文件间关系在 L4 behaviors 里描述。
+  behavior: |
+    1. gen.py 读取 L5 spec
+    2. 选择对应模板
+    3. 用 spec 数据渲染模板
+    4. 写入目标文件
+
+content:
+  file_path: "{src/generated/ComponentName.skeleton.svelte}"
+
+  file_type: "{svelte|typescript|go|python|bash}"
+
+  generation_rules:
+    - rule: "模板选择"
+      detail: "{如何选择对应模板}"
+    - rule: "占位符替换"
+      detail: "{spec 数据如何填入模板}"
+    - rule: "幂等性"
+      detail: "{重复生成不破坏已有代码}"
+
+  code_template: |
+    ```{{language}}
+    {模板内容，含 {{placeholder}} 占位符}
+    ```
+
+  unit_tests:
+    file_path: "{test/path/to/spec_test.go}"
+    coverage_target: "{覆盖率目标，如 80%}"
+    test_pattern: |
+      {测试模式描述}
+
+  dependencies:
+    - file: "{依赖的文件}"
+      reason: "{为什么依赖它}"
+
+  # 自举启示：gen.py 的 skeleton/content 双层模式
+  skeleton_pattern: |
+    vibex-workbench 规则：
+    - *.Skeleton.svelte = gen.py 生成，可覆盖
+    - *.svelte = 开发者私有，不覆盖
+    - stores/types/routes = gen.py 生成，开发者可编辑
+    
+    幂等性保证：gen.py 运行时只写 .Skeleton.svelte，
+    开发者把 .Skeleton.svelte 内容复制到 .svelte，
+    然后填入业务逻辑。
+
+  # ── 新工作区初始化（与 L0 workspace_bootstrap_contract.l5 一致）──
+  workspace_bootstrap:
+    slice_role:
+      summary: "参考实现 / 仅文档 / 后端业务嵌入插槽"
+      kind: "reference_implementation | doc_only | backend_business_embedding"
+    red_green_gate:
+      required: true
+      commands:
+        - "{如: npm run check、go test ./...、项目约定的 verify 单条}"
+      notes: "实现槽与强校验条绑定；未过红禁止标为 ready"
+    backend_embedding:
+      generic_l4_spec: "{提供插槽/通用桩的 L4 spec.name，后端业务本 slice 嵌入其中}"
+      toggles_feature: "{可选：与功能开关/逻辑 enable 的对应关系，便于按 L4 做红绿}"
+
+changelog:
+  - version: "0.1"
+    date: "{YYYY-MM-DD}"
+    author: "{owner}"
+    changes:
+      - "初始 slice 定义"
+  - version: "0.2"
+    date: "{YYYY-MM-DD}"
+    author: "{owner}"
+    changes:
+      - "工作区初始化：io + content.workspace_bootstrap（红绿门、后端插槽嵌入元数据）"
