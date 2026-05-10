@@ -34,6 +34,7 @@ func noopSetStepType(threadID, stepType string) {}
 
 func RunInteractive() error {
 	cfg := common.LoadConfig()
+	developerMessage = common.ResolveDeveloperMessage(cfg.WorkspaceDir, "interactive", developerMessage)
 	if cfg.APIKey == "" {
 		return fmt.Errorf("OPENAI_API_KEY is empty")
 	}

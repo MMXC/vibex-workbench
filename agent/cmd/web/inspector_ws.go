@@ -51,6 +51,17 @@ type inspectorHub struct {
 	lastSnapshot atomic.Pointer[inspectorSnapshotState]
 }
 
+func (h *inspectorHub) broadcastServer(msg []byte) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for c := range h.conns {
+		_ = c.SetWriteDeadline(time.Now().Add(10 * time.Second))
+		if err := c.WriteMessage(websocket.TextMessage, msg); err != nil {
+			log.Printf("[inspector] broadcast server write error: %v", err)
+		}
+	}
+}
+
 type inspectorSnapshotState struct {
 	Params map[string]interface{} `json:"params,omitempty"`
 	Ts     string                 `json:"ts,omitempty"`
@@ -185,4 +196,42 @@ func inspectorSnapshotHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(out)
+}
+
+func inspectorTraceHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodOptions && r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	var payload map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "bad json: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	env := InspectorEnvelope{
+		V:      1,
+		Kind:   "trace",
+		Domain: "Agent.Validation",
+		Method: "nodeTrace",
+		Ts:     time.Now().UTC().Format(time.RFC3339Nano),
+		Source: "agent",
+	}
+	if payload != nil {
+		env.Params = payload
+	} else {
+		env.Params = map[string]interface{}{}
+	}
+	raw, err := json.Marshal(env)
+	if err != nil {
+		http.Error(w, "marshal trace failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	inspectorHubSingleton.recordInbound(raw)
+	inspectorHubSingleton.broadcastServer(raw)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
 }

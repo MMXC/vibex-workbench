@@ -2,18 +2,25 @@ package spec
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
 
 	rt "vibex/agent/agents/runtime/tools"
+
+	"github.com/chromedp/chromedp"
 )
 
 // Broadcaster sends canvas events to the SSE layer.
@@ -243,13 +250,20 @@ func MakeSpecValidateHandler(workspaceDir string, setStepType func(threadID, ste
 		if setStepType != nil {
 			setStepType("", "spec-apply")
 		}
-		specPath, err := parseStringArg(arguments, "spec_path")
-		if err != nil {
+		var args struct {
+			SpecPath      string `json:"spec_path"`
+			WorkspaceRoot string `json:"workspace_root"`
+		}
+		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 			return "invalid args: " + err.Error()
 		}
-
-		if !filepath.IsAbs(specPath) {
-			specPath = filepath.Join(workspaceDir, specPath)
+		if args.SpecPath == "" {
+			return "spec_path is required"
+		}
+		targetRoot := resolveWorkspaceArg(workspaceDir, args.WorkspaceRoot)
+		specPath, err := specAbsUnderWorkspace(targetRoot, args.SpecPath)
+		if err != nil {
+			return err.Error()
 		}
 
 		data, err := os.ReadFile(specPath)
@@ -377,9 +391,9 @@ func MakeMakeValidateHandler(workspaceDir string, setStepType func(threadID, ste
 
 // MakeMakeGenerateHandler runs `make generate` — the spec-to-code step.
 // This is the core of spec-driven development:
-//   1. Agent creates/updates spec YAML
-//   2. Calls make_generate → gen.py emits types/components/routes
-//   3. Agent verifies output
+//  1. Agent creates/updates spec YAML
+//  2. Calls make_generate → gen.py emits types/components/routes
+//  3. Agent verifies output
 func MakeMakeGenerateHandler(workspaceDir string, setStepType func(threadID, stepType string)) rt.Handler {
 	return func(arguments string) string {
 		if setStepType != nil {
@@ -536,6 +550,482 @@ func MakeWorkspaceRunMakeHandler(workspaceDir string, setStepType func(threadID,
 	}
 }
 
+type qaFlowStep struct {
+	Name      string          `json:"name"`
+	Type      string          `json:"type"` // make | cmd | cdp_validate
+	Target    string          `json:"target"`
+	Command   string          `json:"command"`
+	Expect    string          `json:"expect"` // pass | fail (default pass)
+	TimeoutSec int            `json:"timeout_sec"`
+	CDP       cdpValidateArgs `json:"cdp"`
+}
+
+type qaFlowFile struct {
+	Name  string       `json:"name"`
+	Steps []qaFlowStep `json:"steps"`
+}
+
+func runShellCommandInWorkspace(root, command string, timeoutSec int) (int, string, error) {
+	if timeoutSec <= 0 {
+		timeoutSec = 180
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
+	defer cancel()
+	var cmd *exec.Cmd
+	if strings.EqualFold(runtime.GOOS, "windows") {
+		cmd = exec.CommandContext(ctx, "cmd", "/C", command)
+	} else {
+		cmd = exec.CommandContext(ctx, "sh", "-lc", command)
+	}
+	cmd.Dir = root
+	out, err := cmd.CombinedOutput()
+	text := strings.TrimSpace(string(out))
+	exitCode := 0
+	if err != nil {
+		if ex, ok := err.(*exec.ExitError); ok {
+			exitCode = ex.ExitCode()
+		} else {
+			exitCode = 1
+		}
+	}
+	return exitCode, text, err
+}
+
+func MakeWorkspaceAgentFlowQAHandler(workspaceDir string, setStepType func(threadID, stepType string)) rt.Handler {
+	return func(arguments string) string {
+		if setStepType != nil {
+			setStepType("", "spec-verify")
+		}
+		var args struct {
+			WorkspaceRoot string `json:"workspace_root"`
+			FlowPath      string `json:"flow_path"`
+			StopOnFailure *bool  `json:"stop_on_failure"`
+		}
+		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+			return "invalid args: " + err.Error()
+		}
+		root := strings.TrimSpace(args.WorkspaceRoot)
+		if root == "" {
+			return "workspace_root is required"
+		}
+		root = resolveWorkspaceArg(workspaceDir, root)
+		flowPath := strings.TrimSpace(args.FlowPath)
+		if flowPath == "" {
+			flowPath = ".agents/flows/qa-agent-flow.json"
+		}
+		if filepath.IsAbs(flowPath) {
+			return "flow_path must be relative to workspace_root"
+		}
+		absFlow := filepath.Clean(filepath.Join(root, flowPath))
+		if rel, err := filepath.Rel(root, absFlow); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			return "flow_path escapes workspace_root"
+		}
+		raw, err := os.ReadFile(absFlow)
+		if err != nil {
+			return fmt.Sprintf("read flow failed: %v (path=%s)", err, absFlow)
+		}
+		var flow qaFlowFile
+		if err := json.Unmarshal(raw, &flow); err != nil {
+			return "invalid flow json: " + err.Error()
+		}
+		if len(flow.Steps) == 0 {
+			return "flow has no steps"
+		}
+		stopOnFailure := true
+		if args.StopOnFailure != nil {
+			stopOnFailure = *args.StopOnFailure
+		}
+
+		stepResults := make([]map[string]any, 0, len(flow.Steps))
+		allPassed := true
+		for idx, step := range flow.Steps {
+			name := strings.TrimSpace(step.Name)
+			if name == "" {
+				name = fmt.Sprintf("step-%d", idx+1)
+			}
+			stepType := strings.ToLower(strings.TrimSpace(step.Type))
+			expect := strings.ToLower(strings.TrimSpace(step.Expect))
+			if expect == "" {
+				expect = "pass"
+			}
+			result := map[string]any{
+				"name":   name,
+				"type":   stepType,
+				"expect": expect,
+				"ok":     false,
+			}
+
+			switch stepType {
+			case "make":
+				target := strings.TrimSpace(step.Target)
+				if target == "" {
+					result["error"] = "target is required for make step"
+					break
+				}
+				cmd := exec.Command("make", target)
+				cmd.Dir = root
+				out, err := cmd.CombinedOutput()
+				text := strings.TrimSpace(string(out))
+				exitCode := 0
+				if err != nil {
+					if ex, ok := err.(*exec.ExitError); ok {
+						exitCode = ex.ExitCode()
+					} else {
+						exitCode = 1
+					}
+				}
+				passed := (exitCode == 0)
+				if expect == "fail" {
+					passed = !passed
+				}
+				result["ok"] = passed
+				result["exit_code"] = exitCode
+				result["output"] = text
+				if !passed && err != nil {
+					result["error"] = err.Error()
+				}
+			case "cmd":
+				command := strings.TrimSpace(step.Command)
+				if command == "" {
+					result["error"] = "command is required for cmd step"
+					break
+				}
+				exitCode, text, err := runShellCommandInWorkspace(root, command, step.TimeoutSec)
+				passed := (exitCode == 0)
+				if expect == "fail" {
+					passed = !passed
+				}
+				result["ok"] = passed
+				result["exit_code"] = exitCode
+				result["output"] = text
+				result["command"] = command
+				if !passed && err != nil {
+					result["error"] = err.Error()
+				}
+			case "cdp_validate":
+				if strings.TrimSpace(step.CDP.PlanID) == "" {
+					step.CDP.PlanID = fmt.Sprintf("qa-%s-%d", sanitizeFilename(flow.Name), idx+1)
+				}
+				if len(step.CDP.Steps) == 0 {
+					result["error"] = "cdp.steps is required for cdp_validate step"
+					break
+				}
+				cdpJSON := marshalToolResult(step.CDP)
+				cdpOut := MakeCDPValidateHandler(root, setStepType)(cdpJSON)
+				var cdpResult map[string]any
+				if err := json.Unmarshal([]byte(cdpOut), &cdpResult); err != nil {
+					result["error"] = "cdp result parse failed: " + err.Error()
+					result["raw"] = cdpOut
+					break
+				}
+				ok, _ := cdpResult["ok"].(bool)
+				passed := ok
+				if expect == "fail" {
+					passed = !passed
+				}
+				result["ok"] = passed
+				result["cdp"] = cdpResult
+			default:
+				result["error"] = "unsupported step type: " + stepType
+			}
+
+			ok, _ := result["ok"].(bool)
+			if !ok {
+				allPassed = false
+			}
+			stepResults = append(stepResults, result)
+			if !ok && stopOnFailure {
+				break
+			}
+		}
+
+		out := map[string]any{
+			"ok":             allPassed,
+			"flow_name":      flow.Name,
+			"flow_path":      filepath.ToSlash(flowPath),
+			"workspace_root": root,
+			"steps":          stepResults,
+		}
+		return marshalToolResult(out)
+	}
+}
+
+type cdpValidateArgs struct {
+	PlanID    string `json:"plan_id"`
+	TargetEnv struct {
+		Deployment string `json:"deployment"`
+		Host       string `json:"host"`
+		Port       int    `json:"port"`
+		TimeoutSec int    `json:"timeout_sec"`
+		SessionID  string `json:"session_id"`
+	} `json:"target_env"`
+	EntryURL string `json:"entry_url"`
+	Steps    []struct {
+		ID         string           `json:"id"`
+		URL        string           `json:"url"`
+		Actions    []map[string]any `json:"actions"`
+		Assertions []struct {
+			ID       string `json:"id"`
+			Type     string `json:"type"`
+			Selector string `json:"selector"`
+			Value    string `json:"value"`
+		} `json:"assertions"`
+		TimeoutSec int `json:"timeout_sec"`
+	} `json:"steps"`
+	ScreenshotOnFail bool `json:"screenshot_on_fail"`
+}
+
+func MakeCDPValidateHandler(workspaceDir string, setStepType func(threadID, stepType string)) rt.Handler {
+	return func(arguments string) string {
+		if setStepType != nil {
+			setStepType("", "spec-apply")
+		}
+		var args cdpValidateArgs
+		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+			return "invalid args: " + err.Error()
+		}
+		if strings.TrimSpace(args.PlanID) == "" {
+			return "plan_id is required"
+		}
+		if len(args.Steps) == 0 {
+			return "steps is required"
+		}
+		host := strings.TrimSpace(args.TargetEnv.Host)
+		if host == "" {
+			host = "127.0.0.1"
+		}
+		port := args.TargetEnv.Port
+		if port <= 0 {
+			port = 9222
+		}
+		timeoutSec := args.TargetEnv.TimeoutSec
+		if timeoutSec <= 0 {
+			timeoutSec = 30
+		}
+
+		wsURL, err := resolveCDPWebSocketURL(host, port)
+		if err != nil {
+			return marshalToolResult(map[string]any{
+				"ok":      false,
+				"plan_id": args.PlanID,
+				"error":   fmt.Sprintf("resolve cdp websocket failed: %v", err),
+			})
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
+		defer cancel()
+		allocCtx, allocCancel := chromedp.NewRemoteAllocator(ctx, wsURL)
+		defer allocCancel()
+		tabCtx, tabCancel := chromedp.NewContext(allocCtx)
+		defer tabCancel()
+
+		logs := make([]string, 0, 16)
+		screenshots := make([]string, 0, 4)
+		ok := true
+		var failErr string
+
+		if strings.TrimSpace(args.EntryURL) != "" {
+			if err := chromedp.Run(tabCtx, chromedp.Navigate(args.EntryURL)); err != nil {
+				ok = false
+				failErr = fmt.Sprintf("entry_url navigate failed: %v", err)
+			} else {
+				logs = append(logs, "entry_url navigated")
+			}
+		}
+
+		for _, step := range args.Steps {
+			if !ok {
+				break
+			}
+			stepID := step.ID
+			if stepID == "" {
+				stepID = "step"
+			}
+			if strings.TrimSpace(step.URL) != "" {
+				if err := chromedp.Run(tabCtx, chromedp.Navigate(step.URL)); err != nil {
+					ok = false
+					failErr = fmt.Sprintf("%s navigate failed: %v", stepID, err)
+					break
+				}
+				logs = append(logs, fmt.Sprintf("%s navigated %s", stepID, step.URL))
+			}
+			for _, action := range step.Actions {
+				typ := strings.ToLower(strings.TrimSpace(anyToString(action["type"])))
+				switch typ {
+				case "click":
+					sel := strings.TrimSpace(anyToString(action["selector"]))
+					if sel == "" {
+						continue
+					}
+					if err := chromedp.Run(tabCtx, chromedp.Click(sel, chromedp.ByQuery)); err != nil {
+						ok = false
+						failErr = fmt.Sprintf("%s click failed (%s): %v", stepID, sel, err)
+					}
+				case "type":
+					sel := strings.TrimSpace(anyToString(action["selector"]))
+					val := anyToString(action["value"])
+					if sel == "" {
+						continue
+					}
+					if err := chromedp.Run(tabCtx, chromedp.SetValue(sel, val, chromedp.ByQuery)); err != nil {
+						ok = false
+						failErr = fmt.Sprintf("%s type failed (%s): %v", stepID, sel, err)
+					}
+				case "wait_ms":
+					ms := int(anyToFloat(action["value"]))
+					if ms > 0 {
+						time.Sleep(time.Duration(ms) * time.Millisecond)
+					}
+				}
+				if !ok {
+					break
+				}
+			}
+			for _, as := range step.Assertions {
+				if !ok {
+					break
+				}
+				atype := strings.ToLower(strings.TrimSpace(as.Type))
+				switch atype {
+				case "text_contains":
+					sel := strings.TrimSpace(as.Selector)
+					if sel == "" {
+						sel = "body"
+					}
+					var txt string
+					if err := chromedp.Run(tabCtx, chromedp.Text(sel, &txt, chromedp.ByQuery, chromedp.NodeVisible)); err != nil {
+						ok = false
+						failErr = fmt.Sprintf("%s text_contains read failed (%s): %v", stepID, sel, err)
+						break
+					}
+					if !strings.Contains(txt, as.Value) {
+						ok = false
+						failErr = fmt.Sprintf("%s text_contains failed: selector=%s expect=%q", stepID, sel, as.Value)
+					}
+				case "selector_visible":
+					sel := strings.TrimSpace(as.Selector)
+					if sel == "" {
+						ok = false
+						failErr = fmt.Sprintf("%s selector_visible requires selector", stepID)
+						break
+					}
+					if err := chromedp.Run(tabCtx, chromedp.WaitVisible(sel, chromedp.ByQuery)); err != nil {
+						ok = false
+						failErr = fmt.Sprintf("%s selector_visible failed (%s): %v", stepID, sel, err)
+					}
+				case "url_matches":
+					var current string
+					if err := chromedp.Run(tabCtx, chromedp.Location(&current)); err != nil {
+						ok = false
+						failErr = fmt.Sprintf("%s url read failed: %v", stepID, err)
+						break
+					}
+					matched, err := regexp.MatchString(as.Value, current)
+					if err != nil {
+						ok = false
+						failErr = fmt.Sprintf("%s bad url_matches regex: %v", stepID, err)
+						break
+					}
+					if !matched {
+						ok = false
+						failErr = fmt.Sprintf("%s url_matches failed: url=%s regex=%s", stepID, current, as.Value)
+					}
+				}
+				if ok {
+					logs = append(logs, fmt.Sprintf("%s assertion %s passed", stepID, as.Type))
+				}
+			}
+		}
+
+		if !ok && args.ScreenshotOnFail {
+			_ = os.MkdirAll(filepath.Join(workspaceDir, ".vibex", "cdp-snapshots"), 0755)
+			p := filepath.Join(workspaceDir, ".vibex", "cdp-snapshots", fmt.Sprintf("%s-%d.png", sanitizeFilename(args.PlanID), time.Now().Unix()))
+			var buf []byte
+			if err := chromedp.Run(tabCtx, chromedp.CaptureScreenshot(&buf)); err == nil && len(buf) > 0 {
+				if writeErr := os.WriteFile(p, buf, 0644); writeErr == nil {
+					rel, _ := filepath.Rel(workspaceDir, p)
+					screenshots = append(screenshots, filepath.ToSlash(rel))
+				}
+			}
+		}
+
+		out := map[string]any{
+			"ok":          ok,
+			"plan_id":     args.PlanID,
+			"logs":        logs,
+			"screenshots": screenshots,
+		}
+		if !ok {
+			out["error"] = failErr
+		}
+		return marshalToolResult(out)
+	}
+}
+
+func resolveCDPWebSocketURL(host string, port int) (string, error) {
+	url := fmt.Sprintf("http://%s:%d/json/version", host, port)
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	var payload struct {
+		WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(payload.WebSocketDebuggerURL) == "" {
+		return "", fmt.Errorf("webSocketDebuggerUrl missing at %s", url)
+	}
+	return payload.WebSocketDebuggerURL, nil
+}
+
+func anyToString(v any) string {
+	if v == nil {
+		return ""
+	}
+	switch t := v.(type) {
+	case string:
+		return t
+	default:
+		return fmt.Sprintf("%v", t)
+	}
+}
+
+func anyToFloat(v any) float64 {
+	switch t := v.(type) {
+	case float64:
+		return t
+	case float32:
+		return float64(t)
+	case int:
+		return float64(t)
+	case int64:
+		return float64(t)
+	case json.Number:
+		f, _ := t.Float64()
+		return f
+	default:
+		return 0
+	}
+}
+
+func sanitizeFilename(s string) string {
+	s = strings.TrimSpace(strings.ToLower(s))
+	s = strings.ReplaceAll(s, " ", "-")
+	s = strings.ReplaceAll(s, "/", "-")
+	s = strings.ReplaceAll(s, "\\", "-")
+	if s == "" {
+		return "cdp-plan"
+	}
+	return s
+}
+
 func MakeGovernanceStatusHandler(workspaceDir string, setStepType func(threadID, stepType string)) rt.Handler {
 	return func(arguments string) string {
 		if setStepType != nil {
@@ -680,6 +1170,37 @@ func resolveWorkspaceArg(defaultRoot, root string) string {
 	return root
 }
 
+// specAbsUnderWorkspace resolves spec_path relative to targetRoot (the opened project root)
+// or accepts an absolute path only if it stays under targetRoot/specs/.
+func specAbsUnderWorkspace(targetRoot, specPath string) (string, error) {
+	tr := filepath.Clean(strings.TrimSpace(targetRoot))
+	if tr == "" {
+		return "", fmt.Errorf("workspace root is empty")
+	}
+	sp := strings.TrimSpace(specPath)
+	if sp == "" {
+		return "", fmt.Errorf("spec_path is empty")
+	}
+	var abs string
+	if filepath.IsAbs(sp) {
+		abs = filepath.Clean(sp)
+	} else {
+		abs = filepath.Clean(filepath.Join(tr, sp))
+	}
+	relTr, err := filepath.Rel(tr, abs)
+	if err != nil {
+		return "", fmt.Errorf("invalid spec path: %w", err)
+	}
+	if relTr == ".." || strings.HasPrefix(relTr, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("forbidden: spec_path escapes workspace root")
+	}
+	slash := filepath.ToSlash(relTr)
+	if !strings.HasPrefix(slash, "specs/") && slash != "specs" {
+		return "", fmt.Errorf("forbidden: spec_path must be under specs/ (relative to workspace root)")
+	}
+	return abs, nil
+}
+
 func governanceSummary(root string) map[string]any {
 	summary := map[string]any{
 		"workspace_root": root,
@@ -803,6 +1324,93 @@ func MakeWorkspaceScaffoldHandler(workspaceDir string, setStepType func(threadID
 	}
 }
 
+func MakeWorkspaceSpecsBootstrapHandler(workspaceDir string, setStepType func(threadID, stepType string)) rt.Handler {
+	return func(arguments string) string {
+		if setStepType != nil {
+			setStepType("", "spec-apply")
+		}
+
+		var args struct {
+			WorkspaceRoot string `json:"workspace_root"`
+			ProjectSlug   string `json:"project_slug"`
+			ProjectName   string `json:"project_name"`
+			Owner         string `json:"owner"`
+			Confirm       bool   `json:"confirm"`
+			Overwrite     bool   `json:"overwrite"`
+		}
+		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+			return "invalid args: " + err.Error()
+		}
+		if args.WorkspaceRoot == "" {
+			return "workspace_root is required"
+		}
+		if !args.Confirm {
+			return "confirm must be true to write specs (workspace_specs_bootstrap)"
+		}
+
+		projectSlug := strings.TrimSpace(args.ProjectSlug)
+		if projectSlug == "" {
+			projectSlug = strings.TrimSpace(args.ProjectName)
+		}
+		owner := strings.TrimSpace(args.Owner)
+		if owner == "" {
+			owner = "user"
+		}
+
+		skillScript := filepath.Join(
+			workspaceDir,
+			".agents", "skills", "workspace-bootstrap", "scripts", "execute.py",
+		)
+		legacyScript := filepath.Join(workspaceDir, "generators", "spec_workspace_bootstrap.py")
+		useLegacy := false
+		if _, err := os.Stat(skillScript); os.IsNotExist(err) {
+			useLegacy = true
+			if _, err2 := os.Stat(legacyScript); os.IsNotExist(err2) {
+				return fmt.Sprintf("workspace-bootstrap skill execute not found at %s; legacy bootstrap script also missing at %s", skillScript, legacyScript)
+			}
+		}
+
+		var cmdArgs []string
+		if useLegacy {
+			cmdArgs = []string{
+				legacyScript,
+				args.WorkspaceRoot,
+				"--json",
+				"--owner", owner,
+			}
+			if projectSlug != "" {
+				cmdArgs = append(cmdArgs, "--project-slug", projectSlug)
+			}
+			if args.Overwrite {
+				cmdArgs = append(cmdArgs, "--overwrite")
+			}
+		} else {
+			cmdArgs = []string{
+				skillScript,
+				"--workspace-root", args.WorkspaceRoot,
+				"--owner", owner,
+				"--confirm",
+				"--json",
+			}
+			if projectSlug != "" {
+				cmdArgs = append(cmdArgs, "--project-slug", projectSlug)
+			}
+			if args.Overwrite {
+				cmdArgs = append(cmdArgs, "--overwrite")
+			}
+		}
+
+		cmd := exec.Command("python3", cmdArgs...)
+		cmd.Dir = workspaceDir
+		out, err := cmd.CombinedOutput()
+		text := strings.TrimSpace(string(out))
+		if err != nil {
+			return fmt.Sprintf("workspace_specs_bootstrap FAILED:\n%s\n%v", text, err)
+		}
+		return text
+	}
+}
+
 func MakeSpecWriteHandler(workspaceDir string, bc Broadcaster, setStepType func(threadID, stepType string)) rt.Handler {
 	return func(arguments string) string {
 		if setStepType != nil {
@@ -813,6 +1421,7 @@ func MakeSpecWriteHandler(workspaceDir string, bc Broadcaster, setStepType func(
 			SpecPath      string `json:"spec_path"`
 			Content       string `json:"content"`
 			ValidateAfter *bool  `json:"validate_after"`
+			WorkspaceRoot string `json:"workspace_root"`
 		}
 		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 			return "invalid args: " + err.Error()
@@ -824,10 +1433,10 @@ func MakeSpecWriteHandler(workspaceDir string, bc Broadcaster, setStepType func(
 			return "content is required"
 		}
 
-		// Resolve path
-		specPath := args.SpecPath
-		if !filepath.IsAbs(specPath) {
-			specPath = filepath.Join(workspaceDir, specPath)
+		targetRoot := resolveWorkspaceArg(workspaceDir, args.WorkspaceRoot)
+		specPath, err := specAbsUnderWorkspace(targetRoot, args.SpecPath)
+		if err != nil {
+			return err.Error()
 		}
 
 		// Create parent dirs
@@ -900,6 +1509,7 @@ func MakeSpecPatchApplyHandler(workspaceDir string, bc Broadcaster, setStepType 
 			SpecPath      string `json:"spec_path"`
 			PatchJSON     string `json:"patch_json"`
 			ValidateAfter *bool  `json:"validate_after"`
+			WorkspaceRoot string `json:"workspace_root"`
 		}
 		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 			return "invalid args: " + err.Error()
@@ -911,14 +1521,10 @@ func MakeSpecPatchApplyHandler(workspaceDir string, bc Broadcaster, setStepType 
 			return "patch_json is required"
 		}
 
-		specPath := args.SpecPath
-		if !filepath.IsAbs(specPath) {
-			specPath = filepath.Join(workspaceDir, specPath)
-		}
-		specPath = filepath.Clean(specPath)
-		specsRoot := filepath.Clean(filepath.Join(workspaceDir, "specs"))
-		if !strings.HasPrefix(specPath, specsRoot+string(os.PathSeparator)) && specPath != specsRoot {
-			return "forbidden: spec_path must be under specs/"
+		targetRoot := resolveWorkspaceArg(workspaceDir, args.WorkspaceRoot)
+		specPath, err := specAbsUnderWorkspace(targetRoot, args.SpecPath)
+		if err != nil {
+			return err.Error()
 		}
 
 		original, err := os.ReadFile(specPath)

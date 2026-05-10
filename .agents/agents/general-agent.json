@@ -1,0 +1,8 @@
+{
+  "prompt_file": ".agents/prompts/general-agent.md",
+  "adapters": {
+    "web": "Adapter: web. Keep responses concise for streaming UI. Prefer deterministic JSON payloads when user asks for structured output.",
+    "interactive": "Adapter: interactive CLI. Keep output readable in terminal and avoid long markdown tables.",
+    "goal-cli": "Adapter: goal-cli. Focus on single-goal completion and deterministic final output."
+  }
+}

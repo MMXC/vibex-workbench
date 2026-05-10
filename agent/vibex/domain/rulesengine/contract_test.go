@@ -53,10 +53,10 @@ func TestAgentNodeRefAndTraceJSONRoundTrip(t *testing.T) {
 	}
 
 	ev := OrchestrationTraceEvent{
-		Phase:        PhaseRouteExecute,
-		Node:         ref,
-		RunID:        "run-1",
-		ChildRunID:   "run-1a",
+		Phase:          PhaseRouteExecute,
+		Node:           ref,
+		RunID:          "run-1",
+		ChildRunID:     "run-1a",
 		OutcomeSummary: "ok",
 	}
 	b2, err := json.Marshal(ev)
@@ -69,5 +69,46 @@ func TestAgentNodeRefAndTraceJSONRoundTrip(t *testing.T) {
 	}
 	if evOut.Node.NodeID != ref.NodeID || evOut.Phase != PhaseRouteExecute {
 		t.Fatalf("unexpected: %#v", evOut)
+	}
+}
+
+func TestCDPValidationPlanAndOutcomeJSONRoundTrip(t *testing.T) {
+	plan := CDPValidationPlan{
+		PlanID: "cdp-1",
+		TargetEnv: CDPTargetEnvRef{
+			Deployment: TestEnvUserManaged,
+			Host:       "127.0.0.1",
+			Port:       9222,
+			TimeoutSec: 30,
+		},
+		EntryURL: "http://localhost:5173/workbench",
+		Steps: []CDPValidationStep{
+			{
+				ID: "s1",
+				Assertions: []CDPAssertion{
+					{ID: "a1", Type: "text_contains", Value: "Spec"},
+				},
+			},
+		},
+	}
+	b, err := json.Marshal(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var p2 CDPValidationPlan
+	if err := json.Unmarshal(b, &p2); err != nil {
+		t.Fatal(err)
+	}
+	if p2.PlanID != plan.PlanID || p2.TargetEnv.Port != 9222 || len(p2.Steps) != 1 {
+		t.Fatalf("plan: %#v", p2)
+	}
+	out := CDPValidationOutcome{OK: false, Logs: []string{"navigate ok"}, Error: "assert failed"}
+	b2, _ := json.Marshal(out)
+	var o2 CDPValidationOutcome
+	if err := json.Unmarshal(b2, &o2); err != nil {
+		t.Fatal(err)
+	}
+	if o2.OK || o2.Error == "" {
+		t.Fatalf("outcome: %#v", o2)
 	}
 }

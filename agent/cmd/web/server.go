@@ -191,12 +191,15 @@ func resolveAgentProfile(profileName string) agentProfileConfig {
 		return agentProfileConfig{
 			DeveloperMessage: `You are a focused HTML PPT generation agent.
 - Only work on the requested spec and target html file.
+- Link the deck in YAML under the top-level spec block as spec.ppt_file (workspace-relative). Do not put ppt_file under prototype (prototype is for UI prototype artifacts).
+- After generating the HTML, ensure the spec file sets spec.ppt_file to the output path.
 - Prefer loading html-ppt skill if available, then generate/overwrite only the target file.
 - Keep output deterministic and concise. Do not call unrelated governance/TDD tools.
 - If skill is unavailable, still produce a single self-contained HTML deck with keyboard navigation.`,
 			AllowedTools: toAllowSet(
 				"read_file",
 				"write_file",
+				"append_file",
 				"skill_list",
 				"skill_load",
 				"skill_unload",
@@ -409,6 +412,8 @@ type chatRequest struct {
 	Input          string `json:"input"`
 	WorkspaceRoot  string `json:"workspaceRoot"`
 	WorkspaceRoot2 string `json:"workspace_root"`
+	WorkRootDir    string `json:"workRootDir"`
+	WorkRootDir2   string `json:"work_root_dir"`
 	AgentProfile   string `json:"agent_profile"`
 	AgentProfile2  string `json:"agentProfile"`
 }
@@ -425,7 +430,12 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "input is required", http.StatusBadRequest)
 		return
 	}
-	if _, err := effectiveWorkspaceRoot(firstNonEmpty(req.WorkspaceRoot, req.WorkspaceRoot2)); err != nil {
+	if _, err := effectiveWorkspaceRoot(firstNonEmpty(
+		req.WorkspaceRoot,
+		req.WorkspaceRoot2,
+		req.WorkRootDir,
+		req.WorkRootDir2,
+	)); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -436,6 +446,11 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 
 	profileName := strings.TrimSpace(strings.ToLower(firstNonEmpty(req.AgentProfile, req.AgentProfile2)))
 	runTask := func() {
+		if profileName == "ppt-generator" {
+			if err := ensurePPTAssetsCopied(cfg.WorkspaceDir); err != nil {
+				log.Printf("[ppt] ensure assets failed: %v", err)
+			}
+		}
 		profile := resolveAgentProfile(profileName)
 		answer, err := runAgentTurn(req.ThreadID, req.Input, profile)
 		if err != nil {

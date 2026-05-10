@@ -5,26 +5,26 @@ package rulesengine
 type RulesPipelinePhase string
 
 const (
-	PhaseStart                 RulesPipelinePhase = "start"
-	PhaseClarify               RulesPipelinePhase = "clarify"
-	PhaseStrongValidationPlan  RulesPipelinePhase = "strong_validation_plan"
-	PhaseUserVerification      RulesPipelinePhase = "user_verification"
-	PhaseUserConfirm           RulesPipelinePhase = "user_confirm"
-	PhaseRouteExecute          RulesPipelinePhase = "route_execute"
-	PhaseGoalCheck             RulesPipelinePhase = "goal_check"
-	PhaseStrongTerminalCheck   RulesPipelinePhase = "strong_terminal_check"
-	PhaseEnd                   RulesPipelinePhase = "end"
-	PhaseRepairOrchestrator    RulesPipelinePhase = "repair_orchestrator"
+	PhaseStart                RulesPipelinePhase = "start"
+	PhaseClarify              RulesPipelinePhase = "clarify"
+	PhaseStrongValidationPlan RulesPipelinePhase = "strong_validation_plan"
+	PhaseUserVerification     RulesPipelinePhase = "user_verification"
+	PhaseUserConfirm          RulesPipelinePhase = "user_confirm"
+	PhaseRouteExecute         RulesPipelinePhase = "route_execute"
+	PhaseGoalCheck            RulesPipelinePhase = "goal_check"
+	PhaseStrongTerminalCheck  RulesPipelinePhase = "strong_terminal_check"
+	PhaseEnd                  RulesPipelinePhase = "end"
+	PhaseRepairOrchestrator   RulesPipelinePhase = "repair_orchestrator"
 )
 
 // Failure types align with FilterEngine classification (extend with product-specific codes).
 const (
-	FailureToolMissing              = "tool_missing"
-	FailureIntentAmbiguous          = "intent_ambiguous"
-	FailurePolicyBlocked            = "policy_blocked"
-	FailureExecutionFailed          = "execution_failed"
-	FailureGoalNotReached           = "goal_not_reached"
-	FailureOrchestrationOutOfScope  = "orchestration_out_of_scope"
+	FailureToolMissing             = "tool_missing"
+	FailureIntentAmbiguous         = "intent_ambiguous"
+	FailurePolicyBlocked           = "policy_blocked"
+	FailureExecutionFailed         = "execution_failed"
+	FailureGoalNotReached          = "goal_not_reached"
+	FailureOrchestrationOutOfScope = "orchestration_out_of_scope"
 )
 
 // StrongValidationItem is one executable check (shell command and/or tool template).
@@ -40,9 +40,9 @@ type StrongValidationItem struct {
 
 // StrongValidationPlan groups executable validation entries for a slot.
 type StrongValidationPlan struct {
-	PlanID      string               `json:"plan_id"`
-	SlotBinding string               `json:"slot_binding,omitempty"`
-	SpecPath    string               `json:"spec_path,omitempty"`
+	PlanID      string                 `json:"plan_id"`
+	SlotBinding string                 `json:"slot_binding,omitempty"`
+	SpecPath    string                 `json:"spec_path,omitempty"`
 	Items       []StrongValidationItem `json:"items"`
 }
 
@@ -116,7 +116,60 @@ const (
 	NodeKindStrongGate    AgentNodeKind = "strong_validation_gate"
 	NodeKindUserGate      AgentNodeKind = "user_verification_gate"
 	NodeKindRepairHook    AgentNodeKind = "repair_orchestrator"
+	NodeKindCDPValidate   AgentNodeKind = "cdp_validate"
 )
+
+// TestEnvDeploymentMode describes who owns the browser under test (contract only; runtime slices implement).
+type TestEnvDeploymentMode string
+
+const (
+	TestEnvUserManaged   TestEnvDeploymentMode = "user_managed"
+	TestEnvAgentManaged  TestEnvDeploymentMode = "agent_managed"
+	TestEnvWailsEmbedded TestEnvDeploymentMode = "wails_embedded"
+)
+
+// CDPTargetEnvRef names a dev/test browser endpoint for CDP validation (schema only).
+type CDPTargetEnvRef struct {
+	Deployment TestEnvDeploymentMode `json:"deployment,omitempty"`
+	Host       string                `json:"host,omitempty"`
+	Port       int                   `json:"port,omitempty"`
+	TimeoutSec int                   `json:"timeout_sec,omitempty"`
+	SessionID  string                `json:"session_id,omitempty"`
+}
+
+// CDPAssertion is one declarative check against the live page (executor implemented in agent runtime layer).
+type CDPAssertion struct {
+	ID       string `json:"id,omitempty"`
+	Type     string `json:"type"` // text_contains | selector_visible | console_clean | url_matches | custom
+	Selector string `json:"selector,omitempty"`
+	Value    string `json:"value,omitempty"`
+}
+
+// CDPValidationStep is one navigation/interaction unit inside a CDP validation plan.
+type CDPValidationStep struct {
+	ID         string           `json:"id,omitempty"`
+	URL        string           `json:"url,omitempty"`
+	Actions    []map[string]any `json:"actions,omitempty"` // e.g. click, type (opaque to contract)
+	Assertions []CDPAssertion   `json:"assertions,omitempty"`
+	TimeoutSec int              `json:"timeout_sec,omitempty"`
+}
+
+// CDPValidationPlan is input to cdp_validate nodes (contract only).
+type CDPValidationPlan struct {
+	PlanID           string              `json:"plan_id"`
+	TargetEnv        CDPTargetEnvRef     `json:"target_env"`
+	EntryURL         string              `json:"entry_url,omitempty"`
+	Steps            []CDPValidationStep `json:"steps"`
+	ScreenshotOnFail bool                `json:"screenshot_on_fail,omitempty"`
+}
+
+// CDPValidationOutcome is produced after executing a CDPValidationPlan (executor lives in agent runtime).
+type CDPValidationOutcome struct {
+	OK          bool     `json:"ok"`
+	Logs        []string `json:"logs,omitempty"`
+	Screenshots []string `json:"screenshots,omitempty"`
+	Error       string   `json:"error,omitempty"`
+}
 
 // AgentNodeRef is a stable handle for one node in an orchestration graph or repair chain.
 // Use NodeID consistently with RepairEnvelope.FailedNodeID when referring to the same failure site.
@@ -143,13 +196,13 @@ type AgentNodeRegistry struct {
 
 // OrchestrationTraceEvent records one visible step for replay, SSE and cross-run lineage (agent node-centric).
 type OrchestrationTraceEvent struct {
-	Phase               RulesPipelinePhase `json:"phase"`
-	Node                AgentNodeRef       `json:"node"`
-	PreviousPhase       RulesPipelinePhase `json:"previous_phase,omitempty"`
-	ParentInvocationID  string             `json:"parent_invocation_id,omitempty"` // tool call or upstream span
-	RunID               string             `json:"run_id,omitempty"`               // session/run slice id
-	ChildRunID          string             `json:"child_run_id,omitempty"`         // subagent or forked run
-	TimestampUnix       int64              `json:"timestamp_unix,omitempty"`
-	PayloadRef          string             `json:"payload_ref,omitempty"`
-	OutcomeSummary      string             `json:"outcome_summary,omitempty"`
+	Phase              RulesPipelinePhase `json:"phase"`
+	Node               AgentNodeRef       `json:"node"`
+	PreviousPhase      RulesPipelinePhase `json:"previous_phase,omitempty"`
+	ParentInvocationID string             `json:"parent_invocation_id,omitempty"` // tool call or upstream span
+	RunID              string             `json:"run_id,omitempty"`               // session/run slice id
+	ChildRunID         string             `json:"child_run_id,omitempty"`         // subagent or forked run
+	TimestampUnix      int64              `json:"timestamp_unix,omitempty"`
+	PayloadRef         string             `json:"payload_ref,omitempty"`
+	OutcomeSummary     string             `json:"outcome_summary,omitempty"`
 }

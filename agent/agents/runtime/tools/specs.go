@@ -28,6 +28,13 @@ func baseSpecs(todo *TodoStore) []Spec {
 			reqString("path", "Relative file path to write"),
 			reqString("content", "File content to write"),
 		),
+		newTool(
+			"append_file",
+			"Append file contents into workspace (chunked writes).",
+			appendFileHandler,
+			reqString("path", "Relative file path to append"),
+			reqString("content", "Chunk content to append"),
+		),
 		{
 			Name:        "todo_set",
 			Description: "Replace TODO state with latest full list and current task.",

@@ -144,7 +144,11 @@ func RunGoal(ctx context.Context, goal string) error {
 		}
 	}
 
-	developerMsg := "You are a VibeX coding agent. Use VibeX domain tools such as spec_designer, spec_write, spec_validate, make_validate, canvas_update, TDD, toolrouting, and memlace when working with specs or the workbench flow. Use generic tools like bash, read_file, write_file, and todo_set only when the domain tools do not cover the task. Use todo_set only for non-trivial multi-step tasks. If a TODO is started, keep it updated and reply directly once completed."
+	developerMsg := common.ResolveDeveloperMessage(
+		cfg.WorkspaceDir,
+		"goal-cli",
+		"You are a VibeX coding agent. Use VibeX domain tools such as spec_designer, spec_write, spec_validate, make_validate, canvas_update, TDD, toolrouting, and memlace when working with specs or the workbench flow. Use generic tools like bash, read_file, write_file, and todo_set only when the domain tools do not cover the task. Use todo_set only for non-trivial multi-step tasks. If a TODO is started, keep it updated and reply directly once completed.",
+	)
 	messages := []responses.ResponseInputItemUnionParam{
 		responses.ResponseInputItemParamOfMessage(developerMsg, responses.EasyInputMessageRoleDeveloper),
 		responses.ResponseInputItemParamOfMessage(goal, responses.EasyInputMessageRoleUser),

@@ -87,6 +87,21 @@ func parseWriteFileArgs(arguments string) (string, string, error) {
 	return args.Path, args.Content, nil
 }
 
+func parseAppendFileArgs(arguments string) (string, string, error) {
+	var args struct {
+		Path    string `json:"path"`
+		Content string `json:"content"`
+	}
+	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+		return "", "", err
+	}
+	args.Path = strings.TrimSpace(args.Path)
+	if args.Path == "" {
+		return "", "", fmt.Errorf("empty path")
+	}
+	return args.Path, args.Content, nil
+}
+
 func parseTodoSetArgs(arguments string) ([]TodoTask, string, error) {
 	var args struct {
 		Tasks     []TodoTask `json:"tasks"`

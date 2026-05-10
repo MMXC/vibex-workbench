@@ -26,8 +26,7 @@ func readFileHandler(arguments string) string {
 	if err != nil {
 		return "invalid args: " + err.Error()
 	}
-	path = normalizePathAgainstWorkspace(path)
-	safe, err := safeWorkspacePath(path)
+	safe, err := resolveReadablePath(path)
 	if err != nil {
 		return "invalid path: " + err.Error()
 	}
@@ -47,11 +46,70 @@ func readFileHandler(arguments string) string {
 	return string(data)
 }
 
+func resolveReadablePath(path string) (string, error) {
+	normalized := normalizePathAgainstWorkspace(path)
+	if safe, err := safeWorkspacePath(normalized); err == nil {
+		return safe, nil
+	}
+	return resolvePathAgainstSkills(path)
+}
+
+// resolvePathAgainstSkills supports relative paths requested by skill instructions,
+// e.g. "html-ppt/references/themes.md" -> "<skills-dir>/html-ppt/references/themes.md".
+func resolvePathAgainstSkills(path string) (string, error) {
+	p := filepath.ToSlash(filepath.Clean(strings.TrimSpace(path)))
+	if p == "." || p == "" || strings.HasPrefix(p, "../") || strings.Contains(p, "/../") {
+		return "", fmt.Errorf("invalid path")
+	}
+	parts := strings.SplitN(p, "/", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", fmt.Errorf("path must stay inside workspace")
+	}
+	skillName := parts[0]
+	rel := filepath.FromSlash(parts[1])
+
+	roots := skillsRootCandidates()
+	if len(roots) == 0 {
+		return "", fmt.Errorf("path must stay inside workspace")
+	}
+	for _, root := range roots {
+		root = strings.TrimSpace(root)
+		if root == "" {
+			continue
+		}
+		candidate := filepath.Clean(filepath.Join(root, skillName, rel))
+		rootClean := filepath.Clean(root)
+		relToRoot, err := filepath.Rel(rootClean, candidate)
+		if err != nil {
+			continue
+		}
+		if relToRoot == ".." || strings.HasPrefix(relToRoot, ".."+string(filepath.Separator)) {
+			continue
+		}
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("path must stay inside workspace")
+}
+
 func writeFileHandler(arguments string) string {
 	path, content, err := parseWriteFileArgs(arguments)
 	if err != nil {
 		return "invalid args: " + err.Error()
 	}
+	return writeOrAppendFile(path, content, false)
+}
+
+func appendFileHandler(arguments string) string {
+	path, content, err := parseAppendFileArgs(arguments)
+	if err != nil {
+		return "invalid args: " + err.Error()
+	}
+	return writeOrAppendFile(path, content, true)
+}
+
+func writeOrAppendFile(path, content string, appendMode bool) string {
 	path = normalizePathAgainstWorkspace(path)
 	safe, err := safeWorkspacePath(path)
 	if err != nil {
@@ -63,10 +121,30 @@ func writeFileHandler(arguments string) string {
 			return "error: " + err.Error()
 		}
 	}
-	if err := os.WriteFile(safe, []byte(content), 0o644); err != nil {
-		return "error: " + err.Error()
+	if appendMode {
+		f, err := os.OpenFile(safe, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+		if err != nil {
+			return "error: " + err.Error()
+		}
+		defer f.Close()
+		if _, err := f.WriteString(content); err != nil {
+			return "error: " + err.Error()
+		}
+	} else {
+		if err := os.WriteFile(safe, []byte(content), 0o644); err != nil {
+			return "error: " + err.Error()
+		}
 	}
-	return fmt.Sprintf("ok: wrote %d bytes to %s", len(content), path)
+	// Read-back verification to detect partial/truncated writes immediately.
+	info, statErr := os.Stat(safe)
+	if statErr != nil {
+		return "error: verify failed after write: " + statErr.Error()
+	}
+	mode := "write"
+	if appendMode {
+		mode = "append"
+	}
+	return fmt.Sprintf("ok: %s %d bytes to %s (file_size=%d)", mode, len(content), path, info.Size())
 }
 
 // normalizePathAgainstWorkspace strips workspace root from absolute paths (models often pass drive paths on Windows).
@@ -95,6 +173,30 @@ func workspaceRootCandidates() []string {
 		if v := strings.TrimSpace(os.Getenv(k)); v != "" {
 			out = append(out, v)
 		}
+	}
+	return out
+}
+
+func skillsRootCandidates() []string {
+	seen := map[string]struct{}{}
+	var out []string
+	add := func(v string) {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			return
+		}
+		v = filepath.Clean(v)
+		if _, ok := seen[v]; ok {
+			return
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+
+	add(os.Getenv("SKILLS_DIR"))
+	for _, root := range workspaceRootCandidates() {
+		add(filepath.Join(root, "skills"))
+		add(filepath.Join(root, ".agents", "skills"))
 	}
 	return out
 }

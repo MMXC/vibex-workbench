@@ -1,0 +1,52 @@
+{
+  "name": "default-qa-red-green",
+  "steps": [
+    {
+      "name": "generate",
+      "type": "make",
+      "target": "generate",
+      "expect": "pass"
+    },
+    {
+      "name": "red-test",
+      "type": "cmd",
+      "command": "make test",
+      "expect": "fail",
+      "timeout_sec": 180
+    },
+    {
+      "name": "green-test",
+      "type": "cmd",
+      "command": "make test",
+      "expect": "pass",
+      "timeout_sec": 180
+    },
+    {
+      "name": "qa-screenshot",
+      "type": "cdp_validate",
+      "expect": "pass",
+      "cdp": {
+        "plan_id": "qa-screenshot-default",
+        "target_env": {
+          "host": "127.0.0.1",
+          "port": 9222,
+          "timeout_sec": 30
+        },
+        "entry_url": "http://127.0.0.1:4173/workbench",
+        "steps": [
+          {
+            "id": "open-workbench",
+            "url": "http://127.0.0.1:4173/workbench",
+            "actions": [
+              { "type": "wait_ms", "value": 1200 }
+            ],
+            "assertions": [
+              { "id": "url", "type": "url_matches", "value": ".*/workbench.*" }
+            ]
+          }
+        ],
+        "screenshot_on_fail": true
+      }
+    }
+  ]
+}

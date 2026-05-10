@@ -16,6 +16,7 @@ import (
 
 func main() {
 	cfg = common.LoadConfig()
+	developerMessage = common.ResolveDeveloperMessage(cfg.WorkspaceDir, "web", developerMessage)
 	if cfg.APIKey == "" {
 		log.Fatal("OPENAI_API_KEY is required")
 	}
@@ -68,12 +69,18 @@ func main() {
 	http.HandleFunc("/api/workspace/specs/write", withCORS(workspaceSpecWriteHandler))
 	http.HandleFunc("/api/workspace/file/", withCORS(workspaceFileHandler))
 	http.HandleFunc("/api/workspace/specs/list", withCORS(workspaceSpecsListHandler))
+	http.HandleFunc("/api/workspace/tree", withCORS(workspaceTreeHandler))
+	http.HandleFunc("/api/workspace/read-file", withCORS(workspaceReadFileHandler))
+	http.HandleFunc("/api/workspace/git/status", withCORS(workspaceGitStatusHandler))
+	http.HandleFunc("/api/workspace/git/commit-spec", withCORS(workspaceGitCommitBySpecHandler))
 	http.HandleFunc("/api/workspace/specs/convention", withCORS(workspaceSpecsConventionHandler))
 	http.HandleFunc("/api/workspace/detect-state", withCORS(workspaceDetectStateHandler))
 	http.HandleFunc("/api/workspace/scaffold", withCORS(workspaceScaffoldHandler))
+	http.HandleFunc("/api/workspace/spec-bootstrap", withCORS(workspaceSpecsBootstrapHandler))
 	http.HandleFunc("/api/workspace/run-make", withCORS(workspaceRunMakeHandler))
 	http.HandleFunc("/api/workspace/verify-specs", withCORS(workspaceVerifySpecsHandler))
 	http.HandleFunc("/api/workspace/qa/run", withCORS(qaRunnerHandler))
+	http.HandleFunc("/api/workspace/agent-flow-qa/run", withCORS(agentFlowQARunHandler))
 	http.HandleFunc("/api/workspace/cdp/validate", withCORS(cdpValidateHandler))
 	http.HandleFunc("/api/workspace/governance/status", withCORS(governanceStatusHandler))
 	http.HandleFunc("/api/agent/tools", withCORS(agentToolsHandler))
