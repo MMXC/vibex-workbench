@@ -11,11 +11,11 @@ meta:
   module: "agent"
   owner: "hermes"
   created: "2026-05-06"
-  updated: "2026-05-06"
+  updated: "2026-05-09"
 
 lifecycle:
   current: "proposal"
-  updated: "2026-05-06"
+  updated: "2026-05-09"
 
 display:
   title: "Agent 规则引擎（门禁流水线 + 纠错总编排 + 动态执行插槽）"
@@ -110,6 +110,15 @@ io_contract:
     实现分阶段落地：先 prototype + implementation 槽，再扩展到 input/output 契约校验。
 
 content:
+  io_surfaces:
+    workspace_disk: agent_http_specs_bridge
+    workspace_http_kit: io_na
+    agent: agent_http_sse_ws
+    inspector: inspector_ws
+  io_surfaces_notes: |
+    槽位抽屉经 agentApiUrl；specs I/O 仍为 Agent 桥（agent_http_specs_bridge）。
+    迁到 wails-filesystem 前须按 FEAT-workbench-transport-adapter.content.wails_filesystem_verification_gate 做绑定探测与 probe 烟雾测试。
+
   phases:
     description: "规则引擎默认流水线（可与任务状态机并行：任务状态机管逐步工具执行，本流水线管门禁与用户交互）。"
     ordered:

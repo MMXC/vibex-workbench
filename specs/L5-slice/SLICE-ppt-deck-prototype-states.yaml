@@ -1,0 +1,62 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-ppt-deck-prototype-states"
+  parent: "FEAT-spec-prototype-shell-deck"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-05-08"
+  updated: "2026-05-08"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-08"
+
+display:
+  title: "html-ppt：原型嵌入与状态/边界章节"
+  summary: "更新 ppt-layer-templates 与 html-ppt SKILL，使 L4/L5 deck 含原型与状态、边界演示页。"
+  description: |
+    P3：落实 FEAT-spec-prototype-shell-deck.content.ppt_skill_requirements。
+    当存在 prototype 或 .vibex 生成页时，deck 必须包含嵌入/链接、状态矩阵、边界演示；无原型时表格降级。
+
+structure:
+  parent: FEAT-spec-prototype-shell-deck
+  children: []
+  dependencies: []
+  impacted_files:
+  - .agents/ppt-layer-templates.yaml
+  - .agents/skills/html-ppt/SKILL.md
+  - .agents/profiles/ppt-generator.json
+
+io:
+  input:
+  - 当前 spec 与 prototype.ppt_file / prototype.file / .vibex 路径
+  output:
+  - 更新的 layer 规则与 agent 提示片段
+  boundary: 不改变 html-ppt 运行时脚本兼容性；仅增章节与约束
+
+constraints:
+  rules: []
+  forbidden: []
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+content:
+  acceptance:
+  - ppt-generator 生成的 L4/L5 deck 在「有原型」条件下包含三类段落（嵌入、状态、边界）或显式 skip 元注释
+  - README.zh-CN 中与对外讲解一致的说明更新
+
+changelog:
+- version: "0.1"
+  date: "2026-05-08"
+  author: "hermes"
+  changes:
+  - Initial slice proposal

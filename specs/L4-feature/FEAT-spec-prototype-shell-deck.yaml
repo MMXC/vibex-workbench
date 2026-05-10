@@ -1,0 +1,186 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-spec-prototype-shell-deck"
+  parent: "MOD-spec-editor"
+  status: "proposal"
+
+display:
+  title: "Spec 驱动原型外壳、功能演示与 PPT 一体"
+  summary: "用 html-ppt 与可挂载 Shell 统一项目讲解与功能可点演示；插槽一键提取并集成；演示稿含状态与边界页。"
+  description: |
+    将「项目通用外壳 + 单功能可交互原型 + spec 讲解 PPT」串成可治理工作流。
+    用户选择规格治理项目时：有统一壳、有按 spec 聚焦的功能区演示、有带 UI 语义的交互原型与状态/边界说明。
+    本 feature 定义契约、落点层级、与 Workbench/Agent 的集成面；分阶段由子 L5 切片实现。
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-05-08"
+  updated: "2026-05-09"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-09"
+
+structure:
+  parent: MOD-spec-editor
+  children:
+  - specs/L5-slice/SLICE-prototype-app-shell-contract.yaml
+  - specs/L5-slice/SLICE-spec-slot-prototype-to-shell.yaml
+  - specs/L5-slice/SLICE-ppt-deck-prototype-states.yaml
+  dependencies: []
+  impacted_files:
+  - .agents/ppt-layer-templates.yaml
+  - .agents/skills/html-ppt/SKILL.md
+  - specs/L1-goal/vibex-workbench-mvp.yaml
+  - specs/L3-module/MOD-ide-chrome.yaml
+  - frontend/src/lib/components/workbench/SpecViewer.svelte
+  - frontend/src/lib/components/workbench/GenericSpecGraph.svelte
+  - frontend/src/lib/stores/spec-slot-session-store.ts
+
+io:
+  input:
+  - 用户打开某 L4/L5 spec 详情，需从当前 spec 生成/挂载功能演示并在外壳中可点
+  - 用户需生成或更新该 spec 的 html-ppt 讲解稿，并展示关联原型与多状态/边界
+  - 多项目复用：换仓库时仍能用同一套「壳 + 生成规则」
+  output:
+  - 治理上明确 Shell 与 L1/L3 的锚定关系及 manifest 位置
+  - Workbench 插槽提供「提取原型 / 挂到 Shell / 生成交互稿」的入口与验收
+  - PPT 技能与 layer 模板要求：有原型时必含状态与边界演示结构
+  boundary: |
+    不规定具体 UI 框架（Svelte/React）实现细节，只规定 manifest、路径、与 spec 字段约定。
+    不替代真实 E2E 测试；原型用于讲解与人工验收，自动化验证走既有 rules engine / CDP 路径。
+
+constraints:
+  rules:
+  - id: C1
+    name: 外壳与叙事分层
+    rule: L1 只承诺体验容器与总目标对齐；Shell 实现路径与注册表必须落在 L3 或显式 meta spec，不得只在 L1 写死路径
+    validation: make validate 可解析 parent 链；manifest 路径在单处权威
+  - id: C2
+    name: 子功能名称唯一
+    rule: 同一父 spec 下挂入 children 的 spec.name 与原型注册名不得与已有同级冲突
+    validation: 注册前校验与 structure.children / 列表去重策略一致
+  - id: C3
+    name: 演示与真身一致
+    rule: 演示稿中引用的 prototype 路径须与工作区内真实文件或生成物一致，禁止未声明的虚构 URL
+    validation: 工作区相对路径可打开或 404 在 deck 中显式标为待生成
+  - id: C4
+    name: PPT 与原型联动
+    rule: 当 spec 存在可演示原型时，L4/L5 层 deck 须具备「状态流转」与「至少一条约束的边界演示」章；无原型时降级为纯表格式说明
+    validation: html-ppt 输出含对应 section 或 front-matter 声明 skip 原因
+  forbidden: []
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+io_contract:
+  input: "当前 spec YAML + 工作区根 + 可选已存在 prototype / ppt 文件路径"
+  output: "可运行的壳内路由注册 + 单功能演示页 + 带状态/边界的 deck 元数据"
+  boundary: 不绑定单一 agent profile；ppt-generator 与 future prototype agent 通过 skill 与路径约定协作
+
+content:
+  io_surfaces:
+    workspace_disk: dual_wails_http
+    workspace_http_kit: dual_wails_http
+    agent: io_na
+    inspector: io_na
+  io_surfaces_notes: |
+    prototype-manifest 已与 Go `PrototypeManifestGet/Register` + 同源 HTTP 对齐（见 prototype-shell-manifest-client）。
+
+  governance_anchors:
+    summary: Shell 在治理上双锚定，避免只挂在 L1 或只挂在实现层
+    l1_role: |
+      L1（goal）只写清：产品体验容器与商业/用户成功目标的关系、全局非功能约束（如本地优先、无登录）。
+      不写死具体文件路径，可引用「由 L3 app-shell 模块 spec 定义」。
+    l3_or_meta_role: |
+      实现权威：推荐在 L3 模块 spec（如 MOD-ide-chrome / 独立 app-shell 模块）或单独
+      specs/meta/app-shell.yaml 中定义：壳资源根目录、路由/manifest 路径、主题与版本。
+    feature_role: |
+      本 L4 与对应 L5 只定义：Workbench 如何根据 spec 生成/注册功能演示、PPT 如何消费原型与状态。
+
+  artifacts:
+    shell: |
+      项目级「通用外壳」：布局、导航、主题、全局错误/空态容器。可复用于任意目标仓库的讲解与演示。
+    feature_prototype: |
+      单 spec 功能区的可交互页：根据 prototype / UI 描述生成或链接，可挂入 Shell 的 manifest。
+    deck: |
+      html-ppt 制品：在现有 layer 模板上增加「原型嵌入、状态矩阵、边界演示」结构页。
+
+  manifest_contract:
+    summary: 壳如何知道有哪些功能演示可打开
+    suggested_path: ".vibex/prototype-manifest.yaml"
+    fields_suggested:
+    - "routes: { path, title, specRef, entryHtml, kind: shell|feature }"
+    - "version, lastGenerated"
+    note: 实现阶段可落为 JSON；以 L5 SLICE-prototype-app-shell-contract 为准细化
+
+  spec_fields_suggested:
+    ui_states: "L4/L5 可选：content.ui_states[] — id, label, trigger, expected_ui"
+    boundary_demos: "L4/L5 可选：content.boundary_demos[] — constraint_id, how_to_reproduce, expected"
+    prototype_links: "与现有 spec.ppt_file、prototype.file 并列；优先使用工作区相对路径"
+
+  workbench_slot_actions:
+    summary: 在 spec 槽位/工具条上增加与原型相关的动作（与现有「剥离原型」并存）
+    extract_seed: 从当前 spec 与 UI 相关字段生成最小可运行页到约定目录
+    register_in_shell: 将本 spec 对应功能注册到 manifest，供壳内打开
+    generate_interactive: 在具备 ui_states 时生成多状态切换的简单交互稿
+    note: 具体按钮文案与 store 事件由 L5 SLICE-spec-slot-prototype-to-shell 定义
+
+  ppt_skill_requirements:
+    summary: html-ppt / ppt-layer-templates 与 agent 提示语的增量要求
+    when_prototype_present:
+    - 至少一页：嵌入或深链原型（iframe / open link），注明 workspace 相对路径
+    - 至少一页：状态矩阵（含 loading/empty/error/success 等适用子集）
+    - 至少一页：边界演示——从 constraints.rules 选 2~3 条，写清如何在原型中触发
+    when_prototype_absent: 用表格列出计划状态与边界，并标注「待生成原型」
+
+  implementation_phases:
+    description: 依次交付一版；完成上一阶段再默认启动下一阶段
+    phases:
+    - id: P1
+      name: 契约与目录
+      slice: specs/L5-slice/SLICE-prototype-app-shell-contract.yaml
+      deliverables:
+      - 固化 manifest 路径与最小 schema；文档化 L1/L3 锚定段落（可选同步 L1 goal 一句引用）
+    - id: P2
+      name: 插槽与 Shell 集成
+      slice: specs/L5-slice/SLICE-spec-slot-prototype-to-shell.yaml
+      deliverables:
+      - Workbench 一键「提取种子」「注册到 manifest」；与现有 GenericSpecGraph / 槽位协同
+    - id: P3
+      name: PPT 状态与边界
+      slice: specs/L5-slice/SLICE-ppt-deck-prototype-states.yaml
+      deliverables:
+      - 更新 .agents/ppt-layer-templates.yaml 与 html-ppt SKILL 中 L4/L5 强制段落；ppt-generator 提示语对齐
+    - id: P4
+      name: 可选增强
+      deliverables:
+      - ui_states / boundary_demos 结构化字段的校验与 gen.py 提示；与 StrongValidation 对齐边界演示脚本
+
+behaviors:
+- id: B1
+  trigger: 评审本 FEAT 与三个 L5 切片
+  action: 按 implementation_phases 顺序排期实现
+  expected_result: 每阶段有可演示的最小增量
+- id: B2
+  trigger: 用户从 spec 详情触发「注册到 Shell」
+  action: 更新 manifest 且不破坏未相关路由
+  expected_result: 壳内菜单可见新入口并可打开 entryHtml
+
+changelog:
+- version: "0.2"
+  date: "2026-05-09"
+  author: "hermes"
+  changes:
+  - 增加 content.io_surfaces（manifest 当前仅同源 HTTP；与 FEAT-workbench-transport-adapter TODO-T1 对齐）
+- version: "0.1"
+  date: "2026-05-08"
+  author: "hermes"
+  changes:
+  - 初始 proposal：外壳 + 插槽 + PPT 三位一体契约与分阶段实现

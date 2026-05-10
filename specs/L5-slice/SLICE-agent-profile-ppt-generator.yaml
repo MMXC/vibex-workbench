@@ -1,0 +1,89 @@
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-agent-profile-ppt-generator"
+  parent: "FEAT-spec-write"
+  status: "proposal"
+
+display:
+  title: "PPT Generator 专用 Agent Profile"
+  summary: "定义 ppt-generator 的最小 prompt 与工具白名单，服务 spec 顶层 spec.ppt_file（演示 HTML）生成与回写。"
+  description: "将 HTML PPT 生成从通用治理代理中隔离，降低无关工具调用噪音。"
+
+structure:
+  parent: "FEAT-spec-write"
+  children: []
+  dependencies:
+    - "agent/cmd/web/server.go"
+    - "frontend/src/lib/components/workbench/GenericSpecGraph.svelte"
+  impacted_files:
+    - "agent/cmd/web/server.go"
+    - "frontend/src/lib/components/workbench/GenericSpecGraph.svelte"
+
+io:
+  input:
+    - "agent_profile=ppt-generator"
+    - "spec YAML + output_path（spec.ppt_file 或默认 .vibex/ppt/<name>.html）"
+  output:
+    - ".vibex/ppt/<spec>.html（或 spec.ppt_file 指定路径）"
+    - "写回根级 spec:ppt_file 字段（非 prototype）"
+  boundary: "只处理 spec 说明用 HTML PPT 生成，不参与 prototype 物料设计/TDD/规则治理流程。"
+
+constraints:
+  rules:
+    - rule: "Field source strictness"
+      detail: "读取路径必须优先且仅依据根级 spec.ppt_file；无配置时才使用约定默认文件名；兼容旧字段 prototype.ppt_file 仅用于读取迁移。"
+    - rule: "Tool minimization"
+      detail: "仅允许 read_file/write_file/skill_*，禁止注入 tdd/spec/memlace 等无关工具。"
+    - rule: "Single target write"
+      detail: "生成过程仅允许写目标 html，并在 spec 块回写 ppt_file（勿写入 prototype）。"
+  forbidden:
+    - "调用与 PPT 生成无关的治理/测试工具"
+
+prototype:
+  file: ".vibex/prototypes/FEAT-spec-write_L5.html"
+  validates: []
+  status: draft
+
+meta:
+  type: "slice"
+  module: "agent+frontend"
+  owner: "agent"
+  created: "2026-05-07"
+  updated: "2026-05-07"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-07"
+
+io_contract:
+  input: |
+    前端点击“生成/重生成”时发起 chat/execute 请求，并携带 agent_profile=ppt-generator。
+  output: |
+    生成成功后展示 HTML iframe；失败返回错误并保留重试入口。
+  boundary: |
+    不改变 spec 槽位校验逻辑，仅替换 PPT 生成通道。
+  behavior: |
+    1) 前端请求显式传 agent_profile=ppt-generator
+    2) 后端按 profile 限制工具和 prompt
+    3) 生成 HTML 并读取展示
+    4) 回写 spec.ppt_file
+
+content:
+  file_path: "frontend/src/lib/components/workbench/GenericSpecGraph.svelte"
+  file_type: "svelte"
+  generation_rules:
+    - rule: "Regeneration lock"
+      detail: "单个 spec 生成进行中禁止再次点击重生成。"
+    - rule: "Loading visibility"
+      detail: "全程显示 loading 与禁用态文案。"
+  verification:
+    commands:
+      - "cd frontend && npm run build"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-07"
+    author: "agent"
+    changes:
+      - "新增 ppt-generator profile slice"

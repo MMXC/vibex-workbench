@@ -5,6 +5,7 @@ spec:
   name: "FEAT-workspace-session-persistence"
   parent: "MOD-workspace-root"
   status: "proposal"
+  ppt_file: ".vibex/ppt/FEAT-workspace-session-persistence.html"
 
 meta:
   type: "feature"
@@ -34,7 +35,6 @@ io:
   output:
   - App 重启后恢复上次 workspace root、最近选中 spec、center view、last workspace state。
   boundary: '只负责单 workspace session 的持久化和恢复。
-
     不负责多 workspace 并行、不持久化仓库外文件、不替代 workspace path safety。'
 
 constraints:

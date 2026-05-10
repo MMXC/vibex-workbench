@@ -1,0 +1,75 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-workspace-file-preview-readonly"
+  parent: "FEAT-workspace-real-file-explorer"
+  status: "proposal"
+
+display:
+  title: "普通文件只读预览"
+  summary: "点击非 spec 文件时在内容区展示只读文本预览。"
+  description: |
+    为真实资源管理器补齐普通代码文件查看能力，避免用户只能浏览 spec 文件。
+
+structure:
+  parent: "FEAT-workspace-real-file-explorer"
+  children: []
+  dependencies:
+    - "SLICE-workspace-tree-read-api"
+  impacted_files:
+    - "agent/cmd/web/workspace_handlers.go"
+    - "frontend/src/routes/workspace/+page.svelte"
+    - "frontend/src/lib/components/workbench/SpecViewer.svelte"
+
+io:
+  input:
+    - "选中文件 path"
+  output:
+    - "只读文件内容（截断上限）"
+    - "文件类型标识（code/spec/other）"
+  boundary: "不支持编辑保存；大文件按上限截断并提示。"
+
+constraints:
+  rules:
+    - id: "WFP-1"
+      name: "只读"
+      rule: "普通文件预览无写回入口。"
+      verification: "UI 不显示保存按钮。"
+    - id: "WFP-2"
+      name: "大文件保护"
+      rule: "文件内容读取需有字节上限。"
+      verification: "超限时返回截断提示。"
+  forbidden:
+    - "通过预览接口写入文件"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-05-08"
+  updated: "2026-05-08"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-08"
+
+io_contract:
+  input: |
+    用户在文件树点击一个非 spec 文件节点。
+  output: |
+    内容区展示只读文本，必要时展示 truncation 提示。
+  boundary: |
+    非文本文件可展示占位提示，不做二进制解析。
+  behavior:
+    - "读取并渲染文本文件"
+    - "大文件截断"
+    - "非文本文件降级提示"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-08"
+    author: "agent"
+    changes:
+      - "新增 slice：普通文件只读预览"
+---

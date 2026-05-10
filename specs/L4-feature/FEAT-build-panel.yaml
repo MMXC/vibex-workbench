@@ -11,7 +11,7 @@ meta:
   module: "frontend"
   owner: "hermes"
   created: "2026-04-24"
-  updated: "2026-04-24"
+  updated: "2026-05-10"
 
 display:
   title: build panel
@@ -77,6 +77,14 @@ content:
       action: "POST run-make {target: 'generate'}"
       expected_result: "✅ 生成成功 或 ❌ 失败 + diff 摘要"
       error_handling: "退出码非 0 显示 stderr 前 500 字符"
+
+  code_alignment_review:
+    reviewed_at: "2026-05-10"
+    reference: "docs/SPEC-CODE-ALIGNMENT.md §九"
+    gaps:
+      - id: "GAP-verify-not-in-build-panel"
+        status: "open"
+        note: "verify_specs 可在 /workspace 通过 runVerify() 触发；Workbench BuildPanel 尚未集成 verify-specs。"
 
   user_stories:
     - id: "US-1"

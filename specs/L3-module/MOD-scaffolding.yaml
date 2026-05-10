@@ -1,67 +1,96 @@
----
 spec:
   version: "0.1"
-  level: "3_module"
-  name: "MOD-scaffolding"
-  parent: "vibex-workbench-skeleton"
-  status: "proposal"
-
+  level: 3_module
+  name: MOD-scaffolding
+  parent: vibex-workbench-skeleton
+  status: proposal
+  ppt_file: .vibex/ppt/MOD-scaffolding.html
 meta:
-  type: "module"
-  module: "generators"
-  owner: "hermes"
-  created: "2026-04-24"
-  updated: "2026-04-24"
-
+  type: module
+  module: generators
+  owner: hermes
+  created: 2026-04-24
+  updated: 2026-04-24
 lifecycle:
-  current: "proposal"
-  updated: "2026-04-24"
-
+  current: proposal
+  updated: 2026-04-24
 display:
   title: scaffolding
   summary: 在目标目录生成最小可跑骨架：
   description: 在目标目录生成最小可跑骨架：
-
 structure:
   parent: vibex-workbench-skeleton
-  children: []
+  children:
+    - specs/L4-feature/FEAT-bootstrap-generator-smoke.yaml
+    - specs/L4-feature/FEAT-scaffold-preview-recovery.yaml
+    - specs/L4-feature/FEAT-scaffolding.yaml
   dependencies: []
   impacted_files: []
-
 io:
   input:
-  - '- WORKSPACE_ROOT（目标目录）
+    - >-
+      - WORKSPACE_ROOT（目标目录）
 
-    - options: {includeAgent: bool, includeFrontend: bool, includePython: bool}'
+      - options: {includeAgent: bool, includeFrontend: bool, includePython:
+      bool}
   output:
-  - '在目标目录生成最小可跑骨架：
-
-    - specs/ 目录（含一份入口 L1 spec）
-
-    - generators/gen.py
-
-    - generators/validate_specs.py
-
-    - spec-engine/validate_chain.py
-
-    - Makefile（含 lint-specs / validate / generate target）
-
-    - frontend/package.json（可选）
-
-    - agent/.env.example（可选）'
-  boundary: '只做首次脚手架生成，不做增量更新。
-
-    不覆盖已有文件（幂等检查）。'
-
+    - |-
+      在目标目录生成最小可跑骨架：
+      - specs/ 目录（含一份入口 L1 spec）
+      - generators/gen.py
+      - generators/validate_specs.py
+      - spec-engine/validate_chain.py
+      - Makefile（含 lint-specs / validate / generate target）
+      - frontend/package.json（可选）
+      - agent/.env.example（可选）
+  boundary: |-
+    只做首次脚手架生成，不做增量更新。
+    不覆盖已有文件（幂等检查）。
 constraints:
   rules: []
   forbidden: []
-
 prototype:
-  file: ''
-  validates: []
-  status: none
-
+  file: .vibex/prototypes/MOD-scaffolding.html
+  validates:
+    - 空目录显示欢迎卡
+    - 工具栏显示脚手架按钮
+    - 配置弹窗可选择模块
+    - 生成预览展示文件树
+    - 进度视图显示生成步骤
+  status: prototype
+  intent:
+    target_user: VibeX 新用户
+    business_goal: 为零配置项目快速初始化 VibeX 骨架
+    primary_action: 点击「生成脚手架」按钮
+    success_criteria: 在目标目录生成完整的 VibeX 项目骨架，包含 specs/、generators/、Makefile 等核心文件
+  ui_spec:
+    page_purpose: 空目录欢迎页 + 脚手架生成工具
+    sections:
+      - name: 工具栏脚手架按钮
+        component_type: run-pill
+        priority: high
+      - name: 欢迎卡
+        component_type: 卡片
+        priority: high
+      - name: 脚手架配置弹窗
+        component_type: modal
+        priority: high
+    states:
+      - loading
+      - empty
+      - error
+      - normal
+    responsive:
+      desktop: 居中卡片布局，弹窗宽度固定 500px
+      mobile: 全屏弹窗，卡片宽度 100%
+    acceptance:
+      - 空目录显示欢迎卡
+      - 工具栏 Run-pill 区域显示脚手架按钮（橙色渐变）
+      - 点击按钮打开配置弹窗
+      - 可选择包含模块（规格系统/Agent/前端/Python）
+      - 预览区域显示将要生成的文件树
+      - 点击生成后显示进度视图
+      - 完成后刷新页面显示文件树
 io_contract:
   input: |
     - WORKSPACE_ROOT（目标目录）
@@ -79,34 +108,33 @@ io_contract:
     只做首次脚手架生成，不做增量更新。
     不覆盖已有文件（幂等检查）。
   behavior:
-    - "检查目标目录是否为空或 partial 状态"
-    - "读取 spec-templates 模板"
-    - "渲染骨架文件（目录结构 + 最小配置）"
-    - "写入磁盘前展示预览"
-    - "用户确认后写入"
-    - "返回生成结果摘要"
-
+    - 检查目标目录是否为空或 partial 状态
+    - 读取 spec-templates 模板
+    - 渲染骨架文件（目录结构 + 最小配置）
+    - 写入磁盘前展示预览
+    - 用户确认后写入
+    - 返回生成结果摘要
 content:
   generated_artifacts:
-    - path: "specs/"
-      type: "directory"
-      content: "空目录，含 .gitkeep"
-    - path: "specs/L1-goal/ENTRY.yaml"
-      type: "file"
-      template: "spec-templates/L1-goal/L1-goal-template.yaml"
-    - path: "generators/gen.py"
-      type: "file"
-      template: "generators/gen.py skeleton"
-    - path: "generators/validate_specs.py"
-      type: "file"
-      source: "现有脚本"
-    - path: "spec-engine/validate_chain.py"
-      type: "file"
-      source: "现有脚本"
-    - path: "Makefile"
-      type: "file"
-      template: "vibex Makefile skeleton"
-    - path: "frontend/package.json"
-      type: "file"
-      source: "vibex-workbench 现有 package.json 简化版"
-      condition: "includeFrontend=true"
+    - path: specs/
+      type: directory
+      content: 空目录，含 .gitkeep
+    - path: specs/L1-goal/ENTRY.yaml
+      type: file
+      template: spec-templates/L1-goal/L1-goal-template.yaml
+    - path: generators/gen.py
+      type: file
+      template: generators/gen.py skeleton
+    - path: generators/validate_specs.py
+      type: file
+      source: 现有脚本
+    - path: spec-engine/validate_chain.py
+      type: file
+      source: 现有脚本
+    - path: Makefile
+      type: file
+      template: vibex Makefile skeleton
+    - path: frontend/package.json
+      type: file
+      source: vibex-workbench 现有 package.json 简化版
+      condition: includeFrontend=true

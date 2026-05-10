@@ -11,11 +11,11 @@ meta:
   module: "frontend"
   owner: "hermes"
   created: "2026-04-26"
-  updated: "2026-04-26"
+  updated: "2026-05-10"
 
 lifecycle:
   current: "proposal"
-  updated: "2026-04-26"
+  updated: "2026-05-10"
 
 display:
   title: ide chrome
@@ -86,6 +86,14 @@ io_contract:
     - "所有 panel 与按钮状态可从 spec 与 runtime 状态追溯"
 
 content:
+  io_surfaces:
+    workspace_disk: dual_wails_http
+    workspace_http_kit: agent_port_workspace_http
+    agent: agent_http_sse_ws
+    inspector: inspector_ws
+  io_surfaces_notes: |
+    壳层聚合多通道；稳定标签见 FEAT-workbench-transport-adapter.content.stable_io_surface_labels。
+
   public_api:
     - function: "WorkbenchTitlebar"
       signature: "Svelte component"
@@ -111,6 +119,14 @@ content:
       signature: "Svelte component"
       description: "底部 dock，承载 problems/output/terminal/debug/more"
       side_effects: "展示 workspace-output-store 输出"
+    - function: "SpecSlotDrawer"
+      signature: "Svelte component"
+      description: "Spec 详情槽位深上下文抽屉：槽位对话 + A2UI 确认区"
+      side_effects: "写入 spec-slot-session-store；可触发 plan_graph / 校验提交流"
+    - function: "SpecSlotVisualPane"
+      signature: "Svelte component"
+      description: "槽位右侧可视化：六槽摘要、验证条、原型工具条入口"
+      side_effects: "切换 session.slot.id；驱动 tool-routing 与 rules engine 展示"
 
   state_definitions:
     - state: "ideChromeReady"
@@ -175,6 +191,10 @@ content:
         uses_api:
           - "R2Dock"
           - "StatusBar"
+      - feature: "FEAT-spec-slot-implementation"
+        uses_api:
+          - "SpecSlotDrawer"
+          - "SpecSlotVisualPane"
 
 changelog:
   - version: "0.1"
@@ -182,3 +202,9 @@ changelog:
     author: "hermes"
     changes:
       - "新增 IDE chrome 模块，覆盖原型外壳的按钮与 panel 边界"
+  - version: "0.2"
+    date: "2026-05-10"
+    author: "hermes"
+    changes:
+      - "public_api 增补 SpecSlotDrawer、SpecSlotVisualPane"
+      - "l3_l4_lineage 纳入 FEAT-spec-slot-implementation（实现槽端到端）"

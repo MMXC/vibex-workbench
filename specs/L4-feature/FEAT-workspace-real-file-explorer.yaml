@@ -1,0 +1,116 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-workspace-real-file-explorer"
+  parent: "MOD-ide-chrome"
+  status: "proposal"
+
+display:
+  title: "Workspace 实文件资源管理器"
+  summary: "左侧资源管理器展示真实工作区代码文件树；spec 文件按类型路由到现有 spec 工作流，普通文件走只读预览。"
+  description: |
+    当前工作台定位为 spec 控制台，但左侧资源管理器应承载真实 workspace 文件树，spec 只是其中一类文件。
+    本 feature 约束：优先保证“真实可追溯”，不引入虚拟文件系统，不做远程仓库浏览。
+
+structure:
+  parent: "MOD-ide-chrome"
+  children:
+    - "SLICE-workspace-tree-read-api"
+    - "SLICE-workspace-tree-ui-render"
+    - "SLICE-workspace-file-preview-readonly"
+    - "SLICE-spec-file-routing-in-explorer"
+    - "SLICE-workspace-tree-performance-and-guards"
+  dependencies:
+    - "FEAT-workspace-lifecycle"
+    - "FEAT-spec-editor"
+  impacted_files:
+    - "agent/cmd/web/workspace_handlers.go"
+    - "frontend/src/lib/components/workbench/SpecExplorer.svelte"
+    - "frontend/src/lib/stores/spec-explorer-store.ts"
+    - "frontend/src/routes/workspace/+page.svelte"
+
+io:
+  input:
+    - "workspaceRoot（已绑定）"
+    - "用户在左侧资源管理器的展开/折叠/点击事件"
+    - "文件路径与节点类型（目录/普通文件/spec 文件）"
+  output:
+    - "真实文件树节点（目录优先 + 字母序）"
+    - "普通文件只读内容预览"
+    - "spec 文件路由动作（进入现有 spec 工作流）"
+  boundary: "本期不实现 git blame/diff、不实现远程文件系统、不实现代码编辑写回。"
+
+constraints:
+  rules:
+    - id: "RFE-1"
+      name: "真实文件树"
+      rule: "资源管理器数据源必须来自 workspace 根目录真实文件系统。"
+      verification: "断网/无 mock 情况下仍可列出本地文件树。"
+    - id: "RFE-2"
+      name: "安全路径"
+      rule: "任何读取路径不得逃出 workspaceRoot。"
+      verification: "路径穿越请求返回错误，不泄漏工作区外文件。"
+    - id: "RFE-3"
+      name: "spec 路由兼容"
+      rule: "specs/*.yaml 点击后必须进入现有 spec 详情/图谱/PPT 工作流，不回归。"
+      verification: "现有 spec 相关操作可正常触发。"
+    - id: "RFE-4"
+      name: "普通文件只读"
+      rule: "普通代码文件只做预览，不允许从该入口直接写回。"
+      verification: "UI 无保存入口；后端无写入调用。"
+  forbidden:
+    - "使用虚拟树替代真实文件树"
+    - "默认读取 workspace 之外路径"
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-05-08"
+  updated: "2026-05-09"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-09"
+
+io_contract:
+  input: |
+    用户在已绑定 workspace 的前提下打开左侧资源管理器，并对目录/文件执行浏览操作。
+  output: |
+    返回真实文件树；普通文件提供只读预览；spec 文件跳转现有 spec 工作流。
+  boundary: |
+    不含编辑写回，不含 git diff，不含远程仓库能力。
+  behavior:
+    - "加载根目录文件树并懒加载子目录"
+    - "点击普通文件展示只读内容"
+    - "点击 spec 文件触发既有 spec 流程"
+
+content:
+  io_surfaces:
+    workspace_disk: dual_wails_http
+    workspace_http_kit: agent_port_workspace_http
+    agent: io_na
+    inspector: io_na
+  io_surfaces_notes: |
+    列表 wailsListSpecs；树与只读预览走 agent_port_workspace_http（agentApiUrl）。
+
+  verification:
+    commands:
+      - "make lint-specs"
+      - "npm --prefix frontend run build"
+    manual_checks:
+      - "左侧能看到真实代码目录（如 frontend/agent/specs）"
+      - "普通 .ts/.go 文件可打开只读预览"
+      - "specs/*.yaml 点击后仍进入原 spec 详情与图谱区"
+    failure_conditions:
+      - "文件树为空但目录实际有文件"
+      - "点击 spec 文件后未进入 spec 工作流"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-08"
+    author: "agent"
+    changes:
+      - "新增 L4：Workspace 实文件资源管理器（真实文件树 + spec 路由 + 只读预览）"
+---

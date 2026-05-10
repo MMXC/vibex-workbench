@@ -1,0 +1,111 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-agent-validation-node-router"
+  parent: "FEAT-agent-rules-engine"
+  status: "accepted"
+
+display:
+  title: "Agent Validation Node Router"
+  summary: |
+    定义 validation 节点到现有执行能力的薄路由：tdd_run、qa_runner、verify_specs / run-make，以及 cdp_validate 占位返回。
+  description: |
+    该 slice 聚焦 kind→tool 分发，不引入新的执行引擎。
+    通过统一输入（StrongValidationItem.tool_call_template）把治理层验证条映射到 agent 能力层。
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-05-07"
+  updated: "2026-05-07"
+
+lifecycle:
+  current: "accepted"
+  updated: "2026-05-07"
+
+structure:
+  parent: "FEAT-agent-rules-engine"
+  children: []
+  dependencies:
+    - "SLICE-agent-rules-engine-contract"
+    - "SLICE-spec-slot-verification-bar"
+  impacted_files:
+    - "frontend/src/lib/stores/spec-slot-session-store.ts"
+    - "frontend/src/lib/components/workbench/SpecSlotVisualPane.svelte"
+    - "agent/cmd/web/qa_runner.go"
+    - "agent/cmd/web/workspace_handlers.go"
+
+io:
+  input:
+    - "StrongValidationItem（id、tool_call_template、command、timeout）"
+    - "workspace_root / spec_path / slot_id"
+  output:
+    - "ValidationItemRunResult（ok、channel、stdout、exit_code、error）"
+    - "OrchestrationTraceEvent（node=validation router + target node）"
+  boundary: |
+    不重写 tdd/qa/verify 执行器；仅调用已有 API 与工具通道。
+
+constraints:
+  rules:
+    - id: "VR1"
+      name: "Routing key authority"
+      rule: "优先使用 tool_call_template；缺省时可回退 command 推断。"
+      verification: "同一条目在重跑时路由稳定。"
+    - id: "VR2"
+      name: "No hardcoded branch explosion"
+      rule: "前端分发使用 map 表驱动；新增 kind 不要求重写大段 if/else。"
+      verification: "可通过路由表新增 cdp_validate 占位。"
+    - id: "VR3"
+      name: "Not-implemented is explicit"
+      rule: "未实现节点（cdp_validate）必须返回结构化 not_implemented。"
+      verification: "UI 可见明确提示并保留 trace。"
+  forbidden:
+    - "静默吞掉未知 tool_call_template"
+    - "将运行输出仅打印 console 而不回写 session"
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+io_contract:
+  input: |
+    Validation item + 槽位上下文 + workspace root。
+  output: |
+    item run result + trace event。
+  boundary: |
+    路由层可演进，但执行器来源保持现有稳定 API。
+  behavior:
+    - "tdd_run -> /api/chat (tool route)"
+    - "qa_playwright -> /api/workspace/qa/run"
+    - "verify_specs -> /api/workspace/verify-specs"
+    - "make_validate -> /api/workspace/run-make target=validate"
+    - "cdp_validate -> not_implemented (schema ready)"
+
+content:
+  file_path: "frontend/src/lib/stores/spec-slot-session-store.ts"
+  file_type: "typescript"
+  generation_rules:
+    - rule: "Thin dispatcher"
+      detail: "路由层只做参数整形与结果归一，不做业务判断。"
+    - rule: "Trace first"
+      detail: "每次路由和执行完成都产出可视化轨迹节点。"
+
+  verification:
+    commands:
+      - "cd frontend && npm run check"
+    manual_checks:
+      - "prototype/implementation 槽位点击 run 后有结果回显"
+      - "cdp_validate 返回 not_implemented 并可见"
+    failure_conditions:
+      - "路由表遗漏导致按钮点击无响应"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-07"
+    author: "agent"
+    changes:
+      - "新增验证节点薄路由 slice（kind->tool 分发 + cdp_validate 占位）"
+---

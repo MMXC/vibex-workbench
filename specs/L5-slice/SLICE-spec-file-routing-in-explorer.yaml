@@ -1,0 +1,76 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-file-routing-in-explorer"
+  parent: "FEAT-workspace-real-file-explorer"
+  status: "proposal"
+
+display:
+  title: "spec 文件路由到既有工作流"
+  summary: "点击 specs/*.yaml 时进入现有 spec 详情、图谱与 PPT 区，不破坏当前流程。"
+  description: |
+    该 slice 负责将“真实文件树”与“现有 spec 工作流”打通，保障用户迁移成本最低。
+
+structure:
+  parent: "FEAT-workspace-real-file-explorer"
+  children: []
+  dependencies:
+    - "FEAT-spec-editor"
+    - "FEAT-spec-write_L5"
+  impacted_files:
+    - "frontend/src/routes/workspace/+page.svelte"
+    - "frontend/src/lib/stores/spec-explorer-store.ts"
+    - "frontend/src/lib/components/workbench/GenericSpecGraph.svelte"
+
+io:
+  input:
+    - "选中的 spec 文件路径（specs/**/*.yaml|yml）"
+  output:
+    - "进入 spec 详情抽屉与图谱/PPT 视图"
+    - "保留已有生成/重生成与抽取问题能力"
+  boundary: "仅处理路由与状态桥接，不修改 spec 内容。"
+
+constraints:
+  rules:
+    - id: "SFR-1"
+      name: "路由兼容"
+      rule: "spec 文件点击结果应与现有 spec 控制台行为一致。"
+      verification: "现有 spec 详情、PPT 功能不回归。"
+    - id: "SFR-2"
+      name: "类型识别"
+      rule: "只有 specs/*.yaml|yml 进入 spec 流程，其他文件走普通预览。"
+      verification: "同目录不同后缀文件行为正确分流。"
+  forbidden:
+    - "普通文件误进入 spec 流程"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-05-08"
+  updated: "2026-05-08"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-08"
+
+io_contract:
+  input: |
+    文件树节点点击事件（path + extension）。
+  output: |
+    spec 节点进入 spec 工作流；非 spec 节点进入只读预览。
+  boundary: |
+    不在此 slice 引入新的 spec 语义字段。
+  behavior:
+    - "extension/path 规则分流"
+    - "复用原有 spec state/store"
+    - "保持现有交互入口"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-08"
+    author: "agent"
+    changes:
+      - "新增 slice：spec 文件路由桥接"
+---

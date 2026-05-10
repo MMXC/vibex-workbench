@@ -11,7 +11,7 @@ meta:
   module: "frontend"
   owner: hermes
   created: "2026-04-24"
-  updated: "2026-04-30"
+  updated: "2026-05-10"
   ui_elements_ref: "FEAT-workspace-selector_L5.yaml#content/ui_elements"
   # L4 定义行为和约束；L5 精确到 UI 元素和 CSS selector
 
@@ -99,6 +99,23 @@ io_contract:
     - "workspaceRoot 必须是完整路径（含 / 或 \\）；仅文件夹名视为非法并拒绝落库/请求"
 
 content:
+  io_surfaces:
+    workspace_disk: dual_wails_http
+    workspace_http_kit: dual_wails_http
+    agent: io_na
+    inspector: io_na
+  io_surfaces_notes: |
+    入口 detect-state、scaffold：与 wails-filesystem / 同源 API 一致。标签表见 FEAT-workbench-transport-adapter。
+
+  code_alignment_review:
+    reviewed_at: "2026-05-10"
+    reference: "docs/SPEC-CODE-ALIGNMENT.md §九"
+    gaps:
+      - id: "GAP-C5-entry-text"
+        constraint_ref: "C5"
+        status: "open"
+        note: "入口 /workspace 文本框尚未统一在 UI 层拒绝「仅文件夹名」；目录选择器路径为完整路径。与代码复核一致。"
+
   behaviors:
     - id: "B1"
       trigger: "用户在 /workspace 输入路径后按 Enter 或点击「检测」"
@@ -214,3 +231,8 @@ changelog:
     changes:
       - "补充防回归约束：Wails 业务 binding 统一走 window.go.main.App.*，Wails 内禁止 fallback 到旧 wrapper/HTTP"
       - "新增路径完整性约束：workspaceRoot 必须为完整路径，拒绝仅目录名并要求清理脏 localStorage"
+  - version: "0.7"
+    date: "2026-05-10"
+    author: "hermes"
+    changes:
+      - "与 docs/SPEC-CODE-ALIGNMENT.md §九 对齐：记录 C5 在入口文本框上的实现缺口；确认 menu:open-project 在 +layout 订阅（与初稿「未接」区分）"

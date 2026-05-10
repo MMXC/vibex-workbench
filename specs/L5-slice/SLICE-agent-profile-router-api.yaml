@@ -1,0 +1,87 @@
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-agent-profile-router-api"
+  parent: "FEAT-agent-spec-write-protocol"
+  status: "proposal"
+
+display:
+  title: "Agent Profile 路由 API"
+  summary: "在通用执行接口中引入 agent_profile 参数路由到专用 prompt 与工具白名单。"
+  description: "保持统一入口，同时按 profile 绑定最小能力集，避免无关工具干扰。"
+
+structure:
+  parent: "FEAT-agent-spec-write-protocol"
+  children: []
+  dependencies:
+    - "agent/cmd/web/server.go"
+    - "agent/cmd/web/main.go"
+  impacted_files:
+    - "agent/cmd/web/server.go"
+    - "agent/cmd/web/main.go"
+
+io:
+  input:
+    - "POST /api/agent/execute (兼容 /api/chat): { threadId, input, workspaceRoot, agent_profile }"
+  output:
+    - "queued 响应 + SSE 流式执行事件"
+    - "按 profile 应用不同 developer prompt 与 tool allowlist"
+    - "优先从 <workspace>/.agents/profiles/<profile>.json 读取 profile 配置"
+  boundary: "本 slice 只做 profile 路由与白名单过滤，不扩展新的业务工具。"
+
+constraints:
+  rules:
+    - rule: "Unknown profile fallback"
+      detail: "未知 profile 回退 default，保持向后兼容。"
+    - rule: "Allowlist precedence"
+      detail: "profile 配置了 allowlist 时，只向模型暴露 allowlist 内工具。"
+  forbidden:
+    - "profile 模式下仍注入完整工具池"
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "agent"
+  created: "2026-05-07"
+  updated: "2026-05-07"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-07"
+
+io_contract:
+  input: |
+    agent_profile 可选；不传默认 default。
+  output: |
+    default 维持全量能力；指定 profile 时应用 profile 的 prompt 与工具白名单。
+  boundary: |
+    只处理路由与过滤策略，不实现 profile 配置中心。
+  behavior: |
+    1) 解析 agent_profile
+    2) 解析 profile 配置（prompt + allowlist）
+    3) 构建工具集时执行过滤
+    4) 进入既有 RunToolLoop 执行
+
+content:
+  file_path: "agent/cmd/web/server.go"
+  file_type: "go"
+  generation_rules:
+    - rule: "Single entry compatibility"
+      detail: "保留 /api/chat，新增 /api/agent/execute 复用同处理器。"
+    - rule: "Profile externalization"
+      detail: "profile 定义可外置到 .agents/profiles/*.json，避免每次新增功能都改后端代码。"
+  verification:
+    commands:
+      - "cd agent && go test ./cmd/web"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-07"
+    author: "agent"
+    changes:
+      - "新增 agent_profile 路由 slice"

@@ -1,0 +1,82 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-workspace-tree-performance-and-guards"
+  parent: "FEAT-workspace-real-file-explorer"
+  status: "proposal"
+
+display:
+  title: "文件树性能与守卫"
+  summary: "为大目录与异常场景提供性能保护、错误提示与安全守卫。"
+  description: |
+    在真实文件树接入后，必须补齐大目录性能与路径/权限异常处理，避免 UI 卡死或越界读取。
+
+structure:
+  parent: "FEAT-workspace-real-file-explorer"
+  children: []
+  dependencies:
+    - "SLICE-workspace-tree-read-api"
+    - "SLICE-workspace-tree-ui-render"
+  impacted_files:
+    - "agent/cmd/web/workspace_handlers.go"
+    - "frontend/src/lib/stores/spec-explorer-store.ts"
+    - "frontend/src/routes/workspace/+page.svelte"
+
+io:
+  input:
+    - "大目录展开请求"
+    - "无权限/不存在/越界路径场景"
+  output:
+    - "分页或分批返回的节点数据"
+    - "前端可读的错误态与重试入口"
+  boundary: "本 slice 不实现虚拟滚动高级组件，仅做基础性能护栏。"
+
+constraints:
+  rules:
+    - id: "WPG-1"
+      name: "分批加载"
+      rule: "单次返回节点数量设置上限，超出需分页或继续加载。"
+      verification: "超大目录首屏可在可接受时间内返回。"
+    - id: "WPG-2"
+      name: "异常可见"
+      rule: "权限不足/路径不存在需有明确错误提示与重试。"
+      verification: "错误态不静默失败。"
+    - id: "WPG-3"
+      name: "越界防护"
+      rule: "路径标准化后必须在 workspace 内。"
+      verification: "路径穿越攻击失败。"
+  forbidden:
+    - "吞掉错误不提示用户"
+    - "无限制遍历导致主线程长阻塞"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-05-08"
+  updated: "2026-05-08"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-08"
+
+io_contract:
+  input: |
+    目录展开与异常请求。
+  output: |
+    可渐进加载的节点数据 + 明确错误态。
+  boundary: |
+    不引入复杂索引服务，仅基于当前后端接口增强。
+  behavior:
+    - "节点上限控制"
+    - "错误分类显示"
+    - "重试与降级"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-08"
+    author: "agent"
+    changes:
+      - "新增 slice：性能护栏与安全守卫"
+---

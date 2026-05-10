@@ -5,6 +5,7 @@ spec:
   name: "FEAT-agent-implementation-memory"
   parent: "MOD-spec-editor"
   status: "proposal"
+  ppt_file: ".vibex/ppt/FEAT-agent-implementation-memory.html"
 
 meta:
   type: "feature"

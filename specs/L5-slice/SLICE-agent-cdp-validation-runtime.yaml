@@ -1,0 +1,113 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-agent-cdp-validation-runtime"
+  parent: "FEAT-agent-rules-engine"
+  status: "proposal"
+
+display:
+  title: "Agent CDP Validation Runtime"
+  summary: |
+    定义真实测试环境（非 iframe）上的 CDP 验证节点契约：目标环境引用、连接参数、步骤与断言结构、结果载荷。
+  description: |
+    本 slice 只定义规则引擎与 runtime 的结构化契约，不实现 CDP 连接客户端与浏览器进程托管。
+    目标是为后续 cdp_validate 节点提供统一输入输出语义，支持 run tree / trace / verification bar 联动。
+
+meta:
+  type: "slice"
+  module: "agent"
+  owner: "hermes"
+  created: "2026-05-07"
+  updated: "2026-05-07"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-07"
+
+structure:
+  parent: "FEAT-agent-rules-engine"
+  children: []
+  dependencies:
+    - "SLICE-agent-rules-engine-contract"
+    - "SLICE-agent-validation-node-router"
+    - "SLICE-spec-slot-verification-bar"
+  impacted_files:
+    - "agent/vibex/domain/rulesengine/contract.go"
+    - "agent/vibex/domain/rulesengine/contract_test.go"
+    - "frontend/src/lib/workbench/rules-engine-contract.ts"
+    - "frontend/src/lib/stores/spec-slot-session-store.ts"
+
+io:
+  input:
+    - "CDPValidationPlan（plan_id、target_env、entry_url、steps[]）"
+    - "AgentNodeRef(kind=cdp_validate) + run/session 上下文"
+  output:
+    - "CDPValidationOutcome（ok、logs[]、screenshots[]、error）"
+    - "OrchestrationTraceEvent（phase/step/outcome）"
+  boundary: |
+    不实现 browser launch / process lifecycle；不实现 CDP websocket 连接；
+    不绑定具体浏览器厂商实现，仅约束结构字段。
+
+constraints:
+  rules:
+    - id: "CDP1"
+      name: "Real env only"
+      rule: "cdp_validate 目标必须是实际开发/测试环境引用，不允许以 iframe srcdoc 作为 target_env。"
+      verification: "target_env_ref 由 deployment + host/port/session_id 显式给出。"
+    - id: "CDP2"
+      name: "Deployment mode enum"
+      rule: "deployment 仅允许 user_managed / agent_managed / wails_embedded。"
+      verification: "契约层反序列化可识别三种模式，未知值视为无效。"
+    - id: "CDP3"
+      name: "Step assertions explicit"
+      rule: "每个步骤至少包含一个 assertion 或 action；禁止空步骤。"
+      verification: "空步骤触发 validation failed 并附 error。"
+  forbidden:
+    - "将 CDP 连接细节硬编码在 spec 治理层 UI"
+    - "未声明 timeout 的无限等待断言"
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+io_contract:
+  input: |
+    CDPValidationPlan（schema only）：
+    - target_env: { deployment, host, port, timeout_sec, session_id }
+    - steps: [{ id, url, actions[], assertions[], timeout_sec }]
+  output: |
+    CDPValidationOutcome（ok/logs/screenshots/error）与 trace 事件。
+  boundary: |
+    本期不执行 CDP，仅提供 not_implemented 语义占位与结构化回传。
+  behavior:
+    - "route 层识别 tool_call_template=cdp_validate 并构造 NodeKindCDPValidate"
+    - "执行层未实现时返回契约化 not_implemented 结果"
+    - "UI 显示‘契约已就绪，运行时待落地’而非静默忽略"
+
+content:
+  file_path: "agent/vibex/domain/rulesengine/*.go"
+  file_type: "go"
+  generation_rules:
+    - rule: "Contract first"
+      detail: "先固化类型与 JSON 字段，再逐步接入 runtime executor。"
+    - rule: "Trace compatible"
+      detail: "产出必须映射到 OrchestrationTraceEvent，便于 inspector 和抽屉轨迹展示。"
+
+  verification:
+    commands:
+      - "cd agent && go test ./vibex/domain/rulesengine/ -count=1"
+    manual_checks:
+      - "CDPValidationPlan/Outcome 能 JSON round-trip"
+      - "NodeKindCDPValidate 在前后端类型镜像一致"
+    failure_conditions:
+      - "前后端字段命名不一致导致会话反序列化失败"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-07"
+    author: "agent"
+    changes:
+      - "新增真实测试环境 CDP 验证 runtime 契约 slice（schema only）"
+---

@@ -1,0 +1,74 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-workspace-tree-read-api"
+  parent: "FEAT-workspace-real-file-explorer"
+  status: "proposal"
+
+display:
+  title: "Workspace 文件树读取 API"
+  summary: "后端提供真实目录树读取与安全路径校验，支持懒加载子目录。"
+  description: |
+    提供 `workspace/tree` 读取能力，按目录优先排序，返回节点类型与基础元信息。
+
+structure:
+  parent: "FEAT-workspace-real-file-explorer"
+  children: []
+  dependencies:
+    - "agent/cmd/web/workspace_handlers.go"
+  impacted_files:
+    - "agent/cmd/web/workspace_handlers.go"
+    - "frontend/src/lib/services/workspace-tree-client.ts"
+
+io:
+  input:
+    - "workspaceRoot"
+    - "path（相对 workspace 根，目录路径）"
+  output:
+    - "children[]：{ name, path, type, size?, mtime? }"
+  boundary: "仅返回基础元信息；不返回文件全文。"
+
+constraints:
+  rules:
+    - id: "WTA-1"
+      name: "路径必须在工作区内"
+      rule: "path 解析后必须位于 workspaceRoot。"
+      verification: "越界路径请求被拒绝。"
+    - id: "WTA-2"
+      name: "目录优先排序"
+      rule: "返回结果按目录优先，其次按名称字母序。"
+      verification: "同层级排序稳定。"
+  forbidden:
+    - "读取 workspace 外部路径"
+
+meta:
+  type: "slice"
+  module: "backend"
+  owner: "hermes"
+  created: "2026-05-08"
+  updated: "2026-05-08"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-08"
+
+io_contract:
+  input: |
+    workspaceRoot + 相对目录路径。
+  output: |
+    当前目录子节点列表，含节点类型与可用于前端渲染的基本字段。
+  boundary: |
+    不读取文件内容，不返回隐藏敏感目录白名单外信息。
+  behavior:
+    - "根目录读取"
+    - "子目录按需读取"
+    - "非法路径返回错误"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-08"
+    author: "agent"
+    changes:
+      - "新增 slice：真实文件树读取 API"
+---

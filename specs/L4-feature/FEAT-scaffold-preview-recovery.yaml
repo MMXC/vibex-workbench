@@ -5,6 +5,7 @@ spec:
   name: "FEAT-scaffold-preview-recovery"
   parent: "MOD-scaffolding"
   status: "proposal"
+  ppt_file: ".vibex/ppt/FEAT-scaffold-preview-recovery.html"
 
 meta:
   type: "feature"

@@ -1,0 +1,68 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-spec-slot-prototype-to-shell"
+  parent: "FEAT-spec-prototype-shell-deck"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-05-08"
+  updated: "2026-05-08"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-08"
+
+display:
+  title: "Spec 槽位：原型提取并挂入 Shell"
+  summary: "Workbench 一键从当前 spec 生成演示种子并写入 manifest；与剥离原型并存。"
+  description: |
+    P2：实现 FEAT-spec-prototype-shell-deck.content.workbench_slot_actions。
+    在 SpecViewer 槽位或上下文菜单提供：提取种子、注册到 Shell；可选基于 ui_states 生成简单多状态页。
+
+structure:
+  parent: FEAT-spec-prototype-shell-deck
+  children: []
+  dependencies: []
+  impacted_files:
+  - frontend/src/lib/components/workbench/SpecViewer.svelte
+  - frontend/src/lib/stores/spec-slot-session-store.ts
+  - frontend/src/lib/wails-filesystem.ts
+
+io:
+  input:
+  - 当前 spec YAML 路径与内容
+  - workspaceRoot
+  output:
+  - .vibex/prototypes/features/<stem>/ 下生成物（约定）
+  - manifest 增量更新
+  boundary: 不强制替换用户手写页面；默认写入带幂等说明
+
+constraints:
+  rules:
+  - id: C1
+    name: 同级不重名
+    rule: 注册前校验 spec.name / 路由 id 不与 manifest 已有项冲突
+    validation: 冲突时 UI 报错并拒绝写入
+  forbidden: []
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+content:
+  acceptance:
+  - 至少一条路径能从壳内菜单打开新生成的演示入口
+  - 失败时有可读错误（路径非法、manifest 锁等）
+
+changelog:
+- version: "0.1"
+  date: "2026-05-08"
+  author: "hermes"
+  changes:
+  - Initial slice proposal

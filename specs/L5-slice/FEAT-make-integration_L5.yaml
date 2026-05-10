@@ -4,12 +4,13 @@ spec:
   name: FEAT-make-integration_L5
   parent: FEAT-make-integration
   status: proposal
+  ppt_file: .vibex/ppt/FEAT-make-integration_L5.html
 meta:
   type: implementation
   module: frontend
   owner: hermes
-  created: '2026-04-26'
-  updated: '2026-04-30'
+  created: 2026-04-26
+  updated: 2026-04-30
 io_contract:
   input: '用户点击 titlebar「lint-specs」或「generate」按钮，或在 Output tab 点击「重新运行」。
 
@@ -41,7 +42,8 @@ content:
     - 禁止跳过 workspace_root 验证（target 必须在 WORKSPACE_ROOT 执行）
   generation_rules:
   - rule: make 执行 API
-    detail: 'POST /api/workspace/run-make { target: "lint-specs"|"generate"|"validate" }
+    detail: 'POST /api/workspace/run-make { target: "lint-specs"|"generate"|"validate"
+      }
 
       backend: exec.Command("make", target) in WORKSPACE_ROOT
 
@@ -49,9 +51,11 @@ content:
 
       '
   - rule: Wails binding guard
-    detail: |
-      菜单触发可以继续通过 runtime events 传递，但业务 binding 调用判定必须遵循
+    detail: '菜单触发可以继续通过 runtime events 传递，但业务 binding 调用判定必须遵循
+
       SLICE-wails-binding-guard：Wails 环境仅允许 window.go.main.App.*，禁止 Wails 内 fallback。
+
+      '
   - rule: Output tab 实时展示
     detail: 'workspace_output_store.ts 维护输出行数组
 
@@ -102,7 +106,9 @@ content:
     commands:
     - cd /root/v-test && make lint-specs 2>&1 | tail -10
     - cd /root/v-test && make validate 2>&1 | tail -5
-    - 'cd /root/v-test && curl -s -X POST ''http://localhost:33338/api/workspace/run-make'' -H ''Content-Type: application/json'' -d ''{"target":"lint-specs"}'' 2>/dev/null | head -20'
+    - 'cd /root/v-test && curl -s -X POST ''http://localhost:33338/api/workspace/run-make''
+      -H ''Content-Type: application/json'' -d ''{"target":"lint-specs"}'' 2>/dev/null
+      | head -20'
     manual_checks:
     - Titlebar 有 lint-specs 和 generate 按钮
     - 点击 lint-specs 后 Output tab 显示 make 输出
@@ -126,13 +132,11 @@ content:
     reason: 菜单触发链的 Wails binding 判定与 fallback 边界约束
 lifecycle:
   current: proposal
-  updated: '2026-04-30'
-
+  updated: 2026-04-30
 display:
   title: make integration
   summary: Backend 在 WORKSPACE_ROOT 执行 make {target}，
   description: Backend 在 WORKSPACE_ROOT 执行 make {target}，
-
 structure:
   parent: FEAT-make-integration
   children: []
@@ -141,10 +145,10 @@ structure:
   - 'frontend/src/lib/stores/workspace-output-store.ts: 存储 make 输出的 Svelte store'
   - 'frontend/src/lib/components/workbench/R2Dock.svelte: Output tab 展示组件，订阅 workspace_output_store'
   - 'Makefile: lint-specs / generate / validate targets 的实际实现'
-  - 'specs/L5-slice/SLICE-wails-binding-guard.yaml: 菜单触发链的 Wails binding 判定与 fallback 边界约束'
+  - 'specs/L5-slice/SLICE-wails-binding-guard.yaml: 菜单触发链的 Wails binding 判定与 fallback
+    边界约束'
   impacted_files:
   - agent/cmd/web/workspace_handlers.go
-
 io:
   input:
   - '用户点击 titlebar「lint-specs」或「generate」按钮，或在 Output tab 点击「重新运行」。
@@ -157,27 +161,54 @@ io:
 
     Output tab 实时展示，结束后显示 exit code 摘要。'
   boundary: 本 feature 只定义 UI 触发、API 调用、输出展示闭环，不实现 make 本身。
-
 constraints:
   rules: []
   forbidden:
   - 禁止在前端直接执行 make 命令
   - 禁止忽略 exit code（make 失败需展示错误）
   - 禁止跳过 workspace_root 验证（target 必须在 WORKSPACE_ROOT 执行）
-
 prototype:
-  file: ''
+  file: .vibex/prototypes/FEAT-make-integration_L5.html
   validates: []
-  status: none
-
+  status: draft
+  intent:
+    target_user: 开发者在 VibeX workbench 中使用 make 命令（lint-specs/generate/validate）
+    business_goal: 通过 UI 触发 make 命令执行并实时展示输出结果
+    primary_action: 点击 titlebar 的 lint-specs 或 generate 按钮，观察 Output tab 实时输出
+    success_criteria: Output tab 实时显示 make 输出，结束后显示正确 exit code 摘要（成功绿色/失败红色）
+  ui_spec:
+    page_purpose: 在 Output tab 实时展示 make 命令的 stdout/stderr，并在执行完成后显示 exit code 摘要
+    sections:
+    - name: TitlebarMenu
+      component_type: button-group
+      priority: high
+    - name: OutputDock
+      component_type: terminal
+      priority: high
+    - name: ProblemsDock
+      component_type: list
+      priority: medium
+    states:
+    - loading
+    - empty
+    - error
+    - normal
+    responsive:
+      desktop: IDE 工作台布局，固定 titlebar，Output tab 可折叠/展开
+      mobile: 暂不支持（桌面应用）
+    acceptance:
+    - Titlebar 有 lint-specs 和 generate 按钮
+    - 点击后 Output tab 实时显示 make 输出
+    - make 成功显示绿色 ✓，失败显示红色 ✗
+    - Output tab 支持「重新运行」按钮
 changelog:
 - version: '0.1'
-  date: '2026-04-26'
+  date: 2026-04-26
   author: hermes
   changes:
   - 初始版本，含 behaviors + verification + constraints
 - version: '0.2'
-  date: '2026-04-30'
+  date: 2026-04-30
   author: hermes
   changes:
   - 新增 Wails binding guard 规则与依赖，防止菜单触发链出现 runtime/go 混用回归

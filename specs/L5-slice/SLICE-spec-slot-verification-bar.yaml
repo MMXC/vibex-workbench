@@ -4,7 +4,7 @@ spec:
   level: "5_slice"
   name: "SLICE-spec-slot-verification-bar"
   parent: "FEAT-agent-rules-engine"
-  status: "proposal"
+  status: "accepted"
 
 display:
   title: "Spec Slot Verification Bar"
@@ -22,8 +22,8 @@ meta:
   updated: "2026-05-06"
 
 lifecycle:
-  current: "proposal"
-  updated: "2026-05-06"
+  current: "accepted"
+  updated: "2026-05-07"
 
 structure:
   parent: "FEAT-agent-rules-engine"
@@ -37,6 +37,8 @@ structure:
     - "frontend/src/lib/components/workbench/SpecSlotPrototypeKitBar.svelte"
     - "frontend/src/lib/stores/spec-slot-session-store.ts"
     - "frontend/src/lib/workbench/spec-display.ts"
+    - "frontend/src/lib/workbench/workbench-inspector-ws.ts"
+    - "agent/cmd/web/inspector_ws.go"
 
 io:
   input:
@@ -102,6 +104,12 @@ content:
       - "提交成功但后端未收到或未持久化"
 
 changelog:
+  - version: "0.2"
+    date: "2026-05-07"
+    author: "agent"
+    changes:
+      - "状态提升为 accepted：实现 verification bar（运行/提交/trace）并与 inspector trace 回流对接"
+      - "补充 implementation 槽位与 route dispatcher 的运行结果聚合约束"
   - version: "0.1"
     date: "2026-05-06"
     author: "agent"

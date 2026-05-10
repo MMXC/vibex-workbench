@@ -5,6 +5,7 @@ spec:
   name: "MOD-workspace-root"
   parent: "vibex-workbench-skeleton"
   status: "proposal"
+  ppt_file: ".vibex/ppt/MOD-workspace-root.html"
 
 meta:
   type: "module"
@@ -24,7 +25,8 @@ display:
 
 structure:
   parent: vibex-workbench-skeleton
-  children: []
+  children:
+  - specs/L4-feature/FEAT-workbench-transport-adapter.yaml
   dependencies: []
   impacted_files: []
 

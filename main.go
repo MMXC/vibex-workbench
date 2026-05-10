@@ -29,6 +29,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"vibex-workbench/pkg/designkit"
+	"vibex-workbench/pkg/protoshellmanifest"
 	"vibex-workbench/pkg/verify"
 )
 
@@ -828,6 +829,44 @@ func (a *App) DesignKitExtract(root, sourcePath, outBasename string, confirm boo
 		root = a.workspaceRoot
 	}
 	return designkit.Extract(root, sourcePath, outBasename, confirm, specYAML)
+}
+
+// PrototypeManifestGet Wails：等价 GET /api/workspace/prototype-manifest
+func (a *App) PrototypeManifestGet(root string) map[string]interface{} {
+	if root == "" {
+		root = a.workspaceRoot
+	}
+	exists, doc, mp, err := protoshellmanifest.Get(root)
+	if err != nil {
+		return map[string]interface{}{"ok": false, "error": err.Error()}
+	}
+	return map[string]interface{}{
+		"ok":           true,
+		"exists":       exists,
+		"manifestPath": mp,
+		"data":         doc,
+	}
+}
+
+// PrototypeManifestRegister Wails：等价 POST /api/workspace/prototype-manifest（action=register）
+func (a *App) PrototypeManifestRegister(root string, bodyJSON string) map[string]interface{} {
+	if root == "" {
+		root = a.workspaceRoot
+	}
+	var p protoshellmanifest.RegisterPayload
+	if err := json.Unmarshal([]byte(bodyJSON), &p); err != nil {
+		return map[string]interface{}{"ok": false, "error": "invalid JSON body"}
+	}
+	route, data, mp, err := protoshellmanifest.Register(root, p)
+	if err != nil {
+		return map[string]interface{}{"ok": false, "error": err.Error()}
+	}
+	return map[string]interface{}{
+		"ok":             true,
+		"manifestPath":   mp,
+		"route":          route,
+		"data":           data,
+	}
 }
 
 // ── Agent Spawn ─────────────────────────────────────────────

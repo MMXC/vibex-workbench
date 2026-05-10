@@ -1,0 +1,75 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-workspace-tree-ui-render"
+  parent: "FEAT-workspace-real-file-explorer"
+  status: "proposal"
+
+display:
+  title: "资源管理器树组件渲染"
+  summary: "前端渲染真实文件树，支持展开/折叠/选中与懒加载。"
+  description: |
+    将后端返回的节点渲染为左侧资源管理器树，并保持与现有工作台交互风格一致。
+
+structure:
+  parent: "FEAT-workspace-real-file-explorer"
+  children: []
+  dependencies:
+    - "SLICE-workspace-tree-read-api"
+  impacted_files:
+    - "frontend/src/lib/components/workbench/SpecExplorer.svelte"
+    - "frontend/src/lib/stores/spec-explorer-store.ts"
+
+io:
+  input:
+    - "tree nodes API 返回"
+    - "用户展开/折叠/点击事件"
+  output:
+    - "树节点可视渲染状态"
+    - "当前选中节点"
+  boundary: "本 slice 仅处理渲染和状态，不处理文件内容读取。"
+
+constraints:
+  rules:
+    - id: "WTU-1"
+      name: "懒加载目录"
+      rule: "目录展开时才请求其子节点。"
+      verification: "根加载后不会一次性请求全树。"
+    - id: "WTU-2"
+      name: "状态可恢复"
+      rule: "刷新前后可恢复最近一次展开与选中状态（按需）。"
+      verification: "页面刷新后展开状态不完全丢失。"
+  forbidden:
+    - "展开目录时阻塞整个 UI"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-05-08"
+  updated: "2026-05-08"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-08"
+
+io_contract:
+  input: |
+    tree api 返回节点 + 用户交互事件。
+  output: |
+    左侧树结构稳定渲染，并正确发出选中事件。
+  boundary: |
+    不负责 spec 路由决策和文件内容加载。
+  behavior:
+    - "目录展开/折叠"
+    - "节点选中高亮"
+    - "懒加载 children"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-08"
+    author: "agent"
+    changes:
+      - "新增 slice：树组件渲染与交互"
+---

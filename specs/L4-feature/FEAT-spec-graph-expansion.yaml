@@ -19,11 +19,11 @@ meta:
   module: "frontend"
   owner: "hermes"
   created: "2026-04-26"
-  updated: "2026-04-26"
+  updated: "2026-05-09"
 
 lifecycle:
   current: "proposal"
-  updated: "2026-04-26"
+  updated: "2026-05-09"
 
 structure:
   parent: MOD-spec-editor
@@ -126,6 +126,14 @@ io_contract:
     - "用户显式确认后调用 specs/write 并运行 make validate"
 
 content:
+  io_surfaces:
+    workspace_disk: dual_wails_http
+    workspace_http_kit: agent_port_workspace_http
+    agent: agent_http_sse_ws
+    inspector: io_na
+  io_surfaces_notes: |
+    图谱：磁盘写盘走 dual_wails_http；预览 iframe / execute / SSE 走 agent_http_sse_ws。
+
   behaviors:
     - id: "B1"
       trigger: "用户点击左侧某个 spec 文件"

@@ -11,7 +11,7 @@ meta:
   module: "frontend"
   owner: "hermes"
   created: "2026-04-27"
-  updated: "2026-04-28"
+  updated: "2026-05-10"
 
 lifecycle:
   current: proposal
@@ -43,7 +43,7 @@ io:
   output:
   - '- 编辑模式：显示 Monaco Editor（VS Code 同款），YAML 语法高亮
 
-    - 保存：POST /api/workspace/specs/write → {success, error}
+    - 保存：调用 `frontend/src/lib/wails-filesystem.ts` 的 `wailsWriteSpecFile` —— Wails 内优先 `window.go.main.App.WriteSpecFile`；浏览器开发模式下 `fetch POST /api/workspace/specs/write`（由桌面壳 `main.go` 反代至 agent `workspaceSpecWriteHandler`，**非** SvelteKit `+server.ts` 独占）
 
     - 取消：放弃修改，恢复原内容'
   boundary: '只负责 spec YAML 读写和 UI 状态切换。
@@ -76,7 +76,7 @@ io_contract:
     用户在 SpecViewer 点击「编辑」按钮，或在 SpecExplorer 点击 spec 文件。
   output: |
     - 编辑模式：显示 Monaco Editor（VS Code 同款），YAML 语法高亮
-    - 保存：POST /api/workspace/specs/write → {success, error}
+    - 保存：`wailsWriteSpecFile` → Wails `WriteSpecFile` 或同源 HTTP `/api/workspace/specs/write`（壳反代 agent）；不要求单独实现 SvelteKit `specs/write` 路由文件
     - 取消：放弃修改，恢复原内容
   boundary: |
     只负责 spec YAML 读写和 UI 状态切换。
@@ -88,7 +88,7 @@ behavior:
   - "用户点击 spec 文件 → read → 展示内容（只读模式）"
   - "用户点击「编辑」→ 进入编辑模式，显示 Monaco Editor"
   - "用户修改内容 → 本地保存 diff"
-  - "用户点击「保存」→ POST /api/workspace/specs/write → 成功后切回只读模式"
+  - "用户点击「保存」→ wailsWriteSpecFile → 成功后切回只读模式"
   - "用户点击「取消」→ 丢弃修改，切回只读模式"
   - "保存失败 → 显示错误信息，保持编辑模式"
 
@@ -101,9 +101,9 @@ content:
       error_handling: "Monaco 加载失败时显示 textarea fallback"
     - id: "B2"
       trigger: "用户点击「保存」"
-      action: "POST /api/workspace/specs/write {path, content} → 成功后刷新只读视图"
-      expected_result: "文件写入磁盘，UI 切回只读，显示「保存成功」toast"
-      error_handling: "API 返回错误时显示错误信息，不关闭编辑器"
+      action: "wailsWriteSpecFile(workspaceRoot, path, content) → 成功后刷新只读视图"
+      expected_result: "文件写入磁盘，UI 切回只读，显示成功提示"
+      error_handling: "写入抛错时显示错误信息，不关闭编辑器"
     - id: "B3"
       trigger: "用户点击「取消」"
       action: "丢弃所有修改，关闭编辑器，恢复只读视图"
@@ -144,3 +144,8 @@ changelog:
     changes:
       - "CodeMirror → Monaco Editor（本地打包）"
       - "boundary 新增 Monaco 本地打包说明"
+  - version: "0.3"
+    date: "2026-05-10"
+    author: hermes
+    changes:
+      - "与实现及 docs/SPEC-CODE-ALIGNMENT.md §九 对齐：保存路径表述为 wailsWriteSpecFile（Wails / 同源 HTTP 反代），废止「必须 SK specs/write +server」口径"

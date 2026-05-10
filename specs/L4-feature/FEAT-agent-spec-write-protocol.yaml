@@ -5,17 +5,18 @@ spec:
   name: "FEAT-agent-spec-write-protocol"
   parent: "MOD-spec-editor"
   status: "proposal"
+  ppt_file: ".vibex/ppt/FEAT-agent-spec-write-protocol.html"
 
 meta:
   type: "feature"
   module: "agent"
   owner: "hermes"
   created: "2026-04-27"
-  updated: "2026-04-27"
+  updated: "2026-05-05"
 
 lifecycle:
   current: "proposal"
-  updated: "2026-04-27"
+  updated: "2026-05-05"
 
 display:
   title: agent spec write protocol
@@ -144,3 +145,4 @@ changelog:
     author: "agent"
     changes:
       - "补充 C3：与 Prototype Gate 对齐的写盘前置分类与失败码"
+      - "生成 spec 说明 PPT: .vibex/ppt/FEAT-agent-spec-write-protocol.html"

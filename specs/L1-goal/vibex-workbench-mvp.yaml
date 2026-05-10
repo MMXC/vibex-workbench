@@ -1,89 +1,80 @@
----
 spec:
   version: "0.2"
-  level: "1_project-goal"
+  level: 1_project-goal
   name: vibex-workbench-mvp
   parent: null
   status: proposal
-
+  ppt_file: .vibex/ppt/vibex-workbench-mvp.html
 meta:
   type: project-goal
   owner: hermes
-  created: "2026-04-24"
-  updated: "2026-04-29"
-
+  created: 2026-04-24
+  updated: 2026-04-29
 lifecycle:
   current: implementation
-  updated: "2026-04-29"
+  updated: 2026-04-29
   history:
     - status: proposal
-      at: "2026-04-24T00:00:00"
+      at: 2026-04-24T00:00:00
       by: hermes
       trigger: user:manual
       note: 基于空仓库场景定义 MVP 目标
     - status: implementation
-      at: "2026-04-29T10:35:00"
+      at: 2026-04-29T10:35:00
       by: hermes
       trigger: system:e2e-validated
       note: 五项最小能力端到端验证通过，进入 implementation phase
-
 display:
   title: vibex workbench mvp
   summary: 一个完整可运行的项目，含：
   description: 一个完整可运行的项目，含：
-
 structure:
   parent: null
-  children: []
+  children:
+    - specs/L2-skeleton/vibex-workbench-skeleton.yaml
   dependencies: []
   impacted_files: []
-
 io:
   input:
-  - '用户选定一个空目录，描述产品意图（如"我想做一个笔记应用"），
-
-    系统从零开始完成：脚手架 → spec 编写 → 校验/生成 → 可运行项目。'
+    - |-
+      用户选定一个空目录，描述产品意图（如"我想做一个笔记应用"），
+      系统从零开始完成：脚手架 → spec 编写 → 校验/生成 → 可运行项目。
   output:
-  - '一个完整可运行的项目，含：
-
-    - specs/L1–L5 规格文件
-
-    - 最小可跑骨架（目录结构、生成器、配置）
-
-    - spec → 代码的校验/生成闭环'
-  boundary: 'MVP 只支持"空仓库 → 边做边长"单链路。
-
-    不支持：多 workspace 并行、历史 spec 迁移、图谱全量编辑。'
-
+    - |-
+      一个完整可运行的项目，含：
+      - specs/L1–L5 规格文件
+      - 最小可跑骨架（目录结构、生成器、配置）
+      - spec → 代码的校验/生成闭环
+  boundary: |-
+    MVP 只支持"空仓库 → 边做边长"单链路。
+    不支持：多 workspace 并行、历史 spec 迁移、图谱全量编辑。
 constraints:
   rules:
-  - id: C1
-    name: 仓库根唯一性
-    rule: 所有读写/命令统一在用户选定的仓库根下执行，不允许跨目录
-    maps_to: AC1
-  - id: C2
-    name: 三态探测
-    rule: 系统能区分空目录/半就绪/就绪三种状态，UI 展示状态 badge 和建议
-    maps_to: AC2
-  - id: C3
-    name: 显式确认门槛
-    rule: 首次写入脚手架必须经过用户确认，不能静默污染磁盘
-    maps_to: AC3
-  - id: C4
-    name: spec 写闭环
-    rule: 用户能读 spec 也能写 spec，保存后能触发校验
-    maps_to: AC4
-  - id: C5
-    name: 可验证链路
-    rule: make validate/generate 在 UI 可触发，失败时显示错误摘要
-    maps_to: AC5
+    - id: C1
+      name: 仓库根唯一性
+      rule: 所有读写/命令统一在用户选定的仓库根下执行，不允许跨目录
+      maps_to: AC1
+    - id: C2
+      name: 三态探测
+      rule: 系统能区分空目录/半就绪/就绪三种状态，UI 展示状态 badge 和建议
+      maps_to: AC2
+    - id: C3
+      name: 显式确认门槛
+      rule: 首次写入脚手架必须经过用户确认，不能静默污染磁盘
+      maps_to: AC3
+    - id: C4
+      name: spec 写闭环
+      rule: 用户能读 spec 也能写 spec，保存后能触发校验
+      maps_to: AC4
+    - id: C5
+      name: 可验证链路
+      rule: make validate/generate 在 UI 可触发，失败时显示错误摘要
+      maps_to: AC5
   forbidden: []
-
 prototype:
-  file: ''
+  file: ""
   validates: []
   status: none
-
 io_contract:
   input: |
     用户选定一个空目录，描述产品意图（如"我想做一个笔记应用"），
@@ -97,14 +88,13 @@ io_contract:
     MVP 只支持"空仓库 → 边做边长"单链路。
     不支持：多 workspace 并行、历史 spec 迁移、图谱全量编辑。
   behavior:
-    - "用户选定仓库根"
-    - "系统探测目录状态（空/半/就绪）"
-    - "用户确认后写入最小脚手架"
-    - "用户编写 L1–L4 spec"
-    - "系统校验 spec 语法 + 父子链"
-    - "系统生成代码骨架"
-    - "用户迭代 spec → 生成 → 验收"
-
+    - 用户选定仓库根
+    - 系统探测目录状态（空/半/就绪）
+    - 用户确认后写入最小脚手架
+    - 用户编写 L1–L4 spec
+    - 系统校验 spec 语法 + 父子链
+    - 系统生成代码骨架
+    - 用户迭代 spec → 生成 → 验收
 acceptance_criteria:
   - id: AC1
     name: 仓库根绑定
@@ -112,62 +102,72 @@ acceptance_criteria:
       用户选定目录后，前端 SSR、Go agent、所有读写和命令统一在该目录下执行。
       验证方式：POST /api/workspace/detect-state 传入空目录，返回 state: empty，
       前端显示正确的状态和下一步建议。
-    test_scenario: |
+    test_scenario: >
       1. 选一个完全空的目录 /tmp/vibex-e2e-test
-      2. POST /api/workspace/detect-state {workspace_root: /tmp/vibex-e2e-test}
-      3. 断言返回 state == "empty"，三个信号（hasSpecDir / hasGenerators / hasPackageJson）全为 false
-      4. 断言返回的 nextAction 包含"创建脚手架"建议
 
+      2. POST /api/workspace/detect-state {workspace_root: /tmp/vibex-e2e-test}
+
+      3. 断言返回 state == "empty"，三个信号（hasSpecDir / hasGenerators /
+      hasPackageJson）全为 false
+
+      4. 断言返回的 nextAction 包含"创建脚手架"建议
   - id: AC2
     name: 三态探测
     description: |
       系统能区分空目录（无任何 VibeX 文件）、半就绪目录（有部分结构）、
       就绪目录（含 specs/、gen.py、package.json、Makefile）。
       UI 只展示状态和一句"下一步建议"，不强制全自动。
-    test_scenario: |
+    test_scenario: >
       1. 空目录 -> state: empty, nextAction: scaffold
-      2. scaffold 后 -> state: ready, hasSpecDir: true, hasGenerators: true, hasPackageJson: true
-      3. 部分删除 specs/ -> state: partial
-      4. 前端 UI 正确渲染三种状态的 badge 和建议文案
 
+      2. scaffold 后 -> state: ready, hasSpecDir: true, hasGenerators: true,
+      hasPackageJson: true
+
+      3. 部分删除 specs/ -> state: partial
+
+      4. 前端 UI 正确渲染三种状态的 badge 和建议文案
   - id: AC3
     name: 脚手架确认式写入
-    description: |
+    description: >
       在空仓库里生成最小可跑骨架：specs/ 目录（含 L1 ENTRY.yaml）、
-      generators/gen.py、package.json、Makefile（含 lint-specs / generate / validate）。
+
+      generators/gen.py、package.json、Makefile（含 lint-specs / generate /
+      validate）。
+
       写入前必须有显式确认，禁止静默污染磁盘。
     test_scenario: |
       1. 空目录调用 POST /api/workspace/scaffold {confirm: true}
       2. 断言落地文件：specs/L1-goal/ENTRY.yaml、generators/gen.py、Makefile、package.json
       3. 断言 ENTRY.yaml 含 YAML frontmatter 且 spec.level == "1_project-goal"
       4. 断言再次调用 detect-state 返回 state: ready
-
   - id: AC4
     name: Spec 可读可写
     description: |
       读取：spec 图谱/列表能反映 specs/ 里的节点关系。
       写入：能保存对 spec 文件的修改（或新建 L1/L2 向导写盘）。
       这是"人机交互澄清目标"的基础。
-    test_scenario: |
+    test_scenario: >
       1. GET /api/workspace/spec?path=specs/L1-goal/ENTRY.yaml
          断言返回 200 和 YAML 文件内容
       2. POST /api/workspace/specs/write
          {workspace_root, path: specs/L1-goal/ENTRY.yaml, content: "mission: E2E测试目标"}
          断言返回 ok: true
       3. 断言文件内容包含 mission: E2E测试目标
-
   - id: AC5
     name: 校验/生成一触即达
     description: |
       在同一仓库根执行 make lint-specs / validate / generate。
       失败时在 UI 露出可读错误摘要。
       否则 spec 写完仍要用户切终端，产品边界会糊在"编辑器外壳"里。
-    test_scenario: |
-      1. scaffold 后调用 POST /api/workspace/run-make {workspace: /tmp/xxx, target: "validate"}
-      2. 断言返回 exitCode: 0（91 specs 全绿）
-      3. 断言 validate_specs.py parent chain 检查无警告
-      4. 前端 action bar 有 make 按钮，失败时显示 stdout 前 500 字符
+    test_scenario: >
+      1. scaffold 后调用 POST /api/workspace/run-make {workspace: /tmp/xxx, target:
+      "validate"}
 
+      2. 断言返回 exitCode: 0（91 specs 全绿）
+
+      3. 断言 validate_specs.py parent chain 检查无警告
+
+      4. 前端 action bar 有 make 按钮，失败时显示 stdout 前 500 字符
 behaviors:
   - id: B-PHASE
     trigger: lifecycle phase transition
@@ -183,7 +183,6 @@ behaviors:
       - name: delivered
         entry: 所有 L4 feature 均有 L5 slice 落地且 make validate 全绿
         exit_condition: 持续迭代，无终点
-
   - id: B-E2E
     trigger: 五项最小能力任意一项实现变更
     action: Go agent 执行 e2e 验证脚本，输出 results.json
@@ -213,8 +212,7 @@ content:
       name: 可验证链路
       rule: make validate/generate 在 UI 可触发，失败时显示错误摘要
       maps_to: AC5
-
-  l1_l2_lineage:
+  l1_l2_lineage: null
   summary: |
     L1 定义"空仓库脚手架 + spec 驱动开发"作为产品能力集。
     L2 将能力集落地为具体技术架构（agent/backend/frontend/generators）。
@@ -239,7 +237,6 @@ content:
       in_l2: frontend spec detail panel + /api/workspace/spec (GET/POST)
     - l1_concern: 能跑校验/生成
       in_l2: Makefile + /api/workspace/run-make + frontend action bar
-
 product_value_layers:
   summary: |
     三层价值：① 开发者直接价值 ② 体系自举价值 ③ 工具链价值。
@@ -249,15 +246,14 @@ product_value_layers:
     meaning: spec 体系本身用 spec 驱动落地，证明 VibeX 理念可行
   experience_value:
     meaning: clarification 循环 + canvas 可视化 + TDD，让开发过程可追溯
-
 changelog:
   - version: "0.1"
-    date: "2026-04-24"
+    date: 2026-04-24
     author: hermes
     changes:
       - 初始版本，定义 MVP 5 项最小能力
   - version: "0.2"
-    date: "2026-04-29"
+    date: 2026-04-29
     author: hermes
     changes:
       - 五项最小能力全部 e2e 验证通过，lifecycle.current 从 proposal 升级为 implementation
@@ -265,9 +261,10 @@ changelog:
       - 新增 behaviors：phase transition 定义（B-PHASE）+ e2e 自动验证（B-E2E）
       - constraints C1–C4 与五项能力一一对应
   - version: "0.3"
-    date: "2026-04-30"
+    date: 2026-04-30
     author: hermes
     changes:
-      - "AC3 确认式脚手架实现：scaffold 端点强制检查 confirm=true，partial mode 支持"
-      - "AC4 Spec 读端点修复：workspaceSpecReadHandler 正确读 query workspaceRoot，增加 path traversal 保护"
+      - AC3 确认式脚手架实现：scaffold 端点强制检查 confirm=true，partial mode 支持
+      - AC4 Spec 读端点修复：workspaceSpecReadHandler 正确读 query workspaceRoot，增加 path
+        traversal 保护
       - scaffolder.py 返回值格式更新：written_files / skipped_files / state

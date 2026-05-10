@@ -1,0 +1,69 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-prototype-app-shell-contract"
+  parent: "FEAT-spec-prototype-shell-deck"
+  status: "proposal"
+
+meta:
+  type: "slice"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-05-08"
+  updated: "2026-05-08"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-08"
+
+display:
+  title: "App Shell 与 prototype manifest 契约"
+  summary: "固化外壳资源位置、manifest 格式与 L1/L3 治理锚定文案。"
+  description: |
+    P1：落地 FEAT-spec-prototype-shell-deck 中 manifest_contract 与 governance_anchors 的可执行版本。
+    产出最小可用的 .vibex/prototype-manifest.yaml（或约定路径）schema 与校验说明。
+
+structure:
+  parent: FEAT-spec-prototype-shell-deck
+  children: []
+  dependencies: []
+  impacted_files:
+  - .vibex/prototype-manifest.yaml
+  - specs/L1-goal/vibex-workbench-mvp.yaml
+  - specs/L3-module/MOD-ide-chrome.yaml
+
+io:
+  input:
+  - FEAT-spec-prototype-shell-deck content.governance_anchors / manifest_contract
+  output:
+  - 文档化 manifest 字段与示例
+  - L1 中增加一句引用（可选 patch）指向 L3/meta 权威路径
+  boundary: 不写具体组件代码；只定义契约与目录
+
+constraints:
+  rules: []
+  forbidden: []
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+content:
+  example_manifest_path: ".vibex/prototype-manifest.example.yaml"
+  notes: |
+    工作区内示例 schema；正式运行复制为 .vibex/prototype-manifest.yaml。
+    与 .vibex/prototypes/manifest.json（设计物料 JSON 登记）并存，勿混用。
+
+  acceptance:
+  - manifest 可被人工编辑且路径单一权威
+  - make validate 不因新增 YAML 失败（若需 meta 文件则纳入 generators）
+  - 示例文件已落盘并可作为 Shell 路由契约参考（见 example_manifest_path）
+
+changelog:
+- version: "0.1"
+  date: "2026-05-08"
+  author: "hermes"
+  changes:
+  - Initial slice proposal

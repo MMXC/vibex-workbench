@@ -1,147 +1,103 @@
----
-spec:
-  version: "0.1"
-  level: "4_feature"
-  name: "FEAT-agent-workspace-awareness"
-  parent: "MOD-workspace-root"
-  status: "proposal"
-
 meta:
-  type: "feature"
-  module: "agent"
-  owner: "hermes"
-  created: "2026-04-27"
-  updated: "2026-04-27"
+  id: FEAT-agent-workspace-awareness
+  title: Agent Workspace Awareness
+  version: "1.0"
+  level: L4
+  status: spec
+  author: vibex-team
+  created: "2025-01-15"
+  updated: "2025-01-15"
+  tags:
+    - agent
+    - workspace
+    - context
+    - awareness
+    - L4
 
-lifecycle:
-  current: "proposal"
-  updated: "2026-04-27"
-
-display:
-  title: agent workspace awareness
-  summary: 注入 agent 的 workspace awareness block，以及 empty/partial/ready 下的下一步建议。
-  description: 注入 agent 的 workspace awareness block，以及 empty/partial/ready 下的下一步建议。
-
-structure:
-  parent: MOD-workspace-root
-  children: []
-  dependencies: []
-  impacted_files: []
+spec:
+  ppt_file: .vibex/ppt/FEAT-agent-workspace-awareness.html
 
 io:
-  input:
-  - workspace root、state detector 结果、selected spec、最近 make 结果、最近 spec write/journal 摘要。
-  output:
-  - 注入 agent 的 workspace awareness block，以及 empty/partial/ready 下的下一步建议。
-  boundary: '只定义 workspace 状态到 agent prompt 的注入和建议规则。
+  context_manager:
+    type: class
+    module: src/agent/context_manager
+    methods:
+      - get_workspace_context()
+    status: upstream_L3
 
-    不直接写文件、不执行 scaffold、不替代用户确认。'
+  workspace_context:
+    type: class
+    module: src/agent/workspace_context
+    methods:
+      - aggregate()
+      - get_file_tree()
+      - get_active_files()
+      - get_metadata()
+    status: this_spec
 
-constraints:
-  rules:
-  - id: C1
-    name: Awareness only
-    rule: agent awareness 只产生上下文和建议，不绕过确认写盘
-    validation: empty 态不直接调用 scaffold/write
-  - id: C2
-    name: Fresh state
-    rule: 注入前必须使用最新 detect-state 或明确标记 stale_state
-    validation: 超过 TTL 的状态不能无标记注入
-  forbidden: []
-
-prototype:
-  file: ''
-  validates: []
-  status: none
+  awareness_injector:
+    type: class
+    module: src/agent/awareness_injector
+    methods:
+      - inject()
+      - lazy_load()
+    status: this_spec
 
 io_contract:
-  input: |
-    workspace root、state detector 结果、selected spec、最近 make 结果、最近 spec write/journal 摘要。
-  output: |
-    注入 agent 的 workspace awareness block，以及 empty/partial/ready 下的下一步建议。
-  boundary: |
-    只定义 workspace 状态到 agent prompt 的注入和建议规则。
-    不直接写文件、不执行 scaffold、不替代用户确认。
-  behavior:
-    - "agent 开始对话或执行任务前读取 workspace state"
-    - "empty 态建议初始化脚手架"
-    - "partial 态建议补缺失路径或运行 validate"
-    - "ready 态建议选择 spec、运行 validate/generate 或继续 spec-first"
-    - "所有写入建议必须走确认协议"
+  awareness_block:
+    fields:
+      - workspace_path: string
+      - file_tree: string[]
+      - active_files: string[]
+      - metadata: object
+      - state: enum[empty, partial, ready]
+      - fallback_suggestion: string | null
+
+  next_step_suggestion:
+    empty: "Initialize workspace or open a file"
+    partial: "Open more files for better context"
+    ready: "Ready for agent interaction"
 
 content:
-  awareness_fields:
-    - "workspace_root"
-    - "workspace_state"
-    - "spec_count"
-    - "missing_required_paths"
-    - "selected_spec"
-    - "last_validate_result"
-    - "last_make_result"
-    - "last_spec_write_result"
-    - "implementation_context_summary"
+  overview: |
+    注入 agent 的 workspace awareness block，让 agent 理解当前工作区上下文，
+    智能处理 empty/partial/ready 三种状态，并给出对应的下一步建议。
 
-  recommendation_policy:
-    empty: "询问用户是否根据目标初始化脚手架"
-    partial: "说明缺失项，建议补齐 scaffold 或 spec"
-    ready: "建议从 selected spec 或失败验证项继续"
+  workspace_awareness_block:
+    description: |
+      workspace awareness block 包含：
+      1. workspace_path: 当前工作区路径
+      2. file_tree: 工作区文件树（可配置深度）
+      3. active_files: 当前活跃的文件列表
+      4. metadata: 工作区元数据（git branch, package info 等）
+      5. state: 上下文状态（empty/partial/ready）
+      6. fallback_suggestion: 基于状态的降级建议
 
-  user_stories:
-    - id: "US-1"
-      as_a: "空仓库用户"
-      i_want: "agent 主动识别当前目录为空并建议初始化"
-      so_that: "不用猜下一步该点哪里"
-      acceptance: "empty 态首轮回复包含 scaffold 建议和确认入口"
+  context_state_machine:
+    description: |
+      三态转换逻辑：
+      - empty: workspace_path 为空或无有效文件
+      - partial: 有 workspace_path 但文件树不完整
+      - ready: 有完整的上下文
 
-  test_scenarios:
-    - id: "TC-1"
-      scenario: "empty workspace 首轮注入"
-      given: "state_detector 返回 empty"
-      when: "用户打开 agent thread"
-      then: "agent context 包含 workspace_state=empty 和 scaffold 建议"
-      evaluation: "agent 不直接写盘"
-    - id: "TC-2"
-      scenario: "ready workspace 注入最近 validate 失败"
-      given: "last_validate_result 为失败"
-      when: "agent 生成下一步建议"
-      then: "建议优先修复失败 spec 或运行相关 validator"
-      evaluation: "建议引用失败摘要"
+  next_step_suggestion:
+    description: |
+      基于状态的智能降级建议：
+      - empty: "Initialize workspace or open a file"
+      - partial: "Open more files for better context"
+      - ready: "Ready for agent interaction"
 
-  constraints:
-    - id: "C1"
-      name: "Awareness only"
-      rule: "agent awareness 只产生上下文和建议，不绕过确认写盘"
-      validation: "empty 态不直接调用 scaffold/write"
-    - id: "C2"
-      name: "Fresh state"
-      rule: "注入前必须使用最新 detect-state 或明确标记 stale_state"
-      validation: "超过 TTL 的状态不能无标记注入"
-
-acceptance_criteria:
-  - id: "AC-1"
-    given: "workspace state 为 empty"
-    when: "agent thread 打开"
-    then: "agent 收到 empty 状态并建议初始化脚手架"
-  - id: "AC-2"
-    given: "workspace state 为 partial"
-    when: "agent 生成建议"
-    then: "建议列出 missing_required_paths 和补齐方式"
-  - id: "AC-3"
-    given: "最近 make validate 失败"
-    when: "agent 注入上下文"
-    then: "上下文包含失败摘要和下一步修复建议"
+constraints:
+  - context_size_limit: "8KB max per workspace context"
+  - lazy_loading: "awareness block loaded on demand"
+  - backward_compatible: "不影响现有 agent 行为"
+  - no_breaking_change: "新增接口，不修改现有接口签名"
 
 changelog:
-  - version: "0.1"
-    date: "2026-04-27"
-    author: hermes
+  - version: "1.0"
+    date: "2025-01-15"
     changes:
-      - "新增 agent workspace awareness 闭环规格"
-
-dependencies:
-  - file: specs/L5-slice/SLICE-agent-workspace-context-provider.yaml
-    reason: 实现 awareness block 的注入逻辑
-  - file: specs/L4-feature/FEAT-command-output-problems-panel.yaml
-    reason: "dependency_order: last_validate_result 和 last_make_result 来自 problems store；先实现 SLICE-command-output-problems-store 后本 feature 才能完整注入"
-  - file: specs/L4-feature/FEAT-workspace-session-persistence.yaml
-    reason: workspace_root 来自 session，恢复后触发 detect-state
+      - Initial spec creation
+      - Define workspace_awareness_block structure
+      - Define context_state_machine
+      - Define next_step_suggestion logic

@@ -212,18 +212,18 @@ L5 (50 specs): ready (2), proposal (48)
 - verify_specs 不写回 `lifecycle.verification` 字段
 - verify 结果不同步到 DriftPanel
 
-### 3.6 Spec 编辑（FEAT-spec-write）— ❌ 完全没有 UI
+### 3.6 Spec 编辑（FEAT-spec-write）— ⚠️ 初稿过时；以 §九复核为准
 
-**实现情况：**
+**实现情况（2026-05-10 复核）：**
 | 组件 | 状态 |
 |------|------|
 | Wails WriteSpecFile | ✅ |
-| `/api/workspace/specs/write` | ❌ 路由不存在 |
-| Monaco editor | ❌ 只有 `<pre>` 原始文本展示 |
-| NewL1Wizard | ⚠️ 组件存在但未嵌入 |
-| 写盘后自动刷新 | ❌ |
+| HTTP `POST /api/workspace/specs/write` | ⚠️ **无** SvelteKit `+server.ts`；由 **`main.go` 反代** 至 agent `workspaceSpecWriteHandler`，**浏览器 dev** 下 `wailsWriteSpecFile` 走该路径 |
+| SpecViewer 编辑 + Monaco | ✅ **已实现**（`SpecViewer.svelte`：`wailsWriteSpecFile` + Monaco） |
+| NewL1Wizard | ⚠️ 组件存在但未嵌入 `/workspace` |
+| 写盘后列表/图谱刷新 | ⚠️ 依赖既有刷新链路，非全自动 |
 
-**这是 MVP 最大的缺口。** spec 写闭环缺失，整个产品只能"看"spec 不能"改"spec。
+**初稿「完全没有 UI / 只能看不能改」已不再成立；** 仍缺统一 SK 独占路由与体验打磨，详见 **§九**。
 
 ### 3.7 图谱可视化（FEAT-canvas-expand + FEAT-spec-graph-expansion）— ⚠️ 骨架存在，核心逻辑 stub
 
@@ -329,16 +329,16 @@ L5 (50 specs): ready (2), proposal (48)
 - ActivityBar 的 spec explorer / canvas 等图标点击 → 切换 center view：未连接
 - AiChatColumn 的 agent 对话流：SSE 连接但响应格式未确认
 
-### 3.15 Slot 系统（SpecSlot*）— ⚠️ 复杂但未完成
+### 3.15 Slot 系统（SpecSlot*）— ⚠️ 复杂，集成渐进中
 
 **已实现：**
 - SpecSlotA2UIStage.svelte（490 行）、SpecSlotVisualPane（458 行）、SpecSlotChatPane（284 行）、SpecSlotDrawer（173 行）、SpecSlotPrototypeKitBar（308 行）
 - spec-slot-session-store.ts（687 行）：状态管理
 
-**问题：**
-- 这些组件在 workbench/+page.svelte 中未被使用（grep 确认无 import）
-- slot session store 的状态来源不明确
-- 设计过于复杂（5 个 slot 组件），对于 MVP 来说可能是过度工程
+**问题（2026-05-10 复核）：**
+- **`SpecSlotDrawer` 已在 `workbench/+page.svelte` 中使用**；初稿「完全未 import」不准确
+- 其余 Slot 子组件嵌入深度仍不均衡；session 状态来源需持续收敛
+- 设计面较大，MVP 需控制范围
 
 ---
 
@@ -587,3 +587,35 @@ for rel in missing_status:
 **本周（2h）：** SpecViewer 加编辑按钮 + BuildPanel 加 verify tab → MVP 五环闭环
 
 **下一阶段（1-2 days）：** gen.py 补全 → Canvas generateFromSpecs → spec history → API routes 补全
+
+---
+
+## 九、代码库复核（相对 §三初稿，2026-05-10）
+
+以下逐项对照当前仓库 **复核**：报告初稿中部分结论已过时或与命名不符，其余缺口仍以代码为准。
+
+### 9.1 初稿表述不准确（已更正理解）
+
+| 初稿结论 | 复核结果 |
+|----------|----------|
+| 「Slot 系统在 workbench/+page 中未被 import」 | **不准确**：`workbench/+page.svelte` 已 import 并使用 **`SpecSlotDrawer`**（槽位抽屉）；其余 Slot 组件集成度仍不均衡 |
+| 「workbench-layout-store 与 workspace-session-store 双份 workspaceRoot」 | **不准确**：**`workbench-layout-store.ts` 仅存布局像素**，不含 `workspaceRoot`。仍存在 **`workspace-session-store`** 与 **`spec-explorer-store`** 两套路径状态，同步风险仍在 |
+| 「Spec 写闭环完全缺失 / SpecViewer 仅 `<pre>`」 | **不准确**：**`SpecViewer.svelte`** 已实现 **编辑模式 + Monaco + `wailsWriteSpecFile`**（浏览器 dev 下走 `POST /api/workspace/specs/write` 同源代理） |
+| 「gen.py 只有 pass、make generate 空壳」 | **不准确**：根目录 **`generators/gen.py`** 为完整生成器（千行级）；若 Makefile 某目标仍指向空脚本，需对照具体 Makefile 目标而非断定 gen.py 为空 |
+| 「menu:open-project 未实现 / StatusBar 未接」 | **部分不准确**：**`+layout.svelte`** 已 **`eventsOn('menu:open-project', handleOpenProject)`**；Workbench 标题栏与 StatusBar 是否每次刷新显示需与具体组件对齐，但事件链路存在 |
+
+### 9.2 初稿结论仍成立（建议 spec 继续标的缺口）
+
+| 主题 | 复核要点 |
+|------|----------|
+| **SvelteKit 专用路由** | 无 SvelteKit `frontend/src/routes/api/workspace/specs/write/+server.ts`：写请求由 **`wails-filesystem`** 走 **Wails `WriteSpecFile`** 或 **`fetch('/api/workspace/specs/write')`** 由 **`main.go` appHandler 反代** 至 agent **`workspaceSpecWriteHandler`**；spec 不应写死「仅 SK 路由」 |
+| **FEAT-workspace-selector C5** | **`/workspace`** 输入框 **未见**「非完整路径一律拒绝」的严格校验；与约束 C5 仍有差距 |
+| **dsl_canvas_services / routing_panel_services** | **`NotImplemented` 仍存在**，运行时若调用会抛错 |
+| **BuildPanel** | **未集成 verify-specs**；**`/workspace`** 页面仍有 **`runVerify()` + 按钮** |
+| **SpecHistoryPanel / DriftPanel** | 仍请求 **`/api/workspace/specs/history`**、**`/api/spec/drift/*`**；**未见**对应 **`frontend/src/routes/api/**`** 实现文件 → **UI 与后端路由缺口仍在** |
+| **GenericSpecGraph** | 仍存在经 **`agentApiUrl('/api/agent/execute')`** 的路径；图谱生成管线与「纯 spec API」混用问题仍在 |
+
+### 9.3 建议 spec 文档用语（与本仓库传输模型一致）
+
+- **spec 写入**：表述为 **「Wails `WriteSpecFile` 优先，其次同源 HTTP `/api/workspace/specs/write`（由桌面壳反代至 agent）」**，避免要求「必须存在 SK `specs/write/+server.ts`」。
+- **VERIFY**：区分 **入口页 `/workspace` 上的 verify** 与 **Workbench BuildPanel** 是否调用 verify；分别立项验收。

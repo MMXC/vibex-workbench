@@ -1,0 +1,152 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-spec-slot-implementation"
+  parent: "MOD-ide-chrome"
+  status: "proposal"
+
+display:
+  title: "Spec 实现槽（implementation）端到端"
+  summary: "用户在详情抽屉选择「实现」槽时，获得 impacted files 清单、槽位路由与强校验闭环的可验收定义。"
+  description: |
+    前端 `implementation` 槽由 `structure`/`content` 推导「影响文件」列表（见 spec-display.extractImpactedFiles）。
+    本 L4 固定产品闭环：从该槽进入 SpecSlotDrawer → 携带 slot_id=implementation → 计划图/路由预览 →
+    与代码区、生成与 RED/GREEN 验证条对齐；不把「仅有抽屉占位」糊成一条说不清验收的泛化 FEAT。
+    与 FEAT-agent-tool-routing-graph（槽位感知路由）、FEAT-ide-agent-panel（抽屉边界）、
+    FEAT-agent-rules-engine（强校验与 verification bar slice）横切协作；本文件为**实现槽**的产品锚点。
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-05-10"
+  updated: "2026-05-10"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-10"
+
+structure:
+  parent: "MOD-ide-chrome"
+  children: []
+  dependencies:
+    - "FEAT-agent-tool-routing-graph"
+    - "FEAT-ide-agent-panel"
+    - "FEAT-agent-rules-engine"
+  impacted_files:
+    - "frontend/src/lib/workbench/spec-display.ts"
+    - "frontend/src/lib/components/workbench/SpecSlotVisualPane.svelte"
+    - "frontend/src/lib/components/workbench/SpecSlotDrawer.svelte"
+    - "frontend/src/lib/stores/spec-slot-session-store.ts"
+    - "frontend/src/lib/services/tool-routing-client.ts"
+
+io:
+  input:
+    - "当前选中 spec 路径 + YAML 全文快照"
+    - "用户点击 Spec 详情中的「实现」槽"
+    - "workspaceRoot、plan_id / thread 上下文（与槽位会话一致）"
+  output:
+    - "implementation 槽展示：parent、dependencies、impacted_files、L4→L5 which_files 合并列表"
+    - "slot_id=implementation 的 PlanGraph / RoutePreview / A2UI 可确认模型（由路由 FEAT 实现）"
+    - "可选：StrongValidationPlan 与 VerificationSubmission（implementation 槽 MVP 与 prototype 并列）"
+  boundary: |
+    不重复定义 plan_graph_create 的 HTTP 形状（见 FEAT-agent-tool-routing-graph）。
+    不重复定义规则引擎阶段枚举（见 FEAT-agent-rules-engine）。
+    本 L4 只锚定「实现槽」用户验收与跨 FEAT 责任切分。
+
+constraints:
+  rules:
+    - id: "IS1"
+      name: "Implementation slot identity"
+      rule: "凡实现槽发起的 plan_graph_create / 澄清线程必须携带 slot_id=implementation（或与会话 session.slot.id 一致）。"
+      verification: "spec-slot-session-store 与 plan graph JSON 中可见 slot_id。"
+    - id: "IS2"
+      name: "Files from spec only"
+      rule: "槽位展示的「实现」文件列表须与 spec YAML 中 structure.impacted_files、content.l4_l5_lineage.which_files、content.file_path 等推导一致，禁止抽屉内臆造路径。"
+      verification: "与 spec-display.extractImpactedFiles 结果一致或可解释的差异写在验收场景里。"
+    - id: "IS3"
+      name: "Verification bar parity"
+      rule: "implementation 槽在 RED/GREEN 与提交绑定上与 prototype 槽同级（见 SLICE-spec-slot-verification-bar 契约）。"
+      verification: "slot_id=implementation 时仍可提交 VerificationSubmission 并在刷新后可见摘要。"
+  forbidden:
+    - "将「实现槽」仅写成 L5 碎片而无本 L4 behaviors 与 TC"
+    - "在未声明 impacted_files / lineage 的 spec 上假装实现槽已满"
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+io_contract:
+  input: |
+    用户在 Workbench 打开某 spec 详情，并选择 canonical「实现」槽。
+  output: |
+    抽屉内可见文件清单、路由与（若启用）强校验计划；用户可理解下一步将落在哪些路径与工具上。
+  boundary: |
+    与原型槽、结构槽并列；全局编排仍在右侧 AiChatColumn，槽位深度澄清在 SpecSlotDrawer。
+  behavior: |
+    1. 解析 spec，填充 implementation 槽摘要。
+    2. 用户展开抽屉会话时绑定 slot_id。
+    3. 请求计划图与路由预览，映射 A2UI。
+    4. 强校验阶段与 rules engine 对齐并写回 session。
+
+content:
+  behaviors:
+    - id: "B1"
+      trigger: "用户打开某 L4/L5 spec 并点击「实现」槽"
+      action: "SpecSlotVisualPane 高亮实现槽；SpecSlotDrawer 打开且 session.slot.id=implementation"
+      expected_result: "槽摘要列出至少一条实现相关线索（文件或「待补充 impacted_files」占位提示）"
+      error_handling: "解析失败时抽屉内展示可读错误，不静默为空槽"
+
+    - id: "B2"
+      trigger: "用户在实现槽内请求「生成计划 / 路由」"
+      action: "调用 plan_graph_create（mode 含 spec-slot-routing）并传入 slot_id=implementation"
+      expected_result: "返回图节点含实现相关工具/确认步骤；RoutePreview 可在抽屉内展示"
+      error_handling: "API 错误回流到抽屉消息区，并保留上次合法图快照"
+
+    - id: "B3"
+      trigger: "规则引擎为当前会话下发 StrongValidationPlan 且槽为 implementation"
+      action: "SpecSlotVisualPane 在实现槽展示验证条（与 verification bar slice 一致）"
+      expected_result: "用户可运行、提交 RED/GREEN，submission 绑定 slot_id 与 plan_id"
+      error_handling: "无计划时显示「无校验项」而非假阳性通过"
+
+  test_scenarios:
+    - id: "TC-IS-01"
+      scenario: "L5 spec 含 file_path 与 l4_l5_lineage.which_files"
+      given: "选中该 spec，实现槽可点击"
+      when: "打开实现槽抽屉"
+      then: "槽内文件列表与 YAML 声明一致"
+      evaluation: "抽一条路径与 spec 原文比对一致即通过"
+
+    - id: "TC-IS-02"
+      scenario: "实现槽路由请求"
+      given: "slot 会话已开启 implementation"
+      when: "触发计划图创建（与现有工具路由集成）"
+      then: "请求体携带 slot_id=implementation，响应可被抽屉渲染"
+      evaluation: "抓包或 mock 断言 slot_id；UI 无 500 裸页"
+
+  user_stories:
+    - id: "US-IS-01"
+      as_a: "治理负责人"
+      i_want: "从实现槽一眼看到将改动哪些文件以及如何验证"
+      so_that: "不把实现细节只散落在 agent 对话里"
+      acceptance: "实现槽展示文件清单 + 可跟进的路由或校验入口"
+
+  l4_l5_lineage:
+    summary: |
+      本 FEAT 为产品锚点；现有 slice 仍挂在原 parent（如 verification bar → FEAT-agent-rules-engine）。
+      新增专属于「实现槽 UI/推导」的 L5 时应以本 FEAT 为 parent；迁移旧 slice 时批量改 parent 并跑 validate_chain。
+    which_slices:
+      - slice: "SLICE-spec-slot-verification-bar"
+        covers: "prototype + implementation 槽强校验条（当前 parent 为 FEAT-agent-rules-engine，迁移可选）"
+      - slice: "SLICE-agent-plan-graph-router-api"
+        covers: "plan_graph / spec-slot-routing API（parent 为 FEAT-agent-tool-routing-graph，横切依赖）"
+
+changelog:
+  - version: "0.1"
+    date: "2026-05-10"
+    author: "hermes"
+    changes:
+      - "新增：实现槽（implementation）端到端 L4，对齐 product_layering_governance 抽屉填能力须独立 L4"
+      - "声明与 tool-routing、agent-panel、rules-engine 的依赖与 slice 归属备注"

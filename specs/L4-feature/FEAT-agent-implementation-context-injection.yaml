@@ -5,6 +5,7 @@ spec:
   name: "FEAT-agent-implementation-context-injection"
   parent: "MOD-spec-editor"
   status: "proposal"
+  ppt_file: ".vibex/ppt/FEAT-agent-implementation-context-injection.html"
 
 meta:
   type: "feature"

@@ -1,0 +1,229 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "FEAT-workbench-transport-adapter"
+  parent: "MOD-workspace-root"
+  status: "proposal"
+
+display:
+  title: "Workbench 传输适配层（HTTP / SSE / WS · Wails）"
+  summary: "架构契约：在模块侧收敛传输选型与基址；功能侧只消费门面，禁止散落拼接 URL。"
+  description: |
+    桌面壳内嵌前端同时存在：同源 HTTP（SvelteKit / 代理）、Go Wails binding、
+    Agent 侧 HTTP+SSE、Inspector WebSocket。本 FEAT 定义「层」而非某一种协议，
+    避免业务功能重复维护 VITE_SSE_URL、端口与双通道分支逻辑。
+
+meta:
+  type: "feature"
+  module: "frontend"
+  owner: "hermes"
+  created: "2026-05-09"
+  updated: "2026-05-09"
+
+  notes_transport_aspect: "各功能 spec 的 content.io_surfaces 横切引用本 FEAT 的 transport_matrix；协议缺口集中在 transport_implementation_todos。"
+
+lifecycle:
+  current: "proposal"
+  updated: "2026-05-09"
+
+structure:
+  parent: MOD-workspace-root
+  children: []
+  dependencies:
+  - MOD-ide-chrome
+  - FEAT-workspace-selector
+  impacted_files:
+  - frontend/src/lib/runtime/agent-transport.ts
+  - frontend/src/lib/wails-filesystem.ts
+  - frontend/src/lib/services/design-kit-client.ts
+  - frontend/src/lib/services/prototype-shell-manifest-client.ts
+  - frontend/src/lib/stores/spec-slot-session-store.ts
+  - frontend/src/lib/workbench/workbench-inspector-ws.ts
+  - pkg/protoshellmanifest/manifest.go
+  - main.go
+
+io:
+  input:
+  - 研发新增任意「读工作区 / 调 Agent / 订阅流」需求
+  output:
+  - 可检索的单一模块出口（transport 配置 + 按域划分的门面）
+  - 功能代码不包含重复的 agentBase、workspaceBase、isWails 三元分支（除门面内）
+  boundary: |
+    不替换 Agent 与 Go 服务的对外协议形态；不合并 SSE 与 WebSocket 为单一通道。
+    仅统一「谁走哪条轨、从哪里拼 URL、桌面是否优先 binding」。
+
+constraints:
+  rules:
+  - id: T1
+    name: 收敛于模块
+    rule: |
+      传输策略、环境变量读取、Wails 探测与 HTTP fallback 条件只允许出现在
+      少数约定模块（如 frontend/src/lib/runtime/transport*.ts 及 workspace/agent 门面）。
+      L4/L5 功能实现禁止复制粘贴 SSE_URL 常量块。
+    validation: code review + grep CI（可选）：禁止业务目录出现裸 http://localhost:33338
+  - id: T2
+    name: 发散于功能
+    rule: |
+      各 FEAT 仅调用门面：workspace.readSpec、agent.postChat、agent.openThreadSse、
+      inspector.connect 等；不在组件内拼接完整 URL。
+    validation: 新 PR 中新增 fetch/EventSource 须注明例外理由或走门面
+  - id: T3
+    name: 双轨基址
+    rule: |
+      workspaceApiBase：同源或代理下的工作区 I/O（list/read/write、design-kit、prototype-manifest 等）。
+      agentApiBase：Agent 运行时（chat、execute、SSE thread、部分聚合 API）。
+      二者不得混用；文档与日志须能区分「卡在同源」还是「卡在 Agent 端口」。
+    validation: 门面单元测试或快照说明两基址来源 env
+  forbidden:
+  - 在随机 Svelte 组件内新增第三种默认端口或硬编码主机名（测试 mock 除外）
+
+prototype:
+  file: ""
+  validates: []
+  status: none
+
+io_contract:
+  input: "功能需求与现有各通道实现"
+  output: "类型稳定的前端门面 + 更新后的调用点清单"
+  boundary: 不改变后端路由路径语义，仅前端收敛
+
+content:
+  architecture_principles:
+    summary: 收敛于模块、发散于功能
+    converge_at_module: |
+      MOD-workspace-root / 本 FEAT 绑定：WORKSPACE_ROOT 与请求参数约定；
+      transport 模块导出 workspaceApiBase、agentApiBase、useWailsWhenAvailable 策略表。
+    diverge_at_feature: |
+      FEAT-spec-graph、FEAT-agent-rules-engine、Design Kit、manifest 等只依赖门面签名，
+      不关心当前是 Wails 还是 Vite 代理。
+  transport_matrix:
+    workspace_disk_io: "Wails App.* 优先；浏览器开发 → 同源 /api/workspace/*"
+    workspace_kit_http: "与 disk 同轨：Design Kit、prototype-manifest 等逐步对齐 Wails 镜像方法（若存在）"
+    agent_runtime: "agentApiBase + REST；SSE EventSource；不与 workspace 基址混写"
+    inspector: "独立 WebSocket URL 工厂（inspectorWsUrl），仍从同一 env 配置源读取"
+
+  multi_aspect_lineage:
+    summary: 与「spec 多继承 / mixin」的关系
+    current_tooling: |
+      全库校验仍以单根 `spec.parent` 为主链（L1–L5 或已放宽的同层挂接）；
+      不将「传输契约」再注册为第二个 parent，避免与 `validate_chain` / `make lint-specs` 的父子存在性检查冲突。
+    recommended_pattern: |
+      把「走什么协议」当作 **横切面（mixin / aspect）**，与 L0 `mixin_merge_rules` 精神一致：
+      功能 spec **保留唯一 parent** 表达业务从属；另用可选字段声明其 I/O 面，引用本 FEAT 的 `transport_matrix` 键。
+    optional_fields_on_feature_specs: |
+      各 L4/L5 可在 `content` 下增加（任意名择一，待生成器/校验统一时收敛）：
+      - `content.io_surfaces`：对象，键为 `workspace_disk` | `workspace_http_kit` | `agent` | `inspector`，
+        值为本 FEAT `transport_matrix` 中条目的**逻辑名**或 `not_applicable`。
+      - 或 `structure.mixins`：仅作**只读引用**列表，如 `- { spec: FEAT-workbench-transport-adapter, note: "Workspace 门面 P2" }`；
+        不参与 parent 链解析，直到 `generators/validate_specs.py` 显式支持。
+    example_snippet: |
+      content:
+        io_surfaces:
+          workspace_disk: wails_preferred_http_fallback
+          workspace_http_kit: wails_preferred_http_fallback
+          agent: agent_rest_sse
+          inspector: not_applicable
+
+  stable_io_surface_labels:
+    dual_wails_http: "Wails disk/binding 优先；浏览器 dev 走同源 /api 或代理（与 wails-filesystem、prototype-manifest、design-kit 一致）"
+    agent_http_sse_ws: "Agent 基址：REST + SSE（import.meta.env.VITE_SSE_URL → getAgentApiBase / agentApiUrl）"
+    agent_port_workspace_http: "工作区树 / git / read-file 等仍由 Agent HTTP 提供（与 vibex-agent 路由一致）"
+    agent_http_specs_bridge: "槽位内 specs/read|write 等仍走 Agent 端口（待后续改 wails 或同源代理）"
+    inspector_ws: "Inspector：`httpToWsBase(getAgentApiBase())` + /api/workbench/inspector/ws"
+    io_na: "不适用"
+
+  wails_filesystem_verification_gate:
+    summary: 将槽位或其它 Agent HTTP 工作区 I/O 迁到 wails-filesystem 之前须先验收
+    rationale: |
+      桌面端必须确认 `window.go.main.App` 上 ListSpecs/ReadSpecFile/WriteSpecFile 已注册且对真实 workspaceRoot 调用成功，
+      再改 spec-slot-session-store 等路径；否则应在 spec 上保持 agent_http_specs_bridge。
+    api:
+      binding_probe: "getWailsFilesystemBindingStatus() — 同步，无磁盘 I/O"
+      smoke_list: "probeWailsFilesystemListSpecs(workspaceRoot) — 与业务同路径调用 wailsListSpecs"
+    acceptance:
+      browser_dev: "probe 返回 ok；channel 为 http_fallback 属正常"
+      wails_desktop: "bindings 四项为 true；probe ok 且 channel 为 wails_binding"
+    refs:
+      - frontend/src/lib/wails-filesystem.ts
+
+  transport_implementation_todos:
+    summary: 首轮 backlog 已关闭（2026-05-09）；后续仍可按 implementation_phases 做更深门面拆分
+    closed_round_2026_05_09:
+    - id: DONE-T1
+      detail: "pkg/protoshellmanifest + App.PrototypeManifestGet/Register；prototype-shell-manifest-client 对齐 Design Kit 双通道"
+      refs:
+      - pkg/protoshellmanifest/manifest.go
+      - main.go
+      - frontend/src/lib/services/prototype-shell-manifest-client.ts
+    - id: DONE-T2
+      detail: "frontend/src/lib/runtime/agent-transport.ts（getAgentApiBase、agentApiUrl、httpToWsBase）；取代散落 SSE_URL"
+      refs:
+      - frontend/src/lib/runtime/agent-transport.ts
+      - frontend/src/lib/stores/spec-slot-session-store.ts
+      - frontend/src/lib/components/workbench/GenericSpecGraph.svelte
+      - frontend/src/routes/workbench/+page.svelte
+      - frontend/src/lib/sse.ts
+    - id: DONE-T3
+      detail: "SpecExplorer 树 API 经 agentApiUrl（语义仍为 Agent 端口 workspace/tree）"
+      refs:
+      - frontend/src/lib/components/workbench/SpecExplorer.svelte
+    - id: DONE-T4
+      detail: "GitSidebar / ReadonlyFileViewer 经 agentApiUrl"
+      refs:
+      - frontend/src/lib/components/workbench/GitSidebar.svelte
+      - frontend/src/lib/components/workbench/ReadonlyFileViewer.svelte
+    - id: DONE-T5
+      detail: "workbench-inspector-ws 使用 agent-transport.httpToWsBase；+page 传入 getAgentApiBase()"
+      refs:
+      - frontend/src/lib/workbench/workbench-inspector-ws.ts
+      - frontend/src/routes/workbench/+page.svelte
+
+  implementation_phases:
+    description: 先合 spec，再按阶段改代码；每阶段可单独合并
+    phases:
+    - id: P1
+      name: 配置收口
+      deliverables:
+      - 单一模块导出 agentApiBase / workspaceApiBase（及可选 publicAppOrigin）
+      - 替换高频重复 SSE_URL 常量（grep 驱动，分批）
+    - id: P2
+      name: Workspace 门面
+      deliverables:
+      - prototype-manifest、spec 读写等待与 design-kit-client、wails-filesystem 同一策略文档化
+    - id: P3
+      name: Agent 门面
+      deliverables:
+      - spec-slot-session-store 内长 fetch 列表迁入 agent/workspace 门面；SSE 路径工厂化
+    - id: P4
+      name: 校验与文档
+      deliverables:
+      - 可选 eslint/grep 门禁；本 FEAT content 与 README 片段同步
+
+behaviors:
+- id: B1
+  trigger: 新增需访问工作区或 Agent 的前端能力
+  action: 先查本 FEAT 与门面是否已有能力；无则扩展门面再写业务
+  expected_result: 无双通道逻辑泄漏到 UI 组件
+
+changelog:
+- version: "0.4"
+  date: "2026-05-09"
+  author: "hermes"
+  changes:
+  - 增加 wails_filesystem_verification_gate；wails-filesystem 导出 getWailsFilesystemBindingStatus / probeWailsFilesystemListSpecs 供迁槽位前验收
+- version: "0.3"
+  date: "2026-05-09"
+  author: "hermes"
+  changes:
+  - 关闭首轮 transport_implementation_todos；增加 stable_io_surface_labels；落地 agent-transport 与 protoshellmanifest Wails 绑定
+- version: "0.2"
+  date: "2026-05-09"
+  author: "hermes"
+  changes:
+  - 补充 transport_implementation_todos，对齐现有实现中的双轨与缺口
+- version: "0.1"
+  date: "2026-05-09"
+  author: "hermes"
+  changes:
+  - 初始 proposal：架构层传输适配契约（收敛模块 / 发散功能）

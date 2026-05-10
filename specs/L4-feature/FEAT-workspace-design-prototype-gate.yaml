@@ -98,11 +98,11 @@ meta:
   module: "frontend"
   owner: "hermes"
   created: "2026-05-04"
-  updated: "2026-05-04"
+  updated: "2026-05-09"
 
 lifecycle:
   current: "implementation"
-  updated: "2026-05-04"
+  updated: "2026-05-09"
 
 io_contract:
   input: |
@@ -119,6 +119,14 @@ io_contract:
     - "槽位 store 提供 prefillActiveChat 承载「关联 spec」与设计门禁提示"
 
 content:
+  io_surfaces:
+    workspace_disk: dual_wails_http
+    workspace_http_kit: dual_wails_http
+    agent: agent_http_sse_ws
+    inspector: io_na
+  io_surfaces_notes: |
+    Design Kit 双通道；槽位 Agent 行为使用 agent_http_sse_ws。
+
   verification:
     commands:
       - "make lint-specs"
