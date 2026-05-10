@@ -36,6 +36,7 @@ agent/.env
 agent/.sessions/
 # Generators
 generators/__pycache__/
+scripts/__pycache__/
 generators/.criteria_report.json
 generators/.manifest.json
 generators/agent-queue/
@@ -49,3 +50,10 @@ backend/vibex-backend.exe
 verify_specs
 vibex-workbench
 vibex-workbench.exe
+
+# Local scratch output / misplaced artifacts (never commit)
+NUL
+graphify-out/
+.sessions/
+backend/*.exe*
+agent/cmd/web/backend/
