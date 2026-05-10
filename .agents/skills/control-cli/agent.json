@@ -1,0 +1,8 @@
+{
+	"label_zh": "搭建本地 CLI/TUI 驱动与剖析，复现终端交互问题",
+	"developer_message": "",
+	"required_skills": [
+		"control-cli"
+	],
+	"allowed_tools": []
+}

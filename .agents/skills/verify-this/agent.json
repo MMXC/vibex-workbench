@@ -1,0 +1,8 @@
+{
+	"label_zh": "用本地可重复证据验证（或否证）某一具体主张",
+	"developer_message": "",
+	"required_skills": [
+		"verify-this"
+	],
+	"allowed_tools": []
+}

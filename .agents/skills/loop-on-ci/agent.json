@@ -1,0 +1,8 @@
+{
+	"label_zh": "监听 PR checks，循环修复直至所需检查全部通过",
+	"developer_message": "",
+	"required_skills": [
+		"loop-on-ci"
+	],
+	"allowed_tools": []
+}

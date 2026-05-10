@@ -1,7 +1,11 @@
 import { get, writable } from 'svelte/store';
 import { stripReasoningTags } from '$lib/stores/thread-store';
 import type { SpecDisplayMeta, SpecSlotSummary } from '$lib/workbench/spec-display';
-import { getSpecPptFileFromYaml, upsertSpecBlockPptFile } from '$lib/workbench/spec-display';
+import {
+	extractSpecDisplay,
+	getSpecPptFileFromYaml,
+	upsertSpecBlockPptFile,
+} from '$lib/workbench/spec-display';
 import {
 	createSlotPlanGraph,
 	extractHtmlFromMarkdown,
@@ -239,6 +243,22 @@ function persist(state: SpecSlotSessionState) {
 	);
 }
 
+/** 行首 `/slug` 或 `/slug 描述` → 路由 agent_profile；首行提示词为任务正文（不含命令前缀）。 */
+export function parseLeadingAgentSlashCommand(text: string): {
+	agentProfile: string | null;
+	userTaskLine: string;
+} {
+	const t = text.trim();
+	const m = t.match(/^\/([a-zA-Z0-9][a-zA-Z0-9_-]*)(?:\s+(.*))?$/s);
+	if (!m) {
+		return { agentProfile: null, userTaskLine: t };
+	}
+	const slug = m[1].toLowerCase();
+	const rest = (m[2] ?? '').trim();
+	const userTaskLine = rest || '请结合当前 spec 槽位与上下文完成专业任务。';
+	return { agentProfile: slug, userTaskLine };
+}
+
 function buildPrompt(session: SpecSlotSession, userInput: string): string {
 	const recent = session.messages
 		.slice(-8)
@@ -286,6 +306,18 @@ function buildPrompt(session: SpecSlotSession, userInput: string): string {
 					'工作区约定：.vibex/design/DESIGN.md（栈、令牌、组件边界）；可交付 HTML 放在 .vibex/prototypes/；演示用 HTML PPT 路径写在顶层 spec.ppt_file（相对工作区根），不要写入 prototype。',
 					'生成或修改原型前须对齐 DESIGN.md；写入当前 spec 的 prototype 字段须经用户明确确认后再 specs/write；写入物料文件使用原型槽工具条 extract/scaffold（已 confirm）。',
 					'[/Design Kit]',
+					'',
+				]
+			: []),
+		...(session.slot.id === 'implementation'
+			? [
+					'[Implementation / spec 治理联动]',
+					'本槽位右侧 iframe 优先预览 YAML 绑定的静态 HTML：在 spec 顶层维护 `implementation:`，例如：',
+					'- `implementation.stage`：治理阶段（如 planning / routing / validating / shipped；可按仓库约定扩展）。',
+					'- `implementation.preview_html`：主预览页，相对工作区根的 `.html` 路径。',
+					'- `implementation.artifacts`（可选）：命名子产物，如 route_graph、plan_review，值为相对 `.html` 路径。',
+					'专业 agent 产出页面时使用 write_file 写入目标路径，再通过 specs/write 更新上述字段并推进 `implementation.stage` / `spec.status`；不要在对话里用超长 HTML 代替落盘。',
+					'[/Implementation]',
 					'',
 				]
 			: []),
@@ -348,6 +380,45 @@ function createSpecSlotSessionStore() {
 	function closeStream() {
 		activeSource?.close();
 		activeSource = null;
+	}
+
+	/** 实现槽：一轮对话跑完后拉盘刷新 YAML，供右侧 implementation.preview_html iframe 与槽位摘要同步 */
+	async function reloadSessionSpecAfterTurn(key: string) {
+		const sess = get({ subscribe }).sessions[key];
+		if (!sess || sess.slot.id !== 'implementation') return;
+		const wsRoot = get(specExplorerStore).workspaceRoot?.trim();
+		if (!wsRoot) return;
+		try {
+			const q = new URLSearchParams({
+				path: sess.spec.path,
+				workspaceRoot: wsRoot,
+			});
+			const r = await fetch(`${agentApiUrl('/api/workspace/specs/read')}?${q.toString()}`);
+			if (!r.ok) return;
+			const j = (await r.json()) as { content?: string };
+			const raw = String(j.content ?? '');
+			const meta = extractSpecDisplay(raw, sess.spec.path);
+			const slot = meta.slots.all.find(s => s.id === sess.slot.id) ?? sess.slot;
+			commit(state => {
+				const cur = state.sessions[key];
+				if (!cur) return state;
+				return {
+					...state,
+					sessions: {
+						...state.sessions,
+						[key]: {
+							...cur,
+							content: raw,
+							spec: meta,
+							slot,
+							updatedAt: nowIso(),
+						},
+					},
+				};
+			});
+		} catch {
+			// best-effort：静默失败，控制台仍可手动刷新
+		}
 	}
 
 	function appendAssistantDelta(key: string, delta: string, isFinal: boolean) {
@@ -855,6 +926,7 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 						threadId: session.threadId,
 						input: prompt,
 						workspaceRoot: wsRoot,
+						agent_profile: 'ppt-generator',
 					}),
 				});
 				for (let i = 0; i < 30; i++) {
@@ -1398,6 +1470,7 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 						},
 					};
 				});
+				void reloadSessionSpecAfterTurn(key);
 			});
 			activeSource.addEventListener('run.failed', () => {
 				upsertIterationNode(
@@ -1544,7 +1617,17 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 
 			try {
 				const fresh = get({ subscribe }).sessions[key] ?? session;
-				const prompt = buildPrompt(fresh, text);
+				const { agentProfile, userTaskLine } = parseLeadingAgentSlashCommand(text);
+				const prompt = buildPrompt(fresh, userTaskLine);
+				const wsRoot = get(specExplorerStore).workspaceRoot;
+				const chatBody: Record<string, string> = {
+					threadId: session.threadId,
+					input: prompt,
+					...(wsRoot ? { workspaceRoot: wsRoot } : {}),
+				};
+				if (agentProfile) {
+					chatBody.agent_profile = agentProfile;
+				}
 				if (useMockBackend) {
 					await fetch(agentApiUrl('/api/runs'), {
 						method: 'POST',
@@ -1555,11 +1638,7 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 					await fetch(agentApiUrl('/api/chat'), {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({
-							threadId: session.threadId,
-							input: prompt,
-							workspaceRoot: get(specExplorerStore).workspaceRoot,
-						}),
+						body: JSON.stringify(chatBody),
 					});
 				}
 			} catch (e) {

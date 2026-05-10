@@ -27,6 +27,7 @@
 	import type { ConventionPayload } from '$lib/workbench/spec-convention';
 	import { specChildDraftStore } from '$lib/stores/spec-child-draft-store';
 	import { agentApiUrl } from '$lib/runtime/agent-transport';
+	import { toWorkspaceFileURL } from '$lib/workbench/workspace-file-url';
 
 	let {
 		specPath,
@@ -319,14 +320,6 @@
 
 	function delay(ms: number): Promise<void> {
 		return new Promise(resolve => setTimeout(resolve, ms));
-	}
-
-	function toWorkspaceFileURL(path: string, workspaceRoot: string): string {
-		const safe = path
-			.split('/')
-			.map(seg => encodeURIComponent(seg))
-			.join('/');
-		return `${agentApiUrl('/api/workspace/file/' + safe)}?workspaceRoot=${encodeURIComponent(workspaceRoot)}`;
 	}
 
 	function ensureTag(source: string, needle: string, insertBefore: string): string {

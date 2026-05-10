@@ -1,0 +1,8 @@
+{
+	"label_zh": "整理提交历史与 PR 描述，提升评审可读性（不改业务语义）",
+	"developer_message": "",
+	"required_skills": [
+		"make-pr-easy-to-review"
+	],
+	"allowed_tools": []
+}

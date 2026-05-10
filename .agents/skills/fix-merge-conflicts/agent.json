@@ -1,0 +1,8 @@
+{
+	"label_zh": "非交互解决合并冲突并验证编译与测试",
+	"developer_message": "",
+	"required_skills": [
+		"fix-merge-conflicts"
+	],
+	"allowed_tools": []
+}

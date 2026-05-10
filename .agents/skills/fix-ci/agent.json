@@ -1,0 +1,8 @@
+{
+	"label_zh": "根据 PR checks 与日志定位 CI 失败并迭代修复至通过",
+	"developer_message": "",
+	"required_skills": [
+		"fix-ci"
+	],
+	"allowed_tools": []
+}

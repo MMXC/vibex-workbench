@@ -1,0 +1,8 @@
+{
+	"label_zh": "Workbench 画布卡片 UI（静态模板 + JSON，确认/取消/操作）",
+	"developer_message": "",
+	"required_skills": [
+		"workbench-canvas-ui"
+	],
+	"allowed_tools": []
+}

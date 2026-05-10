@@ -1,5 +1,9 @@
 <script lang="ts">
+	import { get } from 'svelte/store';
 	import type { SpecSlotSession } from '$lib/stores/spec-slot-session-store';
+	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
+	import { parseImplementationGovernance } from '$lib/workbench/spec-display';
+	import { toWorkspaceFileURL } from '$lib/workbench/workspace-file-url';
 
 	let { session }: { session: SpecSlotSession } = $props();
 
@@ -23,9 +27,86 @@
 
 	/** 本地工作台可信内容：保留脚本以支持交互原型；iframe 仍用 sandbox 限制弹窗/顶层导航等。 */
 	const prototypeSrcdoc = $derived.by(() => (model?.prototype?.html ?? '').trim());
+
+	const wsRoot = $derived.by(() => get(specExplorerStore).workspaceRoot?.trim() ?? '');
+	const implGov = $derived.by(() =>
+		session.slot.id === 'implementation' ? parseImplementationGovernance(session.content ?? '') : null
+	);
+	const implPaths = $derived.by(() => {
+		const g = implGov;
+		if (!g) return [] as { label: string; path: string }[];
+		const rows: { label: string; path: string }[] = [];
+		if (g.preview_html && g.preview_html.toLowerCase().endsWith('.html')) {
+			rows.push({ label: 'preview_html', path: g.preview_html });
+		}
+		for (const [k, p] of Object.entries(g.artifacts)) {
+			if (p.toLowerCase().endsWith('.html')) {
+				rows.push({ label: k, path: p });
+			}
+		}
+		return rows;
+	});
+
+	let implPickPath = $state('');
+
+	$effect(() => {
+		const paths = implPaths;
+		const first = paths[0]?.path ?? '';
+		if (!first) {
+			implPickPath = '';
+			return;
+		}
+		if (!implPickPath || !paths.some(p => p.path === implPickPath)) {
+			implPickPath = first;
+		}
+	});
+
+	const implIframeSrc = $derived.by(() => {
+		if (!wsRoot || !implPickPath) return '';
+		return toWorkspaceFileURL(implPickPath, wsRoot);
+	});
 </script>
 
 <div class="a2ui-stage" aria-label="A2UI 确认区" class:hero-layout={hasPrimaryVisual}>
+	{#if session.slot.id === 'implementation'}
+		<section class="impl-gov-panel" aria-label="实现阶段静态产物">
+			<div class="impl-gov-head">
+				<span class="k">实现治理 · YAML 绑定预览</span>
+				{#if implGov?.stage}
+					<span class="impl-stage-pill">{implGov.stage}</span>
+				{/if}
+			</div>
+			{#if !wsRoot}
+				<p class="muted impl-hint">请在工作台选择工作区根目录后再预览文件。</p>
+			{:else if implPaths.length > 0}
+				{#if implPaths.length > 1}
+					<label class="impl-picker">
+						<span>预览页</span>
+						<select bind:value={implPickPath}>
+							{#each implPaths as row (row.path)}
+								<option value={row.path}>{row.label} — {row.path}</option>
+							{/each}
+						</select>
+					</label>
+				{/if}
+				<div class="impl-frame-wrap">
+					<iframe
+						class="impl-frame"
+						title="implementation artifact preview"
+						sandbox="allow-scripts allow-same-origin"
+						referrerpolicy="no-referrer"
+						src={implIframeSrc}
+					></iframe>
+				</div>
+			{:else}
+				<p class="muted impl-hint">
+					在 spec 顶层配置 <code>implementation.preview_html</code> 或 <code>implementation.artifacts.*</code>（相对路径
+					<code>.html</code>），保存后右侧将加载 <code>/api/workspace/file/</code> 静态页。
+				</p>
+			{/if}
+		</section>
+	{/if}
+
 	{#if session.a2uiStatus === 'loading'}
 		<p class="loading">正在生成工具路由与 A2UI 确认组件…</p>
 	{/if}
@@ -233,6 +314,77 @@
 		margin: 0;
 		color: #72d6d0;
 		font-size: 12px;
+	}
+
+	.impl-gov-panel {
+		flex-shrink: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 10px 12px;
+		border: 1px solid rgba(122, 162, 255, 0.35);
+		border-radius: 14px;
+		background: rgba(122, 162, 255, 0.06);
+	}
+
+	.impl-gov-head {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
+	.impl-stage-pill {
+		font-size: 10px;
+		font-weight: 800;
+		padding: 3px 9px;
+		border-radius: 999px;
+		border: 1px solid rgba(122, 162, 255, 0.45);
+		color: #b8c9ff;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+	}
+
+	.impl-picker {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 11px;
+		color: #a3abb9;
+	}
+
+	.impl-picker select {
+		flex: 1;
+		min-width: 0;
+		font-size: 11px;
+		padding: 5px 8px;
+		border-radius: 8px;
+		border: 1px solid #465064;
+		background: #0b0d12;
+		color: #eef0f5;
+	}
+
+	.impl-frame-wrap {
+		min-height: 220px;
+		max-height: min(52vh, 520px);
+		border-radius: 12px;
+		overflow: hidden;
+		border: 1px solid #303746;
+		background: #0b0d12;
+	}
+
+	.impl-frame {
+		width: 100%;
+		height: min(52vh, 520px);
+		min-height: 220px;
+		border: 0;
+		background: #fff;
+	}
+
+	.impl-hint code {
+		font-family: ui-monospace, monospace;
+		font-size: 10px;
+		color: #7aa2ff;
 	}
 
 	.muted {

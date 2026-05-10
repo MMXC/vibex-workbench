@@ -1,0 +1,8 @@
+{
+	"label_zh": "按指定时间段汇总本人已完成工作与产出摘要",
+	"developer_message": "",
+	"required_skills": [
+		"what-did-i-get-done"
+	],
+	"allowed_tools": []
+}

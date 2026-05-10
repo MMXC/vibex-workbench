@@ -1,0 +1,8 @@
+{
+	"label_zh": "拉取 GitHub PR 数据并生成交互式 HTML 评审 walkthrough",
+	"developer_message": "",
+	"required_skills": [
+		"pr-review-canvas"
+	],
+	"allowed_tools": []
+}

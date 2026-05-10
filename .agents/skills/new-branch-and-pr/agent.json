@@ -1,0 +1,8 @@
+{
+	"label_zh": "从主干拉分支、完成改动并创建 Pull Request",
+	"developer_message": "",
+	"required_skills": [
+		"new-branch-and-pr"
+	],
+	"allowed_tools": []
+}

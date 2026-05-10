@@ -1,0 +1,8 @@
+{
+	"label_zh": "变更审查、跑测、聚焦提交并打开或更新 PR",
+	"developer_message": "",
+	"required_skills": [
+		"review-and-ship"
+	],
+	"allowed_tools": []
+}

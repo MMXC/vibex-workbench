@@ -28,13 +28,13 @@ func main() {
 	llm = adapters.NewLLMClient(rawClient, cfg.BaseURL, cfg.Model)
 
 	var err error
-	skillRegistry, err = skills.LoadRegistryFromDir(cfg.SkillsDir)
+	skillRegistry, err = skills.LoadWorkspaceSkillsRegistry(cfg.WorkspaceDir)
 	if err != nil {
-		log.Printf("warning: skills dir %s not found: %v", cfg.SkillsDir, err)
+		log.Printf("warning: skills registry merge failed for %s: %v", cfg.WorkspaceDir, err)
 		skillRegistry = skills.NewRegistry()
 	}
-	log.Printf("[VibeX Agent] adapter=%s | model=%s | workspace=%s | skills=%d from %s",
-		llm.AdapterName(), cfg.Model, cfg.WorkspaceDir, skillRegistry.Count(), cfg.SkillsDir)
+	log.Printf("[VibeX Agent] adapter=%s | model=%s | workspace=%s | skills=%d (merged skills/ + .agents/skills)",
+		llm.AdapterName(), cfg.Model, cfg.WorkspaceDir, skillRegistry.Count())
 
 	os.MkdirAll(".sessions", 0755)
 
@@ -69,6 +69,7 @@ func main() {
 	http.HandleFunc("/api/workspace/specs/write", withCORS(workspaceSpecWriteHandler))
 	http.HandleFunc("/api/workspace/file/", withCORS(workspaceFileHandler))
 	http.HandleFunc("/api/workspace/specs/list", withCORS(workspaceSpecsListHandler))
+	http.HandleFunc("/api/workspace/specs/init-layout", withCORS(workspaceSpecsInitLayoutHandler))
 	http.HandleFunc("/api/workspace/tree", withCORS(workspaceTreeHandler))
 	http.HandleFunc("/api/workspace/read-file", withCORS(workspaceReadFileHandler))
 	http.HandleFunc("/api/workspace/git/status", withCORS(workspaceGitStatusHandler))
@@ -79,6 +80,7 @@ func main() {
 	http.HandleFunc("/api/workspace/spec-bootstrap", withCORS(workspaceSpecsBootstrapHandler))
 	http.HandleFunc("/api/workspace/run-make", withCORS(workspaceRunMakeHandler))
 	http.HandleFunc("/api/workspace/verify-specs", withCORS(workspaceVerifySpecsHandler))
+	http.HandleFunc("/api/workspace/agent-commands", withCORS(workspaceAgentCommandsHandler))
 	http.HandleFunc("/api/workspace/qa/run", withCORS(qaRunnerHandler))
 	http.HandleFunc("/api/workspace/agent-flow-qa/run", withCORS(agentFlowQARunHandler))
 	http.HandleFunc("/api/workspace/cdp/validate", withCORS(cdpValidateHandler))

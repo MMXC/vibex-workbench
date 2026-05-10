@@ -1,6 +1,6 @@
 ---
 name: workspace-bootstrap
-description: 通过 agent 澄清方式初始化新工作区的 L1-L5 specs。适用于“新建工作区 / 打卡工作区 / 按模板初始化 spec 链路”的低频复杂任务。
+description: 通过 agent 澄清方式初始化新工作区的 L1-L5 specs。适用于“按模板初始化 spec 链路”的低频复杂任务。
 ---
 
 # workspace-bootstrap
@@ -9,7 +9,7 @@ description: 通过 agent 澄清方式初始化新工作区的 L1-L5 specs。适
 
 ## 何时使用
 
-- 用户要在新目录按 VibeX 分层模板初始化 spec。
+- 用户要在新目录按分层模板初始化 spec。
 - 需要在执行前澄清：项目短名、owner、是否覆盖已有文件。
 - 需要可迭代优化初始化策略，不希望改动固定工具协议。
 
@@ -38,3 +38,17 @@ description: 通过 agent 澄清方式初始化新工作区的 L1-L5 specs。适
 - 默认幂等：已有文件不覆盖（除非 `overwrite=true`）。
 - 仅写 `specs/L1-goal..L5-slice` 目标链路，不改业务代码。
 - 写盘前必须显式确认（`confirm=true`）。
+- 新项目初始化目录一定是工作区下,严禁自定义目录名称
+```
+specs/
+├── L1-goal/
+│   └── L1-goal-{goal-name}.yaml                # 项目目标层
+├── L2-skeleton/
+│   └── L2-skeleton-{skeleton-name}.yaml            # 技术架构骨架
+├── L3-module/
+│   └── L3-module-{module-name}.yaml              # 模块边界 + 公开 API
+├── L4-feature/
+│   └── L4-feature-{feature-name}.yaml             # 功能行为 + 验收标准
+└── L5-slice/
+    └── L5-slice-{slice-name}.yaml               # 具体文件生成规格
+```

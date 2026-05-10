@@ -1,0 +1,8 @@
+{
+	"label_zh": "浏览器/CDP 驱动 Web 或 Electron UI，截图与可复现验证",
+	"developer_message": "",
+	"required_skills": [
+		"control-ui"
+	],
+	"allowed_tools": []
+}

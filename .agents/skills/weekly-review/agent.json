@@ -1,0 +1,8 @@
+{
+	"label_zh": "按周汇总本人提交，区分缺陷修复、还债与新功能",
+	"developer_message": "",
+	"required_skills": [
+		"weekly-review"
+	],
+	"allowed_tools": []
+}

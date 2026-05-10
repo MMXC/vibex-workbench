@@ -1,0 +1,8 @@
+{
+	"label_zh": "汇总当前分支对应 PR 的评审评论与可执行待办",
+	"developer_message": "",
+	"required_skills": [
+		"get-pr-comments"
+	],
+	"allowed_tools": []
+}

@@ -1,0 +1,8 @@
+{
+	"label_zh": "执行 Playwright 冒烟测试，根据 trace 排障并复验",
+	"developer_message": "",
+	"required_skills": [
+		"run-smoke-tests"
+	],
+	"allowed_tools": []
+}

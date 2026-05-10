@@ -1,0 +1,8 @@
+{
+	"label_zh": "从近期对话提炼可复用偏好，生成 skill/规则/工作流文档",
+	"developer_message": "",
+	"required_skills": [
+		"workflow-from-chats"
+	],
+	"allowed_tools": []
+}

@@ -1,0 +1,8 @@
+{
+	"label_zh": "运行编译与类型检查，汇总错误并按优先级修复",
+	"developer_message": "",
+	"required_skills": [
+		"check-compiler-errors"
+	],
+	"allowed_tools": []
+}

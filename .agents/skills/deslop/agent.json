@@ -1,0 +1,8 @@
+{
+	"label_zh": "对照主线清理 AI 冗余注释与风格噪音，保持行为不变",
+	"developer_message": "",
+	"required_skills": [
+		"deslop"
+	],
+	"allowed_tools": []
+}

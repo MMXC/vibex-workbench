@@ -142,6 +142,41 @@ function extractImpactedFiles(structure: Record<string, unknown> | null, content
 	);
 }
 
+/** 实现槽与 spec 治理联动：阶段 + 产物 HTML 路径（工作区相对路径）。 */
+export type ImplementationGovernance = {
+	stage: string;
+	preview_html: string;
+	/** 各阶段/维度命名的静态页路径，供切换预览 */
+	artifacts: Record<string, string>;
+};
+
+export function parseImplementationGovernance(yamlText: string): ImplementationGovernance | null {
+	try {
+		const doc = parseYaml(yamlText) as Record<string, unknown> | null;
+		if (!doc) return null;
+		const impl = asRecord(doc.implementation);
+		if (!impl) return null;
+		const stage = asString(impl.stage);
+		const preview_html = asString(impl.preview_html);
+		const rawArt = impl.artifacts;
+		const artifacts: Record<string, string> = {};
+		if (rawArt && typeof rawArt === 'object' && !Array.isArray(rawArt)) {
+			for (const [k, v] of Object.entries(rawArt as Record<string, unknown>)) {
+				const p = asString(v);
+				if (p && k.trim()) artifacts[k.trim()] = p;
+			}
+		}
+		if (!stage && !preview_html && Object.keys(artifacts).length === 0) return null;
+		return {
+			stage: stage ?? '',
+			preview_html: preview_html ?? '',
+			artifacts,
+		};
+	} catch {
+		return null;
+	}
+}
+
 function extractSpecSlots(doc: Record<string, unknown> | null, specParent: string | null): SpecSlotModel {
 	const content = asRecord(doc?.content);
 	const structure = asRecord(doc?.structure);
@@ -150,6 +185,7 @@ function extractSpecSlots(doc: Record<string, unknown> | null, specParent: strin
 	const constraints = asRecord(doc?.constraints);
 	const prototype = asRecord(doc?.prototype);
 	const implementationBoundary = asRecord(content?.implementation_boundary);
+	const implGov = asRecord(doc?.implementation);
 
 	const dependencies = mergeArrayValues(structure?.dependencies, content?.dependencies);
 	const impactedFiles = extractImpactedFiles(structure, content);
@@ -171,13 +207,38 @@ function extractSpecSlots(doc: Record<string, unknown> | null, specParent: strin
 		...toItems(prototype?.validates).map(item => `validates: ${item}`),
 	].filter(Boolean);
 
+	const implStage = asString(implGov?.stage);
+	const implPreview = asString(implGov?.preview_html);
+	const implArtifacts = implGov?.artifacts;
+	const implArtifactLines: string[] = [];
+	if (implArtifacts && typeof implArtifacts === 'object' && !Array.isArray(implArtifacts)) {
+		for (const [k, v] of Object.entries(implArtifacts as Record<string, unknown>)) {
+			const p = asString(v);
+			if (p) implArtifactLines.push(`${k}: ${p}`);
+		}
+	}
+	const implementationValues = [
+		...impactedFiles.map(item => `file: ${item}`),
+		implStage ? `stage: ${implStage}` : '',
+		implPreview ? `preview_html: ${implPreview}` : '',
+		...implArtifactLines,
+	].filter(Boolean);
+
+	const hasImplementationGovernance = !!(implGov && (implStage || implPreview || implArtifactLines.length > 0));
+
 	const model = {
 		structure: slot('structure', '结构', !!structure, structureValues, '未定义结构'),
 		input: slot('input', '输入', !!canonicalIo || !!legacyIo, input, '待补充输入'),
 		output: slot('output', '输出', !!canonicalIo || !!legacyIo, output, '待补充输出'),
 		constraints: slot('constraints', '约束', !!constraints, [...rules, ...forbidden], '无约束'),
 		prototype: slot('prototype', '原型', !!prototype, prototypeValues, '无原型'),
-		implementation: slot('implementation', '实现', !!structure || !!content, impactedFiles, '无实现文件'),
+		implementation: slot(
+			'implementation',
+			'实现',
+			!!structure || !!content || hasImplementationGovernance,
+			implementationValues.length ? implementationValues : impactedFiles,
+			hasImplementationGovernance ? '待绑定产物页' : '无实现文件'
+		),
 	};
 	return {
 		...model,
