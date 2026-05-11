@@ -34,7 +34,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 		formatSpecContextForPrompt,
 		specAgentContextStore,
 	} from '$lib/stores/spec-agent-context-store';
-	import { specSlotSessionStore } from '$lib/stores/spec-slot-session-store';
+	import { parseLeadingAgentSlashCommand, specSlotSessionStore } from '$lib/stores/spec-slot-session-store';
 	import { runStore } from '$lib/stores/run-store';
 	import { eventsOn } from '$lib/wails-runtime';
 	import { wailsReadSpecFile } from '$lib/wails-filesystem';
@@ -468,7 +468,9 @@ ${latestExcerpt}`;
 
 		const activeRun = $runStore.runs.find(run => run.id === $runStore.active_run_id) ?? null;
 		const recentOutput = $outputText.trim().slice(-1200);
-		const inputWithContext = `${content}${formatSpecContextForPrompt({
+		const { agentProfile, userTaskLine } = parseLeadingAgentSlashCommand(content.trim());
+		const bodyBase = agentProfile ? userTaskLine : content;
+		const inputWithContext = `${bodyBase}${formatSpecContextForPrompt({
 			workspaceRoot: workspaceForAgent,
 			specs: $specExplorerStore.specs,
 			workbench: {
@@ -512,6 +514,7 @@ ${latestExcerpt}`;
 						threadId: threadKey,
 						input: inputWithContext,
 						workspaceRoot: workspaceForAgent,
+						...(agentProfile ? { agent_profile: agentProfile } : {}),
 					}),
 				});
 			}

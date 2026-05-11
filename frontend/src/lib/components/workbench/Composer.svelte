@@ -6,13 +6,16 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
 ============================================================ -->
 
 <script lang="ts">
-  import { runStore, activeRun } from '$lib/stores/run-store';
+  import { get } from 'svelte/store';
+  import { runStore } from '$lib/stores/run-store';
   import {
     getAvailableSpecCommands,
     specAgentContextStore,
     type SpecCommand,
     type SpecContextItem,
   } from '$lib/stores/spec-agent-context-store';
+  import { specExplorerStore } from '$lib/stores/spec-explorer-store';
+  import { fetchAgentCommands, type AgentCommand } from '$lib/workbench/agent-commands';
 
   interface Props {
     onsubmit?: (content: string, mode: string) => Promise<void> | void;
@@ -41,17 +44,103 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
     focusedPath: null,
   });
   let lastDraftCommandId = $state<string | null>(null);
-  let showCommandPalette = $state(false);
-  let commandQuery = $state('');
+
+  /** 与 Spec 槽位抽屉一致：行内 `/` + 光标；优先匹配工作台命令，否则专业 agent 列表 */
+  let paletteKind = $state<'none' | 'workbench' | 'agent'>('none');
+  let workbenchSlashOptions = $state<SpecCommand[]>([]);
+  let slashReplaceStart = $state(0);
+  let slashQuery = $state('');
+  let slashPrevToken = $state('');
+  let paletteIndex = $state(0);
+  let agentCommands = $state<AgentCommand[]>([]);
 
   const focusedSpec = $derived.by(() => {
     return contextState.items.find(item => item.path === contextState.focusedPath) ?? contextState.items[0] ?? null;
   });
 
-  const commandOptions = $derived.by(() => {
-    const commands = getAvailableSpecCommands(focusedSpec?.level ?? null);
-    if (!commandQuery) return commands;
-    return commands.filter(command => command.name.startsWith(commandQuery));
+  const agentSlashFiltered = $derived.by(() =>
+    paletteKind === 'agent' ? filterAgentSlash(slashQuery) : []
+  );
+
+  function filterAgentSlash(q: string): AgentCommand[] {
+    const qq = q.toLowerCase();
+    return agentCommands
+      .filter(
+        c =>
+          c.command.toLowerCase().startsWith(qq) ||
+          (c.label_zh ?? '').toLowerCase().includes(qq)
+      )
+      .slice(0, 12);
+  }
+
+  function workbenchCommandsForToken(token: string): SpecCommand[] {
+    const t = token.toLowerCase();
+    if (!t) return [];
+    const available = getAvailableSpecCommands(focusedSpec?.level ?? null);
+    return available.filter(c => c.name.toLowerCase().startsWith('/' + t));
+  }
+
+  function refreshInputPalettes(text: string, cursor: number) {
+    const before = text.slice(0, cursor);
+    const m = before.match(/(?:^|\s)\/([\w-]*)$/);
+    if (!m) {
+      paletteKind = 'none';
+      workbenchSlashOptions = [];
+      slashPrevToken = '';
+      return;
+    }
+    const token = m[1] ?? '';
+    slashReplaceStart = before.lastIndexOf('/');
+    if (token !== slashPrevToken) {
+      paletteIndex = 0;
+      slashPrevToken = token;
+    }
+    slashQuery = token;
+
+    if (token === '') {
+      const filtered = filterAgentSlash('');
+      if (filtered.length === 0) {
+        paletteKind = 'none';
+        return;
+      }
+      paletteKind = 'agent';
+      const max = filtered.length - 1;
+      paletteIndex = Math.min(paletteIndex, max);
+      return;
+    }
+
+    const wb = workbenchCommandsForToken(token);
+    if (wb.length > 0) {
+      paletteKind = 'workbench';
+      workbenchSlashOptions = wb;
+      const max = wb.length - 1;
+      paletteIndex = Math.min(paletteIndex, max);
+      return;
+    }
+
+    const filtered = filterAgentSlash(token);
+    if (filtered.length === 0) {
+      paletteKind = 'none';
+      return;
+    }
+    paletteKind = 'agent';
+    const max = filtered.length - 1;
+    paletteIndex = Math.min(paletteIndex, max);
+  }
+
+  $effect(() => {
+    const ws = get(specExplorerStore).workspaceRoot;
+    if (!ws) {
+      agentCommands = [];
+      return;
+    }
+    let cancelled = false;
+    void fetchAgentCommands(ws).then(rows => {
+      if (!cancelled) agentCommands = rows;
+    });
+    return () => {
+      cancelled = true;
+    };
   });
 
   function handleDragOver(e: DragEvent) {
@@ -90,10 +179,13 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
       contextState = s;
       if (s.draftCommand && s.draftCommand.id !== lastDraftCommandId) {
         lastDraftCommandId = s.draftCommand.id;
-        content = s.draftCommand.text;
-        showCommandPalette = false;
-        commandQuery = s.draftCommand.text.split(/\s+/)[0]?.toLowerCase() ?? '';
-        queueMicrotask(() => textareaEl?.focus());
+        const t = s.draftCommand.text;
+        content = t;
+        paletteKind = 'none';
+        queueMicrotask(() => {
+          textareaEl?.focus();
+          refreshInputPalettes(t, t.length);
+        });
       }
     });
     return unsub;
@@ -126,7 +218,7 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
   async function submit() {
     if (!content.trim() || submitting) return;
     submitting = true;
-    showCommandPalette = false;
+    paletteKind = 'none';
     try {
       await onsubmit?.(content, mode);
       content = '';
@@ -135,22 +227,24 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
     }
   }
 
-  function syncCommandPalette() {
-    const trimmed = content.trimStart();
-    if (!trimmed.startsWith('/')) {
-      showCommandPalette = false;
-      commandQuery = '';
-      return;
-    }
-    commandQuery = trimmed.split(/\s+/)[0].toLowerCase();
-    showCommandPalette = true;
-  }
-
   function selectCommand(command: SpecCommand) {
     content = command.sample;
-    showCommandPalette = false;
-    commandQuery = command.name;
+    paletteKind = 'none';
     queueMicrotask(() => textareaEl?.focus());
+  }
+
+  function pickAgentSlash(cmd: string) {
+    const el = textareaEl;
+    if (!el) return;
+    const head = content.slice(0, slashReplaceStart);
+    const tail = content.slice(el.selectionEnd);
+    content = `${head}/${cmd} ${tail}`;
+    paletteKind = 'none';
+    queueMicrotask(() => {
+      const pos = head.length + cmd.length + 2;
+      el.focus();
+      el.setSelectionRange(pos, pos);
+    });
   }
 
   function removeContext(path: string) {
@@ -211,31 +305,99 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
     <button class:active={mode==='url'} onclick={() => mode='url'}>URL</button>
   </div>
   <div class="input-wrap">
-    {#if showCommandPalette && commandOptions.length > 0}
-      <div class="command-palette">
-        {#each commandOptions as command (command.name)}
-          <button type="button" class="command-option" onclick={() => selectCommand(command)}>
+    {#if paletteKind === 'workbench' && workbenchSlashOptions.length > 0}
+      <div class="command-palette" role="listbox" aria-label="工作台命令">
+        {#each workbenchSlashOptions as command, i (command.name)}
+          <button
+            type="button"
+            class="command-option"
+            class:slash-active={i === paletteIndex}
+            onmousedown={(e) => e.preventDefault()}
+            onclick={() => selectCommand(command)}
+          >
             <strong>{command.name}</strong>
             <span>{command.description} · {command.sample}</span>
           </button>
         {/each}
       </div>
+    {:else if paletteKind === 'agent' && agentSlashFiltered.length > 0}
+      <ul class="slash-menu" role="listbox" aria-label="专业 agent 命令">
+        {#each agentSlashFiltered as cmd, i (cmd.command)}
+          <li role="option" aria-selected={i === paletteIndex}>
+            <button
+              type="button"
+              class:slash-active={i === paletteIndex}
+              onmousedown={(e) => e.preventDefault()}
+              onclick={() => pickAgentSlash(cmd.command)}
+            >
+              <code>/{cmd.command}</code>
+              <span class="slash-desc">{cmd.label_zh}</span>
+            </button>
+          </li>
+        {/each}
+      </ul>
     {/if}
     <textarea
       bind:this={textareaEl}
       bind:value={content}
-      placeholder='用自然语言操作工作台，或输入 /workspace /specs /spec-init-chain /spec-legacy-align /open-slot...'
+      placeholder='自然语言或行内 / 选命令；工作台 /open-spec、专业 agent /ppt-generator …（Ctrl+Enter 发送）'
       rows={3}
-      oninput={syncCommandPalette}
-      onfocus={syncCommandPalette}
+      oninput={(e) => refreshInputPalettes(e.currentTarget.value, e.currentTarget.selectionStart ?? 0)}
+      onfocus={(e) => refreshInputPalettes(e.currentTarget.value, e.currentTarget.selectionStart ?? 0)}
+      onclick={(e) => refreshInputPalettes(e.currentTarget.value, e.currentTarget.selectionStart ?? 0)}
+      onkeyup={(e) => refreshInputPalettes(e.currentTarget.value, e.currentTarget.selectionStart ?? 0)}
       onkeydown={(e) => {
+        if (paletteKind === 'workbench' && workbenchSlashOptions.length > 0) {
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            paletteIndex = Math.min(paletteIndex + 1, workbenchSlashOptions.length - 1);
+            return;
+          }
+          if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            paletteIndex = Math.max(paletteIndex - 1, 0);
+            return;
+          }
+          if (e.key === 'Enter' && !e.ctrlKey) {
+            e.preventDefault();
+            const cmd = workbenchSlashOptions[paletteIndex] ?? workbenchSlashOptions[0];
+            if (cmd) selectCommand(cmd);
+            return;
+          }
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            paletteKind = 'none';
+            return;
+          }
+        }
+        if (paletteKind === 'agent' && agentSlashFiltered.length > 0) {
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            paletteIndex = Math.min(paletteIndex + 1, agentSlashFiltered.length - 1);
+            return;
+          }
+          if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            paletteIndex = Math.max(paletteIndex - 1, 0);
+            return;
+          }
+          if (e.key === 'Enter' && !e.ctrlKey) {
+            e.preventDefault();
+            pickAgentSlash(agentSlashFiltered[paletteIndex]?.command ?? agentSlashFiltered[0].command);
+            return;
+          }
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            paletteKind = 'none';
+            return;
+          }
+        }
         if (e.key === 'Enter' && e.ctrlKey) submit();
-        if (e.key === 'Escape') showCommandPalette = false;
       }}
     ></textarea>
   </div>
   <div class="actions">
-    <span class="hint">Ctrl+Enter 发送 · / 打开工作台命令 · {toolCount} tools</span>
+    <span class="hint">Ctrl+Enter 发送 · 行内 / 工作台命令或专业 agent · {toolCount} tools</span>
     <button class="submit-btn" onclick={submit} disabled={submitting}>
       {submitting ? '发送中…' : '发送 ⌘↵'}
     </button>
@@ -275,8 +437,60 @@ E4-U3: 拖拽 Artifact 到 Composer 注入 @artifactId
   .command-option { display: block; width: 100%; border: none; border-bottom: 1px solid #303746; background: transparent; color: #eef0f5; text-align: left; padding: 10px 12px; cursor: pointer; }
   .command-option:last-child { border-bottom: none; }
   .command-option:hover { background: rgba(122,162,255,.14); }
+  .command-option.slash-active { background: rgba(122,162,255,.18); }
   .command-option strong { display: block; color: #72d6d0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; margin-bottom: 3px; }
   .command-option span { display: block; color: #a3abb9; font-size: 11px; line-height: 1.35; }
+
+  .slash-menu {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(100% + 8px);
+    z-index: 11;
+    margin: 0;
+    padding: 6px;
+    max-height: 220px;
+    overflow: auto;
+    list-style: none;
+    border-radius: 12px;
+    border: 1px solid rgba(122, 162, 255, 0.38);
+    background: rgba(16, 19, 26, 0.98);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  }
+  .slash-menu li { margin: 0; padding: 0; }
+  .slash-menu button {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    padding: 8px 10px;
+    background: transparent;
+    color: #d4d8e3;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .slash-menu button:hover,
+  .slash-menu button.slash-active {
+    border-color: rgba(122, 162, 255, 0.35);
+    background: rgba(122, 162, 255, 0.12);
+    color: #eef0f5;
+  }
+  .slash-menu code {
+    flex-shrink: 0;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: #7aa2ff;
+  }
+  .slash-desc {
+    flex: 1;
+    min-width: 0;
+    color: #a3abb9;
+    word-break: break-word;
+  }
   .actions { display: flex; justify-content: space-between; align-items: center; }
   .hint { color: #6f7888; font-size: 11px; }
   .submit-btn { background: #72d6d0; color: #071513; border: none; padding: 7px 16px; border-radius: 999px; cursor: pointer; font-size: 13px; font-weight: 800; }
