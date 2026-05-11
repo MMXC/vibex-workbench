@@ -5,6 +5,7 @@ Spec: specs/feature/workbench-shell/workbench-conversation_feature.yaml
 ============================================================ -->
 
 <script lang="ts">
+  import { tick } from 'svelte';
   import {
     currentMessages,
     currentThread,
@@ -18,6 +19,7 @@ Spec: specs/feature/workbench-shell/workbench-conversation_feature.yaml
   let toolInvocations = $state<ToolInvocation[]>([]);
   let activeRunStatus = $state<string | null>(null);
   let currentThreadId = $state<string | null>(null);
+  let threadHeadline = $state('当前会话');
 
   $effect(() => {
     const unsub = currentMessages.subscribe(m => {
@@ -29,6 +31,8 @@ Spec: specs/feature/workbench-shell/workbench-conversation_feature.yaml
   $effect(() => {
     const unsub = currentThread.subscribe(t => {
       currentThreadId = t?.id ?? null;
+      threadHeadline =
+        (t?.title?.trim() || t?.goal?.slice(0, 52)?.trim() || '当前会话') ?? '当前会话';
     });
     return unsub;
   });
@@ -46,7 +50,7 @@ Spec: specs/feature/workbench-shell/workbench-conversation_feature.yaml
   $effect(() => {
     messages;
     aiBlocksStore.ingestThread(currentThreadId, messages);
-    queueMicrotask(() => {
+    tick().then(() => {
       scrollEl?.scrollTo({ top: scrollEl.scrollHeight, behavior: 'smooth' });
     });
   });
@@ -63,17 +67,22 @@ Spec: specs/feature/workbench-shell/workbench-conversation_feature.yaml
   }
 </script>
 
-<section class="conversation-panel" aria-label="对话">
-  <header class="hdr">
-    <span class="hdr-title">对话</span>
-    {#if activeRunStatus}
-      <span class="hdr-run">run: {activeRunStatus}</span>
-    {/if}
-    {#if messages.length === 0}
-      <span class="hdr-hint">发送消息后，回复会出现在此处</span>
-    {/if}
+<section class="conversation-panel" aria-label="工作台对话">
+  <header class="chat-head">
+    <div>
+      <span class="k">Workbench Chat</span>
+      <h3>{threadHeadline}</h3>
+    </div>
+    <div class="chat-head-right">
+      {#if activeRunStatus}
+        <span class="status-pill run">{activeRunStatus}</span>
+      {/if}
+      {#if messages.length === 0}
+        <span class="hdr-hint">发送后回复出现在下方</span>
+      {/if}
+    </div>
   </header>
-  <div class="scroll" bind:this={scrollEl}>
+  <div class="messages" bind:this={scrollEl}>
     {#if toolInvocations.length > 0}
       <div class="tool-stack" aria-label="最近工作台工具调用">
         <div class="tool-stack-title">Workbench Tools</div>
@@ -91,73 +100,108 @@ Spec: specs/feature/workbench-shell/workbench-conversation_feature.yaml
       </div>
     {/if}
     {#each messages as m (m.id)}
-      <div class="row" data-role={m.role}>
-        <span class="role">{m.role}</span>
-        <pre class="bubble">{displayContent(m)}</pre>
+      <div class="msg {m.role}">
+        <span>{m.role}</span>
+        <pre>{displayContent(m)}</pre>
       </div>
     {/each}
   </div>
 </section>
 
 <style>
+  /* 与 SpecSlotChatPane 槽位对话区对齐：背景、气泡、字色、圆角 */
   .conversation-panel {
     display: flex;
     flex-direction: column;
     height: 100%;
     flex: 1;
     min-height: 0;
-    border-bottom: 1px solid var(--wb-border, #262626);
-    background: var(--wb-conv-bg, #0f0f0f);
     min-width: 0;
-    box-shadow: inset 0 -1px 0 rgba(79, 70, 229, 0.12);
+    background: #11141b;
+    border-bottom: 1px solid #303746;
   }
 
-  .hdr {
+  .chat-head {
     flex-shrink: 0;
     display: flex;
-    align-items: baseline;
-    gap: 10px;
-    padding: 8px 12px;
-    border-bottom: 1px solid #1f1f1f;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px;
+    border-bottom: 1px solid #303746;
+    background: rgba(28, 32, 42, 0.84);
   }
 
-  .hdr-title {
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    color: #a3a3a3;
+  .chat-head-right {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .k {
+    display: block;
+    margin-bottom: 4px;
+    color: #72d6d0;
+    font-family: 'Cascadia Code', ui-monospace, monospace;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
+  }
+
+  .chat-head h3 {
+    margin: 0;
+    color: #eef0f5;
+    font-size: 14px;
+    line-height: 1.3;
+    font-weight: 700;
+    max-width: min(100%, 280px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .hdr-hint {
     font-size: 11px;
-    color: #525252;
+    color: #6f7888;
+    white-space: nowrap;
   }
 
-  .hdr-run {
-    margin-left: auto;
-    font-size: 11px;
-    color: #72d6d0;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  .status-pill {
+    border: 1px solid #465064;
+    border-radius: 999px;
+    padding: 4px 9px;
+    color: #a3abb9;
+    font-family: ui-monospace, monospace;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: lowercase;
   }
 
-  .scroll {
+  .status-pill.run {
+    color: #efc66b;
+    border-color: rgba(239, 198, 107, 0.5);
+  }
+
+  .messages {
     flex: 1;
+    min-height: 0;
     overflow: auto;
-    padding: 10px 12px 12px;
+    padding: 14px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    min-height: 0;
+    gap: 12px;
   }
 
   .tool-stack {
     display: grid;
     gap: 6px;
-    padding: 8px;
+    padding: 10px 12px;
     border: 1px solid #303746;
     border-radius: 12px;
-    background: rgba(28, 32, 42, 0.64);
+    background: rgba(12, 14, 19, 0.32);
   }
 
   .tool-stack-title {
@@ -201,54 +245,49 @@ Spec: specs/feature/workbench-shell/workbench-conversation_feature.yaml
     font-size: 10.5px;
   }
 
-  .row {
+  .msg {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    align-items: flex-start;
+    gap: 5px;
     max-width: 100%;
   }
 
-  .row[data-role='user'] {
+  .msg.user {
     align-items: flex-end;
   }
 
-  .row[data-role='user'] .bubble {
-    background: #1e3a5f;
-    border-color: #2563eb44;
-    color: #e2e8f0;
-  }
-
-  .row[data-role='assistant'] .bubble {
-    background: #171717;
-    border-color: #333;
-    color: #d4d4d4;
-  }
-
-  .row[data-role='system'] .bubble {
-    background: #3a1a1a;
-    border-color: #7f1d1d88;
-    color: #fecaca;
-    font-size: 12px;
-  }
-
-  .role {
+  .msg span {
+    color: #6f7888;
+    font-family: ui-monospace, monospace;
     font-size: 10px;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #737373;
   }
 
-  .bubble {
+  .msg pre {
+    max-width: min(100%, 760px);
     margin: 0;
-    max-width: min(100%, 52rem);
-    padding: 8px 11px;
-    border-radius: 8px;
-    border: 1px solid #333;
+    padding: 10px 12px;
+    border: 1px solid #303746;
+    border-radius: 12px;
+    background: #171b24;
+    color: #d4d8e3;
     font-family: ui-sans-serif, system-ui, sans-serif;
     font-size: 13px;
-    line-height: 1.5;
+    line-height: 1.55;
     white-space: pre-wrap;
     word-break: break-word;
+  }
+
+  .msg.user pre {
+    background: rgba(122, 162, 255, 0.16);
+    border-color: rgba(122, 162, 255, 0.42);
+    color: #eef0f5;
+  }
+
+  .msg.system pre,
+  .msg.tool pre {
+    background: rgba(239, 198, 107, 0.08);
+    border-color: rgba(239, 198, 107, 0.34);
+    color: #d4d8e3;
   }
 </style>
