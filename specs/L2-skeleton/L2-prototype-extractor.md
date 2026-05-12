@@ -3,7 +3,7 @@ spec:
   level: L2
   name: prototype-extractor
   title: VibeX Prototype Extractor Browser Extension
-  parent: null
+  parent: vibex-prototype-driven-spec
   version: 0.1.0
   status: draft
   owner: vibex-team
@@ -28,7 +28,7 @@ io_contract:
     - name: extracted_html
       type: file
       path: "{workspace_root}/.vibex/specs/prototypes/{spec-name}.html"
-      description: 独立自包含的 HTML 原型文件
+      description: 独立自包含的 HTML 原型文件（无外部依赖，内联 CSS）
     - name: spec_yaml_fragment
       type: YAML
       description: 可合并到 spec 原型字段的 YAML 片段

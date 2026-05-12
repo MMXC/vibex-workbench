@@ -1,0 +1,13 @@
+{
+  "name": "vibex-prototype-extractor",
+  "version": "0.1.0",
+  "description": "VibeX Prototype Extractor - Chrome Extension",
+  "scripts": {
+    "dev": "wxt build --watch",
+    "build": "wxt build",
+    "pack": "wxt zip"
+  },
+  "devDependencies": {
+    "wxt": "^0.18.0"
+  }
+}
