@@ -1,0 +1,272 @@
+spec:
+  version: "0.1"
+  level: 3_module
+  name: MOD-perception-trigger
+  parent: vibex-workbench-skeleton
+  status: draft
+  ppt_file: ""
+meta:
+  type: module
+  module: perception-trigger
+  owner: hermes
+  created: 2026-05-12
+lifecycle:
+  current: draft
+  updated: 2026-05-12
+display:
+  title: 感知触发文字系统
+  summary: |
+    系统根据对话上下文主动以文字形式引导用户走完 spec 澄清链路。
+    核心是 ClarificationPanel 的文字输出，grill-me 追问范式是触发机制。
+  description: |
+    「不是让用户找技能，而是技能在合适的时机自己跳出来」。
+    感知触发的介质是文字（ClarificationPanel 显示），UI 高亮是次要辅助。
+    链路：状态探测 → grill-me 澄清 → spec 草稿 → 确认 → trellis 任务树。
+structure:
+  parent: vibex-workbench-skeleton
+  children:
+    - specs/L4-feature/FEAT-perception-trigger-ui.yaml
+    - specs/L4-feature/FEAT-grill-me-integration.yaml
+    - specs/L4-feature/FEAT-skill-suggestion-sse.yaml
+  dependencies:
+    - specs/L3-module/MOD-state-detection.yaml
+    - specs/L3-module/MOD-scaffolding.yaml
+    - specs/L3-module/MOD-spec-editor.yaml
+  impacted_files:
+    - frontend/src/lib/components/workbench/ClarificationPanel.svelte
+    - frontend/src/lib/sse.ts
+    - frontend/src/lib/stores/thread-store.ts
+    - agent/cmd/web/server.go
+    - agent/agents/skills/matcher.go
+io:
+  input: |
+    - workspace_root：用户选定的目录
+    - 对话上下文：当前消息历史（最近 3 轮）
+    - 目录状态：state_detector.py 输出（empty/partial/ready）
+    - 用户意图：用户描述的自然语言需求（模糊或清晰）
+  output: |
+    - ClarificationPanel 文字引导：当前状态 + 下一步建议 + 追问内容
+    - grill-me 决策树 JSON（.grill/{session-id}.json）
+    - spec 草稿路径（specs/{date}-{hash}.md）
+    - SSE skill.suggested 事件（可选，用于技能推荐）
+  boundary: |
+    - 不做自动生成代码，只做 spec 澄清
+    - 不做图谱可视化（那是 canvas 的职责）
+    - grill-me 和 phase-based ClarificationPanel 共存，不互相替代
+io_contract:
+  input: |
+    用户在对话中描述需求（含模糊意图）
+    + workspace_root 状态（empty/partial/ready）
+  output: |
+    ClarificationPanel 显示：
+    - 当前追问问题
+    - 推荐答案选项
+    - 进度指示（R1/R2/...）
+    - 完成后：spec 草稿路径 + 确认按钮
+  boundary: |
+    - 追问由用户回答驱动，不是自动推进
+    - 用户说"够了"即停止追问
+    - 澄清结果是 spec 上游输入，不是最终产出
+  behavior:
+    - 状态为空目录 → ClarificationPanel 显示空目录提示 + "开始澄清需求"按钮
+    - 用户描述意图 → 系统识别模糊程度，决定触发 grill-me 或直接写 spec
+    - grill-me 追问 → 每轮 ClarificationPanel 更新当前问题
+    - 追问完成 → 显示完整决策树 + spec 草稿路径
+    - 用户确认草稿 → 生成 L2 spec 文件 → 进入 spec-first 后续流程
+constraints:
+  rules:
+    - id: PT-C1
+      name: 文字优先原则
+      rule: ClarificationPanel 的主要输出是文字，不是动画；动画是次要辅助
+      maps_to: AC6
+    - id: PT-C2
+      name: 用户控制节奏
+      rule: 追问由用户回答推进，系统不能自动跳过用户未回答的问题
+      maps_to: AC6
+    - id: PT-C3
+      name: 上下文感知
+      rule: 文字建议必须基于当前状态（empty/partial/ready）+ 对话上下文生成，不能是固定文案
+      maps_to: AC6
+  forbidden:
+    - 禁止在用户未输入时自动触发 grill-me（用户必须先描述意图）
+    - 禁止用动画替代文字引导
+acceptance_criteria:
+  - id: PT-AC1
+    name: 空目录文字引导
+    description: |
+      当 workspace_root 为 empty 时，ClarificationPanel 显示：
+      「当前为空目录。下一步建议：①创建脚手架（推荐先做）②直接开始澄清需求」
+    test_scenario: |
+      1. detect-state 返回 state=empty
+      2. ClarificationPanel 应显示状态提示 + 两个行动按钮
+  - id: PT-AC2
+    name: grill-me 追问集成
+    description: |
+      用户描述模糊需求后，ClarificationPanel 展示第一问：
+      「这个项目的核心用户是谁？」
+      + 推荐答案选项
+      + 进度（R1/N）
+    test_scenario: |
+      1. 用户说"我想做一个笔记应用"
+      2. ClarificationPanel 显示第一问 + 推荐答案
+      3. 用户回答后，显示第二问
+      4. 所有问答完成后，显示完整决策树
+  - id: PT-AC3
+    name: 澄清结果存储
+    description: |
+      每次问答完成后，结果存入 .grill/{session-id}.json
+      ClarificationPanel 刷新后能恢复当前进度
+    test_scenario: |
+      1. 开始 grill-me 追问
+      2. 回答 R1
+      3. 刷新页面
+      4. ClarificationPanel 应恢复 R1 已回答、R2 追问中的状态
+  - id: PT-AC4
+    name: grill-me 追问 → spec 草稿
+    description: |
+      所有问答完成后，ClarificationPanel 显示：
+      「澄清完成，生成了 spec 草稿：specs/2026-05-12-abc.md」
+      + 「确认并写入 L2 spec」按钮
+    test_scenario: |
+      1. 完成所有 grill-me 追问
+      2. 断言 ClarificationPanel 显示 spec 草稿路径
+      3. 点击「确认」后，L2 spec 文件存在
+  - id: PT-AC5
+    name: 状态切换文字提示
+    description: |
+      状态变化时（empty→ready，ready→partial 等），ClarificationPanel 主动展示：
+      「状态已更新：{new_state}。{建议文案}」
+    test_scenario: |
+      1. scaffold 后 state 从 empty 变为 ready
+      2. ClarificationPanel 应显示状态变化提示
+      3. 提示文案随状态变化而变化（不是固定文案）
+behaviors:
+  - id: PT-B1
+    trigger: workspace_root 状态检测完成
+    action: |
+      读取 state_detector.py 输出
+      根据状态（empty/partial/ready）生成对应文字引导
+    expected_result: |
+      ClarificationPanel 显示：
+      - empty: 「空目录 · 可以开始澄清需求了」
+      - partial: 「半就绪 · 缺少 {缺失项}，建议 {补充建议}」
+      - ready: 「已就绪 · 可以开始描述你的产品意图」
+  - id: PT-B2
+    trigger: 用户消息包含模糊意图关键词
+    action: |
+      检测用户描述的模糊程度（关键词：想、做个、要一个、大概、类似）
+      触发 grill-me 追问（不是 phase-based）
+      追问结果存入 .grill/{session-id}.json
+    expected_result: |
+      ClarificationPanel 显示 grill-me 第一问
+      每轮追问后更新当前问题 + 进度
+  - id: PT-B3
+    trigger: grill-me 所有问答完成
+    action: |
+      汇总决策树 → 生成 spec 草稿 markdown
+      写入 specs/{date}-{hash}.md
+      ClarificationPanel 显示草稿路径 + 确认按钮
+    expected_result: |
+      spec 草稿文件存在
+      ClarificationPanel 显示「确认并写入 L2 spec」按钮
+  - id: PT-B4
+    trigger: 用户点击「确认并写入 L2 spec」
+    action: |
+      读取 spec 草稿
+      生成 L2 spec（vibex-workbench-skeleton 子 spec）
+      写入 specs/L2/ 目录
+      ClarificationPanel 关闭，进入 spec-first 后续流程
+    expected_result: |
+      L2 spec 文件写入成功
+      ClarificationPanel 关闭
+      用户看到确认提示
+content:
+  grill_me_integration:
+    skill_location: skills/grill-me/SKILL.md
+    skill_origin: hermes skills (grill-me) 复制到 vibex-workbench/skills/
+    mode: "追问范式"
+    vs_phase_based:
+      description: |
+        phase-based（tech_stack/mvp_prototype/frontend_split/user_stories）：
+        适合已有一定理解的用户，固定阶段，逐阶段推进。
+
+        grill-me（追问范式）：
+        适合模糊意图，先问核心问题，动态生成决策树。
+
+        两者关系：用户说模糊需求 → grill-me；用户已有结构认知 → phase-based ClarificationPanel
+    question_levels:
+      - level: scope
+        questions: ["核心用户是谁", "最关键的三个功能", "绝对不能砍的功能"]
+      - level: tech
+        questions: ["技术栈偏好", "部署环境限制", "性能要求"]
+      - level: ux
+        questions: ["参考产品", "设计偏好", "支持端数"]
+      - level: data
+        questions: ["需要存储什么", "导入导出需求", "隐私要求"]
+      - level: acceptance
+        questions: ["怎么算完成", "必须通过的测试场景"]
+  clarification_panel_enhancement:
+    current_state: |
+      ClarificationPanel.svelte 已有 phase-based 模式：
+      - 显示 Rounds 列表
+      - 显示当前 phase
+      - 显示 spec_name + status badge
+    grill_me_mode:
+      description: |
+        新增 grill-me 模式，通过 ClarificationPanel 的 rounds 列表显示追问内容
+      display_elements:
+        - 当前问题（动态，grill-me 决定）
+        - 推荐答案（A/B/C/D 选项）
+        - 进度指示（R{current}/R{total}）
+        - 用户已回答的 Q&A（已完成的轮次，可折叠）
+        - 完整决策树（全部完成后，可折叠展示）
+        - spec 草稿路径（全部完成后）
+        - 「确认并写入 L2 spec」按钮（全部完成后）
+      mode_switch: |
+        ClarificationPanel 根据触发来源切换模式：
+        - 用户点击 L2 spec 卡片 → phase-based 模式
+        - 用户描述模糊意图 → grill-me 模式
+        - 模式不互斥，同一项目可同时使用两种方式
+  skill_perception:
+    description: |
+      感知触发的文字系统：SSE skill.suggested 是辅助层，文字引导是核心层。
+      不强制高亮标签，而是通过 ClarificationPanel 的文字建议驱动用户。
+    sse_suggested:
+      description: |
+        SSE skill.suggested 用于在合适的时机推荐技能。
+        触发条件：agent turn 完成后，匹配对话上下文。
+        显示方式：在 ClarificationPanel 底部以文字建议出现：
+        「💡 相关技能：grill-me（澄清需求）· trellis（任务规划）」
+        不是标签高亮，而是文字链接，点击跳转到对应 skill。
+      confidence_threshold: 0.6
+      max_display: 3
+    vs_ui_animation:
+      text_guide: "ClarificationPanel 文字 + 状态提示（核心）
+      ui_animation: 节点状态变化动效（次要）"
+  product_direction:
+    summary: |
+      vibex-workbench 核心价值 = spec 语义化 + 流程可视化 + 输入输出标准化。
+      降低人→机→团队的沟通成本。
+    go_agent_role: |
+      Go agent（nanoClaudeCode 扩展）是执行后端之一，完全可插拔。
+      可替换方案：hermes cursor cli / 远程 serverless agent / Darwin agent。
+      关键是 spec 层要厚：格式规范、语义清晰、可视化呈现、流程可追踪。
+    what_matters: |
+      1. spec 的格式规范（YAML frontmatter、L1-L5 层级）
+      2. spec 的语义清晰（io_contract / behaviors / acceptance_criteria）
+      3. 流程可视化（ClarificationPanel 文字引导 + 状态变化）
+      4. 输入输出标准化（grill-me 决策树 → spec 草稿 → L2 spec）
+    what_is_not_core: |
+      - Go agent 的具体实现（可插拔）
+      - UI 动画细节（次要辅助）
+      - 本地 vs 远程执行（执行层细节）
+changelog:
+  - version: "0.1"
+    date: 2026-05-12
+    author: hermes
+    changes:
+      - 初始版本
+      - 定义感知触发文字系统的 IO + behaviors
+      - 定义 grill-me 集成方案
+      - 定义 ClarificationPanel grill-me 模式
+      - 定义 skill.suggested SSE 文字建议（非标签高亮）

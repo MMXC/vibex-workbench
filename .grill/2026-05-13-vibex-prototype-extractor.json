@@ -77,7 +77,7 @@
       "id": 11,
       "question": "更新机制：源页面变更后，已导出内容如何同步？",
       "recommended_answer": "V1 不处理，用户重新提取 + diff 展示",
-      "user_answer": "不处理",
+      "user_answer": "不同步",
       "branch": "tech",
       "meta": true
     },
@@ -85,7 +85,7 @@
       "id": 12,
       "question": "是否需要 Markdown 输出？",
       "recommended_answer": "要，Markdown 是 AI 友好的中间格式",
-      "user_answer": "要",
+      "user_answer": "不要",
       "branch": "tech",
       "meta": true
     },
@@ -93,7 +93,7 @@
       "id": 13,
       "question": "是否支持 React/Vue/Shadow DOM 等动态渲染页面？",
       "recommended_answer": "支持，MutationObserver + 等待渲染",
-      "user_answer": "支持",
+      "user_answer": "只支持静态",
       "branch": "tech",
       "meta": true
     }

@@ -29,10 +29,6 @@ io_contract:
       type: file
       path: "{workspace_root}/.vibex/specs/prototypes/{spec-name}.html"
       description: 独立自包含的 HTML 原型文件
-    - name: extracted_markdown
-      type: file
-      path: "{workspace_root}/.vibex/specs/prototypes/{spec-name}.md"
-      description: Markdown 格式的结构化说明（AI 友好中间格式）
     - name: spec_yaml_fragment
       type: YAML
       description: 可合并到 spec 原型字段的 YAML 片段
@@ -55,14 +51,13 @@ behaviors:
     constraints:
       - 独立自包含（内联所有 CSS，不依赖外部资源）
       - 聚焦单组件行为，不包含页面其他部分
-      - 支持动态渲染页面（React/Vue/Shadow DOM）
+      - 仅支持静态 HTML 页面（不支持 React/Vue/Shadow DOM 等动态渲染）
 
   - id: B3
     trigger: 提取完成
     action: |
       1. 生成 .html 文件 → .vibex/specs/prototypes/{name}.html
-      2. 生成 .md 说明 → .vibex/specs/prototypes/{name}.md
-      3. 生成 YAML 片段（metadata + prototype 字段）→ clipboard 或直接写入
+      2. 生成 YAML 片段（metadata + prototype 字段）→ clipboard 或直接写入
     side_effect: |
       原始 URL、时间戳、提取标签写入 YAML header 元数据
 
@@ -92,10 +87,9 @@ architecture:
   extension_type: Chrome Extension (Manifest V3)
   storage: IndexedDB (本地)，不涉及云端或第三方服务器
   permissions: activeTab + storage（按需声明，避免 *://*/* 全域权限）
-  dynamic_rendering: MutationObserver + requestAnimationFrame 等待渲染完成
+  dynamic_rendering: 仅静态 HTML，不需要额外处理
   export_formats:
     - HTML (独立自包含)
-    - Markdown (AI 友好)
     - YAML fragment (合并到 spec)
 
 constraints:
