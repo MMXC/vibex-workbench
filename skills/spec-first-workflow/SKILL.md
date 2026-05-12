@@ -21,6 +21,8 @@ related_skills:
 - spec-designer
 - vibex-agent-ops
 - darwin-skill
+- grill-me
+- MOD-perception-trigger
 ---
 
 # Spec-First Workflow

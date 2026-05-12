@@ -35,6 +35,7 @@ structure:
   - specs/L3-module/MOD-spec-editor.yaml
   - specs/L3-module/MOD-state-detection.yaml
   - specs/L3-module/MOD-workspace-root.yaml
+  - specs/L3-module/MOD-perception-trigger.yaml
   dependencies:
   - specs/L1-goal/vibex-workbench-mvp.yaml
   impacted_files: []

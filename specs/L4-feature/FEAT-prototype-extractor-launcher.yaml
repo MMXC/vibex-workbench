@@ -1,0 +1,62 @@
+---
+spec:
+  level: L4
+  name: FEAT-prototype-extractor-launcher
+  title: 原型抽屉「浏览器完善区域」入口按钮
+  parent: vibex-prototype-driven-spec
+  version: 0.1.0
+  status: draft
+  owner: vibex-team
+  created: 2026-05-13
+
+io_contract:
+  inputs:
+    - name: trigger_click
+      type: UI_event
+      description: 用户点击原型抽屉区域的「浏览器完善区域」按钮
+  outputs:
+    - name: extension_url
+      type: URL
+      description: 打开 Chrome 扩展 sidepanel（chrome-extension://.../sidepanel.html）
+    - name: session_context
+      type: message
+      description: 传递当前 spec 上下文给插件（当前 spec 路径、项目根）
+
+ui_component:
+  location: 原型抽屉 / PrototypePanel
+  label: "浏览器完善区域"
+  icon: external-link (或 browser 图标)
+  style: 次要按钮，ghost 风格，不抢主按钮风头
+
+behaviors:
+  - id: B1
+    trigger: 用户点击按钮
+    action: |
+      1. 获取当前 active spec 的 ID/路径
+      2. 构造 extension URL（携带 ?spec=...&workspace=...）
+      3. 调用 chrome.tabs.create 打开 sidepanel
+      4. 将 session context 通过 chrome.storage.local 写入
+
+  - id: B2
+    trigger: 插件提取完成，用户切回 workbench
+    action: |
+      1. workbench 监听文件变化（fs watcher 或轮询）
+      2. 检测到 .vibex/specs/prototypes/{name}.html 变化
+      3. 刷新原型预览区
+      4. 触发 agent 读取 HTML 推导 spec 变更
+
+  - id: B3
+    trigger: 用户未安装插件
+    action: |
+      1. 检测 chrome.runtime.lastError
+      2. 弹出提示：「请先安装 VibeX 原型提取器扩展」
+      3. 提供扩展安装路径指引
+
+dependencies:
+  - L2-prototype-extractor (Chrome 插件本身)
+  - PrototypePanel (原型预览区，已实现)
+  - FileWatcher (检测 prototypes 目录变化)
+
+out_of_scope:
+  - 插件安装引导 UI（V1 手动安装）
+  - 多标签页同时提取

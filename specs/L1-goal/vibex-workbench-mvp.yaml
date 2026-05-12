@@ -168,6 +168,28 @@ acceptance_criteria:
       3. 断言 validate_specs.py parent chain 检查无警告
 
       4. 前端 action bar 有 make 按钮，失败时显示 stdout 前 500 字符
+  - id: AC6
+    name: 感知触发文字系统
+    description: |
+      「不是让用户找技能，而是技能在合适的时机自己跳出来」。
+
+      系统根据对话上下文（用户描述意图 + 当前状态）主动以文字形式引导用户：
+      - 空目录 → 提示「可以开始澄清需求了」
+      - 用户描述模糊需求 → 自动触发 grill-me 追问
+      - 追问中 → 每轮显示当前问题 + 推荐答案 + 进度
+      - 澄清完成 → 提示「下一步：确认/生成 spec」
+      - 生成后 → 提示「下一步：校验/迭代」
+
+      文字引导是 ClarificationPanel 的核心输出，驱动整个 spec-first 链路。
+      感知触发的介质是文字，不是 UI 动画（动画是次要的，文字是主要的）。
+    test_scenario: |
+      1. 选空目录，查看状态指示器 → 应显示"空目录 · 下一步：创建脚手架或开始澄清需求"
+      2. scaffold 后 → 应显示"已就绪 · 可以开始描述你的产品意图"
+      3. 用户输入模糊需求（如"我想做一个笔记应用"）
+         → 系统自动展示 grill-me 第一问（不是用户手动触发）
+         → ClarificationPanel 显示：问题 + 推荐答案 + 进度
+      4. 用户逐轮回答 → ClarificationPanel 展示完整决策树（可折叠/展开）
+      5. 所有问答完成 → ClarificationPanel 显示 spec 草稿路径 + 「确认并生成 L2 spec」按钮
 behaviors:
   - id: B-PHASE
     trigger: lifecycle phase transition
@@ -268,3 +290,11 @@ changelog:
       - AC4 Spec 读端点修复：workspaceSpecReadHandler 正确读 query workspaceRoot，增加 path
         traversal 保护
       - scaffolder.py 返回值格式更新：written_files / skipped_files / state
+  - version: "0.4"
+    date: 2026-05-12
+    author: hermes
+    changes:
+      - 新增 AC6「感知触发文字系统」：grill-me 追问范式 + ClarificationPanel 文字引导，驱动用户走完 spec 澄清链路
+      - 新增 MOD-perception-trigger（L3）：整合 grill-me skill + ClarificationPanel grill-me 模式 + SSE skill.suggested
+      - 产品定位澄清：vibex-workbench 核心是 spec 语义化 + 流程可视化 + 输入输出标准化；
+        Go agent 是可插拔执行后端，不绑定本地 nanoClaudeCode

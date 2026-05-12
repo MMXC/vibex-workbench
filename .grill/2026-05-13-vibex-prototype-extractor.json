@@ -1,0 +1,118 @@
+{
+  "session_id": "vibex-prototype-extractor-20260513",
+  "started_at": "2026-05-13T04:00:00Z",
+  "topic": "VibeX Prototype Extractor Browser Extension",
+  "questions": [
+    {
+      "id": 1,
+      "question": "扩展的核心定位是什么？",
+      "recommended_answer": "开发者工具——让用户能把自己的 agent 接入 VibeX spec 治理体系",
+      "user_answer": "开发者工具",
+      "branch": "scope"
+    },
+    {
+      "id": 2,
+      "question": "扩展以什么形式交付？",
+      "recommended_answer": "独立 npm 包，兼容任意 agent 框架",
+      "user_answer": "浏览器插件",
+      "branch": "scope"
+    },
+    {
+      "id": 3,
+      "question": "扩展的核心功能是什么？",
+      "recommended_answer": "捕获网页上的 agent 操作/对话，自动生成 spec 片段",
+      "user_answer": "原型->spec推导->精准原型",
+      "branch": "scope"
+    },
+    {
+      "id": 4,
+      "question": "精准原型意图可视化表述的缺口是什么？",
+      "recommended_answer": "用户在网页上选中某个区块/元素 → 提取结构 → 推导 spec",
+      "user_answer": "用户发现 vibex-workbench 缺精准原型意图可视化表述，扩展基于此设计",
+      "branch": "scope"
+    },
+    {
+      "id": 5,
+      "question": "原型的隔离粒度是什么？",
+      "recommended_answer": "每 spec 一个独立 .html，完全自包含，聚焦单组件行为",
+      "user_answer": "独立，每 spec 基于用户确认的总方向骨架的 html 细化",
+      "branch": "tech"
+    },
+    {
+      "id": 6,
+      "question": "spec 和独立 HTML 的关系是什么？",
+      "recommended_answer": "spec ↔ HTML 双向推导，互相成就",
+      "user_answer": "互相成就的关系（之前已澄清）",
+      "branch": "tech"
+    },
+    {
+      "id": 7,
+      "question": "提取后的 HTML 如何进入 vibex-workbench？",
+      "recommended_answer": "生成 spec YAML 片段 + HTML 文件挂载到 spec prototype.file 字段",
+      "user_answer": "spec 原型字段的片段加 html 文件挂载到 spec 原型 file 字段",
+      "branch": "tech"
+    },
+    {
+      "id": 8,
+      "question": "提取的 DOM 如何映射到 spec 原型字段？存储路径？",
+      "recommended_answer": "workspace_root/.vibex/specs/prototypes/{name}.html",
+      "user_answer": "B: workspace_root/.vibex/specs/prototypes/{name}.html（统一路径）",
+      "branch": "tech"
+    },
+    {
+      "id": 9,
+      "question": "vibex-workbench 端如何处理导入的原型？",
+      "recommended_answer": "原型区域预览 HTML + agent 自动分析推导",
+      "user_answer": "已经能预览了（跳过）",
+      "branch": "ux"
+    },
+    {
+      "id": 10,
+      "question": "扩展的提取策略是什么？",
+      "recommended_answer": "用户选中区块，AI 分析语义并提取结构化片段",
+      "user_answer": "agent 识别推导方向，用户确认细化，直至讲清楚",
+      "branch": "ux"
+    },
+    {
+      "id": 11,
+      "question": "更新机制：源页面变更后，已导出内容如何同步？",
+      "recommended_answer": "V1 不处理，用户重新提取 + diff 展示",
+      "user_answer": "不同步",
+      "branch": "tech",
+      "meta": true
+    },
+    {
+      "id": 12,
+      "question": "是否需要 Markdown 输出？",
+      "recommended_answer": "要，Markdown 是 AI 友好的中间格式",
+      "user_answer": "不要",
+      "branch": "tech",
+      "meta": true
+    },
+    {
+      "id": 13,
+      "question": "是否支持 React/Vue/Shadow DOM 等动态渲染页面？",
+      "recommended_answer": "支持，MutationObserver + 等待渲染",
+      "user_answer": "只支持静态",
+      "branch": "tech",
+      "meta": true
+    }
+  ],
+  "consensus": {
+    "summary": "VibeX Prototype Extractor：浏览器插件形态，agent 识别网页区块 → 用户确认细化 → 提取为独立 .html 原型 + Markdown 说明 + spec YAML 片段，导入到 workspace_root/.vibex/specs/prototypes/，spec ↔ HTML 互相推导形成闭环",
+    "key_decisions": [
+      "形态：浏览器插件（Chrome Extension，manifest V3）",
+      "用户：开发者工具定位",
+      "核心流程：原型 → spec 推导 → 精准原型，互相成就",
+      "隔离粒度：每 spec 一个独立 .html，聚焦单组件行为，基于总骨架细化",
+      "提取策略：agent 识别推导方向，用户确认细化，循环直至讲清楚",
+      "存储路径：workspace_root/.vibex/specs/prototypes/{name}.html",
+      "导出格式：HTML + Markdown + spec YAML 片段",
+      "vibex-workbench 端：原型预览已实现，agent 分析推导已具备基础",
+      "更新机制：V1 不处理，用户手动重新提取",
+      "动态渲染：支持 React/Vue/Shadow DOM"
+    ]
+  },
+  "spec_draft_path": "specs/L2-skeleton/L2-prototype-extractor.md",
+  "l2_spec_path": "specs/L2-skeleton/L2-prototype-extractor.md"
+}
