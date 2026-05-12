@@ -8,6 +8,7 @@
     "pack": "wxt zip"
   },
   "devDependencies": {
+    "typescript": "^6.0.3",
     "wxt": "^0.18.0"
   }
 }

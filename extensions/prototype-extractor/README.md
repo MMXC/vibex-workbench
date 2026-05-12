@@ -14,7 +14,7 @@ npm run build
 1. 打开 `chrome://extensions/`
 2. 开启「开发者模式」
 3. 点击「加载已解压的扩展程序」
-4. 选择 `extensions/prototype-extractor/dist`
+4. 选择 `extensions/prototype-extractor/.output/chrome-mv3`
 
 ## 使用流程
 
@@ -22,20 +22,27 @@ npm run build
 vibex-workbench 原型抽屉
     → 点击「浏览器完善区域」
     → Chrome 打开 sidepanel
-    → 在目标网页点击「选择区域」
-    → 选中满意区块
-    → 复制 HTML 或导出
-    → workbench 预览原型
-    → agent 基于原型 grill-me 澄清 → 生成 spec
+    → 在目标网页点击「开始选区」
+    → agent 基于选区逐轮 grill-me 澄清（Q&A 循环）
+    → 用户确认 3 轮后导出
+    → 复制 HTML + YAML 粘贴回 workbench
 ```
 
 ## 项目结构
 
 ```
-src/
-  background.js   # Service Worker（会话管理）
-  content.js       # Content Script（选区交互）
-  content.css      # 选区高亮样式
-  sidepanel.html   # 侧边栏 UI
-  sidepanel.js     # 侧边栏逻辑
+entrypoints/
+  background.ts       # Service Worker（会话管理 + AI 调度）
+  content.ts          # Content Script（选区交互、高亮）
+  sidepanel.html      # 侧边栏 UI（grill-me 风格 Q&A 对话）
+  sidepanel.sidepanel.html  # WXT 入口
+.wxt/                 # WXT 内部文件
+.output/chrome-mv3/   # 构建输出（加载到 Chrome）
 ```
+
+## Sidepanel UI（grill-me 风格）
+
+- Header：状态标签（空闲 / 选区中 / 澄清中 / 已完成）
+- Conversation：R{n} 编号的 Q&A 轮次卡片
+- Answer area：pending 轮次的 Q 输入 + A 回答区
+- Export area：confirmed 后显示 HTML 预览 + YAML，可一键复制
