@@ -1,14 +1,21 @@
 {
   "name": "vibex-prototype-extractor",
-  "version": "0.1.0",
-  "description": "VibeX Prototype Extractor - Chrome Extension",
+  "description": "Proto Spec — Spec-first page prototyping extension",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "dev": "wxt build --watch",
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
     "build": "wxt build",
-    "pack": "wxt zip"
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox",
+    "compile": "tsc --noEmit",
+    "postinstall": "wxt prepare"
   },
   "devDependencies": {
-    "typescript": "^6.0.3",
-    "wxt": "^0.18.0"
+    "typescript": "^5.9.3",
+    "wxt": "^0.20.26"
   }
 }

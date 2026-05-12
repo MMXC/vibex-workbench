@@ -1,61 +1,105 @@
-import { defineBackground } from 'wxt/sandbox';
+// background.ts — Proto Spec background service worker
+// 作为侧边栏 / content script 的消息 relay 中心
+import type { Browser } from 'wxt/browser';
+
+type SidePanelApi = {
+  setPanelBehavior: (opts: { openPanelOnActionClick: boolean }) => Promise<void>;
+};
+
+type BrowserWithSidePanel = typeof browser & { sidePanel?: SidePanelApi };
 
 export default defineBackground(() => {
-  let session: any = null;
+  let activeTabId: number | null = null;
 
-  browser.runtime.onMessage.addListener((msg: any, _sender: any, sendResponse: any) => {
-    if (msg.type === 'START_SELECTION') {
-      session = { id: crypto.randomUUID(), status: 'extracting', selectedHTML: '', sourceUrl: '', timestamp: Date.now(), rounds: [] };
-      sendResponse({ ok: true, sessionId: session.id });
-      return;
+  async function enableSidePanelOnToolbarClick() {
+    const sidePanel = (browser as BrowserWithSidePanel).sidePanel;
+    if (!sidePanel?.setPanelBehavior) return;
+    try {
+      await sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+    } catch (e) {
+      console.warn('[Proto Spec BG] sidePanel.setPanelBehavior failed', e);
     }
-    if (msg.type === 'ELEMENT_SELECTED') {
-      if (!session) return sendResponse({ ok: false, error: 'No active session' });
-      session.selectedHTML = msg.html;
-      session.sourceUrl = msg.sourceUrl;
-      session.status = 'pending_confirmation';
-      session.rounds.push({ round: 1, question: '这个区域的语义功能是什么？预期的交互行为？', answer: '', confirmed: false, at: new Date().toISOString() });
-      sendResponse({ ok: true, session });
-      return;
-    }
-    if (msg.type === 'ANSWER_ROUND') {
-      if (!session) return sendResponse({ ok: false, error: 'No session' });
-      const r: any = session.rounds[session.rounds.length - 1];
-      if (r) { r.answer = msg.answer; r.confirmed = true; }
-      if (session.rounds.length >= 3) {
-        session.status = 'confirmed';
-        session.derivedYaml = buildYaml(session);
-      } else {
-        session.rounds.push({ round: session.rounds.length + 1, question: '下一个关键设计点？', answer: '', confirmed: false, at: new Date().toISOString() });
-      }
-      sendResponse({ ok: true, session });
-      return;
-    }
-    if (msg.type === 'GET_SESSION') { sendResponse(session); return; }
-    if (msg.type === 'EXPORT') {
-      if (!session || session.status !== 'confirmed') return sendResponse({ ok: false, error: 'Not ready' });
-      sendResponse({ ok: true, html: session.selectedHTML, yaml: session.derivedYaml });
-      return;
-    }
-    return false;
+  }
+
+  void enableSidePanelOnToolbarClick();
+
+  browser.runtime.onInstalled.addListener(() => {
+    console.log('[Proto Spec BG] Extension installed');
+    void enableSidePanelOnToolbarClick();
   });
 
-  function buildYaml(s: any): string {
-    const qa = s.rounds.map((r: any) => `    - Q: ${r.question}\n      A: ${r.answer}`).join('\n');
-    return `spec:
-  level: L3
-  name: extracted-region
-  title: 提取原型片段
-  parent: vibex-prototype-driven-spec
-  status: draft
-prototype:
-  file: .vibex/specs/prototypes/extracted.html
-  source_url: "${s.sourceUrl}"
-io_contract:
-  inputs: []
-  outputs: []
-behaviors:
-${qa}
-`;
+  // 监听 tab 激活
+  browser.tabs.onActivated.addListener(async (info) => {
+    activeTabId = info.tabId;
+  });
+
+  // 监听来自侧边栏等 UI 的消息
+  browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    handleMessage(msg, sender).then(sendResponse);
+    return true;
+  });
+
+  async function handleMessage(msg: any, sender: Browser.runtime.MessageSender) {
+    const { type, payload } = msg;
+
+    switch (type) {
+      // 侧边栏 → Content: 转发 Extension → Page 指令
+      case 'ext:send':
+        return await sendToPage(payload);
+
+      // 请求当前 tab ID
+      case 'ext:getActiveTab':
+        return { tabId: activeTabId };
+
+      /**
+       * Content（页面 postMessage 中继）或 overlay 内联逻辑 → 广播给侧栏等 extension pages。
+       * 页面 runtime 用户事件：elem:click、runtime:ready 等，payload 形状为 { type, data }。
+       */
+      case 'popup:receive': {
+        const forward = {
+          ...(payload && typeof payload === 'object' ? payload : { payload }),
+          tabId: sender.tab?.id,
+        };
+        try {
+          await browser.runtime.sendMessage({
+            type: 'popup:receive',
+            payload: forward,
+          });
+        } catch {
+          /* 侧栏未打开等场景下可无接收方 */
+        }
+        return { ok: true };
+      }
+
+      default:
+        console.warn('[Proto Spec BG] Unknown message type:', type);
+        return { error: 'unknown type' };
+    }
+  }
+
+  async function sendToPage(payload: any): Promise<any> {
+    // 获取当前 tab
+    if (!activeTabId) {
+      const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+      if (tabs[0]?.id) {
+        activeTabId = tabs[0].id;
+      } else {
+        return { error: 'no active tab' };
+      }
+    }
+
+    try {
+      // 向 content script 发送消息 → runtime 处理
+      const response = await browser.tabs.sendMessage(activeTabId, {
+        type: payload.type,
+        payload: payload.data,
+      });
+      return response;
+    } catch (err: any) {
+      if (err.message?.includes('Receiving end does not exist')) {
+        return { error: 'content not ready, please refresh the page' };
+      }
+      return { error: err.message };
+    }
   }
 });

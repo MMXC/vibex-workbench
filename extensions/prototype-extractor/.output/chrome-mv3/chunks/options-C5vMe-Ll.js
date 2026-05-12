@@ -1,0 +1,1 @@
+import{t as e}from"./browser-CAcOZVP7.js";async function t(){let{psDebugVerbose:t}=await e.storage.local.get(`psDebugVerbose`),n=document.getElementById(`opt-debug`);n&&(n.checked=!!t)}document.getElementById(`opt-debug`)?.addEventListener(`change`,async t=>{let n=t.target.checked;await e.storage.local.set({psDebugVerbose:n})}),t();
