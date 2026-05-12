@@ -3,11 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="manifest.open_at_install" content="false">
+  <meta name="manifest.open_at_install" content="false" />
   <title>Proto Spec 治理</title>
-  <script type="module" crossorigin src="/chunks/sidepanel-B07q8wPd.js"></script>
-  <link rel="modulepreload" crossorigin href="/chunks/browser-CAcOZVP7.js">
-  <link rel="stylesheet" crossorigin href="/assets/sidepanel-DLo-IX3a.css">
 </head>
 <body class="proto-body">
   <div class="proto-shell" id="proto-shell" data-work-mode="governance">
@@ -111,11 +108,11 @@
           <div class="proto-hub-grid">
             <div class="proto-hub-row">
               <label class="proto-hub-label" for="hub-data-key">数据 key</label>
-              <input class="proto-hub-input" id="hub-data-key" type="text" value="fromExtension" autocomplete="off">
+              <input class="proto-hub-input" id="hub-data-key" type="text" value="fromExtension" autocomplete="off" />
             </div>
             <div class="proto-hub-row">
               <label class="proto-hub-label" for="hub-data-value">数据 value（JSON 或纯文本）</label>
-              <input class="proto-hub-input" id="hub-data-value" type="text" value="&quot;来自扩展数据中心&quot;" spellcheck="false">
+              <input class="proto-hub-input" id="hub-data-value" type="text" value='"来自扩展数据中心"' spellcheck="false" />
             </div>
             <button type="button" class="proto-hub-btn" id="btn-hub-data-push">写入页面数据</button>
             <div class="proto-hub-row proto-hub-row--split">
@@ -129,11 +126,11 @@
             <button type="button" class="proto-hub-btn" id="btn-hub-state-json">应用状态 JSON</button>
             <div class="proto-hub-row">
               <label class="proto-hub-label" for="hub-event-name">事件 name</label>
-              <input class="proto-hub-input" id="hub-event-name" type="text" value="proto:toast" autocomplete="off">
+              <input class="proto-hub-input" id="hub-event-name" type="text" value="proto:toast" autocomplete="off" />
             </div>
             <div class="proto-hub-row">
               <label class="proto-hub-label" for="hub-event-payload">事件 payload（JSON）</label>
-              <input class="proto-hub-input" id="hub-event-payload" type="text" value="{&quot;message&quot;:&quot;来自扩展事件中心&quot;}" spellcheck="false">
+              <input class="proto-hub-input" id="hub-event-payload" type="text" value='{"message":"来自扩展事件中心"}' spellcheck="false" />
             </div>
             <button type="button" class="proto-hub-btn" id="btn-hub-event-push">触发页面事件</button>
           </div>
@@ -159,5 +156,6 @@
       </div>
     </footer>
   </div>
+  <script type="module" src="./main.ts"></script>
 </body>
 </html>

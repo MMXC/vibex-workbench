@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="zh" data-ps-proto-runtime="embedded">
+<!--
+  shell-with-runtime.html — page-prototype + Proto Spec runtime
+
+  这是 Proto Spec 插件的宿主页面：
+  = page-prototype.html（用户应用页面）
+  + 内联 PostMessage + runtime（与 assets/*.js 行为一致，单文件即可调试）
+
+  插件面板（Extension）通过 postMessage 与本页面通信：
+  - Extension → HTML: runtime.js 接收并执行（高亮、标注、onboard 等）
+  - HTML → Extension: runtime.js 上报（elem:click、spec:bound 等）
+
+  data-ps-proto-runtime="embedded"：告知扩展 content script 勿再注入 proto-spec-runtime.js，避免重复初始化。
+
+  开发调试：优先用本地 HTTP 打开（如 npx serve .），file:// 下部分浏览器对 iframe/模块限制更严。
+  生产：通过 content script 向目标页注入 /proto-spec-runtime.js（非内联，兼容严格 CSP）。
+-->
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>应用原型 + Proto Spec Runtime</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;590;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ───────────────────────────────────────────────────────
+   页面级 CSS 变量（可被插件的 data-ps-theme 覆盖）
+─────────────────────────────────────────────────────── */
+:root {
+  --page-bg: #0f1117;
+  --page-surface: #1a1d27;
+  --page-border: #2a2d3a;
+  --page-text: #f9fafb;
+  --page-text-muted: #9ca3af;
+  --page-accent: #818cf8;
+  --page-radius: 8px;
+  --page-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --page-shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* 浅色主题（由 runtime.js 的 design:toggle 事件触发） */
+[data-ps-theme="light"] {
+  --page-bg: #ffffff;
+  --page-surface: #f8f9fa;
+  --page-border: #e5e7eb;
+  --page-text: #111827;
+  --page-text-muted: #6b7280;
+  --page-accent: #6366f1;
+}
+
+/* 分屏布局 */
+[data-ps-split="2-split"] { }
+[data-ps-split="4-split"] { }
+
+/* ───────────────────────────────────────────────────────
+   Proto Spec Runtime 状态指示器
+   （由 runtime.js 自动注入，用户无需关心）
+─────────────────────────────────────────────────────── */
+.ps-runtime-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  background: rgba(0, 0, 0, 0.88);
+  border-top: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  color: rgba(255,255,255,0.5);
+  z-index: 2147483647;
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+.ps-runtime-bar .ps-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.ps-runtime-bar .ps-badge-ok { color: #10b981; }
+.ps-runtime-bar .ps-badge-err { color: #f87171; }
+.ps-runtime-bar .ps-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #10b981;
+}
+.ps-runtime-bar .ps-sep { color: rgba(255,255,255,0.2); }
+.ps-runtime-bar .ps-active {
+  color: rgba(129,140,248,0.8);
+  font-weight: 500;
+}
+
+/* ───────────────────────────────────────────────────────
+   页面基础样式（与 page-prototype.html 完全一致）
+─────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--page-bg);
+  color: var(--page-text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+.page-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding-bottom: 28px; /* 给 runtime bar 留空间 */
+}
+
+/* ── Header ── */
+.page-header {
+  height: 56px;
+  background: var(--page-surface);
+  border-bottom: 1px solid var(--page-border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.page-header__logo {
+  width: 32px;
+  height: 32px;
+  background: var(--page-accent);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: white;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.page-header__nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.page-header__nav-item {
+  padding: 6px 12px;
+  border-radius: var(--page-radius);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--page-text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  user-select: none;
+}
+.page-header__nav-item:hover {
+  background: var(--page-border);
+  color: var(--page-text);
+}
+.page-header__nav-item--active {
+  color: var(--page-accent);
+  background: color-mix(in srgb, var(--page-accent) 10%, transparent);
+}
+
+.page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-header__avatar {
+  width: 30px;
+  height: 30px;
+  background: var(--page-border);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* ── Body Layout ── */
+.page-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── Sidebar ── */
+.page-sidebar {
+  width: 220px;
+  background: var(--page-surface);
+  border-right: 1px solid var(--page-border);
+  padding: 12px 8px;
+  overflow-y: auto;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-section { margin-bottom: 16px; }
+
+.sidebar-section__title {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--page-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  margin-bottom: 4px;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--page-radius);
+  cursor: pointer;
+  transition: background 0.12s;
+  font-size: 13px;
+  color: var(--page-text-muted);
+  font-weight: 500;
+}
+.sidebar-item:hover {
+  background: var(--page-border);
+  color: var(--page-text);
+}
+.sidebar-item--active {
+  background: color-mix(in srgb, var(--page-accent) 12%, transparent);
+  color: var(--page-accent);
+}
+.sidebar-item__icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--page-border);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+}
+.sidebar-item--active .sidebar-item__icon {
+  background: color-mix(in srgb, var(--page-accent) 20%, transparent);
+  color: var(--page-accent);
+}
+.sidebar-item__label { flex: 1; }
+.sidebar-item__badge {
+  font-size: 10px;
+  background: var(--page-border);
+  padding: 1px 6px;
+  border-radius: 10px;
+  color: var(--page-text-muted);
+}
+
+/* ── Main Content ── */
+.page-main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--page-surface);
+  border: 1px solid var(--page-border);
+  border-radius: var(--page-radius);
+  margin-bottom: 20px;
+  cursor: text;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.search-bar:focus-within {
+  border-color: var(--page-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--page-accent) 15%, transparent);
+}
+.search-bar__icon { color: var(--page-text-muted); font-size: 14px; }
+.search-bar__input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  color: var(--page-text);
+}
+.search-bar__input::placeholder { color: var(--page-text-muted); }
+.search-bar__kbd {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  background: var(--page-border);
+  border-radius: 3px;
+  padding: 2px 5px;
+  color: var(--page-text-muted);
+}
+
+.main-title { font-size: 18px; font-weight: 600; color: var(--page-text); margin-bottom: 6px; }
+.main-subtitle { font-size: 13px; color: var(--page-text-muted); margin-bottom: 20px; }
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  background: var(--page-surface);
+  border: 1px solid var(--page-border);
+  border-radius: var(--page-radius);
+  padding: 16px;
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.card:hover {
+  box-shadow: var(--page-shadow-md);
+  transform: translateY(-1px);
+}
+.card__img {
+  height: 100px;
+  background: var(--page-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.card__img-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: var(--page-text-muted);
+  background: linear-gradient(135deg, var(--page-border), transparent);
+}
+.card__title { font-size: 13.5px; font-weight: 600; color: var(--page-text); }
+.card__desc { font-size: 12px; color: var(--page-text-muted); line-height: 1.5; flex: 1; }
+.card__meta { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--page-text-muted); }
+
+/* ── Footer ── */
+.page-footer {
+  height: 48px;
+  background: var(--page-surface);
+  border-top: 1px solid var(--page-border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+}
+
+.footer-nav { display: flex; align-items: center; gap: 12px; flex: 1; }
+.footer-nav__item { font-size: 12.5px; color: var(--page-text-muted); cursor: pointer; transition: color 0.12s; padding: 4px 0; }
+.footer-nav__item:hover { color: var(--page-text); }
+.footer-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--page-text-muted); }
+.footer-status__dot { width: 6px; height: 6px; border-radius: 50%; background: #10b981; }
+
+/* 调试：点击页面元素时显示 selector（运行时自动注入的调试样式） */
+[data-ps-spec] { outline: 1px dashed rgba(129,140,248,0.4); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<!-- Proto Spec Runtime 状态栏（runtime.js 自动注入） -->
+<div class="ps-runtime-bar" id="ps-runtime-bar">
+  <span class="ps-badge ps-badge-ok"><span class="ps-dot"></span>Runtime v1.0</span>
+  <span class="ps-sep">|</span>
+  <span class="ps-badge">postMessage.js ✓</span>
+  <span class="ps-sep">|</span>
+  <span class="ps-badge">runtime.js ✓</span>
+  <span class="ps-sep">|</span>
+  <span id="ps-active-spec">等待 Extension 指令…</span>
+</div>
+
+<div class="page-container">
+
+  <!-- ══ Header ══ -->
+  <header class="page-header">
+    <div class="page-header__logo">✦</div>
+
+    <nav class="page-header__nav">
+      <div class="page-header__nav-item page-header__nav-item--active">首页</div>
+      <div class="page-header__nav-item">项目</div>
+      <div class="page-header__nav-item">任务</div>
+      <div class="page-header__nav-item">分析</div>
+    </nav>
+
+    <div class="page-header__actions">
+      <div class="page-header__avatar"></div>
+    </div>
+  </header>
+
+  <!-- ══ Body ══ -->
+  <div class="page-body">
+
+    <!-- Sidebar -->
+    <aside class="page-sidebar">
+
+      <div class="sidebar-section">
+        <div class="sidebar-section__title">导航</div>
+        <div class="sidebar-item sidebar-item--active">
+          <div class="sidebar-item__icon">📊</div>
+          <span class="sidebar-item__label">仪表盘</span>
+        </div>
+        <div class="sidebar-item">
+          <div class="sidebar-item__icon">📁</div>
+          <span class="sidebar-item__label">项目</span>
+          <span class="sidebar-item__badge">8</span>
+        </div>
+        <div class="sidebar-item">
+          <div class="sidebar-item__icon">✅</div>
+          <span class="sidebar-item__label">任务</span>
+          <span class="sidebar-item__badge">24</span>
+        </div>
+        <div class="sidebar-item">
+          <div class="sidebar-item__icon">📅</div>
+          <span class="sidebar-item__label">日历</span>
+        </div>
+        <div class="sidebar-item">
+          <div class="sidebar-item__icon">⚙</div>
+          <span class="sidebar-item__label">设置</span>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-section__title">最近</div>
+        <div class="sidebar-item">
+          <div class="sidebar-item__icon" style="font-size:8px">P</div>
+          <span class="sidebar-item__label">Proto Spec</span>
+        </div>
+        <div class="sidebar-item">
+          <div class="sidebar-item__icon" style="font-size:8px">D</div>
+          <span class="sidebar-item__label">Dashboard v2</span>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- Main Content -->
+    <main class="page-main">
+
+      <!-- 搜索栏 -->
+      <div class="search-bar">
+        <span class="search-bar__icon">🔍</span>
+        <input class="search-bar__input" placeholder="搜索项目、任务…" />
+        <span class="search-bar__kbd">⌘K</span>
+      </div>
+
+      <!-- 标题 -->
+      <h1 class="main-title">欢迎回来</h1>
+      <p class="main-subtitle">这里是你今天的工作概览</p>
+
+      <!-- 卡片网格 -->
+      <div class="card-grid">
+
+        <div class="card">
+          <div class="card__img">
+            <div class="card__img-placeholder">📈</div>
+          </div>
+          <div class="card__title">数据看板</div>
+          <div class="card__desc">实时监控关键指标，趋势可视化展示</div>
+          <div class="card__meta">
+            <span>🔵 活跃项目</span>
+            <span>·</span>
+            <span>3 个进行中</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__img">
+            <div class="card__img-placeholder">📋</div>
+          </div>
+          <div class="card__title">任务列表</div>
+          <div class="card__desc">管理待办事项，追踪任务进度</div>
+          <div class="card__meta">
+            <span>✅ 已完成</span>
+            <span>·</span>
+            <span>12 项</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__img">
+            <div class="card__img-placeholder">📝</div>
+          </div>
+          <div class="card__title">文档中心</div>
+          <div class="card__desc">团队知识库，协作编辑共享</div>
+          <div class="card__meta">
+            <span>📚 文档</span>
+            <span>·</span>
+            <span>28 篇</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__img">
+            <div class="card__img-placeholder">🔔</div>
+          </div>
+          <div class="card__title">通知中心</div>
+          <div class="card__desc">团队动态，实时推送提醒</div>
+          <div class="card__meta">
+            <span>🔴 待处理</span>
+            <span>·</span>
+            <span>5 条</span>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div><!-- /page-body -->
+
+  <!-- ══ Footer ══ -->
+  <footer class="page-footer">
+    <div class="footer-nav">
+      <div class="footer-nav__item">首页</div>
+      <div class="footer-nav__item">文档</div>
+      <div class="footer-nav__item">支持</div>
+      <div class="footer-nav__item">隐私</div>
+    </div>
+    <div class="footer-status">
+      <div class="footer-status__dot"></div>
+      所有系统正常
+    </div>
+  </footer>
+
+</div><!-- /page-container -->
+
+<!-- Proto Spec Runtime 依赖库（内联，standalone 单文件，无外部依赖） -->
+<script>
+(function (global) {
+  'use strict';
+  const PREFIX = 'PS_EXT_MSG_';
+  const PostMessage = {
+    _listeners:{},_replyListeners:{},_pendingReplies:{},_extensionSource:null,_initialized:false,
+    init(){if(this._initialized)return;this._initialized=true;window.addEventListener('message',this._onMessage.bind(this));},
+    send(type,payload,msgId){
+      const msg={type:PREFIX+type,payload,_msgId:msgId||this._genId(),_from:'extension',_ts:Date.now()};
+      window.postMessage(msg,'*');return msg._msgId;
+    },
+    reply(msg){
+      if(this._extensionSource){this._extensionSource.postMessage({type:PREFIX+msg.type,payload:msg.payload,_from:'page',_ts:Date.now()},'*');}
+      else{(this._replyListeners[msg.type]||[]).forEach(h=>{try{h(msg.payload)}catch(e){console.error('[PostMessage] reply handler error:',e);}});}
+    },
+    on(type,handler){if(!this._listeners[type])this._listeners[type]=[];this._listeners[type].push(handler);},
+    onReply(type,handler){if(!this._replyListeners[type])this._replyListeners[type]=[];this._replyListeners[type].push(handler);},
+    off(type,handler){
+      if(!handler){delete this._listeners[type];delete this._replyListeners[type];return;}
+      if(this._listeners[type])this._listeners[type]=this._listeners[type].filter(h=>h!==handler);
+      if(this._replyListeners[type])this._replyListeners[type]=this._replyListeners[type].filter(h=>h!==handler);
+    },
+    request(type,payload,timeout=5000){
+      const msgId=this._genId();this.send(type,payload,msgId);
+      return new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>{delete this._pendingReplies[msgId];reject(new Error('PostMessage request timeout: '+type));},timeout);
+        this._pendingReplies[msgId]={resolve:(data)=>{clearTimeout(timer);resolve(data);},reject:(err)=>{clearTimeout(timer);reject(err);}};
+      });
+    },
+    _onMessage(event){
+      const msg=event.data;if(!msg||typeof msg.type!=='string')return;
+      if(!msg.type.startsWith(PREFIX))return;
+      const type=msg.type.slice(PREFIX.length),data=msg.payload;
+      if(msg._from==='extension'&&event.source)this._extensionSource=event.source;
+      (this._listeners[type]||[]).forEach(handler=>{try{handler(data,{type,source:event.source,origin:event.origin,msgId:msg._msgId,reply:(payload)=>this.reply({type,payload})});}catch(e){console.error('[PostMessage] Handler error for "'+type+'":',e);}});
+      if(msg._msgId&&this._pendingReplies[msg._msgId]){const pending=this._pendingReplies[msg._msgId];delete this._pendingReplies[msg._msgId];pending.resolve(data);}
+    },
+    _genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);},
+    playSequence(sequence){
+      let i=0,stopped=false;
+      const tick=()=>{if(stopped||i>=sequence.length)return;const item=sequence[i++];setTimeout(()=>{if(stopped)return;this.send(item.type,item.payload);if(i<sequence.length)tick();},item.delay||0);};
+      tick();return()=>{stopped=true;};
+    },
+    reset(){this._listeners={};this._replyListeners={};this._pendingReplies={};this._extensionSource=null;},
+    getRegisteredTypes(){return{inbound:Object.keys(this._listeners),outbound:Object.keys(this._replyListeners)};}
+  };
+  if(typeof window!=='undefined')PostMessage.init();
+  if(typeof module!=='undefined'&&module.exports)module.exports=PostMessage;else global.PostMessage=PostMessage;
+})(typeof window!=='undefined'?window:global);
+</script>
+<script>
+(function(){
+  'use strict';
+  if(typeof PostMessage==='undefined'){console.error('[runtime] PostMessage 未定义');return;}
+  const Runtime={
+    _activeSpec:null,_annotationsVisible:true,_theme:'dark',_splitMode:'1-split',_onboardState:null,_elementMap:{},_highlightLayer:null,
+    init(){
+      PostMessage.on('spec:select',this._onSpecSelect.bind(this));
+      PostMessage.on('spec:bind',this._onSpecBind.bind(this));
+      PostMessage.on('onboard:start',this._onOnboardStart.bind(this));
+      PostMessage.on('onboard:step',this._onOnboardStep.bind(this));
+      PostMessage.on('design:toggle',this._onDesignToggle.bind(this));
+      PostMessage.on('layout:split',this._onLayoutSplit.bind(this));
+      PostMessage.on('elem:highlight',this._onElemHighlight.bind(this));
+      PostMessage.on('annotation:show',this._onAnnotationShow.bind(this));
+      PostMessage.on('annotation:clear',this._onAnnotationClear.bind(this));
+      this._initDOMListeners();this._createHighlightLayer();
+      PostMessage.reply({type:'runtime:ready',payload:{version:'1.0.0',pageURL:location.href,documentTitle:document.title}});
+    },
+    _onSpecSelect({specName,layer,selector}){
+      this._activeSpec={specName,layer,selector};
+      if(selector){const el=document.querySelector(selector);if(el){this._scrollIntoView(el);this._highlight(el,specName,layer);}else{console.warn('[runtime] spec:select — selector "'+selector+'" 未找到');}}
+      this._dispatchEvent('spec-selected',{specName,layer,selector});
+    },
+    _onSpecBind({specName,selector}){
+      if(!specName||!selector)return;
+      const el=document.querySelector(selector);
+      if(!el){console.warn('[runtime] spec:bind — selector "'+selector+'" 未找到');return;}
+      el.setAttribute('data-ps-spec',specName);this._elementMap[specName]=el;this._flashHighlight(el,'#10b981',600);
+      PostMessage.reply({type:'spec:bound',payload:{specName,selector,timestamp:Date.now()}});
+      this._dispatchEvent('spec-bound',{specName,selector});
+    },
+    _onOnboardStart({specName,steps}){
+      if(this._onboardState)this._onboardState.stop();
+      const targetEl=this._elementMap[specName]||document.querySelector('[data-ps-spec="'+specName+'"]');
+      this._onboardState={specName,steps:steps||[],currentStep:0,stopRequested:false,interval:null,
+        stop:()=>{this.stopRequested=true;if(this.interval)clearInterval(this.interval);this._clearOnboardHighlights();}};
+      if(targetEl){this._scrollIntoView(targetEl);targetEl.style.position='relative';this._renderOnboardStep(targetEl,specName,0,steps&&steps[0]||'步骤 1');}
+      this._onboardState.interval=setInterval(()=>{
+        if(this._onboardState.stopRequested){clearInterval(this._onboardState.interval);return;}
+        const nextStep=this._onboardState.currentStep+1;
+        if(nextStep>=this._onboardState.steps.length){clearInterval(this._onboardState.interval);
+          PostMessage.reply({type:'onboard:done',payload:{specName,stepsCompleted:this._onboardState.steps.length,duration:(Date.now()-this._startTime)/1000+'s'}});
+          this._onboardState=null;return;}
+        this._onboardState.currentStep=nextStep;const stepLabel=this._onboardState.steps[nextStep];
+        PostMessage.reply({type:'onboard:step_done',payload:{specName,step:nextStep,label:stepLabel}});
+        if(targetEl)this._flashHighlight(targetEl,'#f59e0b',300);
+      },2000);
+      this._startTime=Date.now();
+    },
+    _onOnboardStep({step}){if(!this._onboardState)return;this._onboardState.currentStep=Math.max(0,Math.min(step,this._onboardState.steps.length-1));if(this._onboardState.interval)clearInterval(this._onboardState.interval);this._onboardState.interval=null;},
+    _onDesignToggle({theme}){const valid=['dark','light'];if(!valid.includes(theme)){console.warn('[runtime] design:toggle — 未知主题: '+theme);return;}this._theme=theme;document.documentElement.dataset.psTheme=theme;PostMessage.reply({type:'design:toggled',payload:{theme,previousTheme:theme==='dark'?'light':'dark'}});},
+    _onLayoutSplit({mode}){const valid=['1-split','2-split','4-split'];if(!valid.includes(mode)){console.warn('[runtime] layout:split — 未知模式: '+mode);return;}this._splitMode=mode;document.documentElement.dataset.psSplit=mode;PostMessage.reply({type:'layout:splitted',payload:{mode}});},
+    _onElemHighlight({selector,color}){if(!selector)return;const el=document.querySelector(selector);if(el)this._highlight(el,null,null,color);},
+    _onAnnotationShow({mode}){const visible=mode==='show';this._annotationsVisible=visible;document.querySelectorAll('[data-ps-annotation]').forEach(el=>{el.style.display=visible?'':'none';});if(this._highlightLayer)this._highlightLayer.style.display=visible?'':'none';},
+    _onAnnotationClear(){this._clearAllHighlights();this._onboardState&&this._onboardState.stop&&this._onboardState.stop();this._onboardState=null;document.querySelectorAll('[data-ps-spec]').forEach(el=>{el.removeAttribute('data-ps-spec');});},
+    _initDOMListeners(){
+      document.addEventListener('click',e=>{const target=e.target,selector=this._getSelector(target),rect=target.getBoundingClientRect(),specName=target.getAttribute('data-ps-spec');PostMessage.reply({type:'elem:click',payload:{selector,rect:{x:Math.round(rect.x),y:Math.round(rect.y),w:Math.round(rect.width),h:Math.round(rect.height),top:Math.round(rect.top),left:Math.round(rect.left)},specBound:specName||null,tagName:target.tagName.toLowerCase(),text:target.innerText&&target.innerText.slice(0,50)||null}});},{passive:true});
+      let hoverTimer=null;document.addEventListener('mouseover',e=>{clearTimeout(hoverTimer);const target=e.target;hoverTimer=setTimeout(()=>{const specName=target.getAttribute&&target.getAttribute('data-ps-spec');if(specName)PostMessage.reply({type:'elem:hover',payload:{selector:this._getSelector(target),specBound:specName}});},300);},{passive:true});
+      document.addEventListener('contextmenu',e=>{const target=e.target,specName=target.getAttribute&&target.getAttribute('data-ps-spec');if(specName)PostMessage.reply({type:'elem:contextmenu',payload:{selector:this._getSelector(target),specBound:specName,x:e.clientX,y:e.clientY}});},{passive:true});
+      document.addEventListener('keydown',e=>{const combo=[e.metaKey||e.ctrlKey?'⌘':'',e.shiftKey?'⇧':'',e.altKey?'⌥':'',e.key].filter(Boolean).join('+');PostMessage.reply({type:'page:keydown',payload:{key:e.key,combo,meta:e.metaKey,ctrl:e.ctrlKey,shift:e.shiftKey,alt:e.altKey}});},{passive:true});
+      this._observer=new MutationObserver(mutations=>{mutations.forEach(m=>{m.addedNodes.forEach(node=>{if(node.nodeType!==1)return;const spec=node.getAttribute&&node.getAttribute('data-ps-spec');if(spec)this._elementMap[spec]=node;});});});
+      this._observer.observe(document.body,{childList:true,subtree:true});
+    },
+    _createHighlightLayer(){if(this._highlightLayer)return;this._highlightLayer=document.createElement('div');this._highlightLayer.id='ps-highlight-layer';this._highlightLayer.style.cssText='position:fixed;pointer-events:none;z-index:2147483646;top:0;left:0;width:100%;height:100%;overflow:hidden';document.body.appendChild(this._highlightLayer);},
+    _highlight(el,specName,layer,color){
+      if(!el)return;this._clearHighlight();const rect=el.getBoundingClientRect(),accentColor=color||'#7170ff';
+      const box=document.createElement('div');box.id='ps-highlight-box';box.style.cssText=['position:absolute','left:'+(rect.left+window.scrollX)+'px','top:'+(rect.top+window.scrollY)+'px','width:'+rect.width+'px','height:'+rect.height+'px','border:2px solid '+accentColor,'box-shadow:0 0 0 4px '+accentColor+'33, 0 8px 24px rgba(0,0,0,0.3)','border-radius:3px','pointer-events:none','transition:all 0.3s ease','animation:ps-highlight-in 0.3s ease'].join(';');
+      if(specName||layer){const label=document.createElement('div');label.style.cssText=['position:absolute','top:'+(rect.top+window.scrollY-24)+'px','left:'+(rect.left+window.scrollX)+'px','background:'+accentColor,'color:#fff','font-size:10px','font-weight:600','padding:2px 8px','border-radius:3px 3px 0 0','white-space:nowrap','pointer-events:none','font-family:system-ui,sans-serif'].join(';');label.textContent=layer?layer+'-'+specName:specName;this._highlightLayer.appendChild(label);}
+      if(!document.getElementById('ps-runtime-styles')){const style=document.createElement('style');style.id='ps-runtime-styles';style.textContent='@keyframes ps-highlight-in{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}';document.head.appendChild(style);}
+      this._highlightLayer.appendChild(box);
+    },
+    _flashHighlight(el,color,duration){if(!el)return;const orig=el.style.outline,origT=el.style.transition;el.style.transition='outline '+duration+'ms ease';el.style.outline='3px solid '+color;el.style.outlineOffset='2px';setTimeout(()=>{el.style.outline=orig;el.style.transition=origT;},duration);},
+    _clearHighlight(){if(!this._highlightLayer)return;this._highlightLayer.querySelectorAll('#ps-highlight-box, #ps-spec-label').forEach(el=>el.remove());},
+    _clearAllHighlights(){if(this._highlightLayer)this._highlightLayer.innerHTML='';document.querySelectorAll('[data-ps-highlight]').forEach(el=>{el.removeAttribute('data-ps-highlight');});},
+    _clearOnboardHighlights(){document.querySelectorAll('[data-ps-onboard-step]').forEach(el=>{el.style.position='';el.style.zIndex='';el.removeAttribute('data-ps-onboard-step');});},
+    _renderOnboardStep(el,specName,stepIndex,stepLabel){
+      el.setAttribute('data-ps-onboard-step',stepIndex);el.style.position='relative';
+      document.querySelectorAll('.ps-onboard-step-label').forEach(l=>l.remove());
+      const rect=el.getBoundingClientRect(),label=document.createElement('div');label.className='ps-onboard-step-label';
+      label.style.cssText=['position:fixed','left:'+(rect.left+rect.width/2)+'px','top:'+(rect.bottom+window.scrollY+8)+'px','transform:translateX(-50%)','background:#f59e0b','color:#000','font-size:11px','font-weight:600','padding:4px 12px','border-radius:4px','pointer-events:none','white-space:nowrap','font-family:system-ui,sans-serif','box-shadow:0 2px 8px rgba(0,0,0,0.3)','z-index:2147483647','animation:ps-step-in 0.3s ease'].join(';');
+      label.innerHTML='<span style="opacity:0.5;font-weight:400">'+(stepIndex+1)+'.</span> '+stepLabel;
+      if(!document.getElementById('ps-runtime-styles')){const s=document.createElement('style');s.id='ps-runtime-styles';s.textContent='@keyframes ps-step-in{from{opacity:0;transform:translateX(-50%) translateY(-4px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';document.head.appendChild(s);}
+      document.body.appendChild(label);
+    },
+    _getSelector(el){if(!el||!el.tagName)return null;const tag=el.tagName.toLowerCase(),id=el.id?'#'+el.id:'',classes=el.className&&typeof el.className==='string'?el.className.trim().split(/\s+/).filter(Boolean).join('.'):'';const spec=el.getAttribute&&el.getAttribute('data-ps-spec');if(spec)return'[data-ps-spec="'+spec+'"]';return(tag+id+classes)||tag;},
+    _scrollIntoView(el){el.scrollIntoView({behavior:'smooth',block:'center'});},
+    _dispatchEvent(name,detail){window.dispatchEvent(new CustomEvent('ps-'+name,{detail}));},
+    highlight(selectorOrEl,specName,layer){const el=typeof selectorOrEl==='string'?document.querySelector(selectorOrEl):selectorOrEl;if(el)this._highlight(el,specName,layer);},
+    click(selectorOrEl){const el=typeof selectorOrEl==='string'?document.querySelector(selectorOrEl):selectorOrEl;if(el)el.click();},
+    destroy(){this._observer&&this._observer.disconnect();this._highlightLayer&&this._highlightLayer.remove();document.querySelectorAll('.ps-onboard-step-label, #ps-runtime-styles').forEach(el=>el.remove());['spec:select','spec:bind','onboard:start','onboard:step','design:toggle','layout:split','elem:highlight','annotation:show','annotation:clear'].forEach(t=>PostMessage.off(t));}
+  };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>Runtime.init());else Runtime.init();
+  window.Runtime=Runtime;
+})();
+</script>
+
+<!-- 调试：监听 runtime 事件，更新底部状态栏 -->
+<script>
+  // 监听来自 Extension 的事件，更新状态栏
+  PostMessage.on('spec:select', ({ specName, layer }) => {
+    const bar = document.getElementById('ps-active-spec');
+    if (bar) bar.textContent = `当前: ${layer || 'L?'}-${specName}`;
+  });
+
+  PostMessage.on('onboard:start', ({ specName, steps }) => {
+    const bar = document.getElementById('ps-active-spec');
+    if (bar) bar.textContent = `🎯 onboard: ${specName} (${steps?.length || 0} steps)`;
+  });
+
+  PostMessage.on('design:toggle', ({ theme }) => {
+    console.log('[shell] 主题切换:', theme);
+  });
+
+  // 监听 runtime ready 事件
+  window.addEventListener('ps-spec-selected', ({ detail }) => {
+    console.log('[shell] 用户选中了 Spec:', detail.specName);
+  });
+
+  console.log('[shell] Proto Spec Runtime 已加载。Extension 可通过 postMessage 发送指令。');
+</script>
+
+</body>
+</html>

@@ -1,17 +1,19 @@
 import { defineConfig } from 'wxt';
 
+// Proto Spec — Spec-first page prototyping extension
 export default defineConfig({
   manifest: {
-    name: 'VibeX Prototype Extractor',
-    version: '0.1.0',
-    description: '从浏览器网页提取原型片段，导入 VibeX spec 治理体系',
-    permissions: ['activeTab', 'storage'],
-    host_permissions: [],
-    side_panel: {
-      default_path: 'sidepanel.html',
-    },
+    permissions: ['activeTab', 'storage', 'scripting', 'sidePanel'],
+    host_permissions: ['<all_urls>'],
+    /** 无 popup 时仍需 action，工具栏图标点击才会打开侧边栏（见 background sidePanel.setPanelBehavior） */
     action: {
-      default_title: '打开 VibeX 原型提取器',
+      default_title: 'Proto Spec 治理',
     },
+    web_accessible_resources: [
+      {
+        resources: ['/proto-spec-runtime.js'],
+        matches: ['<all_urls>'],
+      },
+    ],
   },
 });
