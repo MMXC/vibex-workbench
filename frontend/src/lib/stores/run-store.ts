@@ -21,7 +21,8 @@ export interface ToolInvocation {
   tool_name: string;
   tool_display_name?: string;
   args?: Record<string, unknown>;
-  result?: Record<string, unknown>;
+  /** SSE 常为字符串；结构化工具也可能返回对象 */
+  result?: unknown;
   error?: string;
   status: string;
   order?: number;

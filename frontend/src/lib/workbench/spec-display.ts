@@ -1,4 +1,19 @@
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import type { DocumentOptions, ParseOptions } from 'yaml';
+
+/**
+ * 扫描/展示 spec 时解析 YAML：磁盘上常见 Markdown 混入（如 `- **spec_id**: foo`），
+ * 在 YAML 1.2 中 `*` 会触发别名解析与 YAMLWarning。放宽 strict 并静默告警日志，避免控制台刷屏；
+ * 解析失败仍由调用方 try/catch 处理。
+ */
+const SPEC_FILE_PARSE_OPTS = {
+	strict: false,
+	logLevel: 'silent',
+} as const satisfies ParseOptions & DocumentOptions;
+
+function parseSpecFileYaml(text: string): unknown {
+	return parseYaml(text, SPEC_FILE_PARSE_OPTS);
+}
 
 export type SpecLevelToken = 'L1' | 'L2' | 'L3' | 'L4' | 'L5' | 'IMPL' | 'UNKNOWN';
 export type SpecSlotStatus = 'present' | 'empty' | 'missing' | 'na';
@@ -152,7 +167,7 @@ export type ImplementationGovernance = {
 
 export function parseImplementationGovernance(yamlText: string): ImplementationGovernance | null {
 	try {
-		const doc = parseYaml(yamlText) as Record<string, unknown> | null;
+		const doc = parseSpecFileYaml(yamlText) as Record<string, unknown> | null;
 		if (!doc) return null;
 		const impl = asRecord(doc.implementation);
 		if (!impl) return null;
@@ -281,7 +296,7 @@ export function fallbackDisplayTitle(name: string): string {
 /** HTML 演示稿路径：必须在顶层 `spec.ppt_file`（相对仓库根）。兼容读取旧字段 `prototype.ppt_file`。 */
 export function getSpecPptFileFromYaml(yamlText: string): string {
 	try {
-		const doc = parseYaml(yamlText) as Record<string, unknown> | null;
+		const doc = parseSpecFileYaml(yamlText) as Record<string, unknown> | null;
 		if (!doc) return '';
 		const spec = asRecord(doc.spec);
 		const fromSpec = asString(spec?.ppt_file);
@@ -297,7 +312,7 @@ export function getSpecPptFileFromYaml(yamlText: string): string {
 
 /** 写入 `spec.ppt_file`，并删除遗留的 `prototype.ppt_file`（若存在）。 */
 export function upsertSpecBlockPptFile(yamlText: string, nextPath: string): string {
-	const doc = (parseYaml(yamlText) ?? {}) as Record<string, unknown>;
+	const doc = (parseSpecFileYaml(yamlText) ?? {}) as Record<string, unknown>;
 	const spec = ((doc.spec ?? {}) as Record<string, unknown>) || {};
 	spec.ppt_file = nextPath;
 	doc.spec = spec;
@@ -312,7 +327,7 @@ export function upsertSpecBlockPptFile(yamlText: string, nextPath: string): stri
 export function extractSpecDisplay(content: string, path: string): SpecDisplayMeta {
 	let doc: Record<string, unknown> | null = null;
 	try {
-		doc = parseYaml(content) as Record<string, unknown>;
+		doc = parseSpecFileYaml(content) as Record<string, unknown>;
 	} catch {
 		doc = null;
 	}

@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="manifest.open_at_install" content="false">
   <title>Proto Spec 治理</title>
-  <script type="module" crossorigin src="/chunks/sidepanel-B07q8wPd.js"></script>
+  <script type="module" crossorigin src="/chunks/sidepanel-BV78cdXf.js"></script>
   <link rel="modulepreload" crossorigin href="/chunks/browser-CAcOZVP7.js">
-  <link rel="stylesheet" crossorigin href="/assets/sidepanel-DLo-IX3a.css">
+  <link rel="stylesheet" crossorigin href="/assets/sidepanel-Zbf6FHj9.css">
 </head>
 <body class="proto-body">
   <div class="proto-shell" id="proto-shell" data-work-mode="governance">
@@ -29,6 +29,19 @@
         <div class="proto-spec-body">
           <!-- 入口选择器 -->
           <div class="entry-selector" id="entry-selector"></div>
+
+          <div class="proto-bridge" id="agent-bridge" aria-label="Go Agent 连接">
+            <div class="proto-bridge-hdr">Go Agent</div>
+            <label class="proto-bridge-label" for="agent-base-url">基址</label>
+            <input class="proto-bridge-input" id="agent-base-url" type="url" spellcheck="false" autocomplete="off" placeholder="http://127.0.0.1:33338">
+            <label class="proto-bridge-label" for="agent-workspace-root">工作区根路径</label>
+            <input class="proto-bridge-input" id="agent-workspace-root" type="text" spellcheck="false" autocomplete="off" placeholder="C:\project\my-repo 或 /home/me/repo">
+            <div class="proto-bridge-actions">
+              <button type="button" class="proto-bridge-btn" id="btn-agent-save">保存</button>
+              <button type="button" class="proto-bridge-btn proto-bridge-btn--primary" id="btn-agent-ping">测试连接</button>
+            </div>
+            <p class="proto-bridge-status" id="agent-bridge-status">未检测</p>
+          </div>
 
           <div class="tree" id="tree">
             <div class="tree-hdr">
@@ -158,6 +171,6 @@
         </div>
       </div>
     </footer>
-  </div>
+  </div>
 </body>
 </html>

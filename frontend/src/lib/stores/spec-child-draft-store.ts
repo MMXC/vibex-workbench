@@ -36,7 +36,7 @@ const initial: State = {
 
 function toSpecsRelativePath(p: string): string {
 	const norm = p.replace(/\\/g, '/');
-	const i = norm.indexOf('specs/');
+	const i = norm.indexOf('.vibex/specs/');
 	return i >= 0 ? norm.slice(i) : norm;
 }
 

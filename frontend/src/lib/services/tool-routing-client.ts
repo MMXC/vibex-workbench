@@ -143,6 +143,7 @@ export function toFireworksGraph(graph: PlanGraph, route: RoutePreview): Firewor
 	return { nodes, edges };
 }
 
+import { getPrototypeFileRel, isSafeWorkspaceRel } from '$lib/workbench/prototype-shell-manifest';
 import {
 	evaluatePrototypeGate,
 	type UiWorkflowGateModel,
@@ -160,8 +161,12 @@ export type A2UICard = {
 };
 
 export type A2UIPrototypePanel = {
-	mode: 'html_snippet' | 'placeholder';
+	mode: 'html_snippet' | 'placeholder' | 'workspace_file';
 	html?: string;
+	/** 当 mode 为 workspace_file：相对工作区根的 HTML 路径（来自 spec prototype.file） */
+	fileRel?: string;
+	/** workspace_file 下助手 fenced HTML，与磁盘原型并存 */
+	assistantDraftHtml?: string;
 	caption?: string;
 };
 
@@ -361,15 +366,35 @@ export function toA2UIModel(params: {
 	let primaryStage: A2UIStageLayout = 'split';
 
 	if (slotId === 'prototype') {
-		const fromAssistant = params.assistantPrototypeHtml?.trim();
+		const fromAssistant = params.assistantPrototypeHtml?.trim() || null;
 		const shell = buildPrototypeShellHtml(params.specTitle, params.specPath, goal);
-		prototype = {
-			mode: 'html_snippet',
-			html: fromAssistant || shell,
-			caption: fromAssistant
-				? 'HTML 原型预览（来自助手 fenced html；iframe sandbox：allow-scripts）。'
-				: 'HTML prototype 预览（占位 shell；助手生成 fenced HTML 后将自动替换）。',
-		};
+
+		let protoRel: string | null = null;
+		if (typeof params.specYamlContent === 'string' && params.specYamlContent.trim()) {
+			const rel = getPrototypeFileRel(params.specYamlContent);
+			if (rel && isSafeWorkspaceRel(rel) && /\.html?$/i.test(rel)) {
+				protoRel = rel;
+			}
+		}
+
+		if (protoRel) {
+			prototype = {
+				mode: 'workspace_file',
+				fileRel: protoRel,
+				assistantDraftHtml: fromAssistant ?? undefined,
+				caption: fromAssistant
+					? 'HTML 原型预览：主区为 prototype.file（工作区静态 HTML）；下方为助手 fenced HTML 草稿。'
+					: 'HTML 原型预览（prototype.file；iframe 来自工作区 /api/workspace/file；sandbox：allow-scripts）。',
+			};
+		} else {
+			prototype = {
+				mode: 'html_snippet',
+				html: fromAssistant || shell,
+				caption: fromAssistant
+					? 'HTML 原型预览（来自助手 fenced html；iframe sandbox：allow-scripts）。'
+					: 'HTML prototype 预览（占位 shell；助手生成 fenced HTML 或将 prototype.file 指向 .html 后将自动替换）。',
+			};
+		}
 		showFireworks = false;
 		primaryStage = 'split';
 		if (params.specYamlContent !== undefined) {

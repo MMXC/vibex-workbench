@@ -102,3 +102,16 @@ html[data-host="sidepanel"] .log-list{max-height:none}
 .diff-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .diff-type{font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(113,112,255,.15);color:#818cff}
 .diff-empty{padding:16px;text-align:center;font-size:11px;color:#4b5563}
+
+/* Go Agent bridge */
+.proto-bridge{margin:0 10px 10px;padding:10px;border:1px solid rgba(255,255,255,.08);border-radius:8px;background:rgba(0,0,0,.2)}
+.proto-bridge-hdr{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a8f98;margin-bottom:8px}
+.proto-bridge-label{display:block;font-size:10px;color:#9ca3af;margin:6px 0 3px}
+.proto-bridge-input{width:100%;padding:6px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.12);background:#0c0d12;color:#e5e7eb;font-size:11px}
+.proto-bridge-actions{display:flex;gap:8px;margin-top:10px}
+.proto-bridge-btn{flex:1;padding:6px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.15);background:transparent;color:#d1d5db;font-size:11px;cursor:pointer}
+.proto-bridge-btn:hover{border-color:rgba(255,255,255,.28);color:#fff}
+.proto-bridge-btn--primary{border-color:#5b5ae0;background:rgba(91,90,224,.25);color:#e0e7ff}
+.proto-bridge-status{margin-top:8px;font-size:10px;color:#9ca3af;line-height:1.4;word-break:break-all}
+.proto-bridge-status.ok{color:#6ee7b7}
+.proto-bridge-status.err{color:#fca5a5}

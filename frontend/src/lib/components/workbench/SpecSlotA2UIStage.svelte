@@ -3,7 +3,9 @@
 	import type { SpecSlotSession } from '$lib/stores/spec-slot-session-store';
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
 	import { parseImplementationGovernance } from '$lib/workbench/spec-display';
+	import { isSafeWorkspaceRel } from '$lib/workbench/prototype-shell-manifest';
 	import { toWorkspaceFileURL } from '$lib/workbench/workspace-file-url';
+	import SpecSlotPrototypePreview from '$lib/components/workbench/SpecSlotPrototypePreview.svelte';
 
 	let { session }: { session: SpecSlotSession } = $props();
 
@@ -18,17 +20,42 @@
 	);
 	const layout = $derived.by(() => model?.primaryStage ?? 'split');
 
+	const wsRoot = $derived.by(() => get(specExplorerStore).workspaceRoot?.trim() ?? '');
+
+	const prototypePanel = $derived.by(() => model?.prototype);
+
+	const prototypeFileSrc = $derived.by(() => {
+		const p = prototypePanel;
+		if (!p || p.mode !== 'workspace_file' || !wsRoot) return '';
+		const rel = p.fileRel?.trim() ?? '';
+		if (!rel || !isSafeWorkspaceRel(rel)) return '';
+		return toWorkspaceFileURL(rel, wsRoot);
+	});
+
+	/** html_snippet：主 html；workspace_file：仅助手 fenced 草稿走 srcdoc */
+	const prototypeSnippetSrcdoc = $derived.by(() => {
+		const p = prototypePanel;
+		if (!p) return '';
+		if (p.mode === 'workspace_file') return (p.assistantDraftHtml ?? '').trim();
+		return (p.html ?? '').trim();
+	});
+
+	const showPrototypeSlot = $derived.by(() => {
+		const p = prototypePanel;
+		if (!p) return false;
+		if (p.mode === 'workspace_file') {
+			return !!(p.fileRel?.trim() || prototypeSnippetSrcdoc);
+		}
+		return !!(p.html ?? '').trim();
+	});
+
 	const hasPrimaryVisual = $derived.by(() => {
 		if (!model) return false;
-		const proto = !!model.prototype?.html;
+		const proto = showPrototypeSlot;
 		const fw = showFw;
 		return proto || fw;
 	});
 
-	/** 本地工作台可信内容：保留脚本以支持交互原型；iframe 仍用 sandbox 限制弹窗/顶层导航等。 */
-	const prototypeSrcdoc = $derived.by(() => (model?.prototype?.html ?? '').trim());
-
-	const wsRoot = $derived.by(() => get(specExplorerStore).workspaceRoot?.trim() ?? '');
 	const implGov = $derived.by(() =>
 		session.slot.id === 'implementation' ? parseImplementationGovernance(session.content ?? '') : null
 	);
@@ -151,21 +178,15 @@
 			</div>
 
 			<div class="stage-stack stage-visual-priority">
-				{#if model.prototype?.html}
-					<div class="proto-wrap proto-hero">
-						<span class="k">{model.prototype.caption ?? 'Prototype'}</span>
-						{#if prototypeSrcdoc}
-							<iframe
-								class="proto-frame"
-								title="prototype preview"
-								sandbox="allow-scripts allow-same-origin"
-								referrerpolicy="no-referrer"
-								srcdoc={prototypeSrcdoc}
-							></iframe>
-						{:else}
-							<p class="muted proto-fallback">暂无原型 HTML，请在对话或设计物料中生成内容。</p>
-						{/if}
-					</div>
+				{#if showPrototypeSlot && model.prototype}
+					<SpecSlotPrototypePreview
+						session={session}
+						panel={model.prototype}
+						fileSrc={prototypeFileSrc}
+						snippetSrcdoc={prototypeSnippetSrcdoc}
+						wsRoot={wsRoot}
+						hero={true}
+					/>
 				{/if}
 
 				{#if showFw && fireworks}
@@ -249,21 +270,15 @@
 					{/each}
 				</div>
 
-				{#if model.prototype?.html}
-					<div class="proto-wrap">
-						<span class="k">{model.prototype.caption ?? 'Prototype'}</span>
-						{#if prototypeSrcdoc}
-							<iframe
-								class="proto-frame"
-								title="prototype preview"
-								sandbox="allow-scripts allow-same-origin"
-								referrerpolicy="no-referrer"
-								srcdoc={prototypeSrcdoc}
-							></iframe>
-						{:else}
-							<p class="muted proto-fallback">暂无原型 HTML。</p>
-						{/if}
-					</div>
+				{#if showPrototypeSlot && model.prototype}
+					<SpecSlotPrototypePreview
+						session={session}
+						panel={model.prototype}
+						fileSrc={prototypeFileSrc}
+						snippetSrcdoc={prototypeSnippetSrcdoc}
+						wsRoot={wsRoot}
+						hero={false}
+					/>
 				{/if}
 
 				{#if showFw && fireworks}
@@ -603,34 +618,6 @@
 		padding-left: 18px;
 		font-size: 11px;
 		color: #858fa1;
-	}
-
-	.proto-wrap {
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		flex-shrink: 0;
-	}
-
-	.proto-hero {
-		flex: 1;
-		min-height: 220px;
-	}
-
-	.proto-frame {
-		width: 100%;
-		min-height: 200px;
-		height: 280px;
-		border: 1px solid #242b38;
-		border-radius: 12px;
-		background: #0a0c10;
-	}
-
-	.proto-hero .proto-frame {
-		flex: 1;
-		min-height: min(52vh, 480px);
-		height: auto;
 	}
 
 	.fw-wrap {

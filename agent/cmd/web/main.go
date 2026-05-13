@@ -33,7 +33,7 @@ func main() {
 		log.Printf("warning: skills registry merge failed for %s: %v", cfg.WorkspaceDir, err)
 		skillRegistry = skills.NewRegistry()
 	}
-	log.Printf("[VibeX Agent] adapter=%s | model=%s | workspace=%s | skills=%d (merged skills/ + .agents/skills)",
+	log.Printf("[VibeX Agent] adapter=%s | model=%s | workspace=%s | skills=%d (merged skills/ + .vibex/agents/skills + .vibex/.agents/skills)",
 		llm.AdapterName(), cfg.Model, cfg.WorkspaceDir, skillRegistry.Count())
 
 	os.MkdirAll(".sessions", 0755)

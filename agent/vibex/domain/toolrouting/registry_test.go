@@ -43,7 +43,7 @@ func TestCreateSlotPlanGraphRoutesBySlot(t *testing.T) {
 		{slot: "implementation", wantKind: "implementation.route.plan", wantTool: "implementation_route_planner"},
 	}
 	for _, tc := range cases {
-		graph := reg.CreatePlanGraph("test", "specs/L4-feature/foo.yaml", "spec-slot-routing", tc.slot)
+		graph := reg.CreatePlanGraph("test", ".vibex/specs/L4-feature/foo.yaml", "spec-slot-routing", tc.slot)
 		if graph.SlotID != tc.slot {
 			t.Fatalf("slot %s: graph slot id = %q", tc.slot, graph.SlotID)
 		}
@@ -64,7 +64,7 @@ func TestCreateSlotPlanGraphRoutesBySlot(t *testing.T) {
 
 func TestRouteGraphHitsSlotTools(t *testing.T) {
 	reg := NewRegistry(t.TempDir())
-	graph := reg.CreatePlanGraph("implement safely", "specs/L5-slice/foo.yaml", "spec-slot-routing", "implementation")
+	graph := reg.CreatePlanGraph("implement safely", ".vibex/specs/L5-slice/foo.yaml", "spec-slot-routing", "implementation")
 	route := reg.RouteGraph(graph)
 	found := map[string]bool{}
 	for _, decision := range route.Decisions {

@@ -63,7 +63,7 @@ function normalizeChildPath(p: string): string {
 	return p.replace(/\\/g, '/').trim();
 }
 
-/** structure.children 中的相对路径（specs/...） */
+/** structure.children 中的相对路径（.vibex/specs/...） */
 export function parseExistingChildPaths(yamlText: string): string[] {
 	const doc = parseDoc(yamlText);
 	const st = asRecord(doc?.structure);
@@ -126,7 +126,7 @@ export function collectL3CandidatesFromL2(
 				'';
 			if (!moduleKey) continue;
 			const specName = moduleKeyToModSpecName(moduleKey);
-			const relativePath = `specs/L3-module/${specName}.yaml`;
+			const relativePath = `.vibex/specs/L3-module/${specName}.yaml`;
 			if (out.some(c => c.specName === specName)) continue;
 			const note = compactNote(r?.l3_note ?? r?.note);
 			const titleHint = humanizeModule(moduleKey);
@@ -158,7 +158,7 @@ export function collectL3CandidatesFromL2(
 				'';
 			if (!key) continue;
 			const specName = moduleKeyToModSpecName(key);
-			const relativePath = `specs/L3-module/${specName}.yaml`;
+			const relativePath = `.vibex/specs/L3-module/${specName}.yaml`;
 			if (out.some(c => c.relativePath === relativePath)) continue;
 			const id = `l3:${specName}`;
 			out.push({
@@ -209,7 +209,7 @@ export function collectL5CandidatesFromL4(
 			const behaviorId =
 				(typeof r?.id === 'string' && r.id.trim()) || `B${idx}`;
 			const specName = buildSliceName(l4SpecName, behaviorId);
-			const relativePath = `specs/L5-slice/${specName}.yaml`;
+			const relativePath = `.vibex/specs/L5-slice/${specName}.yaml`;
 			if (out.some(c => c.specName === specName)) continue;
 			const trigger = typeof r?.trigger === 'string' ? r.trigger.split(/\n/)[0].trim() : '';
 			const titleHint = `${behaviorId} · ${trigger.slice(0, 48)}${trigger.length > 48 ? '…' : ''}`;

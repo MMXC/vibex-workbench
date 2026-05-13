@@ -118,7 +118,8 @@ function inferLevelFromPath(path: string): number {
 
 function normalizeSpecPath(path: string): string {
 	const normalized = path.replace(/\\/g, '/').replace(/^\/+/, '');
-	return normalized.startsWith('specs/') ? normalized : `specs/${normalized}`;
+	if (normalized.startsWith('.vibex/specs/')) return normalized;
+	return `.vibex/specs/${normalized}`;
 }
 
 function parseSpecListPayload(payload: unknown): WailsSpecFile[] {
@@ -193,7 +194,7 @@ async function enrichSpecFiles(root: string, files: WailsSpecFile[]): Promise<Wa
 // ── ListSpecs ──────────────────────────────────────────────────
 
 /**
- * 列出 {root}/specs/ 下所有 .yaml 文件的元信息。
+ * 列出 {root}/.vibex/specs/ 下所有 .yaml 文件的元信息。
  * 生产用 Wails binding，开发用 HTTP fallback。
  */
 export async function wailsListSpecs(root: string): Promise<WailsSpecFile[]> {
@@ -312,7 +313,7 @@ export type SpecsInitLayoutResult = {
 	error?: string;
 };
 
-/** Create canonical specs/L1-goal … / L5-slice / _governance dirs under workspace (idempotent). */
+/** Create canonical .vibex/specs/L1-goal … / L5-slice / _governance dirs under workspace (idempotent). */
 export async function wailsInitSpecsLayout(root: string): Promise<SpecsInitLayoutResult> {
 	if (!root || !isLikelyFullPath(root)) {
 		throw new Error(`Invalid workspace root (not full path): ${root}`);

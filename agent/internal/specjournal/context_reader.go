@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"vibex-workbench/pkg/vibexpaths"
 )
 
 // ContextEntry is a parsed checkpoint entry for injection.
@@ -34,7 +36,7 @@ func NewContextReader(workspaceDir string) *ContextReader {
 // ReadJournal reads the journal for a spec and returns checkpoint entries.
 func (r *ContextReader) ReadJournal(specName string) ([]ContextEntry, error) {
 	safeName := sanitizeSpecName(specName)
-	journalPath := filepath.Join(r.workspaceDir, "specs", "journal", safeName+".implementation.yaml")
+	journalPath := filepath.Join(r.workspaceDir, filepath.FromSlash(vibexpaths.SpecsRootRel), "journal", safeName+".implementation.yaml")
 
 	// Check path is within workspace
 	absPath, _ := filepath.Abs(journalPath)

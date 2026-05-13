@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"vibex-workbench/pkg/vibexpaths"
 )
 
 // ConsistencyIssue represents a governance consistency violation.
@@ -31,8 +33,11 @@ func NewConsistencyEngine(workspaceDir string) *ConsistencyEngine {
 
 // CheckAll runs consistency checks across all specs.
 func (e *ConsistencyEngine) CheckAll() ([]ConsistencyIssue, error) {
-	specsDir := filepath.Join(e.workspaceDir, "specs")
+	specsDir := filepath.Join(e.workspaceDir, filepath.FromSlash(vibexpaths.SpecsRootRel))
 	var issues []ConsistencyIssue
+	if _, statErr := os.Stat(specsDir); os.IsNotExist(statErr) {
+		return issues, nil
+	}
 
 	err := filepath.Walk(specsDir, func(full string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {

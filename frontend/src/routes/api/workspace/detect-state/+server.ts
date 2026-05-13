@@ -13,11 +13,11 @@ export async function POST(event) {
 	const signals: { path: string; exists: boolean; reason: string }[] = [];
 	const suggestions: string[] = [];
 
-	// Check 1: specs/ directory
-	const specsDir = path.join(workspaceRoot, 'specs');
+	// Check 1: .vibex/specs/ directory
+	const specsDir = path.join(workspaceRoot, '.vibex', 'specs');
 	const hasSpecsDir = fs.existsSync(specsDir) && fs.statSync(specsDir).isDirectory();
 	signals.push({
-		path: 'specs/',
+		path: '.vibex/specs/',
 		exists: hasSpecsDir,
 		reason: hasSpecsDir ? '目录存在' : '目录不存在',
 	});
@@ -62,12 +62,12 @@ export async function POST(event) {
 	} else if (hasSpecsDir || hasMakefile || hasPkgJson) {
 		state = 'partial';
 		if (!hasMakefile) suggestions.push('建议: 添加 Makefile（含 generate / lint-specs 目标）');
-		if (!hasSpecsDir) suggestions.push('建议: 运行「初始化脚手架」或手动创建 specs/ 目录');
+		if (!hasSpecsDir) suggestions.push('建议: 运行「初始化脚手架」或手动创建 .vibex/specs/ 目录');
 		if (!hasVerify) suggestions.push('建议: 运行 make verify-specs 编译 verify_specs 二进制');
 	} else {
 		state = 'empty';
 		suggestions.push('📦 点击「初始化脚手架」快速创建最小项目结构');
-		suggestions.push('或手动创建 specs/ 目录并添加第一份 L1 spec');
+		suggestions.push('或手动创建 .vibex/specs/ 目录并添加第一份 L1 spec');
 	}
 
 	return json({ state, signals, suggestions });

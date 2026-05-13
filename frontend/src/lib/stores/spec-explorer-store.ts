@@ -116,6 +116,7 @@ function createSpecExplorerStore() {
 				selectedFilePath: path,
 				selectedSpecPath: null,
 				centerView: 'text',
+				...(path ? { leftActivity: 'explorer' as const } : {}),
 			}));
 		},
 

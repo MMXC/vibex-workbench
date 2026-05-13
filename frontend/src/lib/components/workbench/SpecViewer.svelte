@@ -75,7 +75,7 @@
 		try {
 			const state = get(specExplorerStore);
 			const root = state.workspaceRoot;
-			const content = await wailsReadSpecFile(root, 'specs/meta/goal-aspect-bindings.yaml');
+			const content = await wailsReadSpecFile(root, '.vibex/specs/meta/goal-aspect-bindings.yaml');
 			const b = parseYaml(content) as { goal_spec_path?: string };
 			const g = b.goal_spec_path?.replace(/\\/g, '/') ?? '';
 			const t = goalPath.replace(/\\/g, '/');
@@ -189,7 +189,7 @@
 			const state = get(specExplorerStore);
 			const root = state.workspaceRoot;
 			const normPath = selectedPath.replace(/\\/g, '/');
-			const specsIdx = normPath.indexOf('specs/');
+			const specsIdx = normPath.indexOf('.vibex/specs/');
 			const relPath = specsIdx >= 0 ? normPath.slice(specsIdx) : normPath;
 			await wailsWriteSpecFile(root, relPath, editContent);
 			saveSuccess = true;

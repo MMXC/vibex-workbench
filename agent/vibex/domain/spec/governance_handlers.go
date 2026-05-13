@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"vibex-workbench/pkg/vibexpaths"
 )
 
 // SpecTreeNode represents a node in the spec tree response.
@@ -22,8 +24,11 @@ type SpecTreeNode struct {
 
 // BuildSpecTree builds the full spec tree from the workspace.
 func BuildSpecTree(workspaceDir string) ([]SpecTreeNode, error) {
-	specsDir := filepath.Join(workspaceDir, "specs")
+	specsDir := filepath.Join(workspaceDir, filepath.FromSlash(vibexpaths.SpecsRootRel))
 	var roots []SpecTreeNode
+	if _, statErr := os.Stat(specsDir); os.IsNotExist(statErr) {
+		return roots, nil
+	}
 
 	err := filepath.Walk(specsDir, func(full string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {

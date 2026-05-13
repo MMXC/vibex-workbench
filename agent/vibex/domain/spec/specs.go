@@ -20,7 +20,7 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 		{
 			Name: "spec_feature",
 			Description: "Break a confirmed goal spec into a feature spec (L4). " +
-				"Creates both feature and uiux sub-spec in specs/feature/<name>/. " +
+				"Creates both feature and uiux sub-spec in .vibex/specs/feature/<name>/. " +
 				"AUTO-CHAIN (no user action needed): " +
 				"(1) make validate → (2) make generate → (3) canvas.spec_created SSE emitted. " +
 				"After this tool, the full pipeline is complete — go to next task.",
@@ -35,7 +35,7 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 			Description: "Validate a spec YAML for syntax and required fields. " +
 				"When editing specs for the user's opened project in Workbench, pass workspace_root so paths resolve under that repo (not the workbench install dir).",
 			Parameters: objectSchema(
-				reqField("spec_path", "string", "Relative path under specs/ from workspace root (e.g. specs/L1-goal/foo.yaml), or absolute path inside that workspace"),
+				reqField("spec_path", "string", "Relative path under .vibex/specs/ from workspace root (e.g. .vibex/specs/L1-goal/foo.yaml), or absolute path inside that workspace"),
 				optField("workspace_root", "string", "Open project root; defaults to agent WORKSPACE_DIR when omitted"),
 			),
 			Handler: MakeSpecValidateHandler(workspaceDir, setStepType),
@@ -102,7 +102,7 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 		},
 		{
 			Name: "workspace_detect_state",
-			Description: "Detect workspace state: empty (no specs/gen.py) / partial (specs only) / ready (all scaffolding present). " +
+			Description: "Detect workspace state: empty (missing .vibex/specs or generators/gen.py) / partial (.vibex/specs only) / ready (all scaffolding present). " +
 				"Returns state, detection signals, and next-step suggestions. " +
 				"Use this when starting a new project or when the user asks about project status.",
 			Parameters: objectSchema(
@@ -146,11 +146,11 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 		{
 			Name: "workspace_agent_flow_qa",
 			Description: "Run a user-workspace custom QA flow for generate/run/red-green/screenshot. " +
-				"Reads flow JSON from the opened workspace (default .agents/flows/qa-agent-flow.json) " +
+				"Reads flow JSON from the opened workspace (default .vibex/agents/flows/qa-agent-flow.json) " +
 				"and executes steps sequentially. Supports step types: make/cmd/cdp_validate.",
 			Parameters: objectSchema(
 				reqField("workspace_root", "string", "Opened project root path (required)"),
-				optField("flow_path", "string", "Relative path to workflow JSON in workspace (default .agents/flows/qa-agent-flow.json)"),
+				optField("flow_path", "string", "Relative path to workflow JSON in workspace (default .vibex/agents/flows/qa-agent-flow.json)"),
 				optField("stop_on_failure", "boolean", "Stop pipeline on first failed step (default true)"),
 			),
 			Handler: MakeWorkspaceAgentFlowQAHandler(workspaceDir, setStepType),
@@ -180,7 +180,7 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 		{
 			Name: "workspace_scaffold",
 			Description: "Scaffold a new VibeX project from scratch. " +
-				"Creates the minimal directory structure: specs/, generators/, spec-templates/, Makefile, frontend/package.json. " +
+				"Creates the minimal directory structure: .vibex/specs/, generators/, spec-templates/, Makefile, frontend/package.json. " +
 				"Uses built-in VibeX scaffold templates shipped with the Workbench. " +
 				"IMPORTANT: Must call state_detector FIRST to check current state. " +
 				"Do NOT scaffold into an existing 'ready' workspace.",
@@ -199,7 +199,7 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 				"(workspace_bootstrap_contract chain: goal → skeleton → MOD shell → FEAT starter → SLICE). " +
 				"Target must be a writable workspace root. Call workspace_detect_state first. " +
 				"Requires confirm=true. Use overwrite=true to replace existing bootstrap files. " +
-				"Typically after workspace_scaffold when spec-templates/ exists, or on any repo that already has specs/ layout. " +
+				"Typically after workspace_scaffold when spec-templates/ exists, or on any repo that already has .vibex/specs/ layout. " +
 				"Fallback to legacy generators/spec_workspace_bootstrap.py only when skill execute is unavailable.",
 			Parameters: objectSchema(
 				reqField("workspace_root", "string", "Target workspace root path"),
@@ -219,7 +219,7 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 				"Auto-creates parent directories if needed. " +
 				"After writing, runs a quick validation check and emits canvas.spec_modified event.",
 			Parameters: objectSchema(
-				reqField("spec_path", "string", "Relative path under specs/ from workspace root (e.g. specs/L1-goal/my-goal.yaml)"),
+				reqField("spec_path", "string", "Relative path under .vibex/specs/ from workspace root (e.g. .vibex/specs/L1-goal/my-goal.yaml)"),
 				reqField("content", "string", "Full YAML content to write"),
 				optField("workspace_root", "string", "Open project root; defaults to agent WORKSPACE_DIR when omitted"),
 				optField("validate_after", "boolean", "Run validation after write (default true)"),
@@ -229,9 +229,9 @@ func ToolSpecs(workspaceDir string, bc Broadcaster, setStepType func(threadID, s
 		{
 			Name: "spec_patch_apply",
 			Description: "Apply a partial JSON patch to an existing spec YAML (field-level merge, no full-file rewrite). " +
-				"Only allows paths under specs/. MUST pass workspace_root when patching specs for the user's opened project.",
+				"Only allows paths under .vibex/specs/. MUST pass workspace_root when patching specs for the user's opened project.",
 			Parameters: objectSchema(
-				reqField("spec_path", "string", "Relative path under specs/ from workspace root"),
+				reqField("spec_path", "string", "Relative path under .vibex/specs/ from workspace root"),
 				reqField("patch_json", "string", "JSON object string to merge into YAML (e.g. {\"prototype\":{\"status\":\"prototype\"}})"),
 				optField("workspace_root", "string", "Open project root; defaults to agent WORKSPACE_DIR when omitted"),
 				optField("validate_after", "boolean", "Run validation after patch (default true)"),

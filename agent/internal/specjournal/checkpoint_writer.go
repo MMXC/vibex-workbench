@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"vibex-workbench/pkg/vibexpaths"
 )
 
 // CheckpointEvent represents an agent step event to be logged.
@@ -35,7 +37,7 @@ func NewCheckpointWriter(workspaceDir string) *CheckpointWriter {
 // JournalPath returns the path to the implementation journal for a given spec name.
 func (w *CheckpointWriter) JournalPath(specName string) (string, error) {
 	safeName := sanitizeSpecName(specName)
-	journalDir := filepath.Join(w.workspaceDir, "specs", "journal")
+	journalDir := filepath.Join(w.workspaceDir, filepath.FromSlash(vibexpaths.SpecsRootRel), "journal")
 	if err := os.MkdirAll(journalDir, 0755); err != nil {
 		return "", fmt.Errorf("mkdir journal dir: %w", err)
 	}

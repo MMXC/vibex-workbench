@@ -140,7 +140,7 @@ export const specCommands: SpecCommand[] = [
 		name: '/spec-init-chain',
 		levels: ['L1', 'L2', 'L3', 'L4', 'L5', 'IMPL', 'UNKNOWN'],
 		sample:
-			'/workspace "按「新项目 / 无既有 spec」推进：先与用户澄清项目 slug 与目标边界，再调用 workspace_specs_bootstrap（或 POST /api/workspace/spec-bootstrap，overwrite=false）生成 L1–L5 占位链；遵循 .agents/skills/workspace-bootstrap。写盘前必须用户确认。"',
+			'/workspace "按「新项目 / 无既有 spec」推进：先与用户澄清项目 slug 与目标边界，再调用 workspace_specs_bootstrap（或 POST /api/workspace/spec-bootstrap，overwrite=false）生成 L1–L5 占位链；遵循 .vibex/agents/skills/workspace-bootstrap。写盘前必须用户确认。"',
 		description: '新仓库：澄清澈后初始化 L1–L5 spec 链',
 	},
 	{

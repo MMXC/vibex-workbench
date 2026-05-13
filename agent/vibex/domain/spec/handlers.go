@@ -19,6 +19,7 @@ import (
 	"time"
 
 	rt "vibex/agent/agents/runtime/tools"
+	"vibex-workbench/pkg/vibexpaths"
 
 	"github.com/chromedp/chromedp"
 )
@@ -72,8 +73,8 @@ func MakeSpecDesignerHandler(workspaceDir string, bc Broadcaster, setStepType fu
 		tplContent = strings.ReplaceAll(tplContent, "${TIMESTAMP}", timestamp)
 		tplContent = strings.ReplaceAll(tplContent, "${INTENT}", escapeYAML(intent))
 
-		specsDir := filepath.Join(workspaceDir, "specs")
-		goalDir := filepath.Join(specsDir, "project-goal")
+		specsRoot := filepath.Join(workspaceDir, filepath.FromSlash(vibexpaths.SpecsRootRel))
+		goalDir := filepath.Join(specsRoot, "project-goal")
 		os.MkdirAll(goalDir, 0755)
 		specFile := filepath.Join(goalDir, fmt.Sprintf("intent-%s-%s.yaml",
 			time.Now().Format("20060102-150405"), specID))
@@ -119,7 +120,7 @@ func MakeSpecFeatureHandler(workspaceDir string, bc Broadcaster, setStepType fun
 			return "feature_name is required"
 		}
 
-		specsDir := filepath.Join(workspaceDir, "specs", "feature")
+		specsDir := filepath.Join(workspaceDir, filepath.FromSlash(vibexpaths.SpecsRootRel), "feature")
 		os.MkdirAll(specsDir, 0755)
 
 		b := make([]byte, 4)
@@ -128,7 +129,7 @@ func MakeSpecFeatureHandler(workspaceDir string, bc Broadcaster, setStepType fun
 		safeName := strings.ReplaceAll(strings.ToLower(args.FeatureName), " ", "-")
 
 		// Use sub-directory so feature + sub-specs stay together
-		// dir: specs/feature/<safeName>/
+		// dir: .vibex/specs/feature/<safeName>/
 		featureDir := filepath.Join(specsDir, safeName)
 		os.MkdirAll(featureDir, 0755)
 		specFile := filepath.Join(featureDir, fmt.Sprintf("%s_feature.yaml", safeName))
@@ -422,7 +423,7 @@ func MakeWorkspaceSpecsListHandler(workspaceDir string, setStepType func(threadI
 			return "invalid args: " + err.Error()
 		}
 		root := resolveWorkspaceArg(workspaceDir, args.WorkspaceRoot)
-		specsDir := filepath.Join(root, "specs")
+		specsDir := filepath.Join(root, filepath.FromSlash(vibexpaths.SpecsRootRel))
 		var paths []string
 		if err := filepath.Walk(specsDir, func(full string, info os.FileInfo, err error) error {
 			if err != nil || info == nil || info.IsDir() {
@@ -455,11 +456,11 @@ func MakeWorkspaceSpecsConventionHandler(workspaceDir string, setStepType func(t
 		payload := map[string]any{
 			"workspace_root": workspaceDir,
 			"levels": []map[string]string{
-				{"id": "L1", "directory": "specs/L1-goal", "meaning": "Goal / project intent"},
-				{"id": "L2", "directory": "specs/L2-skeleton", "meaning": "Skeleton / system shape"},
-				{"id": "L3", "directory": "specs/L3-module", "meaning": "Module boundary"},
-				{"id": "L4", "directory": "specs/L4-feature", "meaning": "Feature behavior"},
-				{"id": "L5", "directory": "specs/L5-slice", "meaning": "Slice / implementation unit"},
+				{"id": "L1", "directory": ".vibex/specs/L1-goal", "meaning": "Goal / project intent"},
+				{"id": "L2", "directory": ".vibex/specs/L2-skeleton", "meaning": "Skeleton / system shape"},
+				{"id": "L3", "directory": ".vibex/specs/L3-module", "meaning": "Module boundary"},
+				{"id": "L4", "directory": ".vibex/specs/L4-feature", "meaning": "Feature behavior"},
+				{"id": "L5", "directory": ".vibex/specs/L5-slice", "meaning": "Slice / implementation unit"},
 			},
 			"canonical_slots": []string{"structure", "io.input", "io.output", "constraints", "prototype", "implementation"},
 			"rules": []string{
@@ -611,7 +612,7 @@ func MakeWorkspaceAgentFlowQAHandler(workspaceDir string, setStepType func(threa
 		root = resolveWorkspaceArg(workspaceDir, root)
 		flowPath := strings.TrimSpace(args.FlowPath)
 		if flowPath == "" {
-			flowPath = ".agents/flows/qa-agent-flow.json"
+			flowPath = vibexpaths.AgentsRootRel + "/flows/qa-agent-flow.json"
 		}
 		if filepath.IsAbs(flowPath) {
 			return "flow_path must be relative to workspace_root"
@@ -1171,7 +1172,7 @@ func resolveWorkspaceArg(defaultRoot, root string) string {
 }
 
 // specAbsUnderWorkspace resolves spec_path relative to targetRoot (the opened project root)
-// or accepts an absolute path only if it stays under targetRoot/specs/.
+// or accepts an absolute path only if it stays under targetRoot/.vibex/specs/.
 func specAbsUnderWorkspace(targetRoot, specPath string) (string, error) {
 	tr := filepath.Clean(strings.TrimSpace(targetRoot))
 	if tr == "" {
@@ -1195,8 +1196,9 @@ func specAbsUnderWorkspace(targetRoot, specPath string) (string, error) {
 		return "", fmt.Errorf("forbidden: spec_path escapes workspace root")
 	}
 	slash := filepath.ToSlash(relTr)
-	if !strings.HasPrefix(slash, "specs/") && slash != "specs" {
-		return "", fmt.Errorf("forbidden: spec_path must be under specs/ (relative to workspace root)")
+	specPrefix := vibexpaths.SpecsRootRel + "/"
+	if !strings.HasPrefix(slash, specPrefix) && slash != vibexpaths.SpecsRootRel {
+		return "", fmt.Errorf("forbidden: spec_path must be under %s/ (relative to workspace root)", vibexpaths.SpecsRootRel)
 	}
 	return abs, nil
 }
@@ -1206,14 +1208,15 @@ func governanceSummary(root string) map[string]any {
 		"workspace_root": root,
 		"ok":             true,
 	}
-	if _, err := os.Stat(filepath.Join(root, "specs", "_governance", "panorama.json")); err == nil {
+	specsRoot := filepath.Join(root, filepath.FromSlash(vibexpaths.SpecsRootRel))
+	if _, err := os.Stat(filepath.Join(specsRoot, "_governance", "panorama.json")); err == nil {
 		summary["panorama"] = "present"
 	} else {
 		summary["panorama"] = "missing"
 	}
 	counts := map[string]int{}
 	total := 0
-	_ = filepath.Walk(filepath.Join(root, "specs"), func(full string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(specsRoot, func(full string, info os.FileInfo, err error) error {
 		if err != nil || info == nil || info.IsDir() {
 			return nil
 		}
@@ -1221,7 +1224,7 @@ func governanceSummary(root string) map[string]any {
 			return nil
 		}
 		total++
-		if rel, relErr := filepath.Rel(filepath.Join(root, "specs"), full); relErr == nil {
+		if rel, relErr := filepath.Rel(specsRoot, full); relErr == nil {
 			parts := strings.Split(filepath.ToSlash(rel), "/")
 			if len(parts) > 0 {
 				counts[parts[0]]++
@@ -1359,7 +1362,7 @@ func MakeWorkspaceSpecsBootstrapHandler(workspaceDir string, setStepType func(th
 
 		skillScript := filepath.Join(
 			workspaceDir,
-			".agents", "skills", "workspace-bootstrap", "scripts", "execute.py",
+			filepath.FromSlash(vibexpaths.AgentsRootRel), "skills", "workspace-bootstrap", "scripts", "execute.py",
 		)
 		legacyScript := filepath.Join(workspaceDir, "generators", "spec_workspace_bootstrap.py")
 		useLegacy := false

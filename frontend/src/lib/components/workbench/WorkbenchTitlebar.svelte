@@ -47,7 +47,7 @@
 		return !!r && (r.includes('/') || r.includes('\\'));
 	}
 
-	/** 代码侧创建标准 specs/L1…L5 目录，不依赖 agent 随意命名。 */
+	/** 代码侧创建标准 .vibex/specs/L1…L5 目录，不依赖 agent 随意命名。 */
 	async function initSpecsLayout() {
 		const root = $specExplorerStore.workspaceRoot;
 		if (!isWorkspaceOpen()) return;

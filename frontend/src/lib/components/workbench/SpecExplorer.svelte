@@ -19,7 +19,7 @@
 	}
 
 	function isSpecFile(path: string): boolean {
-		return path.startsWith('specs/') && /\.ya?ml$/i.test(path);
+		return path.startsWith('.vibex/specs/') && /\.ya?ml$/i.test(path);
 	}
 
 	function depthOf(path: string): number {

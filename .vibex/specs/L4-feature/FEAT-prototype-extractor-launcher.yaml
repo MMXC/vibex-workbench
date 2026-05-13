@@ -41,7 +41,7 @@ behaviors:
     trigger: 插件提取完成，用户切回 workbench
     action: |
       1. workbench 监听文件变化（fs watcher 或轮询）
-      2. 检测到 .vibex/specs/prototypes/{name}.html 变化
+      2. 检测到 `.vibex/prototypes/{name}.html` 变化（工作区根下固定目录）
       3. 刷新原型预览区
       4. 触发 agent 读取 HTML 推导 spec 变更
 

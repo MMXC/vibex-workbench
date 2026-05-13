@@ -27,7 +27,7 @@ io_contract:
   outputs:
     - name: extracted_html
       type: file
-      path: "{workspace_root}/.vibex/specs/prototypes/{spec-name}.html"
+      path: "{workspace_root}/.vibex/prototypes/{spec-name}.html"
       description: 独立自包含的 HTML 原型文件（无外部依赖，内联 CSS）
     - name: spec_yaml_fragment
       type: YAML
@@ -56,7 +56,7 @@ behaviors:
   - id: B3
     trigger: 提取完成
     action: |
-      1. 生成 .html 文件 → .vibex/specs/prototypes/{name}.html
+      1. 生成 .html 文件 → `.vibex/prototypes/{name}.html`
       2. 生成 YAML 片段（metadata + prototype 字段）→ clipboard 或直接写入
     side_effect: |
       原始 URL、时间戳、提取标签写入 YAML header 元数据
@@ -64,7 +64,7 @@ behaviors:
   - id: B4
     trigger: 用户将提取物导入 vibex-workbench
     action: |
-      1. HTML 写入 .vibex/specs/prototypes/{spec-name}.html
+      1. HTML 写入 `.vibex/prototypes/{spec-name}.html`
       2. YAML fragment 合并到 spec 的 prototype 字段
       3. Workbench 预览区展示 HTML
     note: vibex-workbench 端预览能力已有，只需适配导入流程

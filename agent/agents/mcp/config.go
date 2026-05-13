@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	DefaultConfigPath        = ".agents/mcp/config.json"
+	DefaultConfigPath        = ".vibex/agents/mcp/config.json"
 	DefaultConfigVersion     = 1
 	DefaultTransport         = "stdio"
 	DefaultStartupTimeoutSec = 10

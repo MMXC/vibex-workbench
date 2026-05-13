@@ -4,10 +4,10 @@
   Implements level_rules from FEAT-spec-graph-expansion.yaml
 
   Level mapping:
-    L1 → L2 | target: specs/L2-skeleton/
-    L2 → L3 | target: specs/L3-module/
-    L3 → L4 | target: specs/L4-feature/
-    L4 → L5 | target: specs/L5-slice/
+    L1 → L2 | target: .vibex/specs/L2-skeleton/
+    L2 → L3 | target: .vibex/specs/L3-module/
+    L3 → L4 | target: .vibex/specs/L4-feature/
+    L4 → L5 | target: .vibex/specs/L5-slice/
     L5 → none (boundary, no children allowed)
 -->
 <script lang="ts">
@@ -37,10 +37,10 @@
 
 	// Level → child level + target directory
 	const levelRules: Record<string, { childLevel: string; targetDir: string } | null> = {
-		L1: { childLevel: 'L2', targetDir: 'specs/L2-skeleton/' },
-		L2: { childLevel: 'L3', targetDir: 'specs/L3-module/' },
-		L3: { childLevel: 'L4', targetDir: 'specs/L4-feature/' },
-		L4: { childLevel: 'L5', targetDir: 'specs/L5-slice/' },
+		L1: { childLevel: 'L2', targetDir: '.vibex/specs/L2-skeleton/' },
+		L2: { childLevel: 'L3', targetDir: '.vibex/specs/L3-module/' },
+		L3: { childLevel: 'L4', targetDir: '.vibex/specs/L4-feature/' },
+		L4: { childLevel: 'L5', targetDir: '.vibex/specs/L5-slice/' },
 		L5: null, // L5 is the implementation boundary — no further children
 	};
 

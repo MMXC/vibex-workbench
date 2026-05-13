@@ -13,6 +13,8 @@ export interface Message {
   role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   createdAt: string;
+  /** 工具调用关联的工作区相对路径，用于在中央打开只读预览 */
+  toolOpenPath?: string | null;
 }
 
 export interface ThreadState {
@@ -107,6 +109,45 @@ function createThreadStore() {
             ...s.messagesByThread,
             [threadId]: [...existing, message],
           },
+        };
+      });
+    },
+
+    /**
+     * 工具调用气泡：尽量插在「当前流式 assistant」之前，便于阅读顺序与 Cursor 对齐。
+     */
+    appendToolCallMessage(threadId: string, message: Message) {
+      update(s => {
+        const existing = s.messagesByThread[threadId] ?? [];
+        if (existing.some(m => m.id === message.id)) return s;
+        const pending = s.pendingAssistantIdByThread[threadId];
+        const msgs = [...existing];
+        const last = msgs[msgs.length - 1];
+        if (
+          pending &&
+          last?.role === 'assistant' &&
+          (last.id === pending || last.id === '__streaming__')
+        ) {
+          msgs.splice(msgs.length - 1, 0, message);
+        } else {
+          msgs.push(message);
+        }
+        return {
+          ...s,
+          messagesByThread: { ...s.messagesByThread, [threadId]: msgs },
+        };
+      });
+    },
+
+    patchMessage(threadId: string, messageId: string, patch: Partial<Message>) {
+      update(s => {
+        const msgs = [...(s.messagesByThread[threadId] ?? [])];
+        const i = msgs.findIndex(m => m.id === messageId);
+        if (i < 0) return s;
+        msgs[i] = { ...msgs[i], ...patch };
+        return {
+          ...s,
+          messagesByThread: { ...s.messagesByThread, [threadId]: msgs },
         };
       });
     },

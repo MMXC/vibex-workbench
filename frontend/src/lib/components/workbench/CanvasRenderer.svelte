@@ -14,8 +14,11 @@ E5-U4: SSE → canvasStore → 渲染层同步
     type Node,
     type Edge,
   } from '@xyflow/svelte';
+  import { get } from 'svelte/store';
   import '@xyflow/svelte/dist/style.css';
   import { canvasStore } from '$lib/stores/canvas-store';
+  import { specSearchCanvasStore } from '$lib/stores/spec-search-canvas-store';
+  import SpecSearchCandidateNode from '$lib/components/workbench/flow-nodes/SpecSearchCandidateNode.svelte';
   import {
     aiBlocksStore,
     type AiBlock,
@@ -34,6 +37,8 @@ E5-U4: SSE → canvasStore → 渲染层同步
   let skillPayload = $state<CanvasSkillPayload | null>(null);
   let templateId = $state<'spec_bootstrap_flow' | 'legacy_align_flow'>('spec_bootstrap_flow');
 
+  const nodeTypes = { specCandidate: SpecSearchCandidateNode };
+
   const templatePresets: Record<string, CanvasSkillPayload> = {
     spec_bootstrap_flow: {
       template: 'spec_bootstrap_flow',
@@ -49,7 +54,7 @@ E5-U4: SSE → canvasStore → 渲染层同步
           label: '请求初始化',
           type: 'request_api',
           variant: 'primary',
-          confirm: '将写入 specs/L1~L5 占位文件，是否继续？',
+          confirm: '将写入 .vibex/specs/L1~L5 占位文件，是否继续？',
           payload: { endpoint: '/api/workspace/spec-bootstrap', method: 'POST', workspace_root: '<workspace_root>' },
         },
         { id: 'cancel', label: '取消', type: 'cancel', variant: 'secondary' },
@@ -80,6 +85,40 @@ E5-U4: SSE → canvasStore → 渲染层同步
     const unsub = canvasStore.subscribe(s => {
       storeNodes = s.nodes as unknown as Node[];
       storeEdges = s.edges as unknown as Edge[];
+    });
+    return unsub;
+  });
+
+  /** Agent 检索候选 → 画布节点（id 前缀 speccand:，与 SSE run/tool 共存） */
+  $effect(() => {
+    let prevSig = '';
+    const unsub = specSearchCanvasStore.subscribe(s => {
+      const sig = JSON.stringify({
+        u: s.updatedAt,
+        q: s.query,
+        rs: s.resultSetId,
+        ids: s.candidates.map(c => c.id),
+      });
+      if (sig === prevSig) return;
+      prevSig = sig;
+      const snap = get(canvasStore);
+      for (const id of snap.nodes.filter(n => n.id.startsWith('speccand:')).map(n => n.id)) {
+        canvasStore.removeNode(id);
+      }
+      s.candidates.forEach((c, i) => {
+        canvasStore.addNode({
+          id: `speccand:${s.resultSetId}:${c.id}`,
+          type: 'specCandidate',
+          position: { x: 72 + (i % 3) * 300, y: 248 + Math.floor(i / 3) * 172 },
+          data: {
+            path: c.path,
+            title: c.title ?? c.path.split('/').pop() ?? c.path,
+            snippet: c.snippet ?? '',
+            score: c.score,
+            query: s.query,
+          },
+        });
+      });
     });
     return unsub;
   });
@@ -219,6 +258,14 @@ E5-U4: SSE → canvasStore → 渲染层同步
       <option value="legacy_align_flow">legacy_align_flow</option>
     </select>
     <button type="button" class="primary" onclick={insertTemplateToComposer}>插入模板到 Composer</button>
+    <button
+      type="button"
+      class="ghost"
+      title="清除 agent 推送到画布的 spec 候选节点"
+      onclick={() => specSearchCanvasStore.clear()}
+    >
+      清除 spec 候选
+    </button>
   </aside>
 
   {#if skillPayload}
@@ -295,8 +342,10 @@ E5-U4: SSE → canvasStore → 渲染层同步
   </aside>
 
   <SvelteFlow
+    class="dark"
     nodes={storeNodes}
     edges={storeEdges}
+    {nodeTypes}
     fitView
     onnodeclick={({ node }) => {
       if (!node?.id) return;
@@ -306,7 +355,11 @@ E5-U4: SSE → canvasStore → 渲染层同步
     onnodedragstop={handleNodeDragStop}
   >
     <Controls />
-    <Background />
+    <Background
+      bgColor="var(--wb-bg-base, #11141b)"
+      patternColor="rgba(122, 162, 255, 0.12)"
+      gap={22}
+    />
   </SvelteFlow>
 
   <!-- E5-U3: 节点详情面板 -->
@@ -323,7 +376,18 @@ E5-U4: SSE → canvasStore → 渲染层同步
           <button onclick={closeDetail}>×</button>
         </div>
         <div class="detail-body">
-          {#if detailNode.data?.args}
+          {#if detailNode.type === 'specCandidate' && detailNode.data?.path}
+            <div class="detail-section">
+              <span class="detail-key">path</span>
+              <pre class="detail-code">{String(detailNode.data.path)}</pre>
+            </div>
+            {#if detailNode.data?.snippet}
+              <div class="detail-section">
+                <span class="detail-key">snippet</span>
+                <pre class="detail-code">{String(detailNode.data.snippet)}</pre>
+              </div>
+            {/if}
+          {:else if detailNode.data?.args}
             <div class="detail-section">
               <span class="detail-key">args:</span>
               <pre class="detail-code">{JSON.stringify(detailNode.data.args, null, 2)}</pre>
@@ -355,7 +419,28 @@ E5-U4: SSE → canvasStore → 渲染层同步
 
 <style>
   .canvas-renderer { width: 100%; height: 100%; position: relative; }
-  :global(.svelte-flow) { background: var(--wb-bg-base, #0b0c10); }
+
+  /*
+   * Svelte Flow：库 Wrapper 用 --background-color（:root 默认 #fff），与暗色工作台冲突。
+   * class="dark" 激活 style.css 中 .svelte-flow.dark 的节点/边/控件变量；再对齐 --wb-*。
+   */
+  .canvas-renderer :global(.svelte-flow.svelte-flow__container.dark) {
+    --background-color: var(--wb-bg-base, #11141b);
+    color: var(--wb-text, #d4d8e3);
+    --xy-background-color: var(--wb-bg-base, #11141b);
+    --xy-background-pattern-dots-color: rgba(122, 162, 255, 0.12);
+    --xy-edge-stroke: rgba(163, 171, 185, 0.45);
+    --xy-edge-stroke-selected: rgba(122, 162, 255, 0.85);
+    --xy-node-background-color: var(--wb-bg-panel-2, #1c202a);
+    --xy-node-border: 1px solid #303746;
+    --xy-node-color: var(--wb-text, #eef0f5);
+    --xy-controls-button-background-color: var(--wb-bg-panel-2, #1c202a);
+    --xy-controls-button-background-color-hover: var(--wb-bg-panel-3, #242936);
+    --xy-controls-button-color: var(--wb-text-sec, #a3abb9);
+    --xy-controls-button-color-hover: var(--wb-text, #eef0f5);
+    --xy-controls-button-border-color: #303746;
+  }
+
   :global(.svelte-flow .node) { border-radius: 6px; }
 
   .skill-template-picker {
@@ -388,6 +473,17 @@ E5-U4: SSE → canvasStore → 渲染层同步
     font-size: 12px;
     padding: 5px 8px;
     cursor: pointer;
+  }
+
+  .skill-template-picker button.ghost {
+    border-color: #465064;
+    background: rgba(28, 32, 42, 0.78);
+    color: #a3abb9;
+  }
+
+  .skill-template-picker button.ghost:hover {
+    border-color: #7aa2ff;
+    color: #eef0f5;
   }
 
   .skill-panel {

@@ -1,0 +1,80 @@
+{
+  "session_id": "gs-2026-05-11-9c1cfe14",
+  "started_at": "2026-05-13T18:39:49.419682",
+  "questions": [
+    {
+      "id": 1,
+      "question": "目标用户是谁？",
+      "recommended_answer": "A",
+      "user_answer": "A",
+      "branch": "scope"
+    },
+    {
+      "id": 2,
+      "question": "业务目标是什么？",
+      "recommended_answer": "spec 原型治理工作台",
+      "user_answer": "spec 原型治理工作台",
+      "branch": "scope"
+    },
+    {
+      "id": 3,
+      "question": "核心动作是什么？",
+      "recommended_answer": "E",
+      "user_answer": "E",
+      "branch": "scope"
+    },
+    {
+      "id": 4,
+      "question": "验收标准是什么？",
+      "recommended_answer": "B",
+      "user_answer": "B",
+      "branch": "acceptance"
+    },
+    {
+      "id": 5,
+      "question": "页面目的是什么？",
+      "recommended_answer": "三层架构",
+      "user_answer": "三层架构",
+      "branch": "ux"
+    },
+    {
+      "id": 6,
+      "question": "UI 模块列表？",
+      "recommended_answer": "F",
+      "user_answer": "F",
+      "branch": "ux"
+    },
+    {
+      "id": 7,
+      "question": "状态矩阵？",
+      "recommended_answer": "B",
+      "user_answer": "B",
+      "branch": "ux"
+    },
+    {
+      "id": 8,
+      "question": "响应式策略？",
+      "recommended_answer": "A",
+      "user_answer": "A",
+      "branch": "ux"
+    },
+    {
+      "id": 9,
+      "question": "验收要点？",
+      "recommended_answer": "C",
+      "user_answer": "C",
+      "branch": "acceptance"
+    }
+  ],
+  "consensus": {
+    "summary": "spec 原型治理工作台 MVP — 桌面优先 IDE-like 单页应用，跑完完整 spec→原型→spec→迭代闭环即交付",
+    "key_decisions": [
+      "target_user: 个人开发者",
+      "business_goal: spec 原型治理工作台（三层架构）",
+      "primary_action: 整个 spec 原型治理循环链路",
+      "success_criteria: 跑完一次完整闭环",
+      "ui_spec: 6 模块 / 5 状态 / desktop-first 响应式 / 3 验收项"
+    ]
+  },
+  "spec_draft_path": ".vibex/specs/L1-goal/vibex-workbench-mvp.yaml"
+}

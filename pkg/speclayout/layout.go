@@ -1,22 +1,25 @@
-// Package speclayout creates canonical specs/L1–L5 directory buckets under a workspace root.
+// Package speclayout creates canonical .vibex/specs/L1–L5 buckets under a workspace root.
 package speclayout
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"vibex-workbench/pkg/vibexpaths"
 )
 
 // CanonicalDirs are paths relative to workspace root (POSIX slashes for JSON/logging).
 // Keep in sync with frontend CANONICAL_SPEC_SUBDIRS in spec-layout-dirs.ts.
 var CanonicalDirs = []string{
-	"specs/L1-goal",
-	"specs/L2-skeleton",
-	"specs/L3-module",
-	"specs/L4-feature",
-	"specs/L5-slice",
-	"specs/_governance",
-	".agents/flows",
+	vibexpaths.SpecsRootRel + "/L1-goal",
+	vibexpaths.SpecsRootRel + "/L2-skeleton",
+	vibexpaths.SpecsRootRel + "/L3-module",
+	vibexpaths.SpecsRootRel + "/L4-feature",
+	vibexpaths.SpecsRootRel + "/L5-slice",
+	vibexpaths.SpecsRootRel + "/_governance",
+	vibexpaths.AgentsRootRel + "/flows",
+	vibexpaths.PrototypesRootRel,
 }
 
 // EnsureCanonicalDirs creates standard VibeX specs hierarchy; idempotent (MkdirAll).

@@ -3,6 +3,7 @@
 	import { get } from 'svelte/store';
 	import { specSlotSessionStore, type SpecSlotSession } from '$lib/stores/spec-slot-session-store';
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
+	import ToolChatBubble from '$lib/components/workbench/ToolChatBubble.svelte';
 	import { fetchAgentCommands, type AgentCommand } from '$lib/workbench/agent-commands';
 
 	let { session }: { session: SpecSlotSession } = $props();
@@ -120,7 +121,30 @@
 			<span class="k">Clarification Chat</span>
 			<h3>{session.slot.label} · {session.spec.display.title}</h3>
 		</div>
-		<span class="status {session.status}">{session.status}</span>
+		<div class="head-actions">
+			{#if session.status === 'running'}
+				<div class="run-controls" role="group" aria-label="Agent 运行控制">
+					<button type="button" class="btn-run btn-abort" onclick={() => specSlotSessionStore.abortActiveAgent()}>
+						中止
+					</button>
+					<button type="button" class="btn-run btn-revert" onclick={() => specSlotSessionStore.revertActiveAgentTurn()}>
+						回滚本轮
+					</button>
+				</div>
+			{:else if session.pendingResumePrompt?.trim()}
+				<button
+					type="button"
+					class="btn-run btn-resume"
+					onclick={() => specSlotSessionStore.resumeInterruptedAgentTurn()}
+				>
+					继续
+				</button>
+				<button type="button" class="btn-run btn-revert" onclick={() => specSlotSessionStore.revertActiveAgentTurn()}>
+					回滚本轮
+				</button>
+			{/if}
+			<span class="status {session.status}">{session.status}</span>
+		</div>
 	</header>
 
 	<div class="quick-row" aria-label="快捷澄清问题">
@@ -134,7 +158,11 @@
 		{#each session.messages as message (message.id)}
 			<div class="msg {message.role}">
 				<span>{message.role}</span>
-				<pre>{message.content}</pre>
+				{#if message.role === 'tool'}
+					<ToolChatBubble content={message.content} openPath={message.toolOpenPath} />
+				{:else}
+					<pre>{message.content}</pre>
+				{/if}
 			</div>
 		{/each}
 		{#if session.error}
@@ -238,6 +266,48 @@
 		padding: 14px;
 		border-bottom: 1px solid #303746;
 		background: rgba(28, 32, 42, 0.84);
+	}
+
+	.head-actions {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		flex-shrink: 0;
+	}
+
+	.run-controls {
+		display: flex;
+		gap: 6px;
+	}
+
+	.btn-run {
+		border-radius: 8px;
+		padding: 5px 10px;
+		font-size: 11px;
+		font-weight: 700;
+		cursor: pointer;
+		border: 1px solid #3d4656;
+		background: #1c2130;
+		color: #c8d0e0;
+	}
+
+	.btn-run:hover {
+		background: #252b3a;
+	}
+
+	.btn-abort {
+		border-color: rgba(239, 198, 107, 0.45);
+		color: #efc66b;
+	}
+
+	.btn-revert {
+		border-color: rgba(248, 113, 113, 0.45);
+		color: #f87171;
+	}
+
+	.btn-resume {
+		border-color: rgba(114, 214, 208, 0.45);
+		color: #72d6d0;
 	}
 
 	.k {
@@ -362,6 +432,10 @@
 	.msg.system pre {
 		background: rgba(239, 198, 107, 0.08);
 		border-color: rgba(239, 198, 107, 0.34);
+	}
+
+	.msg.tool span {
+		color: #d4a574;
 	}
 
 	.input {

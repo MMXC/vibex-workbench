@@ -6,9 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"vibex-workbench/pkg/vibexpaths"
 )
 
-// AgentPromptConfig matches `.agents/agents/*.json` — same schema as general-agent plus optional tool/skill routing for specialized agents.
+// AgentPromptConfig matches `.vibex/agents/agents/*.json` — same schema as general-agent plus optional tool/skill routing for specialized agents.
 type AgentPromptConfig struct {
 	PromptFile     string            `json:"prompt_file"`
 	Adapters       map[string]string `json:"adapters"`
@@ -46,9 +48,9 @@ func ApplyAgentPromptConfig(workspaceDir string, cfg *AgentPromptConfig, adapter
 	return msg
 }
 
-// ResolveDeveloperMessage loads the default agent from `.agents/agents/general-agent.json`.
+// ResolveDeveloperMessage loads the default agent from `.vibex/agents/agents/general-agent.json`.
 func ResolveDeveloperMessage(workspaceDir, adapter, fallback string) string {
-	cfgPath := filepath.Join(workspaceDir, ".agents", "agents", "general-agent.json")
+	cfgPath := filepath.Join(workspaceDir, filepath.FromSlash(vibexpaths.AgentsRootRel), "agents", "general-agent.json")
 	raw, err := os.ReadFile(cfgPath)
 	if err != nil {
 		return strings.TrimSpace(fallback)
@@ -65,14 +67,14 @@ func ResolveDeveloperMessage(workspaceDir, adapter, fallback string) string {
 	return msg
 }
 
-// LoadSpecializedAgent reads `.agents/agents/<slug>.json` (same schema as general-agent).
+// LoadSpecializedAgent reads `.vibex/agents/agents/<slug>.json` (same schema as general-agent).
 // Used when chat passes agent_profile=<slug>. Does not read general-agent.json (use ResolveDeveloperMessage for that).
 func LoadSpecializedAgent(workspaceDir, slug, adapter string) (developerMessage string, requiredSkills []string, allowedTools []string, ok bool) {
 	slug = strings.TrimSpace(strings.ToLower(slug))
 	if slug == "" || slug == "general-agent" {
 		return "", nil, nil, false
 	}
-	cfgPath := filepath.Join(workspaceDir, ".agents", "agents", slug+".json")
+	cfgPath := filepath.Join(workspaceDir, filepath.FromSlash(vibexpaths.AgentsRootRel), "agents", slug+".json")
 	raw, err := os.ReadFile(cfgPath)
 	if err != nil {
 		return "", nil, nil, false

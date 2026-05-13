@@ -251,6 +251,8 @@
 		lines: string[];
 		primaryTheme: string;
 		themeCandidates: string[];
+		/** 写入 agent 提示的路径（新版 .vibex/agents，兼容旧 .agents） */
+		templateFileForPrompt: string;
 	};
 
 	function defaultThemeByLevel(levelTag: 'L1' | 'L2' | 'L3' | 'L4' | 'L5' | 'UNK'): string {
@@ -274,45 +276,49 @@
 		workspaceRoot: string,
 		levelTag: 'L1' | 'L2' | 'L3' | 'L4' | 'L5' | 'UNK'
 	): Promise<LayerPromptConfig> {
+		const preferredRel = '.vibex/agents/ppt-layer-templates.yaml';
 		const fallback: LayerPromptConfig = {
 			lines: getLayerSlideTemplate(levelTag),
 			primaryTheme: defaultThemeByLevel(levelTag),
 			themeCandidates: ['blueprint', 'tokyo-night', 'corporate-clean'],
+			templateFileForPrompt: preferredRel,
 		};
-		try {
-			const raw = String(
-				await wailsReadSpecFile(workspaceRoot, '.agents/ppt-layer-templates.yaml')
-			);
-			const doc = parseYaml(raw) as Record<string, unknown> | null;
-			const style = (doc?.style ?? {}) as Record<string, unknown>;
-			const themeCandidates = Array.isArray(style.theme_candidates)
-				? style.theme_candidates.map(v => String(v)).filter(Boolean)
-				: fallback.themeCandidates;
-			const themeByLevel = (style.theme_by_level ?? {}) as Record<string, unknown>;
-			const primaryTheme =
-				String(themeByLevel[levelTag] ?? '').trim() ||
-				String(themeByLevel.UNK ?? '').trim() ||
-				fallback.primaryTheme;
-			const rules = Array.isArray(style.rules)
-				? style.rules.map(v => String(v)).filter(Boolean)
-				: [];
-			const layers = (doc?.layers ?? {}) as Record<string, unknown>;
-			const layerItems = Array.isArray(layers[levelTag])
-				? (layers[levelTag] as unknown[]).map(v => String(v)).filter(Boolean)
-				: [];
-			const fallbackItems = Array.isArray(layers.UNK)
-				? (layers.UNK as unknown[]).map(v => String(v)).filter(Boolean)
-				: [];
-			const merged = [...rules, ...(layerItems.length > 0 ? layerItems : fallbackItems)];
-			if (merged.length > 0) {
-				return {
-					lines: merged,
-					primaryTheme,
-					themeCandidates,
-				};
+		const candidates = [preferredRel];
+		for (const rel of candidates) {
+			try {
+				const raw = String(await wailsReadSpecFile(workspaceRoot, rel));
+				const doc = parseYaml(raw) as Record<string, unknown> | null;
+				const style = (doc?.style ?? {}) as Record<string, unknown>;
+				const themeCandidates = Array.isArray(style.theme_candidates)
+					? style.theme_candidates.map(v => String(v)).filter(Boolean)
+					: fallback.themeCandidates;
+				const themeByLevel = (style.theme_by_level ?? {}) as Record<string, unknown>;
+				const primaryTheme =
+					String(themeByLevel[levelTag] ?? '').trim() ||
+					String(themeByLevel.UNK ?? '').trim() ||
+					fallback.primaryTheme;
+				const rules = Array.isArray(style.rules)
+					? style.rules.map(v => String(v)).filter(Boolean)
+					: [];
+				const layers = (doc?.layers ?? {}) as Record<string, unknown>;
+				const layerItems = Array.isArray(layers[levelTag])
+					? (layers[levelTag] as unknown[]).map(v => String(v)).filter(Boolean)
+					: [];
+				const fallbackItems = Array.isArray(layers.UNK)
+					? (layers.UNK as unknown[]).map(v => String(v)).filter(Boolean)
+					: [];
+				const merged = [...rules, ...(layerItems.length > 0 ? layerItems : fallbackItems)];
+				if (merged.length > 0) {
+					return {
+						lines: merged,
+						primaryTheme,
+						themeCandidates,
+						templateFileForPrompt: rel,
+					};
+				}
+			} catch {
+				// try next candidate
 			}
-		} catch {
-			// fallback to builtin template
 		}
 		return fallback;
 	}
@@ -671,7 +677,7 @@
 			const threadId = `ppt-${basenameNoExt(specPath)}-${Date.now()}`;
 			const levelTag = getSpecLevelTag(currentSpecContent);
 			const layerConfig = await loadLayerSlideTemplate(wsRoot, levelTag);
-			const templateFile = '.agents/ppt-layer-templates.yaml';
+			const templateFile = layerConfig.templateFileForPrompt;
 			const prompt = [
 				'你是 VibeX Workbench 的原型生成代理（针对当前打开的工作区）。',
 				'必须使用 html-ppt skill 生成可运行的 spec 说明型 PPT（HTML）。',
@@ -759,7 +765,7 @@
 
 	function relSpecsPathForWrite(p: string): string {
 		const norm = p.replace(/\\/g, '/');
-		const i = norm.indexOf('specs/');
+		const i = norm.indexOf('.vibex/specs/');
 		return i >= 0 ? norm.slice(i) : norm;
 	}
 

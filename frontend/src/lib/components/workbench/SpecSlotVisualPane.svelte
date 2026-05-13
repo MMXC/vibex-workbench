@@ -2,7 +2,6 @@
 	import { specSlotSessionStore } from '$lib/stores/spec-slot-session-store';
 	import type { SpecSlotSession } from '$lib/stores/spec-slot-session-store';
 	import SpecSlotA2UIStage from '$lib/components/workbench/SpecSlotA2UIStage.svelte';
-	import SpecSlotPrototypeKitBar from '$lib/components/workbench/SpecSlotPrototypeKitBar.svelte';
 
 	let { session }: { session: SpecSlotSession } = $props();
 
@@ -349,15 +348,6 @@
 		</div>
 	</details>
 
-	{#if session.slot.id === 'prototype'}
-		<details class="drawer kit-drawer" open>
-			<summary class="drawer-sum">设计物料库 · DESIGN.md / 从页面提取 · Shell 路由</summary>
-			<div class="drawer-body kit-body">
-				<SpecSlotPrototypeKitBar {session} />
-			</div>
-		</details>
-	{/if}
-
 	<details class="drawer verify-drawer" open={verificationRequired}>
 		<summary class="drawer-sum">强校验 · Verification Bar</summary>
 		<div class="drawer-body verify-body">
@@ -550,11 +540,6 @@
 		gap: 10px;
 		max-height: 40vh;
 		overflow: auto;
-	}
-
-	.kit-body {
-		max-height: 48vh;
-		padding-top: 4px;
 	}
 
 	.map-card,

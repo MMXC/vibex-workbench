@@ -93,7 +93,7 @@
       '      - "初始版本"',
     ].join('\n');
 
-    const relPath = 'specs/L1-goal/' + slug + '.yaml';
+    const relPath = '.vibex/specs/L1-goal/' + slug + '.yaml';
 
     try {
       const res = await fetch('/api/workspace/specs/write', {
@@ -132,7 +132,7 @@
 
   <div class="wizard-body">
     <p class="wizard-desc">
-      在 <code>{workspaceRoot}/specs/L1-goal/</code> 下创建项目目标规格文件。
+      在 <code>{workspaceRoot}/.vibex/specs/L1-goal/</code> 下创建项目目标规格文件。
     </p>
 
     <label class="field">
@@ -148,7 +148,7 @@
       {#if nameError}
         <span class="field-error">{nameError}</span>
       {/if}
-      <span class="field-hint">路径：specs/L1-goal/<strong>{projectName || '...'}</strong>.yaml</span>
+      <span class="field-hint">路径：.vibex/specs/L1-goal/<strong>{projectName || '...'}</strong>.yaml</span>
     </label>
 
     <label class="field">

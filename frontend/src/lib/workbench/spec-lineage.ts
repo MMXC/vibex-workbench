@@ -91,7 +91,7 @@ export type SpecNameCatalogEntry = { path: string; name: string };
 
 /**
  * 将单个引用解析为仓库内 specs 相对路径（用于跳转）。
- * - 已是 `specs/...yaml` 则直接规范化
+ * - 已是 `.vibex/specs/...yaml` 则直接规范化
  * - 若提供 catalog：按 **spec.name 与 ref 全字匹配**（trim 后严格相等）优先，避免启发式错指目录
  * - 否则走 convention + inferParentSpecPath + 目录启发式
  */
@@ -102,7 +102,9 @@ export function resolveSpecRefToPath(
 ): string | null {
 	const r = ref.trim().replace(/\\/g, '/');
 	if (!r) return null;
-	if (r.startsWith('specs/') && /\.ya?ml$/i.test(r)) return normalizeSpecPath(r);
+	if (r.startsWith('.vibex/specs/') && /\.ya?ml$/i.test(r)) {
+		return normalizeSpecPath(r);
+	}
 
 	const refName = ref.trim();
 	if (catalog?.length) {
@@ -113,14 +115,13 @@ export function resolveSpecRefToPath(
 	const mapped = inferParentSpecPath(ref, convention ?? null);
 	if (mapped) return normalizeSpecPath(mapped);
 
-	if (/^MOD-[A-Za-z0-9_-]+$/.test(r)) return `specs/L3-module/${r}.yaml`;
-	if (/^FEAT-[A-Za-z0-9_-]+$/.test(r)) return `specs/L4-feature/${r}.yaml`;
-	if (/^SLICE-[A-Za-z0-9_-]+$/.test(r)) return `specs/L5-slice/${r}.yaml`;
+	const vx = '.vibex/specs';
+	if (/^MOD-[A-Za-z0-9_-]+$/.test(r)) return `${vx}/L3-module/${r}.yaml`;
+	if (/^FEAT-[A-Za-z0-9_-]+$/.test(r)) return `${vx}/L4-feature/${r}.yaml`;
+	if (/^SLICE-[A-Za-z0-9_-]+$/.test(r)) return `${vx}/L5-slice/${r}.yaml`;
 
-	if (r.endsWith('-skeleton') || r.includes('skeleton'))
-		return `specs/L2-skeleton/${r}.yaml`;
-	if (r.endsWith('-mvp') || r.endsWith('mvp'))
-		return `specs/L1-goal/${r}.yaml`;
+	if (r.endsWith('-skeleton') || r.includes('skeleton')) return `${vx}/L2-skeleton/${r}.yaml`;
+	if (r.endsWith('-mvp') || r.endsWith('mvp')) return `${vx}/L1-goal/${r}.yaml`;
 
 	return null;
 }

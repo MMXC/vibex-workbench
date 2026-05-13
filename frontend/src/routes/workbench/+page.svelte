@@ -40,7 +40,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 	import { wailsReadSpecFile } from '$lib/wails-filesystem';
 	import { appendOutput, clearOutput, outputText } from '$lib/stores/workspace-output-store';
 	import { extractSpecDisplay, type SpecSlotSummary } from '$lib/workbench/spec-display';
-	import { agentApiUrl, getAgentApiBase } from '$lib/runtime/agent-transport';
+	import { agentApiUrl, getAgentApiBase, postAgentChat } from '$lib/runtime/agent-transport';
 	import { uiPreferencesStore } from '$lib/stores/ui-preferences-store';
 
 	const useMockBackend =
@@ -214,6 +214,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 
 	async function triggerCanvasPostProcess(threadId: string, workspaceForAgent: string) {
 		if (canvasPostInFlight) return;
+		if (!workspaceForAgent?.trim()) return;
 		const latestAssistant = [...threadMessages].reverse().find(m => m.role === 'assistant')?.content ?? '';
 		if (!latestAssistant.trim()) return;
 		// 仅对“有结构化价值”的回复进行后处理，纯闲聊不触发
@@ -241,16 +242,14 @@ ${latestExcerpt}`;
 		const controller = new AbortController();
 		const timer = setTimeout(() => controller.abort(), 10000);
 		try {
-			await fetch(agentApiUrl('/api/chat'), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
+			await postAgentChat(
+				{
 					threadId,
 					input: postInput,
 					workspaceRoot: workspaceForAgent,
-				}),
-				signal: controller.signal,
-			});
+				},
+				{ signal: controller.signal }
+			);
 		} catch (e) {
 			console.warn('[Workbench] canvas post-process skipped:', e);
 		} finally {
@@ -443,6 +442,10 @@ ${latestExcerpt}`;
 
 	async function handleSubmit(content: string, mode: string) {
 		const workspaceForAgent = workspaceRoot !== '—' ? workspaceRoot : $specExplorerStore.workspaceRoot;
+		if (!workspaceForAgent?.trim()) {
+			console.warn('[Workbench] 未绑定工作区，无法发起 Agent 对话；请先「打开项目」选择目录。');
+			return;
+		}
 		if (await tryOpenSpecCommand(content, workspaceForAgent)) return;
 		if (await tryOpenSlotCommand(content, workspaceForAgent)) return;
 
@@ -507,15 +510,11 @@ ${latestExcerpt}`;
 					body: JSON.stringify({ threadId: threadKey, goal: inputWithContext }),
 				});
 			} else {
-				await fetch(agentApiUrl('/api/chat'), {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						threadId: threadKey,
-						input: inputWithContext,
-						workspaceRoot: workspaceForAgent,
-						...(agentProfile ? { agent_profile: agentProfile } : {}),
-					}),
+				await postAgentChat({
+					threadId: threadKey,
+					input: inputWithContext,
+					workspaceRoot: workspaceForAgent,
+					...(agentProfile ? { agent_profile: agentProfile } : {}),
 				});
 			}
 		} catch (e) {

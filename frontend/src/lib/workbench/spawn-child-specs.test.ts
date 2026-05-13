@@ -13,7 +13,7 @@ const sampleL2 = `spec:
   name: demo-l2
 structure:
   children:
-  - specs/L3-module/MOD-agent.yaml
+  - .vibex/specs/L3-module/MOD-agent.yaml
 content:
   l2_l3_lineage:
     which_modules_become_l3:
@@ -51,7 +51,7 @@ describe('spawn-child-specs', () => {
 		expect(agent?.alreadyLinked).toBe(true);
 		const backend = cs.find(c => c.specName === 'MOD-backend');
 		expect(backend?.alreadyLinked).toBe(false);
-		expect(backend?.relativePath).toBe('specs/L3-module/MOD-backend.yaml');
+		expect(backend?.relativePath).toBe('.vibex/specs/L3-module/MOD-backend.yaml');
 	});
 
 	it('collectL5CandidatesFromL4 builds slice names', () => {
@@ -68,9 +68,12 @@ describe('spawn-child-specs', () => {
   name: p
 structure:
   children:
-  - specs/L3-module/MOD-a.yaml
+  - .vibex/specs/L3-module/MOD-a.yaml
 `;
-		const next = appendChildrenPaths(parent, ['specs/L3-module/MOD-b.yaml', 'specs/L3-module/MOD-a.yaml']);
+		const next = appendChildrenPaths(parent, [
+			'.vibex/specs/L3-module/MOD-b.yaml',
+			'.vibex/specs/L3-module/MOD-a.yaml',
+		]);
 		expect(next).toContain('MOD-a.yaml');
 		expect(next).toContain('MOD-b.yaml');
 	});

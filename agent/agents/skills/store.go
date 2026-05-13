@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"vibex-workbench/pkg/vibexpaths"
 )
 
 type Definition struct {
@@ -25,17 +27,15 @@ func NewRegistry() *Registry {
 	return &Registry{skills: make(map[string]Definition)}
 }
 
-// LoadWorkspaceSkillsRegistry merges `<root>/skills` and `<root>/.agents/skills` (later overlays earlier on name collision).
+// LoadWorkspaceSkillsRegistry merges `<root>/skills`, `<root>/.vibex/agents/skills`, and `<root>/.vibex/.agents/skills`
+// (later directories overlay earlier on name collision).
 func LoadWorkspaceSkillsRegistry(workspaceRoot string) (*Registry, error) {
 	root := strings.TrimSpace(workspaceRoot)
 	merged := NewRegistry()
 	if root == "" {
 		return merged, nil
 	}
-	dirs := []string{
-		filepath.Join(root, "skills"),
-		filepath.Join(root, ".agents", "skills"),
-	}
+	dirs := vibexpaths.WorkspaceMergedSkillsDirs(root)
 	for _, dir := range dirs {
 		reg, err := LoadRegistryFromDir(dir)
 		if err != nil {

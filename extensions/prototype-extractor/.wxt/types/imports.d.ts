@@ -16,7 +16,7 @@ declare global {
   const fakeBrowser: typeof import('wxt/testing').fakeBrowser
   const getAppConfig: typeof import('wxt/utils/app-config').getAppConfig
   const injectScript: typeof import('wxt/utils/inject-script').injectScript
-  const setupCounter: typeof import('/root/vibex-workbench/extensions/prototype-extractor/components/counter').setupCounter
+  const setupCounter: typeof import('C:/project/vibex-workbench/extensions/prototype-extractor/components/counter').setupCounter
   const storage: typeof import('wxt/utils/storage').storage
   const useAppConfig: typeof import('wxt/utils/app-config').useAppConfig
 }

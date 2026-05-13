@@ -24,13 +24,13 @@ prototype:
 		const y = `prototype:\n  file: .vibex/prototypes/a.html\n`;
 		expect(
 			deriveEntryHtmlForFeature({
-				specPath: 'specs/L4-feature/FEAT-x.yaml',
+				specPath: '.vibex/specs/L4-feature/FEAT-x.yaml',
 				yamlContent: y,
 			})
 		).toBe('.vibex/prototypes/a.html');
 		expect(
 			deriveEntryHtmlForFeature({
-				specPath: 'specs/L4-feature/FEAT-x.yaml',
+				specPath: '.vibex/specs/L4-feature/FEAT-x.yaml',
 				yamlContent: 'spec:\n  name: X\n',
 			})
 		).toBe('.vibex/prototypes/FEAT-x.html');
@@ -39,7 +39,7 @@ prototype:
 	it('buildFeatureShellRoute wires fields', () => {
 		const r = buildFeatureShellRoute({
 			specName: 'FEAT-foo',
-			specPath: 'specs/L4-feature/FEAT-foo.yaml',
+			specPath: '.vibex/specs/L4-feature/FEAT-foo.yaml',
 			displayTitle: 'Foo',
 			yamlContent: '',
 		});

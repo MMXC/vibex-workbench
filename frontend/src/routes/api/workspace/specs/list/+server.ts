@@ -10,26 +10,24 @@ export async function GET(event) {
 		return json({ error: 'workspaceRoot required' }, { status: 400 });
 	}
 
-	const specsDir = path.join(workspaceRoot, 'specs');
-	if (!fs.existsSync(specsDir)) {
-		return json({ paths: [], error: 'specs/ directory not found' });
-	}
-
+	const specsDir = path.join(workspaceRoot, '.vibex', 'specs');
 	const paths: string[] = [];
 
-	function walk(dir: string, base: string) {
-		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-			const full = path.join(dir, entry.name);
-			const rel = path.relative(base, full);
-			if (entry.isDirectory()) {
-				walk(full, base);
-			} else if (entry.name.endsWith('.yaml') || entry.name.endsWith('.yml')) {
-				paths.push(rel);
+	if (fs.existsSync(specsDir)) {
+		function walk(dir: string) {
+			for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+				const full = path.join(dir, entry.name);
+				const rel = path.relative(workspaceRoot, full);
+				if (entry.isDirectory()) {
+					walk(full);
+				} else if (entry.name.endsWith('.yaml') || entry.name.endsWith('.yml')) {
+					paths.push(rel.split(path.sep).join('/'));
+				}
 			}
 		}
+		walk(specsDir);
 	}
 
-	walk(specsDir, specsDir);
 	paths.sort();
 	return json({ paths });
 }

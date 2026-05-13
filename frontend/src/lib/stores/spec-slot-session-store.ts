@@ -19,7 +19,12 @@ import {
 	type RoutePreview,
 } from '$lib/services/tool-routing-client';
 import { specExplorerStore } from '$lib/stores/spec-explorer-store';
-import { agentApiUrl } from '$lib/runtime/agent-transport';
+import { agentApiUrl, getAgentApiBase, postAgentChat } from '$lib/runtime/agent-transport';
+import {
+	extractToolWorkspacePath,
+	formatToolCalledBody,
+	formatToolCompletedFooter,
+} from '$lib/workbench/tool-call-chat';
 import type {
 	OrchestrationTracePayload,
 	RepairDecisionPayload,
@@ -51,9 +56,27 @@ export type SpecSlotIterationEdge = {
 
 export type SpecSlotMessage = {
 	id: string;
-	role: 'system' | 'user' | 'assistant';
+	role: 'system' | 'user' | 'assistant' | 'tool';
 	content: string;
 	createdAt: string;
+	/** 工具调用关联的工作区相对路径，用于在中央打开只读预览 */
+	toolOpenPath?: string | null;
+};
+
+/** 由嵌入原型的 vibex-prototype-agent-bridge postMessage 上报，用于抽屉内高亮叠层 */
+export type PrototypeAgentHighlightRect = {
+	sel: string;
+	top: number;
+	left: number;
+	width: number;
+	height: number;
+};
+
+export type PrototypeAgentUiState = {
+	rects: PrototypeAgentHighlightRect[];
+	viewport: { width: number; height: number } | null;
+	onboard: { title: string; body: string; step?: number; total?: number } | null;
+	updatedAt: string;
 };
 
 export type SpecSlotSession = {
@@ -95,6 +118,12 @@ export type SpecSlotSession = {
 	pptDemoError?: string | null;
 	/** 最近一次纠错决策（SSE repair.decision） */
 	lastRepairDecision?: RepairDecisionPayload | null;
+	/** 当前 agent 轮次：用户输入框原文（不含 buildPrompt 包装） */
+	runningUserPrompt?: string | null;
+	/** 中止或回滚本轮后，可用「继续」预填同一句再发 */
+	pendingResumePrompt?: string | null;
+	/** 原型页 bridge → 抽屉高亮 / onboard 叠层 */
+	prototypeAgentUi?: PrototypeAgentUiState | null;
 	updatedAt: string;
 };
 
@@ -115,6 +144,7 @@ const useMockBackend =
 	import.meta.env.VITE_MOCK_SSE === '1' || import.meta.env.VITE_MOCK_SSE === 'true';
 
 let activeSource: EventSource | null = null;
+let activeChatAbort: AbortController | null = null;
 
 function nowIso(): string {
 	return new Date().toISOString();
@@ -122,6 +152,71 @@ function nowIso(): string {
 
 function id(): string {
 	return crypto.randomUUID();
+}
+
+function findLastUserMessageIndex(messages: SpecSlotMessage[]): number {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		if (messages[i].role === 'user') return i;
+	}
+	return -1;
+}
+
+function abortActiveChatRequest(): void {
+	activeChatAbort?.abort();
+	activeChatAbort = null;
+}
+
+function isTrustedPrototypeBridgeOrigin(origin: string): boolean {
+	if (typeof window === 'undefined' || !origin) return false;
+	try {
+		const agentOrigin = new URL(getAgentApiBase()).origin;
+		if (origin === agentOrigin) return true;
+		if (origin === window.location.origin) return true;
+	} catch {
+		return false;
+	}
+	return false;
+}
+
+function normalizePrototypeBridgeRects(raw: unknown): PrototypeAgentHighlightRect[] {
+	if (!Array.isArray(raw)) return [];
+	const out: PrototypeAgentHighlightRect[] = [];
+	for (const x of raw) {
+		if (!x || typeof x !== 'object') continue;
+		const o = x as Record<string, unknown>;
+		const sel = String(o.sel ?? '');
+		const top = Number(o.top);
+		const left = Number(o.left);
+		const width = Number(o.width);
+		const height = Number(o.height);
+		if (!Number.isFinite(top) || !Number.isFinite(left) || !Number.isFinite(width) || !Number.isFinite(height))
+			continue;
+		if (width <= 0 || height <= 0 || width > 10000 || height > 10000) continue;
+		out.push({ sel, top, left, width, height });
+	}
+	return out;
+}
+
+function parsePrototypeBridgeViewport(raw: unknown): { width: number; height: number } | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const o = raw as Record<string, unknown>;
+	const width = Number(o.width);
+	const height = Number(o.height);
+	if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+	return { width, height };
+}
+
+function parsePrototypeBridgeOnboard(raw: unknown): PrototypeAgentUiState['onboard'] {
+	if (!raw || typeof raw !== 'object') return null;
+	const o = raw as Record<string, unknown>;
+	const title = String(o.title ?? '').trim();
+	if (!title) return null;
+	return {
+		title,
+		body: String(o.body ?? ''),
+		step: typeof o.step === 'number' ? o.step : undefined,
+		total: typeof o.total === 'number' ? o.total : undefined,
+	};
 }
 
 function sessionKey(specPath: string, slotId: string): string {
@@ -220,6 +315,10 @@ function loadState(): SpecSlotSessionState {
 				pptDemoLoading: s.pptDemoLoading ?? false,
 				pptDemoError: s.pptDemoError ?? null,
 				lastRepairDecision: s.lastRepairDecision ?? null,
+				runningUserPrompt: s.runningUserPrompt ?? null,
+				pendingResumePrompt: s.pendingResumePrompt ?? null,
+				prototypeAgentUi: s.prototypeAgentUi ?? null,
+				status: s.status === 'running' ? 'idle' : s.status,
 			};
 		}
 		return {
@@ -304,7 +403,7 @@ function buildPrompt(session: SpecSlotSession, userInput: string): string {
 			? [
 					'[Design Kit / 原型物料]',
 					'工作区约定：.vibex/design/DESIGN.md（栈、令牌、组件边界）；可交付 HTML 放在 .vibex/prototypes/；演示用 HTML PPT 路径写在顶层 spec.ppt_file（相对工作区根），不要写入 prototype。',
-					'生成或修改原型前须对齐 DESIGN.md；写入当前 spec 的 prototype 字段须经用户明确确认后再 specs/write；写入物料文件使用原型槽工具条 extract/scaffold（已 confirm）。',
+					'写入物料文件优先 write_file；在原型 HTML 中可引入 `.vibex/assets/vibex-prototype-agent-bridge.js` 与抽屉高亮/onboard 联动。',
 					'[/Design Kit]',
 					'',
 				]
@@ -444,15 +543,28 @@ function createSpecSlotSessionStore() {
 				if (tail?.role === 'assistant') {
 					const extracted = extractHtmlFromMarkdown(tail.content);
 					if (extracted) {
-						a2uiModel = {
-							...a2uiModel,
-							prototype: {
-								mode: 'html_snippet',
-								html: extracted,
-								caption:
-									'HTML 原型预览（来自助手 fenced html；iframe sandbox：allow-scripts）。',
-							},
-						};
+						const prev = a2uiModel.prototype;
+						if (prev?.mode === 'workspace_file' && prev.fileRel?.trim()) {
+							a2uiModel = {
+								...a2uiModel,
+								prototype: {
+									...prev,
+									assistantDraftHtml: extracted,
+									caption:
+										'HTML 原型预览：主区为 prototype.file（工作区静态 HTML）；下方为助手 fenced HTML 草稿（iframe sandbox：allow-scripts）。',
+								},
+							};
+						} else {
+							a2uiModel = {
+								...a2uiModel,
+								prototype: {
+									mode: 'html_snippet',
+									html: extracted,
+									caption:
+										'HTML 原型预览（来自助手 fenced html；iframe sandbox：allow-scripts）。',
+								},
+							};
+						}
 					}
 				}
 			}
@@ -466,8 +578,49 @@ function createSpecSlotSessionStore() {
 						messages,
 						a2uiModel,
 						status: isFinal ? 'idle' : session.status,
+						runningUserPrompt: isFinal ? null : session.runningUserPrompt,
 						updatedAt: nowIso(),
 					},
+				},
+			};
+		});
+	}
+
+	function appendToolCallSessionMessage(key: string, msg: SpecSlotMessage) {
+		commit(state => {
+			const session = state.sessions[key];
+			if (!session) return state;
+			if (session.messages.some(m => m.id === msg.id)) return state;
+			const messages = [...session.messages];
+			const last = messages[messages.length - 1];
+			if (last?.role === 'assistant' && session.status === 'running') {
+				messages.splice(messages.length - 1, 0, msg);
+			} else {
+				messages.push(msg);
+			}
+			return {
+				...state,
+				sessions: {
+					...state.sessions,
+					[key]: { ...session, messages, updatedAt: nowIso() },
+				},
+			};
+		});
+	}
+
+	function patchSessionMessage(key: string, messageId: string, patch: Partial<SpecSlotMessage>) {
+		commit(state => {
+			const session = state.sessions[key];
+			if (!session) return state;
+			const messages = [...session.messages];
+			const i = messages.findIndex(m => m.id === messageId);
+			if (i < 0) return state;
+			messages[i] = { ...messages[i], ...patch };
+			return {
+				...state,
+				sessions: {
+					...state.sessions,
+					[key]: { ...session, messages, updatedAt: nowIso() },
 				},
 			};
 		});
@@ -683,6 +836,9 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 							pptDemoLoading: existing.pptDemoLoading ?? false,
 							pptDemoError: existing.pptDemoError ?? null,
 							lastRepairDecision: existing.lastRepairDecision ?? null,
+							runningUserPrompt: existing.runningUserPrompt ?? null,
+							pendingResumePrompt: existing.pendingResumePrompt ?? null,
+							prototypeAgentUi: existing.prototypeAgentUi ?? null,
 							updatedAt: nowIso(),
 						}
 					: {
@@ -717,6 +873,9 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 							pptDemoLoading: false,
 							pptDemoError: null,
 							lastRepairDecision: null,
+							runningUserPrompt: null,
+							pendingResumePrompt: null,
+							prototypeAgentUi: null,
 							updatedAt: nowIso(),
 						};
 				return {
@@ -919,15 +1078,11 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 				`spec_yaml:\n${session.content.slice(0, 12000)}`,
 			].join('\n\n');
 			try {
-				await fetch(agentApiUrl('/api/chat'), {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						threadId: session.threadId,
-						input: prompt,
-						workspaceRoot: wsRoot,
-						agent_profile: 'ppt-generator',
-					}),
+				await postAgentChat({
+					threadId: session.threadId,
+					input: prompt,
+					workspaceRoot: wsRoot,
+					agent_profile: 'ppt-generator',
 				});
 				for (let i = 0; i < 30; i++) {
 					await delay(2000);
@@ -1039,7 +1194,7 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 				if (channel === 'qa_playwright') {
 					// 优先联动“用户工作区自定义 agent 流程”验证；
 					// 若未配置则回退到 legacy qa/run。
-					const flowPath = String(templateArgs.flow_path ?? '.agents/flows/qa-agent-flow.json');
+					const flowPath = String(templateArgs.flow_path ?? '.vibex/agents/flows/qa-agent-flow.json');
 					const flowResp = await fetch(agentApiUrl('/api/workspace/agent-flow-qa/run'), {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
@@ -1131,14 +1286,10 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 						exit_code: Number(data.exitCode ?? 0),
 					};
 				} else if (channel === 'tdd_run') {
-					await fetch(agentApiUrl('/api/chat'), {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({
-							threadId: session.threadId,
-							input: `请使用 tdd_run 运行当前槽位对应 spec 的测试并返回 RED/GREEN 摘要。spec_path=${session.spec.path}`,
-							workspaceRoot: wsRoot,
-						}),
+					await postAgentChat({
+						threadId: session.threadId,
+						input: `请使用 tdd_run 运行当前槽位对应 spec 的测试并返回 RED/GREEN 摘要。spec_path=${session.spec.path}`,
+						workspaceRoot: wsRoot,
 					});
 					result = {
 						item_id: item.id,
@@ -1217,6 +1368,71 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 			};
 			appendTraceEvent(key, doneTrace);
 			void emitInspectorTrace(doneTrace);
+		},
+		clearPrototypeAgentUiActive() {
+			commit(state => {
+				const key = state.activeKey;
+				if (!key) return state;
+				const session = state.sessions[key];
+				if (!session) return state;
+				return {
+					...state,
+					sessions: {
+						...state.sessions,
+						[key]: { ...session, prototypeAgentUi: null, updatedAt: nowIso() },
+					},
+				};
+			});
+		},
+		applyPrototypeBridgeMessage(origin: string, data: unknown) {
+			if (typeof window !== 'undefined' && !isTrustedPrototypeBridgeOrigin(origin)) return;
+			const rec = data as Record<string, unknown>;
+			if (rec?.source !== 'vibex-prototype-bridge') return;
+			const kind = String(rec.kind ?? '');
+			const st = get({ subscribe });
+			const key = st.activeKey;
+			const session = key ? st.sessions[key] : null;
+			if (!key || !session || session.slot.id !== 'prototype') return;
+
+			commit(state => {
+				const cur = state.sessions[key];
+				if (!cur || cur.slot.id !== 'prototype') return state;
+				if (kind === 'ready') return state;
+
+				if (kind === 'clear' || kind === 'onboard-end') {
+					return {
+						...state,
+						sessions: {
+							...state.sessions,
+							[key]: { ...cur, prototypeAgentUi: null, updatedAt: nowIso() },
+						},
+					};
+				}
+
+				if (kind === 'highlight-rects' || kind === 'onboard-step') {
+					const rects = normalizePrototypeBridgeRects(rec.rects);
+					const viewport = parsePrototypeBridgeViewport(rec.viewport);
+					const onboard = parsePrototypeBridgeOnboard(rec.onboard);
+					return {
+						...state,
+						sessions: {
+							...state.sessions,
+							[key]: {
+								...cur,
+								prototypeAgentUi: {
+									rects,
+									viewport,
+									onboard,
+									updatedAt: nowIso(),
+								},
+								updatedAt: nowIso(),
+							},
+						},
+					};
+				}
+
+				return state;
+			});
 		},
 		/** 原型物料库等工具条：向左侧对话预填可发送文本 */
 		prefillActiveChat(text: string) {
@@ -1359,10 +1575,12 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 		},
 		close() {
 			closeStream();
+			abortActiveChatRequest();
 			commit(state => ({ ...state, drawerOpen: false }));
 		},
 		resetActive() {
 			closeStream();
+			abortActiveChatRequest();
 			commit(state => {
 				if (!state.activeKey) return state;
 				const sessions = { ...state.sessions };
@@ -1395,6 +1613,113 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 				};
 			});
 		},
+		abortActiveAgent() {
+			const state = get({ subscribe });
+			const key = state.activeKey;
+			if (!key) return;
+			const sess = state.sessions[key];
+			if (!sess || sess.status !== 'running') return;
+			const snap = sess.runningUserPrompt?.trim() ?? '';
+			abortActiveChatRequest();
+			closeStream();
+			commit(s => {
+				const cur = s.sessions[key];
+				if (!cur || cur.status !== 'running') return s;
+				let messages = [...cur.messages];
+				const last = messages[messages.length - 1];
+				if (last?.role === 'assistant') {
+					if (!last.content.trim()) messages.pop();
+					else {
+						messages[messages.length - 1] = {
+							...last,
+							content: `${last.content}\n\n---\n*(输出已中断)*`,
+							createdAt: nowIso(),
+						};
+					}
+				}
+				const sys: SpecSlotMessage = {
+					id: id(),
+					role: 'system',
+					content:
+						'[Agent 已中止] 前端已断开 SSE；若请求已进入队列，Agent 仍可能在后台执行直至结束。',
+					createdAt: nowIso(),
+				};
+				return {
+					...s,
+					sessions: {
+						...s.sessions,
+						[key]: {
+							...cur,
+							messages: [...messages, sys],
+							status: 'idle',
+							error: null,
+							pendingResumePrompt: snap || cur.pendingResumePrompt,
+							runningUserPrompt: null,
+							updatedAt: nowIso(),
+						},
+					},
+				};
+			});
+		},
+		revertActiveAgentTurn() {
+			const state = get({ subscribe });
+			const key = state.activeKey;
+			if (!key) return;
+			const sess = state.sessions[key];
+			if (!sess) return;
+			if (sess.status === 'running') {
+				abortActiveChatRequest();
+				closeStream();
+			}
+			const idx = findLastUserMessageIndex(sess.messages);
+			if (idx < 0) return;
+			const userText = sess.messages[idx]?.content?.trim() ?? '';
+			commit(s => {
+				const cur = s.sessions[key];
+				if (!cur) return s;
+				const messages = cur.messages.slice(0, idx);
+				return {
+					...s,
+					sessions: {
+						...s.sessions,
+						[key]: {
+							...cur,
+							messages,
+							status: 'idle',
+							error: null,
+							iterationNodes: [],
+							iterationEdges: [],
+							iterationCursorId: null,
+							pendingResumePrompt: userText || cur.pendingResumePrompt,
+							runningUserPrompt: null,
+							updatedAt: nowIso(),
+						},
+					},
+				};
+			});
+		},
+		resumeInterruptedAgentTurn() {
+			commit(state => {
+				const key = state.activeKey;
+				if (!key) return state;
+				const cur = state.sessions[key];
+				if (!cur) return state;
+				const t = cur.pendingResumePrompt?.trim();
+				if (!t || cur.status === 'running') return state;
+				return {
+					...state,
+					sessions: {
+						...state.sessions,
+						[key]: {
+							...cur,
+							chatPrefill: { id: id(), text: t },
+							pendingResumePrompt: null,
+							updatedAt: nowIso(),
+						},
+					},
+				};
+			});
+		},
 		async submitActive(input: string) {
 			const text = input.trim();
 			if (!text) return;
@@ -1419,6 +1744,8 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 							],
 							status: 'running',
 							error: null,
+							runningUserPrompt: text,
+							pendingResumePrompt: null,
 							iterationNodes: [],
 							iterationEdges: [],
 							iterationCursorId: null,
@@ -1429,6 +1756,9 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 			});
 
 			closeStream();
+			abortActiveChatRequest();
+			activeChatAbort = new AbortController();
+			const chatAbortSignal = activeChatAbort.signal;
 			const streamPath = useMockBackend
 				? agentApiUrl(`/api/sse/threads/${session.threadId}`)
 				: agentApiUrl(`/api/sse/${session.threadId}`);
@@ -1466,7 +1796,7 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 						...current,
 						sessions: {
 							...current.sessions,
-							[key]: { ...active, status: 'idle', updatedAt: nowIso() },
+							[key]: { ...active, status: 'idle', runningUserPrompt: null, pendingResumePrompt: null, updatedAt: nowIso() },
 						},
 					};
 				});
@@ -1491,7 +1821,14 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 						...current,
 						sessions: {
 							...current.sessions,
-							[key]: { ...active, status: 'error', error: '运行失败', updatedAt: nowIso() },
+							[key]: {
+								...active,
+								status: 'error',
+								error: '运行失败',
+								runningUserPrompt: null,
+								pendingResumePrompt: active.runningUserPrompt?.trim() || active.pendingResumePrompt,
+								updatedAt: nowIso(),
+							},
 						},
 					};
 				});
@@ -1533,6 +1870,7 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 					const data = JSON.parse(String((event as MessageEvent).data)) as Record<string, unknown>;
 					const callId = String(data.call_id ?? data.invocationId ?? `tool:${Date.now()}`);
 					const tool = String(data.tool ?? data.toolName ?? 'tool');
+					const args = data.args;
 					upsertIterationNode(
 						key,
 						{
@@ -1543,6 +1881,14 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 						},
 						{ moveCursor: true, edgeLabelFromPrev: 'call' }
 					);
+					const openPath = extractToolWorkspacePath(tool, args);
+					appendToolCallSessionMessage(key, {
+						id: `tool-inline:${callId}`,
+						role: 'tool',
+						content: formatToolCalledBody(tool, args),
+						createdAt: nowIso(),
+						toolOpenPath: openPath,
+					});
 				} catch {
 					// ignore
 				}
@@ -1565,6 +1911,43 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 						},
 						{ moveCursor: true, edgeLabelFromPrev: failed ? 'error' : 'ok' }
 					);
+					if (callId) {
+						const msgId = `tool-inline:${callId}`;
+						const prev =
+							get({ subscribe }).sessions[key]?.messages.find(m => m.id === msgId)?.content ?? '';
+						patchSessionMessage(key, msgId, {
+							content: prev + formatToolCompletedFooter(result, failed),
+						});
+					}
+				} catch {
+					// ignore
+				}
+			});
+			activeSource.addEventListener('tool.failed', event => {
+				try {
+					const data = JSON.parse(String((event as MessageEvent).data)) as Record<string, unknown>;
+					const callId = String(data.call_id ?? data.invocationId ?? '');
+					const tool = String(data.tool ?? data.toolName ?? 'tool');
+					const err = String(data.error ?? '');
+					if (callId) {
+						upsertIterationNode(
+							key,
+							{
+								id: `tool:${callId}`,
+								label: tool,
+								type: 'tool',
+								status: 'error',
+								detail: err.slice(0, 140),
+							},
+							{ moveCursor: true, edgeLabelFromPrev: 'fail' }
+						);
+						const msgId = `tool-inline:${callId}`;
+						const prev =
+							get({ subscribe }).sessions[key]?.messages.find(m => m.id === msgId)?.content ?? '';
+						patchSessionMessage(key, msgId, {
+							content: prev + formatToolCompletedFooter(err, true),
+						});
+					}
 				} catch {
 					// ignore
 				}
@@ -1633,19 +2016,57 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ threadId: session.threadId, goal: prompt }),
+						signal: chatAbortSignal,
 					});
 				} else {
-					await fetch(agentApiUrl('/api/chat'), {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify(chatBody),
-					});
+					await postAgentChat(chatBody, { signal: chatAbortSignal });
 				}
 			} catch (e) {
 				closeStream();
+				abortActiveChatRequest();
+				const aborted =
+					(e instanceof DOMException && e.name === 'AbortError') ||
+					(e instanceof Error && e.name === 'AbortError');
+				const errMsg = e instanceof Error ? e.message : String(e);
 				commit(current => {
 					const active = current.sessions[key];
 					if (!active) return current;
+					if (aborted) {
+						const snap = active.runningUserPrompt?.trim() ?? '';
+						let messages = [...active.messages];
+						const last = messages[messages.length - 1];
+						if (last?.role === 'assistant') {
+							if (!last.content.trim()) messages.pop();
+							else {
+								messages[messages.length - 1] = {
+									...last,
+									content: `${last.content}\n\n---\n*(请求已取消)*`,
+									createdAt: nowIso(),
+								};
+							}
+						}
+						messages.push({
+							id: id(),
+							role: 'system',
+							content: '[请求已取消] 发起对话的 HTTP 请求被中止。',
+							createdAt: nowIso(),
+						});
+						return {
+							...current,
+							sessions: {
+								...current.sessions,
+								[key]: {
+									...active,
+									messages,
+									status: 'idle',
+									error: null,
+									pendingResumePrompt: snap || active.pendingResumePrompt,
+									runningUserPrompt: null,
+									updatedAt: nowIso(),
+								},
+							},
+						};
+					}
 					return {
 						...current,
 						sessions: {
@@ -1653,12 +2074,17 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 							[key]: {
 								...active,
 								status: 'error',
-								error: e instanceof Error ? e.message : String(e),
+								error: errMsg,
+								runningUserPrompt: null,
+								pendingResumePrompt:
+									active.runningUserPrompt?.trim() || active.pendingResumePrompt,
 								updatedAt: nowIso(),
 							},
 						},
 					};
 				});
+			} finally {
+				activeChatAbort = null;
 			}
 		},
 	};

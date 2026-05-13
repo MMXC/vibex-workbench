@@ -9,6 +9,7 @@ import (
 	"time"
 
 	rt "vibex/agent/agents/runtime/tools"
+	"vibex-workbench/pkg/vibexpaths"
 )
 
 // ─────────────────────────────────────────────────────────────
@@ -63,13 +64,13 @@ func detectState(dir string) DetectStateResult {
 	suggestions := []string{}
 	timestamp := time.Now().Format(time.RFC3339)
 
-	// Signal 1: specs/ directory
-	specsDir := filepath.Join(dir, "specs")
+	// Signal 1: .vibex/specs/ directory
+	specsDir := filepath.Join(dir, filepath.FromSlash(vibexpaths.SpecsRootRel))
 	specsExists := dirExists(specsDir)
 	signals = append(signals, DetectionSignal{
-		Path:   "specs/",
+		Path:   vibexpaths.SpecsRootRel + "/",
 		Exists: specsExists,
-		Reason: boolToReason(specsExists, "specs 目录存在", "无 specs 目录"),
+		Reason: boolToReason(specsExists, ".vibex/specs 目录存在", "无 .vibex/specs 目录"),
 	})
 
 	// Signal 2: generators/gen.py
@@ -129,7 +130,7 @@ func detectState(dir string) DetectStateResult {
 	case specsScore < 4:
 		state = "partial"
 		if !specsExists {
-			suggestions = append(suggestions, "specs 目录缺失")
+			suggestions = append(suggestions, ".vibex/specs 目录缺失")
 		}
 		if !genExists {
 			suggestions = append(suggestions, "生成器未配置，运行「生成脚手架」补全")

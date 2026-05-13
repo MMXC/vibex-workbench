@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"vibex-workbench/pkg/vibexpaths"
 	"vibex/agent/adapters"
 	"vibex/agent/agents/background"
 	"vibex/agent/agents/runtime"
@@ -171,16 +172,27 @@ func loadProfileJSON(path string, fromSkillDir bool) (agentProfileConfig, bool) 
 	return cfg, true
 }
 
-// mergeSkillCoLocatedAgentJSON overlays `.agents/skills/<name>/agent.json` when `.agents/agents/<name>.json` exists.
+// mergeSkillCoLocatedAgentJSON overlays co-located `skills/<name>/agent.json`, `.vibex/agents/skills/...`, then `.vibex/.agents/skills/...` when `.vibex/agents/agents/<name>.json` exists.
 func mergeSkillCoLocatedAgentJSON(base, name string, cfg agentProfileConfig) agentProfileConfig {
-	p := filepath.Join(base, ".agents", "skills", name, "agent.json")
-	data, err := os.ReadFile(p)
+	paths := []string{
+		filepath.Join(base, "skills", name, "agent.json"),
+		filepath.Join(base, filepath.FromSlash(vibexpaths.AgentsRootRel), "skills", name, "agent.json"),
+		filepath.Join(base, filepath.FromSlash(vibexpaths.AgentsDotAgentsRootRel), "skills", name, "agent.json"),
+	}
+	for _, p := range paths {
+		cfg = mergeOneSkillAgentJSONOverlay(cfg, p)
+	}
+	return cfg
+}
+
+func mergeOneSkillAgentJSONOverlay(cfg agentProfileConfig, agentJSONPath string) agentProfileConfig {
+	data, err := os.ReadFile(agentJSONPath)
 	if err != nil {
 		return cfg
 	}
 	var raw profileJSON
 	if err := json.Unmarshal(data, &raw); err != nil {
-		log.Printf("[agent-profile] invalid overlay json %s: %v", p, err)
+		log.Printf("[agent-profile] invalid overlay json %s: %v", agentJSONPath, err)
 		return cfg
 	}
 	if len(cfg.RequiredSkills) == 0 && len(raw.RequiredSkills) > 0 {
@@ -219,7 +231,7 @@ func loadAgentProfileFromFile(profileName string) (agentProfileConfig, bool) {
 	name := strings.TrimSpace(strings.ToLower(profileName))
 	base := cfg.WorkspaceDir
 
-	if cfg, ok := loadProfileJSON(filepath.Join(base, ".agents", "profiles", name+".json"), false); ok {
+	if cfg, ok := loadProfileJSON(filepath.Join(base, filepath.FromSlash(vibexpaths.AgentsRootRel), "profiles", name+".json"), false); ok {
 		return cfg, true
 	}
 
@@ -234,8 +246,16 @@ func loadAgentProfileFromFile(profileName string) (agentProfileConfig, bool) {
 		return cfg, true
 	}
 
-	if cfg, ok := loadProfileJSON(filepath.Join(base, ".agents", "skills", name, "agent.json"), true); ok {
-		return cfg, true
+	// 仅 skill 包：优先 `.vibex/.agents/skills`，其次 `.vibex/agents/skills`，最后 `<workspace>/skills`（与合并注册「后者覆盖」心智一致）。
+	skillAgentPaths := []string{
+		filepath.Join(base, filepath.FromSlash(vibexpaths.AgentsDotAgentsRootRel), "skills", name, "agent.json"),
+		filepath.Join(base, filepath.FromSlash(vibexpaths.AgentsRootRel), "skills", name, "agent.json"),
+		filepath.Join(base, "skills", name, "agent.json"),
+	}
+	for _, p := range skillAgentPaths {
+		if cfg, ok := loadProfileJSON(p, true); ok {
+			return cfg, true
+		}
 	}
 	return agentProfileConfig{}, false
 }
@@ -510,12 +530,17 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "input is required", http.StatusBadRequest)
 		return
 	}
-	if _, err := effectiveWorkspaceRoot(firstNonEmpty(
+	wsCandidate := firstNonEmpty(
 		req.WorkspaceRoot,
 		req.WorkspaceRoot2,
 		req.WorkRootDir,
 		req.WorkRootDir2,
-	)); err != nil {
+	)
+	if strings.TrimSpace(wsCandidate) == "" {
+		http.Error(w, "workspaceRoot required", http.StatusBadRequest)
+		return
+	}
+	if _, err := effectiveWorkspaceRoot(wsCandidate); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

@@ -12,11 +12,11 @@ Spec: specs/feature/workbench-shell/workbench-conversation_feature.yaml
     stripReasoningTags,
     type Message,
   } from '$lib/stores/thread-store';
-  import { runStore, type ToolInvocation } from '$lib/stores/run-store';
+  import { runStore } from '$lib/stores/run-store';
   import { aiBlocksStore } from '$lib/stores/ai-blocks-store';
+  import ToolChatBubble from '$lib/components/workbench/ToolChatBubble.svelte';
 
   let messages = $state<Message[]>([]);
-  let toolInvocations = $state<ToolInvocation[]>([]);
   let activeRunStatus = $state<string | null>(null);
   let currentThreadId = $state<string | null>(null);
   let threadHeadline = $state('当前会话');
@@ -39,7 +39,6 @@ Spec: specs/feature/workbench-shell/workbench-conversation_feature.yaml
 
   $effect(() => {
     const unsub = runStore.subscribe(s => {
-      toolInvocations = s.toolInvocations.slice(-6);
       activeRunStatus = s.runs.find(r => r.id === s.active_run_id)?.status ?? null;
     });
     return unsub;
@@ -60,11 +59,6 @@ Spec: specs/feature/workbench-shell/workbench-conversation_feature.yaml
     return m.content;
   }
 
-  function summarizeArgs(args: Record<string, unknown> | undefined): string {
-    if (!args) return '';
-    const keys = Object.keys(args).slice(0, 4);
-    return keys.map(key => `${key}=${String(args[key]).slice(0, 48)}`).join(' · ');
-  }
 </script>
 
 <section class="conversation-panel" aria-label="工作台对话">
@@ -83,26 +77,14 @@ Spec: specs/feature/workbench-shell/workbench-conversation_feature.yaml
     </div>
   </header>
   <div class="messages" bind:this={scrollEl}>
-    {#if toolInvocations.length > 0}
-      <div class="tool-stack" aria-label="最近工作台工具调用">
-        <div class="tool-stack-title">Workbench Tools</div>
-        {#each toolInvocations as tool (tool.id)}
-          <div class="tool-card" data-status={tool.status}>
-            <div class="tool-card-top">
-              <strong>{tool.tool_display_name ?? tool.tool_name}</strong>
-              <span>{tool.status}</span>
-            </div>
-            {#if summarizeArgs(tool.args)}
-              <small>{summarizeArgs(tool.args)}</small>
-            {/if}
-          </div>
-        {/each}
-      </div>
-    {/if}
     {#each messages as m (m.id)}
       <div class="msg {m.role}">
         <span>{m.role}</span>
-        <pre>{displayContent(m)}</pre>
+        {#if m.role === 'tool'}
+          <ToolChatBubble content={m.content} openPath={m.toolOpenPath} />
+        {:else}
+          <pre>{displayContent(m)}</pre>
+        {/if}
       </div>
     {/each}
   </div>
@@ -195,56 +177,6 @@ Spec: specs/feature/workbench-shell/workbench-conversation_feature.yaml
     gap: 12px;
   }
 
-  .tool-stack {
-    display: grid;
-    gap: 6px;
-    padding: 10px 12px;
-    border: 1px solid #303746;
-    border-radius: 12px;
-    background: rgba(12, 14, 19, 0.32);
-  }
-
-  .tool-stack-title {
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #7aa2ff;
-  }
-
-  .tool-card {
-    border: 1px solid #303746;
-    border-radius: 10px;
-    padding: 7px 9px;
-    background: #10131a;
-  }
-
-  .tool-card[data-status='completed'] {
-    border-color: rgba(34, 197, 94, 0.45);
-  }
-
-  .tool-card[data-status='failed'] {
-    border-color: rgba(239, 68, 68, 0.55);
-  }
-
-  .tool-card-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-
-  .tool-card strong {
-    color: #eef0f5;
-    font-size: 12px;
-  }
-
-  .tool-card span,
-  .tool-card small {
-    color: #a3abb9;
-    font-size: 10.5px;
-  }
-
   .msg {
     display: flex;
     flex-direction: column;
@@ -284,8 +216,7 @@ Spec: specs/feature/workbench-shell/workbench-conversation_feature.yaml
     color: #eef0f5;
   }
 
-  .msg.system pre,
-  .msg.tool pre {
+  .msg.system pre {
     background: rgba(239, 198, 107, 0.08);
     border-color: rgba(239, 198, 107, 0.34);
     color: #d4d8e3;

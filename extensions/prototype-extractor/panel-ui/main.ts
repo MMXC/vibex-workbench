@@ -3,6 +3,14 @@
 
 // === HTML 解析器 ===
 import { parseAndDiff, parseHTMLSpecTree, type SpecNode, type ParsedSpec, type DiffResult } from './html-parser';
+import {
+	fetchAgentHealth,
+	getAgentBaseUrl,
+	getWorkspaceRootForAgent,
+	postAgentChat,
+	setAgentBaseUrl,
+	setWorkspaceRootForAgent,
+} from '../lib/agent-client';
 
 // === Demo Spec 树（fallback）===
 const SPEC_TREE = [
@@ -107,13 +115,23 @@ async function triggerLocalParse() {
 }
 
 async function submitPrompt() {
-  const input = document.getElementById('prompt-input') as HTMLTextAreaElement;
-  const text = input?.value.trim();
-  if (!text) { setStatus('warn', '请输入需求描述'); return; }
-  setStatus('warn', '正在生成原型…');
-  // TODO: Agent 服务端调用
-  setStatus('ok', '（占位）Agent 尚未接入');
-  addLog('ext', 'agent:generate', { prompt: text.slice(0, 100) });
+	const input = document.getElementById('prompt-input') as HTMLTextAreaElement;
+	const text = input?.value.trim();
+	if (!text) { setStatus('warn', '请输入需求描述'); return; }
+	const ws = await getWorkspaceRootForAgent();
+	if (!ws) {
+		setStatus('warn', '请先在侧栏「Go Agent」填写工作区根路径并保存');
+		return;
+	}
+	setStatus('warn', '正在请求 Go Agent…');
+	const res = await postAgentChat(`[扩展-需求描述原型] ${text}`, { threadId: `ext-prompt-${Date.now()}` });
+	if (!res.ok) {
+		setStatus('err', res.error?.slice(0, 200) ?? '请求失败');
+		addLog('ext', 'agent:chat:error', { error: res.error, status: res.status });
+		return;
+	}
+	setStatus('ok', `已投递 thread=${res.threadId}（异步执行，SSE 见 Workbench 或 ${await getAgentBaseUrl()}/api/sse/…）`);
+	addLog('ext', 'agent:chat:queued', { threadId: res.threadId, prompt: text.slice(0, 100) });
 }
 
 async function submitUrl() {
@@ -285,11 +303,58 @@ function updateUndoRedoUI() {
   if (redoBtn) (redoBtn as HTMLButtonElement).disabled = redoStack.length === 0;
 }
 
+async function initAgentBridge(): Promise<void> {
+	const baseEl = document.getElementById('agent-base-url') as HTMLInputElement | null;
+	const wsEl = document.getElementById('agent-workspace-root') as HTMLInputElement | null;
+	const statusEl = document.getElementById('agent-bridge-status');
+	if (!baseEl || !wsEl || !statusEl) return;
+
+	baseEl.value = await getAgentBaseUrl();
+	wsEl.value = await getWorkspaceRootForAgent();
+
+	const setBridgeStatus = (cls: string, text: string) => {
+		statusEl.className = 'proto-bridge-status ' + cls;
+		statusEl.textContent = text;
+	};
+
+	document.getElementById('btn-agent-save')?.addEventListener('click', async () => {
+		await setAgentBaseUrl(baseEl.value);
+		await setWorkspaceRootForAgent(wsEl.value);
+		setBridgeStatus('ok', '已保存基址与工作区路径');
+		addLog('ext', 'agent:settings:saved', { base: baseEl.value, workspace: wsEl.value });
+	});
+
+	document.getElementById('btn-agent-ping')?.addEventListener('click', async () => {
+		await setAgentBaseUrl(baseEl.value);
+		setBridgeStatus('', '检测中…');
+		const h = await fetchAgentHealth();
+		if (h.ok && h.json) {
+			const wd = String(h.json.workspace_dir ?? '');
+			setBridgeStatus(
+				'ok',
+				`在线 model=${String(h.json.model ?? '')} skills=${String(h.json.skills_count ?? '')} workspace_dir=${wd}`
+			);
+			addLog('ext', 'agent:health', h.json);
+		} else {
+			setBridgeStatus('err', `失败: ${h.error ?? 'unknown'}${h.status ? ` (${h.status})` : ''}`);
+			addLog('ext', 'agent:health:error', { error: h.error, status: h.status });
+		}
+	});
+
+	const h = await fetchAgentHealth();
+	if (h.ok && h.json) {
+		setBridgeStatus('ok', `Agent 在线 · ${String(h.json.model ?? '')}`);
+	} else {
+		setBridgeStatus('err', `Agent 未就绪: ${h.error ?? 'unknown'}（可改基址后点「测试连接」）`);
+	}
+}
+
 // === Init ===
 async function init() {
   renderEntrySelector();
   await loadWorkMode();
   bindEvents();
+  await initAgentBridge();
   refreshDataPreview();
   updateUndoRedoUI();
 
@@ -415,15 +480,28 @@ function bindEvents() {
   });
 
   // Agent prompt
-  const agentSend = () => {
+  const agentSend = async () => {
     const input = document.getElementById('agent-input') as HTMLTextAreaElement | null;
     if (!input) return;
     const text = input.value.trim();
     if (!text) return;
     appendAgentBubble('user', text);
     addLog('ext', 'agent:prompt', { text: text.slice(0, 200) });
-    // TODO: Agent 多版本 diff 调用
-    appendAgentBubble('agent', '（占位）Agent 多版本 diff 尚未接入。选中 Spec 后可尝试描述改动。');
+    const ws = await getWorkspaceRootForAgent();
+    if (!ws) {
+      appendAgentBubble('agent', '请先在「Go Agent」区填写工作区根路径并保存。');
+      input.value = '';
+      return;
+    }
+    const res = await postAgentChat(text, { threadId: `ext-panel-${Date.now()}` });
+    if (res.ok) {
+      appendAgentBubble(
+        'agent',
+        `已投递 Go Agent（thread=${res.threadId}）。回复流为 SSE，请在 Workbench 或自行订阅 ${await getAgentBaseUrl()}/api/sse/${encodeURIComponent(res.threadId!)}`
+      );
+    } else {
+      appendAgentBubble('agent', `请求失败: ${res.error?.slice(0, 400) ?? 'unknown'}`);
+    }
     input.value = '';
   };
   document.getElementById('agent-send')?.addEventListener('click', agentSend);

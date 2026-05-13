@@ -326,8 +326,8 @@ func (v *Verifier) checkParent(spec *Spec) []Result {
 			CheckID:   spec.Parent,
 			Status:    "warn",
 			Severity:  "warning",
-			Message:   fmt.Sprintf("parent spec %q not found in specs/ directory", spec.Parent),
-			Suggestion: "Verify the parent spec name is correct or the file exists in specs/",
+			Message:   fmt.Sprintf("parent spec %q not found under .vibex/specs/", spec.Parent),
+			Suggestion: "Verify the parent spec name is correct or the file exists under .vibex/specs/",
 		})
 	} else {
 		results = append(results, Result{

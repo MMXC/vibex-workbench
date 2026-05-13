@@ -27,6 +27,19 @@
           <!-- 入口选择器 -->
           <div class="entry-selector" id="entry-selector"></div>
 
+          <div class="proto-bridge" id="agent-bridge" aria-label="Go Agent 连接">
+            <div class="proto-bridge-hdr">Go Agent</div>
+            <label class="proto-bridge-label" for="agent-base-url">基址</label>
+            <input class="proto-bridge-input" id="agent-base-url" type="url" spellcheck="false" autocomplete="off" placeholder="http://127.0.0.1:33338" />
+            <label class="proto-bridge-label" for="agent-workspace-root">工作区根路径</label>
+            <input class="proto-bridge-input" id="agent-workspace-root" type="text" spellcheck="false" autocomplete="off" placeholder="C:\project\my-repo 或 /home/me/repo" />
+            <div class="proto-bridge-actions">
+              <button type="button" class="proto-bridge-btn" id="btn-agent-save">保存</button>
+              <button type="button" class="proto-bridge-btn proto-bridge-btn--primary" id="btn-agent-ping">测试连接</button>
+            </div>
+            <p class="proto-bridge-status" id="agent-bridge-status">未检测</p>
+          </div>
+
           <div class="tree" id="tree">
             <div class="tree-hdr">
               <span>Spec 树</span>

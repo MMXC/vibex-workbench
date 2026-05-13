@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"vibex-workbench/pkg/vibexpaths"
 )
 
 // ContextProvider provides workspace-scoped context data to the agent.
@@ -19,10 +21,13 @@ func NewContextProvider(workspaceDir string) *ContextProvider {
 	return &ContextProvider{workspaceDir: workspaceDir}
 }
 
-// SpecIndex returns all spec paths under specs/ in this workspace.
+// SpecIndex returns all spec paths under .vibex/specs/ in this workspace.
 func (p *ContextProvider) SpecIndex() ([]string, error) {
-	specsDir := filepath.Join(p.workspaceDir, "specs")
+	specsDir := filepath.Join(p.workspaceDir, filepath.FromSlash(vibexpaths.SpecsRootRel))
 	var paths []string
+	if _, statErr := os.Stat(specsDir); os.IsNotExist(statErr) {
+		return paths, nil
+	}
 	err := filepath.Walk(specsDir, func(full string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
@@ -36,7 +41,7 @@ func (p *ContextProvider) SpecIndex() ([]string, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("walk specs: %w", err)
+		return nil, fmt.Errorf("walk %s: %w", vibexpaths.SpecsRootRel, err)
 	}
 	return paths, nil
 }

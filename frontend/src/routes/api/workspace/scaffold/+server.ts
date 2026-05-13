@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import fs from 'fs';
 import path from 'path';
+import { CANONICAL_SPEC_SUBDIRS } from '$lib/workbench/spec-layout-dirs';
 
 export async function POST(event) {
 	const body = await event.request.json().catch(() => ({}));
@@ -17,22 +18,35 @@ export async function POST(event) {
 		return json({
 			ok: false,
 			error: 'scaffold requires confirm=true',
-			would_create: ['specs/', 'Makefile', 'generators/gen.py', 'spec-templates/', '.memlace/'],
+			would_create: ['.vibex/specs/', 'Makefile', 'generators/gen.py', 'spec-templates/', '.memlace/'],
 		});
 	}
 
 	const created: string[] = [];
 	const errors: string[] = [];
 
-	// Create directories
-	for (const dir of ['specs', 'generators', 'spec-templates', 'specs/L1-concept', 'specs/L2-requirement', 'specs/L3-module', 'specs/L4-feature', 'specs/L5-slice']) {
+	for (const rel of CANONICAL_SPEC_SUBDIRS) {
+		const p = path.join(workspaceRoot, ...rel.split('/'));
+		if (!fs.existsSync(p)) {
+			try {
+				fs.mkdirSync(p, { recursive: true });
+				created.push(rel + '/');
+			} catch (e: unknown) {
+				const msg = e instanceof Error ? e.message : String(e);
+				errors.push(`mkdir ${rel}: ${msg}`);
+			}
+		}
+	}
+
+	for (const dir of ['generators', 'spec-templates']) {
 		const p = path.join(workspaceRoot, dir);
 		if (!fs.existsSync(p)) {
 			try {
 				fs.mkdirSync(p, { recursive: true });
 				created.push(dir + '/');
-			} catch (e: any) {
-				errors.push(`mkdir ${dir}: ${e.message}`);
+			} catch (e: unknown) {
+				const msg = e instanceof Error ? e.message : String(e);
+				errors.push(`mkdir ${dir}: ${msg}`);
 			}
 		}
 	}
@@ -60,8 +74,9 @@ verify-specs:
 		try {
 			fs.writeFileSync(makefilePath, makefile);
 			created.push('Makefile');
-		} catch (e: any) {
-			errors.push(`write Makefile: ${e.message}`);
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : String(e);
+			errors.push(`write Makefile: ${msg}`);
 		}
 	}
 
@@ -84,13 +99,14 @@ sys.exit(0)
 			fs.writeFileSync(genPyPath, genPy);
 			fs.chmodSync(genPyPath, 0o755);
 			created.push('generators/gen.py');
-		} catch (e: any) {
-			errors.push(`write generators/gen.py: ${e.message}`);
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : String(e);
+			errors.push(`write generators/gen.py: ${msg}`);
 		}
 	}
 
 	// Create a sample L1 spec
-	const sampleL1 = path.join(workspaceRoot, 'specs', 'L1-concept', 'CONCEPT-sample.yaml');
+	const sampleL1 = path.join(workspaceRoot, '.vibex', 'specs', 'L1-goal', 'CONCEPT-sample.yaml');
 	if (!fs.existsSync(sampleL1)) {
 		const sample = `---
 spec:
@@ -116,9 +132,10 @@ content: {}
 `;
 		try {
 			fs.writeFileSync(sampleL1, sample);
-			created.push('specs/L1-concept/CONCEPT-sample.yaml');
-		} catch (e: any) {
-			errors.push(`write sample spec: ${e.message}`);
+			created.push('.vibex/specs/L1-goal/CONCEPT-sample.yaml');
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : String(e);
+			errors.push(`write sample spec: ${msg}`);
 		}
 	}
 

@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"vibex-workbench/pkg/vibexpaths"
 )
 
 type agentFlowQARunRequest struct {
@@ -75,7 +77,7 @@ func agentFlowQARunHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	flowPath := strings.TrimSpace(req.FlowPath)
 	if flowPath == "" {
-		flowPath = ".agents/flows/qa-agent-flow.json"
+		flowPath = vibexpaths.AgentsRootRel + "/flows/qa-agent-flow.json"
 	}
 
 	resp := runAgentFlowQACheck(wsRoot, flowPath)
@@ -89,9 +91,9 @@ func runAgentFlowQACheck(workspaceRoot, flowPath string) agentFlowQARunResponse 
 		WorkspaceRoot: workspaceRoot,
 		FlowPath:      filepath.ToSlash(flowPath),
 	}
-	customAgentPath := filepath.Join(workspaceRoot, ".agents", "agents", "general-agent.json")
+	customAgentPath := filepath.Join(workspaceRoot, filepath.FromSlash(vibexpaths.AgentsRootRel), "agents", "general-agent.json")
 	if _, err := os.Stat(customAgentPath); err != nil {
-		out.Error = "custom agent config not found: .agents/agents/general-agent.json"
+		out.Error = "custom agent config not found: " + vibexpaths.AgentsRootRel + "/agents/general-agent.json"
 		return out
 	}
 	out.CustomAgentFound = true

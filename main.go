@@ -31,7 +31,9 @@ import (
 	"vibex-workbench/pkg/designkit"
 	"vibex-workbench/pkg/protoshellmanifest"
 	"vibex-workbench/pkg/speclayout"
+	"vibex-workbench/pkg/vibexpaths"
 	"vibex-workbench/pkg/verify"
+	"vibex-workbench/pkg/workspaceseed"
 )
 
 //go:embed all:frontend/build
@@ -634,7 +636,7 @@ func (a *App) RunMake(ctx context.Context, target string, workspace string) (map
 
 // SpecFile 单个规格文件的元信息
 type SpecFile struct {
-	Path   string `json:"path"`   // 相对路径，如 specs/L1-goal/xxx.yaml
+	Path   string `json:"path"`   // 相对路径，如 .vibex/specs/L1-goal/xxx.yaml
 	Level  int    `json:"level"`  // 1-5，从目录名推导
 	Name   string `json:"name"`   // frontmatter.name 或文件名
 	Status string `json:"status"` // frontmatter.status，默认为 "active"
@@ -678,18 +680,31 @@ func parseSpecFrontmatter(content string) (name, status string) {
 	return
 }
 
-// ListSpecs 扫描 {root}/specs/ 下所有 .yaml/.yml 文件，返回元信息列表
+func levelFromSpecRel(rel string) int {
+	for _, seg := range strings.Split(filepath.ToSlash(rel), "/") {
+		if lv := levelFromDir(seg); lv > 0 {
+			return lv
+		}
+	}
+	return 0
+}
+
+// ListSpecs 扫描 {root}/.vibex/specs/ 下所有 .yaml/.yml。
 func (a *App) ListSpecs(root string) []SpecFile {
 	if root == "" {
 		root = a.workspaceRoot
 	}
-	specsDir := filepath.Join(root, "specs")
-	if _, err := os.Stat(specsDir); os.IsNotExist(err) {
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
 		return []SpecFile{}
 	}
 
 	var result []SpecFile
-	filepath.Walk(specsDir, func(path string, info os.FileInfo, err error) error {
+	specsDir := filepath.Join(rootAbs, filepath.FromSlash(vibexpaths.SpecsRootRel))
+	if _, err := os.Stat(specsDir); os.IsNotExist(err) {
+		return []SpecFile{}
+	}
+	_ = filepath.Walk(specsDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
 		}
@@ -697,16 +712,14 @@ func (a *App) ListSpecs(root string) []SpecFile {
 		if ext != ".yaml" && ext != ".yml" {
 			return nil
 		}
-
-		rel, _ := filepath.Rel(root, path)
-		// 从相对路径提取 level
-		parts := strings.Split(filepath.ToSlash(rel), "/")
-		level := 0
-		if len(parts) >= 2 {
-			level = levelFromDir(parts[1])
+		rel, err := filepath.Rel(rootAbs, path)
+		if err != nil {
+			return nil
 		}
+		rel = filepath.ToSlash(rel)
 
-		// 提取 frontmatter
+		level := levelFromSpecRel(rel)
+
 		data, _ := os.ReadFile(path)
 		name, status := parseSpecFrontmatter(string(data))
 		if name == "" {
@@ -769,7 +782,7 @@ func (a *App) WriteSpecFile(root, path, content string) error {
 	return nil
 }
 
-// InitSpecsLayout creates canonical specs/L1–L5 folders under the opened workspace (idempotent).
+// InitSpecsLayout creates canonical .vibex/specs… / .vibex/agents… folders under the opened workspace (idempotent)，并释放 embed 默认模板（不覆盖已有文件）。
 func (a *App) InitSpecsLayout(root string) map[string]interface{} {
 	if root == "" {
 		root = a.workspaceRoot
@@ -782,6 +795,10 @@ func (a *App) InitSpecsLayout(root string) map[string]interface{} {
 	}
 	if err != nil {
 		out["error"] = err.Error()
+		return out
+	}
+	if seedErr := workspaceseed.Apply(root); seedErr != nil {
+		out["seed_error"] = seedErr.Error()
 	}
 	return out
 }

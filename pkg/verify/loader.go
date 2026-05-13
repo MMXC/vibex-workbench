@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+	"vibex-workbench/pkg/vibexpaths"
 )
 
 // Loader loads spec YAML files.
@@ -21,19 +22,19 @@ func NewLoader(workspaceRoot string) *Loader {
 	return &Loader{workspaceRoot: workspaceRoot}
 }
 
-// LoadAll loads all spec YAML files recursively under the specs/ directory.
+// LoadAll loads all spec YAML files recursively under .vibex/specs/.
 // It returns specs keyed by spec.name.
 func (l *Loader) LoadAll() (map[string]*Spec, error) {
-	specsDir := filepath.Join(l.workspaceRoot, "specs")
+	specsDir := filepath.Join(l.workspaceRoot, filepath.FromSlash(vibexpaths.SpecsRootRel))
 	info, err := os.Stat(specsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("specs/ directory does not exist at %s", specsDir)
+			return nil, fmt.Errorf("%s directory does not exist at %s", vibexpaths.SpecsRootRel, specsDir)
 		}
-		return nil, fmt.Errorf("stat specs/: %w", err)
+		return nil, fmt.Errorf("stat %s: %w", vibexpaths.SpecsRootRel, err)
 	}
 	if !info.IsDir() {
-		return nil, fmt.Errorf("specs/ is not a directory")
+		return nil, fmt.Errorf("%s is not a directory", vibexpaths.SpecsRootRel)
 	}
 
 	specs := make(map[string]*Spec)

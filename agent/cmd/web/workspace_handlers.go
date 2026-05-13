@@ -18,13 +18,16 @@ import (
 	"time"
 
 	"vibex-workbench/pkg/speclayout"
+	"vibex-workbench/pkg/vibexpaths"
+	"vibex-workbench/pkg/workspaceseed"
 )
 
 func htmlPPTAssetSourceCandidates(wsRoot string) []string {
 	return []string{
+		filepath.Join(wsRoot, filepath.FromSlash(vibexpaths.AgentsRootRel), "skills", "html-ppt", "assets"),
+		filepath.Join(wsRoot, ".vibex", "skills", "html-ppt", "assets"),
 		filepath.Join(wsRoot, "skills", "html-ppt", "assets"),
 		filepath.Join(wsRoot, "skills", "html-ppt", "html-ppt", "assets"),
-		filepath.Join(wsRoot, ".agents", "skills", "html-ppt", "assets"),
 	}
 }
 
@@ -338,7 +341,7 @@ type workspaceSpecsBootstrapRequest struct {
 }
 
 // workspaceSpecsBootstrapHandler POST /api/workspace/spec-bootstrap
-// Preferred: skill execute (.agents/skills/workspace-bootstrap/scripts/execute.py)
+// Preferred: skill execute (.vibex/agents/skills/workspace-bootstrap/scripts/execute.py)
 // Fallback: generators/spec_workspace_bootstrap.py.
 func workspaceSpecsBootstrapHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -377,7 +380,7 @@ func workspaceSpecsBootstrapHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	skillScript := firstExisting(resolveRepoScriptCandidates(
-		".agents", "skills", "workspace-bootstrap", "scripts", "execute.py",
+		".vibex", "agents", "skills", "workspace-bootstrap", "scripts", "execute.py",
 	))
 	legacyScript := firstExisting(resolveRepoScriptCandidates("generators", "spec_workspace_bootstrap.py"))
 	scriptPath := skillScript
@@ -699,6 +702,8 @@ func workspaceSpecsInitLayoutHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		resp["error"] = err.Error()
+	} else if seedErr := workspaceseed.Apply(wsRoot); seedErr != nil {
+		resp["seed_error"] = seedErr.Error()
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
@@ -1188,23 +1193,23 @@ func workspaceSpecsListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	specsDir := filepath.Join(wsRoot, "specs")
+	wsRootAbs := filepath.Clean(wsRoot)
 	var paths []string
-	err := filepath.Walk(specsDir, func(full string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil // skip errors
-		}
-		if !info.IsDir() && (strings.HasSuffix(full, ".yaml") || strings.HasSuffix(full, ".yml")) {
-			rel, err := filepath.Rel(wsRoot, full)
-			if err == nil {
+	specsDir := filepath.Join(wsRootAbs, filepath.FromSlash(vibexpaths.SpecsRootRel))
+	if _, err := os.Stat(specsDir); err == nil {
+		_ = filepath.Walk(specsDir, func(full string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			if !info.IsDir() && (strings.HasSuffix(full, ".yaml") || strings.HasSuffix(full, ".yml")) {
+				rel, err := filepath.Rel(wsRootAbs, full)
+				if err != nil {
+					return nil
+				}
 				paths = append(paths, filepath.ToSlash(rel))
 			}
-		}
-		return nil
-	})
-	if err != nil {
-		http.Error(w, "failed to walk specs dir: "+err.Error(), http.StatusInternalServerError)
-		return
+			return nil
+		})
 	}
 
 	sort.Strings(paths)
@@ -1224,11 +1229,11 @@ func workspaceSpecsConventionHandler(w http.ResponseWriter, r *http.Request) {
 
 	convention := map[string]interface{}{
 		"directory_levels": []map[string]string{
-			{"L1-goal": "顶层目标 spec（如 specs/L1-goal/xxx.yaml）"},
-			{"L2-feature": "功能级 spec（如 specs/L2-feature/xxx.yaml）"},
-			{"L3-module": "模块级 spec（如 specs/L3-module/xxx.yaml）"},
-			{"L4-feature": "特性级 spec（如 specs/L4-feature/xxx.yaml）"},
-			{"L5-component": "组件级 spec（如 specs/L5-component/xxx.yaml）"},
+			{"L1-goal": "顶层目标 spec（如 .vibex/specs/L1-goal/xxx.yaml）"},
+			{"L2-feature": "功能级 spec（如 .vibex/specs/L2-skeleton/xxx.yaml）"},
+			{"L3-module": "模块级 spec（如 .vibex/specs/L3-module/xxx.yaml）"},
+			{"L4-feature": "特性级 spec（如 .vibex/specs/L4-feature/xxx.yaml）"},
+			{"L5-component": "组件级 spec（如 .vibex/specs/L5-slice/xxx.yaml）"},
 		},
 		"required_frontmatter": []string{"name", "level", "parent"},
 		"file_pattern":         "*.yaml 或 *.yml",

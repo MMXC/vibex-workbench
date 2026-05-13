@@ -9,7 +9,7 @@ func TestStrongValidationPlanJSONRoundTrip(t *testing.T) {
 	p := StrongValidationPlan{
 		PlanID:      "p1",
 		SlotBinding: "prototype",
-		SpecPath:    "specs/foo.yaml",
+		SpecPath:    ".vibex/specs/foo.yaml",
 		Items: []StrongValidationItem{
 			{ID: "a", Command: "make validate", TimeoutSec: 120, ExpectSignal: "green"},
 		},

@@ -90,7 +90,7 @@ func runQAScenario(wsRoot, scenario, tags string) qaRunnerResult {
 	case "smoke":
 		// Smoke test: check that key files exist
 		keyFiles := []string{
-			"specs/L1-goal/ENTRY.yaml",
+			".vibex/specs/L1-goal/ENTRY.yaml",
 			"agent/cmd/web/main.go",
 			"frontend/src/App.svelte",
 		}

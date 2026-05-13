@@ -101,12 +101,12 @@ export function inferParentSpecPath(
 	const mapped = entries.find(e => e.parent === p)?.target_path;
 	if (mapped) return normalizeSpecPath(mapped);
 
-	if (p === 'vibex-workbench-goal') return 'specs/project-goal/vibex-workbench-goal.yaml';
+	if (p === 'vibex-workbench-goal') return '.vibex/specs/project-goal/vibex-workbench-goal.yaml';
 	if (p.endsWith('-skeleton') || p === 'vibex-workbench-skeleton')
-		return `specs/architecture/${p}.yaml`;
-	if (p.startsWith('MOD-')) return `specs/module/${p}_module.yaml`;
+		return `.vibex/specs/architecture/${p}.yaml`;
+	if (p.startsWith('MOD-')) return `.vibex/specs/module/${p}_module.yaml`;
 	if (/^[a-z][a-z0-9_-]*$/i.test(p)) {
-		return `specs/feature/${p}/${p}_feature.yaml`;
+		return `.vibex/specs/feature/${p}/${p}_feature.yaml`;
 	}
 	return null;
 }
@@ -114,8 +114,8 @@ export function inferParentSpecPath(
 /** 同 feature 目录下的主 feature（用于 L5 跳转） */
 export function inferSiblingFeaturePath(currentPath: string): string | null {
 	const norm = normalizeSpecPath(currentPath);
-	const m = norm.match(/^specs\/feature\/([^/]+)\//);
+	const m = norm.match(/^\.vibex\/specs\/feature\/([^/]+)\//);
 	if (!m) return null;
 	const slug = m[1];
-	return `specs/feature/${slug}/${slug}_feature.yaml`;
+	return `.vibex/specs/feature/${slug}/${slug}_feature.yaml`;
 }

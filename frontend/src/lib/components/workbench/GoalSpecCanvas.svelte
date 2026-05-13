@@ -111,7 +111,7 @@
 	async function loadAll() {
 		loadError = null;
 		try {
-			const b = await fetchSpec('specs/meta/goal-aspect-bindings.yaml');
+			const b = await fetchSpec('.vibex/specs/meta/goal-aspect-bindings.yaml');
 			bindings = parseYaml(b.content) as BindingsFile;
 			const goalPath = bindings.goal_spec_path;
 			goalPayload = await fetchSpec(goalPath);
@@ -195,7 +195,7 @@
 <div class="goal-canvas">
 	{#if loadError}
 		<div class="banner error">
-			<p>无法加载总目标图谱（需本地 dev 且可读仓库 <code>specs/</code>）。</p>
+			<p>无法加载总目标图谱（需本地 dev 且可读仓库 <code>.vibex/specs/</code>）。</p>
 			<code class="err-msg">{loadError}</code>
 			<button type="button" class="retry" onclick={() => loadAll()}>重试</button>
 		</div>

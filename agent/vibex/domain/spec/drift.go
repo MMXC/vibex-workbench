@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"vibex-workbench/pkg/vibexpaths"
 )
 
 // DriftEntry represents a detected drift item.
@@ -43,11 +45,13 @@ func NewDriftEngine(workspaceDir string) *DriftEngine {
 	return de
 }
 
-// CheckDrift scans specs for generated file drift.
+// CheckDrift scans .vibex/specs for generated file drift.
 func (e *DriftEngine) CheckDrift() ([]DriftEntry, error) {
-	// Walk specs/ looking for generates[] declarations
-	specsDir := filepath.Join(e.workspaceDir, "specs")
+	specsDir := filepath.Join(e.workspaceDir, filepath.FromSlash(vibexpaths.SpecsRootRel))
 	var entries []DriftEntry
+	if _, statErr := os.Stat(specsDir); os.IsNotExist(statErr) {
+		return entries, nil
+	}
 
 	err := filepath.Walk(specsDir, func(full string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {

@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"vibex-workbench/pkg/vibexpaths"
 )
 
 // PanoramaEntry represents a single spec in the panorama.
@@ -44,9 +46,27 @@ func NewPanoramaWriter(workspaceDir string) *PanoramaWriter {
 
 // WritePanorama scans all specs and writes the panorama.json file.
 func (w *PanoramaWriter) WritePanorama() (*Panorama, error) {
-	specsDir := filepath.Join(w.workspaceDir, "specs")
-	govDir := filepath.Join(w.workspaceDir, "specs", "_governance")
+	specsDir := filepath.Join(w.workspaceDir, filepath.FromSlash(vibexpaths.SpecsRootRel))
+	govDir := filepath.Join(w.workspaceDir, filepath.FromSlash(vibexpaths.SpecsRootRel), "_governance")
 	os.MkdirAll(govDir, 0755)
+
+	if _, err := os.Stat(specsDir); os.IsNotExist(err) {
+		panorama := &Panorama{
+			GeneratedAt: "2026-01-01T00:00:00Z",
+			Workspace:   w.workspaceDir,
+			ByLevel:     make(map[string]int),
+			Entries:     []PanoramaEntry{},
+		}
+		path := filepath.Join(govDir, "panorama.json")
+		data, err := json.MarshalIndent(panorama, "", "  ")
+		if err != nil {
+			return nil, fmt.Errorf("marshal panorama: %w", err)
+		}
+		if err := os.WriteFile(path, data, 0644); err != nil {
+			return nil, fmt.Errorf("write panorama: %w", err)
+		}
+		return panorama, nil
+	}
 
 	panorama := &Panorama{
 		GeneratedAt: "2026-01-01T00:00:00Z", // would be time.Now() in real impl
@@ -115,7 +135,7 @@ func (w *PanoramaWriter) WritePanorama() (*Panorama, error) {
 
 // WriteCoverageReport generates a markdown coverage report.
 func (w *PanoramaWriter) WriteCoverageReport(panorama *Panorama) error {
-	govDir := filepath.Join(w.workspaceDir, "specs", "_governance")
+	govDir := filepath.Join(w.workspaceDir, filepath.FromSlash(vibexpaths.SpecsRootRel), "_governance")
 	os.MkdirAll(govDir, 0755)
 
 	var lines []string

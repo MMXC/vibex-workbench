@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"vibex-workbench/pkg/vibexpaths"
 )
 
 // AutoUpdateHook triggers governance refresh on spec mutation events.
@@ -91,7 +93,7 @@ func (h *AutoUpdateHook) LastRun() time.Time {
 
 // WriteStaleMarker writes a stale marker file if governance is stale.
 func (h *AutoUpdateHook) WriteStaleMarker() error {
-	govDir := filepath.Join(h.workspaceDir, "specs", "_governance")
+	govDir := filepath.Join(h.workspaceDir, filepath.FromSlash(vibexpaths.SpecsRootRel), "_governance")
 	if err := os.MkdirAll(govDir, 0755); err != nil {
 		return err
 	}

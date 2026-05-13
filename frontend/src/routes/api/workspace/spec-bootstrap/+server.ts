@@ -5,13 +5,20 @@ import { execFileSync } from 'child_process';
 
 function findWorkbenchRoot(): string {
 	const env = process.env.VIBEX_WORKBENCH_ROOT?.trim();
+	if (env && fs.existsSync(path.join(env, '.vibex', 'agents', 'skills', 'workspace-bootstrap', 'scripts', 'execute.py'))) {
+		return path.resolve(env);
+	}
 	if (env && fs.existsSync(path.join(env, 'generators', 'spec_workspace_bootstrap.py'))) {
 		return path.resolve(env);
 	}
 	let d = process.cwd();
 	for (let i = 0; i < 10; i++) {
-		const script = path.join(d, 'generators', 'spec_workspace_bootstrap.py');
+		const script = path.join(d, '.vibex', 'agents', 'skills', 'workspace-bootstrap', 'scripts', 'execute.py');
 		if (fs.existsSync(script)) {
+			return d;
+		}
+		const legacyScript = path.join(d, 'generators', 'spec_workspace_bootstrap.py');
+		if (fs.existsSync(legacyScript)) {
 			return d;
 		}
 		const up = path.dirname(d);
@@ -23,7 +30,7 @@ function findWorkbenchRoot(): string {
 
 function resolveRunnerScripts(vxRoot: string): { preferred: string; legacy: string } {
 	return {
-		preferred: path.join(vxRoot, '.agents', 'skills', 'workspace-bootstrap', 'scripts', 'execute.py'),
+		preferred: path.join(vxRoot, '.vibex', 'agents', 'skills', 'workspace-bootstrap', 'scripts', 'execute.py'),
 		legacy: path.join(vxRoot, 'generators', 'spec_workspace_bootstrap.py'),
 	};
 }

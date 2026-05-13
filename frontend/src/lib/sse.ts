@@ -6,11 +6,21 @@
 // ============================================================
 
 // SSE Consumer — 订阅后端事件并分发到 Stores
+import { get } from 'svelte/store';
 import { threadStore } from '$lib/stores/thread-store';
 import { runStore } from '$lib/stores/run-store';
 import { artifactStore } from '$lib/stores/artifact-store';
 import { canvasStore } from '$lib/stores/canvas-store';
 import { getAgentApiBase } from '$lib/runtime/agent-transport';
+import {
+  extractToolWorkspacePath,
+  formatToolCalledBody,
+  formatToolCompletedFooter,
+} from '$lib/workbench/tool-call-chat';
+
+function toolCallThreadId(data: Record<string, unknown>): string {
+  return String(data.threadId ?? data.runId ?? data.run_id ?? '');
+}
 
 type SSEEventHandler = (data: unknown) => void;
 
@@ -60,55 +70,102 @@ const HANDLERS: Record<string, SSEEventHandler> = {
 
   // ── Tool events (map to canvas nodes) ──────────────────
   'tool.called': (data: any) => {
+    const callId = String(data.invocationId ?? data.call_id ?? crypto.randomUUID());
+    const runId = data.runId ?? data.run_id;
+    const toolName = String(data.toolName ?? data.tool ?? 'tool');
+    const args = data.args;
     // E3-U1: 追踪 tool invocation
     runStore.addToolInvocation({
-      id: data.invocationId,
-      run_id: data.runId,
-      tool_name: data.toolName,
-      tool_display_name: data.toolName,
-      args: data.args,
+      id: callId,
+      run_id: runId,
+      tool_name: toolName,
+      tool_display_name: toolName,
+      args,
       status: 'running',
       order: data.order ?? 0,
     });
     // Canvas node creation
     canvasStore.addNode({
-      id: data.invocationId,
+      id: callId,
       type: 'tool',
       position: { x: 150 + Math.random() * 300, y: 200 + Math.random() * 200 },
-      parent_id: data.runId,
+      parent_id: runId,
       data: {
-        label: data.toolName,
+        label: toolName,
         status: 'running',
-        args: data.args,
+        args,
       },
     });
     // E5-U4: 自动创建 edge (run → tool)
-    if (data.runId) {
+    if (runId) {
       canvasStore.addEdge({
-        id: `${data.runId}-${data.invocationId}`,
-        source: data.runId,
-        target: data.invocationId,
+        id: `${runId}-${callId}`,
+        source: runId,
+        target: callId,
         label: '',
+      });
+    }
+    const threadId = toolCallThreadId(data);
+    if (threadId) {
+      const openPath = extractToolWorkspacePath(toolName, args);
+      threadStore.appendToolCallMessage(threadId, {
+        id: `tool-inline:${callId}`,
+        threadId,
+        role: 'tool',
+        content: formatToolCalledBody(toolName, args),
+        createdAt: new Date().toISOString(),
+        toolOpenPath: openPath,
       });
     }
   },
   'tool.completed': (data: any) => {
+    const callId = String(data.invocationId ?? data.call_id ?? '');
+    const rawResult = data.result;
+    const resultStr =
+      typeof rawResult === 'string' ? rawResult : JSON.stringify(rawResult ?? '');
+    const failed = /^error:|^blocked:|^filter_rejected:/i.test(resultStr.trim());
     // E3-U1: 更新 tool invocation 状态
-    runStore.updateToolInvocation(data.invocationId, {
-      status: 'completed',
-      result: data.result,
-      finished_at: new Date().toISOString(),
-    });
-    canvasStore.updateNode(data.invocationId, { data: { status: 'completed', result: data.result } });
+    if (callId) {
+      runStore.updateToolInvocation(callId, {
+        status: 'completed',
+        result: rawResult ?? resultStr,
+        finished_at: new Date().toISOString(),
+      });
+      canvasStore.updateNode(callId, {
+        data: { status: failed ? 'failed' : 'completed', result: rawResult ?? resultStr },
+      });
+    }
+    const threadId = toolCallThreadId(data);
+    if (threadId && callId) {
+      const msgId = `tool-inline:${callId}`;
+      const prev =
+        get(threadStore).messagesByThread[threadId]?.find(m => m.id === msgId)?.content ?? '';
+      threadStore.patchMessage(threadId, msgId, {
+        content: prev + formatToolCompletedFooter(resultStr, failed),
+      });
+    }
   },
   'tool.failed': (data: any) => {
+    const callId = String(data.invocationId ?? data.call_id ?? '');
+    const err = String(data.error ?? '');
     // E3-U1: 更新 tool invocation 错误状态
-    runStore.updateToolInvocation(data.invocationId, {
-      status: 'failed',
-      error: data.error,
-      finished_at: new Date().toISOString(),
-    });
-    canvasStore.updateNode(data.invocationId, { data: { status: 'failed', error: data.error } });
+    if (callId) {
+      runStore.updateToolInvocation(callId, {
+        status: 'failed',
+        error: err,
+        finished_at: new Date().toISOString(),
+      });
+      canvasStore.updateNode(callId, { data: { status: 'failed', error: err } });
+    }
+    const threadId = toolCallThreadId(data);
+    if (threadId && callId) {
+      const msgId = `tool-inline:${callId}`;
+      const prev =
+        get(threadStore).messagesByThread[threadId]?.find(m => m.id === msgId)?.content ?? '';
+      threadStore.patchMessage(threadId, msgId, {
+        content: prev + formatToolCompletedFooter(err, true),
+      });
+    }
   },
 
   // ── Artifact events ──────────────────────────────────────

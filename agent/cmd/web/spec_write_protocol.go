@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"vibex-workbench/pkg/vibexpaths"
 )
 
 // ── confirmed spec draft payload ────────────────────────────────────
@@ -76,10 +78,13 @@ func handleAgentSpecWriteProtocol(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ── Path guard: must live under specs/ in workspace root ──
-	safePath := filepath.Join(wsRoot, "specs", draft.Path)
-	if !strings.HasPrefix(filepath.Clean(safePath), filepath.Join(wsRoot, "specs")) {
-		http.Error(w, "path_traversal: spec path must be under specs/", http.StatusForbidden)
+	// ── Path guard: must live under .vibex/specs/ in workspace root ──
+	specRoot := filepath.Join(wsRoot, filepath.FromSlash(vibexpaths.SpecsRootRel))
+	safePath := filepath.Join(specRoot, filepath.FromSlash(draft.Path))
+	specRootClean := filepath.Clean(specRoot)
+	safeClean := filepath.Clean(safePath)
+	if safeClean != specRootClean && !strings.HasPrefix(safeClean, specRootClean+string(filepath.Separator)) {
+		http.Error(w, "path_traversal: spec path must be under "+vibexpaths.SpecsRootRel+"/", http.StatusForbidden)
 		return
 	}
 

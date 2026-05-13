@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"vibex-workbench/pkg/vibexpaths"
 	"vibex/agent/internal/shellutil"
 )
 
@@ -196,7 +197,8 @@ func skillsRootCandidates() []string {
 	add(os.Getenv("SKILLS_DIR"))
 	for _, root := range workspaceRootCandidates() {
 		add(filepath.Join(root, "skills"))
-		add(filepath.Join(root, ".agents", "skills"))
+		add(filepath.Join(root, filepath.FromSlash(vibexpaths.AgentsRootRel), "skills"))
+		add(filepath.Join(root, filepath.FromSlash(vibexpaths.AgentsDotAgentsRootRel), "skills"))
 	}
 	return out
 }

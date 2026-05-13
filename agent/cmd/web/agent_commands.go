@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"vibex-workbench/pkg/vibexpaths"
 	"vibex/agent/internal/common"
 )
 
@@ -18,7 +19,7 @@ type agentCommandDTO struct {
 	Source  string `json:"source"`
 }
 
-// profileMetaJSON reads optional label_zh from `.agents/profiles/*.json` or `.agents/skills/<name>/agent.json`.
+// profileMetaJSON reads optional label_zh from `.vibex/agents/profiles/*.json` or workspace merged skill dirs `*/<name>/agent.json`.
 type profileMetaJSON struct {
 	LabelZH string `json:"label_zh"`
 }
@@ -65,7 +66,7 @@ func listWorkspaceAgentCommands(wsRoot string) []agentCommandDTO {
 		}
 	}
 
-	profDir := filepath.Join(wsRoot, ".agents", "profiles")
+	profDir := filepath.Join(wsRoot, filepath.FromSlash(vibexpaths.AgentsRootRel), "profiles")
 	if entries, err := os.ReadDir(profDir); err == nil {
 		for _, ent := range entries {
 			if ent.IsDir() || !strings.HasSuffix(strings.ToLower(ent.Name()), ".json") {
@@ -78,7 +79,7 @@ func listWorkspaceAgentCommands(wsRoot string) []agentCommandDTO {
 		}
 	}
 
-	agDir := filepath.Join(wsRoot, ".agents", "agents")
+	agDir := filepath.Join(wsRoot, filepath.FromSlash(vibexpaths.AgentsRootRel), "agents")
 	if entries, err := os.ReadDir(agDir); err == nil {
 		for _, ent := range entries {
 			if ent.IsDir() || !strings.HasSuffix(strings.ToLower(ent.Name()), ".json") {
@@ -91,8 +92,13 @@ func listWorkspaceAgentCommands(wsRoot string) []agentCommandDTO {
 		}
 	}
 
-	skillsRoot := filepath.Join(wsRoot, ".agents", "skills")
-	if dirs, err := os.ReadDir(skillsRoot); err == nil {
+	// 与 LoadWorkspaceSkillsRegistry 一致：多根扫描；同一 slug 在多个 skill 根下时，**列表中靠后的根**覆盖 label（与 SKILL 合并优先级一致）。
+	skillSlugLabels := make(map[string]string)
+	for _, skillsRoot := range vibexpaths.WorkspaceMergedSkillsDirs(wsRoot) {
+		dirs, err := os.ReadDir(skillsRoot)
+		if err != nil {
+			continue
+		}
 		for _, dir := range dirs {
 			if !dir.IsDir() {
 				continue
@@ -102,9 +108,11 @@ func listWorkspaceAgentCommands(wsRoot string) []agentCommandDTO {
 				continue
 			}
 			slug := strings.ToLower(dir.Name())
-			label := readJSONLabelZh(path)
-			upsert(slug, label, "skill")
+			skillSlugLabels[slug] = readJSONLabelZh(path)
 		}
+	}
+	for slug, label := range skillSlugLabels {
+		upsert(slug, label, "skill")
 	}
 
 	out := make([]agentCommandDTO, 0, len(m))
