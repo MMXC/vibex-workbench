@@ -1,0 +1,78 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "STATE-workspace-session"
+  parent: "FEAT-workspace-session-persistence"
+  status: "proposal"
+  prototype_ref: ""
+meta:
+  type: "state_model"
+  owner: "user"
+  created: "2026-05-15"
+  updated: "2026-05-15"
+source_ui_spec: "FEAT-workspace-session-persistence"
+state:
+  initial:
+    workspaceRoot: null
+    selectedSpecPath: null
+    centerView: "spec-graph"
+    workspaceState: null
+    lastDetectedAt: null
+    isRestoring: false
+    restoreError: null
+  shape:
+    - key: workspaceRoot
+      type: "string | null"
+      default: null
+      description: 当前 workspace 根目录（MVP 只存一个）
+    - key: selectedSpecPath
+      type: "string | null"
+      default: null
+      description: 最近打开的 spec 相对路径
+    - key: centerView
+      type: string
+      default: "spec-graph"
+      description: "center view 模式：spec-graph | spec-editor | spec-layer"
+    - key: workspaceState
+      type: "string | null"
+      default: null
+      description: "最近 detect-state 结果：empty | partial | ready"
+    - key: lastDetectedAt
+      type: "string | null"
+      default: null
+      description: 最近一次状态探测的时间（ISO 字符串）
+    - key: isRestoring
+      type: boolean
+      default: false
+      description: 正在从磁盘恢复 session 中
+    - key: restoreError
+      type: "string | null"
+      default: null
+      description: 恢复失败时的错误信息
+  persistence: localStorage
+  readers:
+    - component: workspaceSelector
+      uses: "workspaceRoot"
+    - component: SpecExplorer
+      uses: "selectedSpecPath"
+    - component: CenterView
+      uses: "centerView"
+  writers:
+    - component: workspaceSelector
+      mutates: "workspaceRoot"
+    - component: SpecExplorer
+      mutates: "selectedSpecPath"
+    - component: CenterView
+      mutates: "centerView"
+    - component: workspaceBootstrapRunner
+      mutates: "workspaceState / lastDetectedAt / isRestoring / restoreError"
+derived_from_behavior: |
+  来自 FEAT-workspace-session-persistence content.session_fields：
+  - workspace_root → workspaceRoot
+  - selected_spec_path → selectedSpecPath
+  - center_view → centerView
+  - last_workspace_state → workspaceState
+  - last_detected_at → lastDetectedAt
+  来自 io_contract.behavior：
+  - "App 启动时读取 session 并重新 detect-state" → isRestoring / restoreError

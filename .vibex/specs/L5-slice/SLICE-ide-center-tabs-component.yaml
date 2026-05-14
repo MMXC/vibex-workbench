@@ -46,9 +46,9 @@ constraints:
   - 在 center tabs 中读取 spec 文件内容
 
 prototype:
-  file: ''
+  file: '.vibex/prototypes/FEAT-ide-editor-tabs.html'
   validates: []
-  status: none
+  status: derived
 
 io_contract:
   input: '用户点击中央 editor tabs：dashboard、canvas、artifacts、spec_text、diff、bootstrap。

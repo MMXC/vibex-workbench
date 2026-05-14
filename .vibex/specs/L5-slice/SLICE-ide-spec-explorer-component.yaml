@@ -43,9 +43,9 @@ constraints:
   - 在组件内做 YAML parse
 
 prototype:
-  file: ''
+  file: '.vibex/prototypes/FEAT-ide-activity-sidebar.html'
   validates: []
-  status: none
+  status: derived
 
 io_contract:
   input: 'wailsListSpecs(root) 返回 spec 文件列表（window.go.main.App.ListSpecs），browser dev 模式 fallback 到 HTTP GET /api/workspace/specs/list'

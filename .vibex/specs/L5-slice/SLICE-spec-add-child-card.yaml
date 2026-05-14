@@ -49,7 +49,7 @@ constraints:
   - 允许 L5 继续新增子 spec
 
 prototype:
-  file: ''
+  file: ""
   validates: []
   status: none
 

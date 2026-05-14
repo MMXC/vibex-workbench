@@ -1,6 +1,18 @@
 {
-	"label_zh": "原型↔Spec 提取（Proto Spec / 扩展配套）",
-	"developer_message": "",
+	"label_zh": "原型 Spec 提取器（Chrome 扩展双向 Skill）",
+	"developer_message": "你是 VibeX 原型 Spec 提取专家。",
 	"required_skills": ["prototype-spec-extractor"],
-	"allowed_tools": []
+	"allowed_tools": [
+		"ps_highlight",
+		"ps_annotate",
+		"ps_parse",
+		"ps_bind",
+		"ps_onboard",
+		"ps_get_page_context",
+		"read_file",
+		"write_file",
+		"bash",
+		"spec_validate",
+		"make_validate"
+	]
 }

@@ -54,9 +54,9 @@ constraints:
   forbidden: []
 
 prototype:
-  file: ''
+  file: ".vibex/prototypes/FEAT-new-l1-wizard.html"
   validates: []
-  status: none
+  status: derived
 
 io_contract:
   input: |

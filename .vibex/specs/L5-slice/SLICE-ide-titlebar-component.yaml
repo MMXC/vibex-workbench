@@ -45,9 +45,9 @@ constraints:
   - 在 titlebar 内实现完整 command palette
 
 prototype:
-  file: ''
+  file: '.vibex/prototypes/FEAT-ide-titlebar.html'
   validates: []
-  status: none
+  status: derived
 
 io_contract:
   input: '用户点击 WebView 内层 titlebar 菜单、命令中心、状态 chip、设置或窗口按钮。

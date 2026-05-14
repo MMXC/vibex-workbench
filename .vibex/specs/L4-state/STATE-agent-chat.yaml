@@ -1,0 +1,75 @@
+---
+spec:
+  version: "0.1"
+  level: "4_state"
+  name: "STATE-agent-chat"
+  parent: "FEAT-ide-agent-panel"
+  status: "proposal"
+  prototype_ref: "../../prototypes/vibex-workbench-mvp.html"
+prototype:
+  file: ".vibex/prototypes/FEAT-ide-agent-panel.html"
+  validates: []
+  status: derived
+meta:
+  type: "state_model"
+  owner: "user"
+  created: "2026-05-15"
+  updated: "2026-05-15"
+source_ui_spec: "FEAT-ide-agent-panel"
+derived_from_behavior: "io_contract.behavior / component_states"
+state:
+  initial:
+    threads: []
+    activeThreadId: null
+    messages: []
+    runStatus: null
+    pendingDiff: null
+    terminalOutput: null
+  shape:
+    - key: threads
+      type: "array<{id, name, createdAt, lastMessageAt, messageCount}>"
+      default: []
+      description: 会话线程列表
+    - key: activeThreadId
+      type: "string | null"
+      default: null
+      description: 当前活跃线程 ID
+    - key: messages
+      type: "array<{id, role, content, type, timestamp}>"
+      default: []
+      description: 当前线程的消息列表，role 为 user/assistant/tool/system
+    - key: runStatus
+      type: "string | null"
+      default: null
+      description: "运行状态：null / running / tool_invocations / diff_pending / terminal_active / failed"
+    - key: pendingDiff
+      type: "object | null"
+      default: null
+      description: 当前未处理的 diff_proposal（含 files[path, old, new]）
+    - key: terminalOutput
+      type: "string | null"
+      default: null
+      description: agent 执行命令的实时终端输出
+  persistence: memory
+  readers:
+    - component: ConversationPanel
+      uses: messages / activeThreadId
+    - component: ThreadList
+      uses: threads / activeThreadId
+    - component: Composer
+      uses: runStatus / pendingDiff
+    - component: RunStatusBar
+      uses: runStatus
+    - component: DiffPreview
+      uses: pendingDiff
+  writers:
+    - component: Composer
+      mutates: messages / runStatus
+    - component: AiChatColumn
+      mutates: threads / activeThreadId / messages / runStatus / pendingDiff / terminalOutput
+derived_from_behavior_detail: |
+  来自 FEAT-ide-agent-panel 的 component_states：
+  - AiChatColumn: idle / running / diff_pending / terminal_active
+  - ConversationPanel: empty / streaming / complete / diff_visible
+  - DiffPreview: hidden / viewing / accepting / accepted / rejected
+  - RunStatusBar: hidden / running / tool_invocations / failed

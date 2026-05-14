@@ -1,0 +1,443 @@
+---
+spec:
+  level: L4
+  name: FEAT-prototype-skill-channel
+  title: "扩展 ↔ Agent 双向通信通道（Agent Skill 集成）"
+  parent: vibex-prototype-driven-spec
+  version: 0.1.0
+  status: draft
+  owner: vibex-team
+  created: 2026-05-13
+
+# ============================================================
+# 核心价值主张
+# ============================================================
+# 原型是唯一真源。扩展通过 DOM 上下文丰富 Agent 认知，
+# Agent 通过工具调用驱动扩展执行区块提取/标注/高亮。
+# 两者以 threadId 为 SSE 路由键，实现零人工干预的闭环。
+#
+# 数据流总览：
+#   Go Agent
+#     ├─[POST /api/chat]─────────────────────────────▶ 扩展侧栏（主动触发）
+#     ├─[SSE /api/sse/{threadId}]──────────────────▶ 扩展侧栏（SSE 订阅）
+#     │    event: agent:tool:call  ← Agent 驱动扩展
+#     │    event: agent:message    ← 消息转发
+#     │    event: agent:spec:update ← spec 变更通知
+#     └─[GET /api/extension/tool-result]◀─────────── 扩展（工具结果回调）
+#
+#   扩展侧栏
+#     ├─ 订阅相同 threadId → 接收 Agent 指令
+#     ├─ 读取 DOM / 调用 content script → 执行 PS 工具
+#     └─ POST tool-result → Agent 继续执行
+# ============================================================
+
+io_contract:
+  description: |
+    扩展侧栏 ↔ Go Agent 直接通信，无 Workbench 中转。
+    扩展侧栏订阅 SSE 接收 Agent 指令；Agent 通过 SSE 广播驱动扩展执行 PS 工具；
+    扩展通过 HTTP POST 回调工具结果，Agent 收到后继续 stream 输出。
+    唯一真源：HTML 原型文件（prototype.file）。
+    spec 治理（父子链、门禁）由 Workbench 负责，Agent spec 变更后 SSE 推送通知 Workbench 刷新。
+  inputs:
+    - name: ext_subscribe
+      type: SSE_connection
+      description: |
+        扩展侧栏打开时，以 threadId 订阅 SSE（GET /api/sse/{threadId}）。
+        threadId 由 Workbench 原型抽屉「新标签打开」时通过 URL 参数 _vibex_ctx 传入，
+        或用户粘贴原型文件路径时由 content script 解析后写入 storage。
+        扩展将 session 上下文固化到 browser.storage.local。
+        session 上下文包含：workspaceRoot / prototypeRel / specRoot / level（见 ext_read_path 入口）。
+    - name: ext_read_path
+      type: browser_storage
+      description: |
+        入口协议：用户粘贴原型文件路径（如 C:/project/repo/.vibex/prototypes/my.html），
+        content script 按 .vibex/prototypes/ 分割后写入 browser.storage.local['vibexWorkbenchSession']：
+        - workspaceRoot : .vibex/prototypes/ 前半部分（工作区根路径）
+        - prototypeRel  : .vibex/prototypes/ 后半部分（原型相对路径）
+        - specRoot      : workspaceRoot + /.vibex/specs
+        - level         : 从路径推断 L1/L3/L4/L5
+        此信息为所有后续操作的第一前提。
+    - name: agent_tool_call
+      type: SSE_event
+      description: |
+        Agent 在 LLM 输出中调用 ps_highlight / ps_annotate / ps_parse 等工具时，
+        Go Agent 框架发出 SSE 事件 { event: "agent:tool:call", data: { name, args } }。
+        扩展侧栏收到后在 side panel UI 展示「Agent 正在调用：ps_xxx」，并自动执行。
+    - name: tool_result_callback
+      type: HTTP_POST
+      description: |
+        扩展执行完 PS 工具后，POST /api/extension/tool-result
+        { toolName, result, error?, threadId }。
+        Go Agent 在同一 chat turn 中收到结果，继续 stream 输出（REPLACEMENT）。
+  outputs:
+    - name: agent_sse_events
+      type: SSE_event_stream
+      description: |
+        通过 /api/sse/{threadId} 推送以下事件：
+        - agent:tool:call   → 驱动 PS 工具
+        - agent:message     → 对话消息转发（扩展 relay）
+        - agent:spec:update → spec 文件变更通知
+        - run.completed     → 原有事件，扩展可据此结束 loading 状态
+    - name: tool_result_acknowledged
+      type: HTTP_response
+      description: |
+        POST /api/extension/tool-result 返回 { ok, content?, error? }。
+        content 为工具执行结果的文本描述，供 Agent 注入到对话中。
+
+prototype:
+  file: .vibex/prototypes/vibex-workbench-mvp.html
+  ui_links:
+    - id: open_ext_launcher
+      rel: opens_overlay
+      from:
+        layer_hint: L4
+        summary: 原型抽屉「浏览器完善区域」按钮
+      target:
+        spec_path: specs/L4-feature/FEAT-prototype-extractor-launcher.yaml
+
+# ============================================================
+# 通信协议详细设计
+# ============================================================
+
+# --- 1. Extension SSE 订阅 ---
+# Extension 侧栏打开时（entryMode = 'local' 或用户激活侧栏）：
+#   1. 读 browser.storage.local['vibexWorkbenchSession']
+#      → 拿到 { threadId, workspaceRoot, specPath, slotId }
+#   2. 如果有 threadId，建立 EventSource("/api/sse/{threadId}")
+#   3. 如果无 threadId（独立会话），不建立 SSE 订阅（走旧路径：扩展直接 POST）
+#
+# --- 2. Agent tool:call SSE 事件格式 ---
+# event: agent:tool:call
+# data: { "name": "ps_parse", "args": { "selectors": ["main", ".card"] }, "callId": "call_xxx" }
+#
+# 支持的 PS 工具（见下方 behaviors）：
+#   - ps_highlight   : 高亮元素
+#   - ps_annotate    : 显示标注
+#   - ps_parse       : 解析页面 Spec 树
+#   - ps_bind        : 绑定 Spec 到 DOM 节点
+#   - ps_onboard     : 引导演示
+#
+# --- 3. Extension 工具结果回调 ---
+# POST /api/extension/tool-result
+# Body: { "toolName": "ps_parse", "callId": "call_xxx", "result": { "nodes": [...], "url": "..." }, "threadId": "..." }
+#
+# --- 4. Go Agent 工具处理流程（框架侧） ---
+# 当 LLM 输出包含 ps_* 工具调用：
+#   1. 框架拦截工具调用，不执行（因为是 PS 工具，非文件系统工具）
+#   2. 框架通过 SSE 推送 agent:tool:call 事件
+#   3. 框架暂停 LLM stream，等待工具结果
+#   4. 收到 tool-result 后，将结果注入为 LLM 的 tool 响应
+#   5. 继续 stream 输出（REPLACEMENT 策略）
+
+behaviors:
+  # ── 入口 ──────────────────────────────────────────────────
+  - id: B1
+    summary: Extension 路径解析 + 发起对话 + SSE 订阅
+    trigger: 用户粘贴原型文件路径到 Chrome 地址栏，或侧栏初始化
+    preconditions:
+      - Go Agent 正在运行
+    action: |
+      1. content script 解析 .vibex/prototypes/ 分割 → { workspaceRoot, prototypeRel, specRoot, level }
+      2. 写入 browser.storage.local['vibexWorkbenchSession']
+      3. 侧栏发起 POST /api/chat（带上 workspace_root 和 prototypeRel）
+      4. 建立 EventSource("/api/sse/" + threadId) 订阅
+      5. 监听 SSE 事件，在侧栏对话线程渲染 Agent 回复
+    expected_output: |
+      - side panel 底部显示「🔗 已连接（workspaceRoot=... prototypeRel=... level=Lx）」
+      - status dot 变绿
+      - 对话线程显示 Agent 首条回复
+
+  # ── 对话流 ────────────────────────────────────────────────
+  - id: B2
+    summary: 扩展侧栏接收 Agent 回复流（SSE → 渲染）
+    trigger: EventSource 推送 SSE 事件
+    preconditions:
+      - 侧栏已建立 EventSource 订阅
+    action: |
+      侧栏接收以下 SSE 事件并渲染到对话线程：
+      - agent:message / agent:chunk → 追加回复文本到对话
+      - agent:tool:call → 状态栏显示「⚙️ Agent 调用: ps_xxx …」并执行 PS 工具
+      - run.completed → 标记对话结束
+      - run.failed → 显示错误
+    expected_output: |
+      - Agent 回复在扩展侧栏直接可见
+      - 无需 Workbench 中转
+
+  # ── PS 工具 ───────────────────────────────────────────────
+  - id: B3
+    summary: Agent 驱动 PS 工具（agent:tool:call → 扩展执行 → 回调）
+    trigger: Go Agent 通过 SSE 推送 agent:tool:call 事件
+    preconditions:
+      - 侧栏已建立 SSE 订阅
+    action: |
+      1. 解析 SSE data: { name, args, callId }
+      2. 根据 name 分发到 content script 执行：
+         - ps_highlight → postMessage('PS_EXT_MSG_elem:highlight', args)
+         - ps_annotate  → postMessage('PS_EXT_MSG_annotation:show', args)
+         - ps_parse     → browser.runtime.sendMessage({ type: 'panel:parsePage' })
+         - ps_bind      → postMessage('PS_EXT_MSG_spec:bind', args)
+         - ps_onboard   → postMessage('PS_EXT_MSG_onboard:start', args)
+         - ps_get_page_context → 读取 storage['vibexWorkbenchSession'] 返回
+      3. 收集执行结果
+      4. POST /api/extension/tool-result
+         { toolName, callId, result, error?, threadId }
+    expected_output: |
+      - 页面发生对应变化（高亮/标注/解析结果）
+      - Agent 收到工具结果，继续 stream 回复到侧栏
+
+  # ── Spec 治理通知 ─────────────────────────────────────────
+  - id: B4
+    summary: Agent spec 变更通知 → Workbench（不影响扩展对话）
+    trigger: Go Agent 通过 specs/write 或 bash 写入了 spec 文件
+    preconditions:
+      - Agent 有 threadId（通过 SSE 上下文携带）
+    action: |
+      1. Agent 框架检测到 spec 文件变更
+      2. 通过 SSE 推送 agent:spec:update 事件
+         { specPath, action: 'created'|'updated', summary }
+      3. Workbench 侧（非本扩展）收到通知后刷新 spec 图谱
+      4. 扩展侧栏事件日志追加「📝 Agent 更新了 spec」（可选展示）
+    expected_output: |
+      - Workbench spec 图谱自动刷新
+      - 扩展对话不被打断
+
+# ============================================================
+# PS 工具详细规范（Agent 可调用的扩展能力）
+# ============================================================
+
+ps_tools:
+  - name: ps_highlight
+    description: 在原型页面中高亮指定 CSS selector 的元素
+    args:
+      - name: selectors
+        type: string[]
+        description: CSS 选择器数组（如 ["main", ".card"]）
+      - name: color
+        type: string
+        default: "#7170ff"
+        description: 高亮颜色
+      - name: duration_ms
+        type: number
+        default: 3000
+        description: 高亮持续时间
+    returns:
+      type: object
+      fields:
+        - name: highlighted
+          type: number
+          description: 成功高亮的元素数量
+        - name: missed
+          type: string[]
+          description: 未找到的选择器列表
+
+  - name: ps_annotate
+    description: 在原型页面显示标注（节点名称、类型、layer）
+    args:
+      - name: mode
+        type: string
+        enum: ["show", "hide", "toggle"]
+        default: "show"
+        description: 显示/隐藏/切换标注
+      - name: show_spec_links
+        type: boolean
+        default: true
+        description: 是否显示 spec 绑定链接
+    returns:
+      type: object
+      fields:
+        - name: annotated
+          type: number
+          description: 标注的元素数量
+
+  - name: ps_parse
+    description: 解析当前原型页面为 Spec 树（同步执行）
+    args:
+      - name: max_depth
+        type: number
+        default: 3
+        description: 解析最大深度
+      - name: include_hidden
+        type: boolean
+        default: false
+        description: 是否包含隐藏元素
+    returns:
+      type: object
+      fields:
+        - name: url
+          type: string
+        - name: title
+          type: string
+        - name: nodes
+          type: number
+          description: 解析出的节点总数
+        - name: spec_tree
+          type: object
+          description: SpecNode 树结构
+
+  - name: ps_bind
+    description: 将 Spec 节点绑定到 DOM 选择器
+    args:
+      - name: spec_name
+        type: string
+        description: Spec 节点名称
+      - name: selector
+        type: string
+        description: CSS 选择器
+      - name: layer
+        type: string
+        default: "L4"
+        description: Spec 层级（L3/L4/L5）
+    returns:
+      type: object
+      fields:
+        - name: bound
+          type: boolean
+        - name: data_ps_attr
+          type: string
+          description: 写入的 data 属性（如 "data-ps-spec='xxx'"）
+
+  - name: ps_onboard
+    description: 在原型页面执行引导演示（onboard steps）
+    args:
+      - name: steps
+        type: object[]
+        description: 引导步骤数组
+        fields:
+          - name: title
+            type: string
+          - name: body
+            type: string
+          - name: target
+            type: string
+            description: CSS 选择器
+          - name: ms
+            type: number
+            description: 停留时间（毫秒）
+    returns:
+      type: object
+      fields:
+        - name: steps_run
+          type: number
+          description: 执行成功的步骤数
+
+  - name: ps_get_page_context
+    description: 获取当前原型页面的完整上下文信息（扩展版 getPrototypeFileRel）
+    args: []
+    returns:
+      type: object
+      fields:
+        - name: url
+          type: string
+          description: 当前页面 URL
+        - name: title
+          type: string
+        - name: workspace_root
+          type: string
+        - name: spec_path
+          type: string
+        - name: prototype_file
+          type: string
+          description: 工作区中对应的原型文件路径
+        - name: session_thread_id
+          type: string
+          description: 当前 SSE threadId
+
+# ============================================================
+# SSE 事件格式（Go Agent → Extension）
+# ============================================================
+
+sse_events:
+  - event: agent:message
+    description: Agent 对话消息，直接渲染到扩展侧栏
+    data_schema: |
+      {
+        "role": "user" | "assistant",
+        "content": "..."
+      }
+
+  - event: agent:chunk
+    description: Agent 回复文本流片段（stream 模式），侧栏追加显示
+    data_schema: |
+      {
+        "content": "片段文本"
+      }
+
+  - event: agent:tool:call
+    description: Agent 请求执行 PS 工具
+    data_schema: |
+      {
+        "name": "ps_highlight" | "ps_annotate" | "ps_parse" | "ps_bind" | "ps_onboard" | "ps_get_page_context",
+        "args": { ... },       // 工具参数
+        "callId": "call_xxx"  // 唯一调用 ID，用于回调匹配
+      }
+
+  - event: agent:spec:update
+    description: Agent 写入了 spec 文件，通知 Workbench 刷新 spec 图谱
+    data_schema: |
+      {
+        "specPath": "specs/L4-feature/FEAT-xxx.yaml",
+        "action": "created" | "updated" | "deleted",
+        "summary": "变更摘要"
+      }
+
+  - event: run.completed
+    description: Agent 对话轮次结束
+    data_schema: |
+      {
+        "threadId": "xxx"
+      }
+
+  - event: run.failed
+    description: Agent 对话轮次出错
+    data_schema: |
+      {
+        "error": "错误描述"
+      }
+
+# ============================================================
+# HTTP 接口（Extension → Go Agent）
+# ============================================================
+
+http_endpoints:
+  - path: /api/extension/tool-result
+    method: POST
+    description: Extension 执行完 PS 工具后回调
+    request_body: |
+      {
+        "toolName": "ps_highlight",
+        "callId": "call_xxx",        // 对应 agent:tool:call 中的 callId
+        "result": { ... },           // 工具执行结果
+        "error": "optional error",   // 错误信息（如果有）
+        "threadId": "sse-thread-id"  // 用于路由到正确的 chat session
+      }
+    response_body: |
+      { "ok": true, "content": "执行摘要" }
+    auth: 无特殊认证（threadId 作为会话隔离）
+
+# ============================================================
+# 边界与依赖
+# ============================================================
+
+dependencies:
+  - name: L2-prototype-extractor
+    description: Chrome 扩展本身（content script + side panel 自主对话）
+  - name: prototype-bridge
+    description: vibex-prototype-agent-bridge.js（原型页内高亮/onboard 执行）
+  - name: vibex-prototype-driven-spec
+    description: L1 spec，定义 prototype.file 协议
+  - name: spec-slot-session-store
+    description: Workbench spec 治理侧（非对话，不参与扩展 SSE 流）
+  - name: agent-spec-update-sse
+    description: Go Agent 在 spec 变更后通过 SSE 推送 agent:spec:update 事件通知 Workbench
+
+out_of_scope:
+  - 扩展在独立标签页（非 Workbench 打开的原型）时通过 URL 手动输入 threadId（V2）
+  - Extension SSE 重连逻辑（V2，SSE EventSource 有自动重连）
+  - Agent 通过 extension 写文件系统（应由 Agent 自身工具处理，extension 只读）
+  - Workbench 参与扩展对话流（扩展是自主对话窗口，spec 治理留在 Workbench）
+
+success_criteria:
+  - 扩展侧栏直接接收 Agent 回复并渲染（无需 Workbench 中转）
+  - Agent 通过 SSE 推送 agent:tool:call，扩展执行后回调 Agent 继续 stream
+  - Agent spec 变更通过 SSE 推 agent:spec:update 通知 Workbench 刷新 spec 图谱
+  - 扩展专注原型拆解，Workbench 专注 spec 治理，职责分离

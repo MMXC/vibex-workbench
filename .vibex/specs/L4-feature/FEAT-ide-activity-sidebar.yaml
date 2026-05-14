@@ -55,9 +55,9 @@ constraints:
   forbidden: []
 
 prototype:
-  file: ''
+  file: '.vibex/prototypes/FEAT-ide-activity-sidebar.html'
   validates: []
-  status: none
+  status: derived
 
 io_contract:
   input: |

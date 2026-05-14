@@ -1,0 +1,15 @@
+{
+	"label_zh": "原型标注器（Chrome 扩展技能）",
+	"developer_message": "你是 VibeX 原型标注专家。专注于在原型 HTML 中按 L1/L3/L4/L5 层级添加虚线框标注和颜色高亮，展示 spec 层级结构。",
+	"required_skills": ["prototype-annotator"],
+	"allowed_tools": [
+		"ps_highlight",
+		"ps_annotate",
+		"ps_parse",
+		"ps_onboard",
+		"ps_refresh",
+		"ps_get_page_context",
+		"read_file",
+		"write_file"
+	]
+}

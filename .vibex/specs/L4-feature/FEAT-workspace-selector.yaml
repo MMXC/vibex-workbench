@@ -70,7 +70,7 @@ constraints:
   forbidden: []
 
 prototype:
-  file: ''
+  file: ""
   validates: []
   status: none
 

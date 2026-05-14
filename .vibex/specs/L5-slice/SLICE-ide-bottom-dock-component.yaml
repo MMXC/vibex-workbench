@@ -45,9 +45,9 @@ constraints:
   - 写入 workspace-output-store
 
 prototype:
-  file: ''
+  file: '.vibex/prototypes/FEAT-ide-bottom-dock.html'
   validates: []
-  status: none
+  status: derived
 
 io_contract:
   input: '用户点击底部 Problems/Output/Terminal/Debug/More tabs，

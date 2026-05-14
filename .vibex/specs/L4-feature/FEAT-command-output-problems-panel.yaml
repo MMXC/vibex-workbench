@@ -50,9 +50,9 @@ constraints:
   forbidden: []
 
 prototype:
-  file: ''
+  file: '.vibex/prototypes/FEAT-ide-bottom-dock.html'
   validates: []
-  status: none
+  status: derived
 
 io_contract:
   input: |

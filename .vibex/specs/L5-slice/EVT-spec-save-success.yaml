@@ -1,0 +1,40 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "EVT-spec-save-success"
+  parent: "FEAT-spec-write_L5"
+  status: "proposal"
+  prototype_ref: ""
+meta:
+  type: "event_bus"
+  owner: "user"
+  created: "2026-05-15"
+  updated: "2026-05-15"
+source_ui_spec: "FEAT-spec-write_L5"
+event:
+  name: spec:save:success
+  trigger: 用户点击「保存」后，wailsWriteSpecFile 返回成功
+  direction: emit
+  payload:
+    - field: path
+      type: string
+      description: 保存的 spec 文件相对路径
+    - field: workspaceRoot
+      type: string
+      description: 工作区根目录
+    - field: savedAt
+      type: string
+      description: 保存时间（ISO 字符串）
+  consumers:
+    - component: SpecViewer
+      reaction: 退出编辑模式，切换只读视图，刷新 content 展示
+    - component: SpecExplorer
+      reaction: 刷新 spec 文件列表（如文件节点需要更新最后修改时间）
+    - component: toast
+      reaction: 显示保存成功 toast（path 展示）
+derived_from_behavior: |
+  来自 FEAT-spec-write_L5 io_contract.output：
+  - "保存成功：SpecViewer 退出编辑模式并刷新展示"
+  来自 content.ui_spec.acceptance：
+  - "保存成功 → 切换只读 + toast"

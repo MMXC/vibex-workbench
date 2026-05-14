@@ -44,9 +44,9 @@ constraints:
   forbidden: []
 
 prototype:
-  file: ''
+  file: '.vibex/prototypes/MOD-scaffolding.html'
   validates: []
-  status: none
+  status: derived
 
 io_contract:
   input: |

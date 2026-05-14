@@ -1,0 +1,76 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "DATA-workspace-session"
+  parent: "FEAT-workspace-session-persistence"
+  status: "proposal"
+  prototype_ref: ""
+meta:
+  type: "data_contract"
+  owner: "user"
+  created: "2026-05-15"
+  updated: "2026-05-15"
+source_ui_spec: "FEAT-workspace-session-persistence"
+derived_from: "io: 用户选择 workspace root、打开 spec、切换 view mode → App 重启后恢复"
+io:
+  input:
+    - source: "用户选择 workspace root、打开 spec、切换 view mode、运行状态探测"
+      fields:
+        - name: workspaceRoot
+          type: string
+          required: true
+          description: 用户选择的工作区根目录
+        - name: selectedSpecPath
+          type: string
+          required: false
+          description: 最近打开的 spec 文件相对路径（如 specs/L3-module/MOD-xxx.yaml）
+        - name: centerView
+          type: string
+          required: false
+          description: "center view 模式：spec-graph | spec-editor | spec-layer"
+        - name: workspaceState
+          type: string
+          required: false
+          description: "最近一次 detect-state 结果：empty | partial | ready"
+  output:
+    - source: "App 重启后恢复上次 workspace root、最近选中 spec、center view、last workspace state"
+      fields:
+        - name: success
+          type: boolean
+          required: true
+          description: 是否成功恢复 session
+        - name: workspaceRoot
+          type: string
+          required: false
+          description: 恢复的 workspace root（失败时为 null）
+        - name: selectedSpecPath
+          type: string
+          required: false
+          description: 恢复的 spec 路径
+        - name: centerView
+          type: string
+          required: false
+          description: 恢复的 center view
+        - name: workspaceState
+          type: string
+          required: false
+          description: 重探后的 workspace state
+        - name: rootValid
+          type: boolean
+          required: true
+          description: 恢复的 root 是否仍有效（目录存在且安全）
+api:
+  endpoint: "POST /api/workspace/session/save  |  GET /api/workspace/session/restore"
+  method: "POST + GET"
+  description: "保存：前端在 workspace 状态变化时 POST；恢复：App 启动时 GET。MVP 可用 localStorage 替代。"
+constraints:
+  - name: single_workspace
+    rule: "MVP 只维护一个最近 workspace，不支持多 workspace 列表"
+    validation: "session store 只有 currentWorkspace 字段"
+  - name: validate_on_restore
+    rule: "恢复后必须重新执行 path guard 和 detect-state"
+    validation: "不直接信任持久化的 last state"
+  - name: path_safety
+    rule: "session 中只存 workspaceRoot，不存绝对路径以外的内容"
+    validation: "restore 时验证 root 存在且在安全路径下"

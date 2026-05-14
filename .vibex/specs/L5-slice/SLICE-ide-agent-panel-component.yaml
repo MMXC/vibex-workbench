@@ -46,9 +46,9 @@ constraints:
   - 在 AiChatColumn 中实现 agent tool 逻辑
 
 prototype:
-  file: ''
+  file: '.vibex/prototypes/FEAT-ide-agent-panel.html'
   validates: []
-  status: none
+  status: derived
 
 io_contract:
   input: '当前 thread store、message store、composer submit handler、layout dimensions。

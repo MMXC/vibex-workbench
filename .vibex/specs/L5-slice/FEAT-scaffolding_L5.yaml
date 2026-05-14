@@ -163,9 +163,10 @@ constraints:
   - 禁止创建 frontend/src 等应用代码文件
 
 prototype:
-  file: ''
+  file: ""
   validates: []
-  status: none
+  status: no_ui
+  note: Python 实现层（Scaffolder.preview/confirm），无直接 UI，UI 行为由 MOD-scaffolding 原型演示
 
 changelog:
 - version: '0.1'

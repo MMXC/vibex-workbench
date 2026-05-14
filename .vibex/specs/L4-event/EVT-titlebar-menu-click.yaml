@@ -1,0 +1,37 @@
+---
+spec:
+  version: "0.1"
+  level: "4_event"
+  name: "EVT-titlebar-menu-click"
+  parent: "FEAT-ide-titlebar"
+  status: "proposal"
+  prototype_ref: "../../prototypes/vibex-workbench-mvp.html"
+prototype:
+  file: ".vibex/prototypes/FEAT-ide-titlebar.html"
+  validates: []
+  status: derived
+meta:
+  type: "event_bus"
+  owner: "user"
+  created: "2026-05-15"
+  updated: "2026-05-15"
+source_ui_spec: "FEAT-ide-titlebar"
+derived_from_behavior: "io_contract.behavior: 菜单按钮触发对应 workbench event"
+event:
+  name: workbench:menu:click
+  trigger: 用户点击 titlebar 菜单按钮（文件/编辑/视图/终端/帮助）
+  direction: emit
+  payload:
+    - field: item
+      type: string
+      description: 菜单项名称（如 "文件", "编辑", "视图"）
+    - field: position
+      type: object
+      description: 按钮坐标 {x, y}（用于计算下拉菜单位置）
+  consumers:
+    - component: workbench
+      reaction: 根据 item 名称打开对应子菜单或触发功能路由
+derived_from_behavior_detail: |
+  来自 FEAT-ide-titlebar content.behaviors[B1]：
+  - trigger: 用户点击「文件」菜单
+  - action: 打开 WebView 内菜单或触发 menu:file 事件

@@ -43,9 +43,9 @@ constraints:
   - 在 ActivityBar 中维护复杂 panel 状态
 
 prototype:
-  file: ''
+  file: '.vibex/prototypes/FEAT-ide-activity-sidebar.html'
   validates: []
-  status: none
+  status: derived
 
 io_contract:
   input: '用户点击左侧 ActivityBar 中的 explorer/search/git/extensions/account/settings 图标。

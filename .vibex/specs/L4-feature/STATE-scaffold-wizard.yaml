@@ -1,0 +1,63 @@
+---
+spec:
+  version: "0.1"
+  level: "4_feature"
+  name: "STATE-scaffold-wizard"
+  parent: "FEAT-scaffolding"
+  status: "proposal"
+  prototype_ref: ""
+meta:
+  type: "state_model"
+  owner: "user"
+  created: "2026-05-15"
+  updated: "2026-05-15"
+source_ui_spec: "FEAT-scaffolding"
+state:
+  initial:
+    isOpen: false
+    selectedType: "full"
+    previewFiles: []
+    isLoading: false
+    lastResult: null
+    lastError: null
+  shape:
+    - key: isOpen
+      type: boolean
+      default: false
+      description: 抽屉是否打开
+    - key: selectedType
+      type: string
+      default: "full"
+      description: "用户选择的组件类型：agent | frontend | python | full"
+    - key: previewFiles
+      type: "string[]"
+      default: []
+      description: 将要创建的文件预览列表（用户在抽屉中看到的内容）
+    - key: isLoading
+      type: boolean
+      default: false
+      description: 正在生成骨架中
+    - key: lastResult
+      type: "object | null"
+      default: null
+      description: "最近一次 scaffold 结果：{ createdFiles, skippedFiles }"
+    - key: lastError
+      type: "string | null"
+      default: null
+      description: 最近一次 scaffold 错误信息
+  persistence: memory
+  readers:
+    - component: ScaffoldingDrawer
+      uses: "isOpen / selectedType / previewFiles / isLoading / lastResult / lastError"
+  writers:
+    - component: ScaffoldingDrawer
+      mutates: "isOpen / selectedType / previewFiles"
+    - component: workspaceBootstrapRunner
+      mutates: "isLoading / lastResult / lastError"
+derived_from_behavior: |
+  来自 FEAT-scaffolding io_contract.behavior：
+  - "前端打开 scaffolding wizard 抽屉"  → isOpen
+  - "展示将要创建的文件预览"           → previewFiles
+  - "用户选择组件（agent/frontend/python）" → selectedType
+  - "POST /api/workspace/scaffold → backend 生成文件" → isLoading / lastResult / lastError
+  - "展示生成结果 + 错误（如有）"      → lastResult / lastError

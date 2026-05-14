@@ -1,0 +1,23 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "SLICE-statusbar-right"
+  parent: "MOD-bottom-statusbar"
+  status: "proposal"
+  prototype_ref: "../../prototypes/vibex-workbench-mvp.html"
+prototype:
+  file: ".vibex/prototypes/MOD-bottom-statusbar.html"
+  validates: []
+  status: derived
+meta:
+  type: "slice"
+  owner: "user"
+  created: "2026-05-14"
+display:
+  title: L5 · 状态栏右
+  summary: 底部状态栏右侧，展示 Canvas 开关和后端状态
+structure:
+  parent: MOD-bottom-statusbar
+  parent_selector: ".statusbar .sb-right"
+  is_leaf: true

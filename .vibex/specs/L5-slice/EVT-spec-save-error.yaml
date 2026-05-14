@@ -1,0 +1,38 @@
+---
+spec:
+  version: "0.1"
+  level: "5_slice"
+  name: "EVT-spec-save-error"
+  parent: "FEAT-spec-write_L5"
+  status: "proposal"
+  prototype_ref: ""
+meta:
+  type: "event_bus"
+  owner: "user"
+  created: "2026-05-15"
+  updated: "2026-05-15"
+source_ui_spec: "FEAT-spec-write_L5"
+event:
+  name: spec:save:error
+  trigger: 用户点击「保存」后，wailsWriteSpecFile 调用失败
+  direction: emit
+  payload:
+    - field: path
+      type: string
+      description: 保存失败的 spec 文件相对路径
+    - field: error
+      type: string
+      description: 错误信息原文
+    - field: code
+      type: string
+      description: "错误码：disk_full | permission_denied | network_error | wails_binding_missing | unknown"
+  consumers:
+    - component: SpecViewer
+      reaction: 保留编辑状态，显示 saveErr 错误信息
+    - component: toast
+      reaction: 显示保存失败 toast（含错误信息摘要）
+derived_from_behavior: |
+  来自 FEAT-spec-write_L5 io_contract.output：
+  - "失败：保留编辑态并展示错误"
+  来自 content.ui_spec.acceptance：
+  - "失败 → 显示 saveErr，保持编辑状态"
