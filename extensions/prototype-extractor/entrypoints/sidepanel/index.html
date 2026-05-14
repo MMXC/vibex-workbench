@@ -4,170 +4,92 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="manifest.open_at_install" content="false" />
-  <title>Proto Spec 治理</title>
+  <title>原型操作台</title>
 </head>
 <body class="proto-body">
-  <div class="proto-shell" id="proto-shell" data-work-mode="governance">
-    <!-- 顶层：工作模式 + 扩展设置 -->
-    <header class="proto-topbar">
-      <nav class="proto-modes" id="proto-modes" aria-label="工作模式">
-        <button type="button" class="proto-mode is-active" data-mode="governance" id="mode-governance">治理</button>
-        <button type="button" class="proto-mode" data-mode="browse" id="mode-browse">浏览</button>
-        <button type="button" class="proto-mode" data-mode="debug" id="mode-debug">调试</button>
-      </nav>
-      <button type="button" class="proto-settings-btn" id="btn-open-settings" title="扩展设置">⚙</button>
+  <div class="proto-shell">
+
+    <!-- 顶部栏 -->
+    <header class="chat-head">
+      <div>
+        <span class="k">Prototype Agent</span>
+        <h3 id="proto-headline">原型操作台</h3>
+      </div>
+      <div class="chat-head-right">
+        <span class="status-pill run" id="proto-status" style="display:none">running</span>
+        <button type="button" class="proto-settings-btn" id="btn-open-settings" title="连接设置">⚙</button>
+      </div>
     </header>
 
-    <!-- 中部：左 Spec 抽屉 | 右 Agent -->
-    <div class="proto-workspace">
-      <aside class="proto-spec-drawer" id="spec-drawer" aria-label="Spec 治理">
-        <div class="proto-spec-rail" aria-hidden="true"></div>
-        <button type="button" class="proto-spec-collapse" id="btn-spec-drawer-toggle" title="折叠 / 展开 Spec 栏" aria-expanded="true">⟨</button>
-        <div class="proto-spec-body">
-          <!-- 入口选择器 -->
-          <div class="entry-selector" id="entry-selector"></div>
-
-          <div class="proto-bridge" id="agent-bridge" aria-label="Go Agent 连接">
-            <div class="proto-bridge-hdr">Go Agent</div>
-            <label class="proto-bridge-label" for="agent-base-url">基址</label>
-            <input class="proto-bridge-input" id="agent-base-url" type="url" spellcheck="false" autocomplete="off" placeholder="http://127.0.0.1:33338" />
-            <label class="proto-bridge-label" for="agent-workspace-root">工作区根路径</label>
-            <input class="proto-bridge-input" id="agent-workspace-root" type="text" spellcheck="false" autocomplete="off" placeholder="C:\project\my-repo 或 /home/me/repo" />
-            <div class="proto-bridge-actions">
-              <button type="button" class="proto-bridge-btn" id="btn-agent-save">保存</button>
-              <button type="button" class="proto-bridge-btn proto-bridge-btn--primary" id="btn-agent-ping">测试连接</button>
-            </div>
-            <p class="proto-bridge-status" id="agent-bridge-status">未检测</p>
-          </div>
-
-          <div class="tree" id="tree">
-            <div class="tree-hdr">
-              <span>Spec 树</span>
-              <button class="btn-icon" id="btn-add-spec" title="新建 Spec">+</button>
-            </div>
-            <div class="tree-list" id="tree-list"></div>
-          </div>
-          <div class="actions" id="actions">
-            <div class="act-spec" id="act-spec">
-              <span class="act-label">当前选中</span>
-              <span class="act-val" id="act-spec-name">—</span>
-            </div>
-            <div class="act-row">
-              <button class="act-btn" id="btn-highlight" title="高亮页面元素">
-                <span class="act-icon">✦</span>
-                <span>高亮</span>
-              </button>
-              <button class="act-btn" id="btn-annotate" title="显示/隐藏标注">
-                <span class="act-icon">📍</span>
-                <span>标注</span>
-              </button>
-              <button class="act-btn" id="btn-onboard" title="Onboard 演示">
-                <span class="act-icon">🎯</span>
-                <span>引导</span>
-              </button>
-            </div>
-            <div class="act-row">
-              <button class="act-btn" id="btn-bind" title="绑定当前 Spec 到元素">
-                <span class="act-icon">⊕</span>
-                <span>绑定</span>
-              </button>
-              <button class="act-btn" id="btn-theme" title="切换页面主题">
-                <span class="act-icon">🌓</span>
-                <span>主题</span>
-              </button>
-              <button class="act-btn" id="btn-refresh" title="刷新页面">
-                <span class="act-icon">↻</span>
-                <span>刷新</span>
-              </button>
-              <button class="act-btn" id="btn-diff" title="对比变更">
-                <span class="act-icon">⊡</span>
-                <span>Diff</span>
-              </button>
-            </div>
-            <div class="act-row">
-              <button class="act-btn" id="btn-undo" title="撤销" disabled>↩</button>
-              <button class="act-btn" id="btn-redo" title="重做" disabled>↪</button>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      <section class="proto-agent" aria-label="Agent 交互">
-        <div class="proto-agent-head">
-          <span class="proto-agent-title">Agent</span>
-          <span class="proto-agent-hint">与页面 runtime 协同（占位对接）</span>
-        </div>
-        <div class="proto-agent-thread" id="agent-thread"></div>
-        <div class="proto-agent-compose">
-          <textarea id="agent-input" rows="2" placeholder="输入指令或问题，Enter 发送…" spellcheck="false"></textarea>
-          <button type="button" class="proto-agent-send" id="agent-send">发送</button>
-        </div>
-      </section>
+    <!-- 连接设置（默认折叠） -->
+    <div class="proto-bridge" id="agent-bridge" aria-label="Go Agent 连接" style="display:none">
+      <div class="bridge-row">
+        <label class="bridge-label" for="agent-base-url">Agent</label>
+        <input class="bridge-input" id="agent-base-url" type="url" spellcheck="false" autocomplete="off" placeholder="http://127.0.0.1:33338" />
+      </div>
+      <div class="bridge-row">
+        <label class="bridge-label" for="agent-workspace-root">工作区</label>
+        <input class="bridge-input" id="agent-workspace-root" type="text" spellcheck="false" autocomplete="off" placeholder="C:\project\my-repo" />
+      </div>
+      <div class="bridge-actions">
+        <button type="button" class="bridge-btn" id="btn-agent-save">保存</button>
+        <button type="button" class="bridge-btn bridge-btn--primary" id="btn-agent-ping">连接</button>
+      </div>
+      <p class="bridge-status" id="agent-bridge-status">未连接</p>
     </div>
 
-    <!-- 底部 Dock：数据 | 状态 | 事件中心 -->
-    <footer class="proto-dock" id="proto-dock">
-      <div class="proto-dock-tabs" role="tablist">
-        <button type="button" class="proto-dock-tab is-active" role="tab" data-dock-tab="data" id="dock-tab-data" aria-selected="true">数据</button>
-        <button type="button" class="proto-dock-tab" role="tab" data-dock-tab="status" id="dock-tab-status" aria-selected="false">状态</button>
-        <button type="button" class="proto-dock-tab" role="tab" data-dock-tab="events" id="dock-tab-events" aria-selected="false">
-          事件中心 <span class="proto-badge" id="log-count">0</span>
+    <!-- 操作工具条 -->
+    <div class="proto-toolbar" id="proto-toolbar">
+      <button class="proto-tool-btn" id="btn-highlight" title="高亮页面元素">
+        <span>✦</span><span>高亮</span>
+      </button>
+      <button class="proto-tool-btn" id="btn-annotate" title="显示/隐藏标注">
+        <span>📍</span><span>标注</span>
+      </button>
+      <button class="proto-tool-btn" id="btn-onboard" title="引导演示">
+        <span>🎯</span><span>引导</span>
+      </button>
+      <button class="proto-tool-btn" id="btn-refresh" title="刷新页面">
+        <span>↻</span><span>刷新</span>
+      </button>
+    </div>
+
+    <!-- 对话区 -->
+    <section class="proto-chat" id="proto-chat" aria-label="Agent 对话">
+      <div class="messages" id="agent-thread">
+        <div class="proto-chat-hint">
+          在下方输入自然语言要求，如：<br>
+          · 拆解这个页面的布局区块<br>
+          · 高亮导航区域并描述其结构<br>
+          · 将侧栏改造为可折叠组件<br>
+          · 在卡片区域加上加载状态
+        </div>
+      </div>
+    </section>
+
+    <!-- 底部输入 -->
+    <div class="input-row" id="input-row">
+      <div class="textarea-wrap">
+        <textarea
+          id="agent-input"
+          class="chat-input"
+          rows="3"
+          placeholder="输入自然语言要求，/ 选择专业命令，Ctrl+Enter 发送…"
+          spellcheck="false"
+        ></textarea>
+        <div id="slash-menu" class="slash-menu" role="listbox" aria-label="专业 agent 命令"></div>
+      </div>
+      <div class="input-actions">
+        <span class="input-hint">Ctrl+Enter 发送 · / 专业命令</span>
+        <button type="button" class="send-btn" id="agent-send" title="发送">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
         </button>
-        <button type="button" class="proto-dock-tab" role="tab" data-dock-tab="diff" id="dock-tab-diff" aria-selected="false">Diff</button>
       </div>
-      <div class="proto-dock-body">
-        <div class="proto-dock-panel is-active" role="tabpanel" data-dock-panel="data" id="panel-data">
-          <p class="proto-muted">扩展侧栏「数据 / 状态 / 事件」通过 <code class="proto-code">ext:send</code> 写入页面 <code class="proto-code">ProtoSpecHub</code>（与 <code class="proto-code">proto:data:set</code> 等协议对齐）。</p>
-          <div class="proto-hub-grid">
-            <div class="proto-hub-row">
-              <label class="proto-hub-label" for="hub-data-key">数据 key</label>
-              <input class="proto-hub-input" id="hub-data-key" type="text" value="fromExtension" autocomplete="off" />
-            </div>
-            <div class="proto-hub-row">
-              <label class="proto-hub-label" for="hub-data-value">数据 value（JSON 或纯文本）</label>
-              <input class="proto-hub-input" id="hub-data-value" type="text" value='"来自扩展数据中心"' spellcheck="false" />
-            </div>
-            <button type="button" class="proto-hub-btn" id="btn-hub-data-push">写入页面数据</button>
-            <div class="proto-hub-row proto-hub-row--split">
-              <button type="button" class="proto-hub-btn proto-hub-btn--ghost" id="btn-hub-state-light">状态：浅色</button>
-              <button type="button" class="proto-hub-btn proto-hub-btn--ghost" id="btn-hub-state-dark">状态：深色</button>
-            </div>
-            <div class="proto-hub-row">
-              <label class="proto-hub-label" for="hub-state-json">状态 patch（JSON 对象）</label>
-              <textarea class="proto-hub-textarea" id="hub-state-json" rows="2" spellcheck="false">{"phase":"governance-driven"}</textarea>
-            </div>
-            <button type="button" class="proto-hub-btn" id="btn-hub-state-json">应用状态 JSON</button>
-            <div class="proto-hub-row">
-              <label class="proto-hub-label" for="hub-event-name">事件 name</label>
-              <input class="proto-hub-input" id="hub-event-name" type="text" value="proto:toast" autocomplete="off" />
-            </div>
-            <div class="proto-hub-row">
-              <label class="proto-hub-label" for="hub-event-payload">事件 payload（JSON）</label>
-              <input class="proto-hub-input" id="hub-event-payload" type="text" value='{"message":"来自扩展事件中心"}' spellcheck="false" />
-            </div>
-            <button type="button" class="proto-hub-btn" id="btn-hub-event-push">触发页面事件</button>
-          </div>
-          <p class="proto-muted proto-hub-preview-hdr">聚合预览（当前 Spec + 最近一次页面 ack）</p>
-          <pre class="proto-data-block" id="data-preview">暂无数据视图</pre>
-        </div>
-        <div class="proto-dock-panel" role="tabpanel" data-dock-panel="status" id="dock-panel-status">
-          <div class="proto-status-row">
-            <span class="dot" id="status-dot"></span>
-            <span id="status-text">初始化中…</span>
-          </div>
-          <p class="proto-muted" id="status-extra">扩展 → Content → 页面 PostMessage / Runtime</p>
-        </div>
-        <div class="proto-dock-panel" role="tabpanel" data-dock-panel="events" id="dock-panel-events">
-          <div class="log-list log-list--dock" id="log-list"></div>
-        </div>
-        <div class="proto-dock-panel" role="tabpanel" data-dock-panel="diff" id="dock-panel-diff">
-          <p class="proto-muted">点击变更项 → 原型页对应元素高亮</p>
-          <div class="diff-list" id="diff-list">
-            <div class="diff-empty">点击「Diff」按钮开始对比</div>
-          </div>
-        </div>
-      </div>
-    </footer>
+    </div>
+
   </div>
   <script type="module" src="./main.ts"></script>
 </body>

@@ -91,6 +91,24 @@ export default defineContentScript({
           window.postMessage({ type: 'PS_EXT_MSG_annotation:show', payload: { mode: 'show' }, _from: 'extension' }, '*');
           return Promise.resolve({ ok: true });
         case 'action:extract': return Promise.resolve(extractSpec());
+        /**
+         * relay:toFrontend — background → content script → Workbench WebView window
+         * 用于将扩展侧的数据（提取结果、Agent 回复等）转发到 Workbench 前端。
+         * 消息通过 window.postMessage 发送，Workbench 监听器根据 payload.kind 分发到对应 store。
+         */
+        case 'relay:toFrontend': {
+          const p = msg.payload;
+          if (p && typeof p === 'object') {
+            window.postMessage(
+              {
+                source: 'vibex-prototype-extractor-relay',
+                payload: p,
+              },
+              window.location.origin
+            );
+          }
+          return Promise.resolve({ ok: true });
+        }
         default:
           if (
             msg &&
@@ -362,7 +380,69 @@ export default defineContentScript({
     }
 
     // 默认关闭，等待 side panel 激活
-    toggleOverlay(false);
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 初始化：解析 URL 中的 _vibex_ctx 并写入 storage
+    // 当用户通过「新标签打开」从 Workbench 打开原型时，Workbench 在 URL 中附加了 session 上下文，
+    // content script 在任意原型页加载时读取并写入 storage，供 side panel 读取。
+    // 支持两种协议：
+    //   1. URL ?_vibex_ctx=<base64url(JSON)> — 旧协议（base64url 编码的 session context）
+    //   2. file:// 路径含 .vibex/prototypes/ — 新协议，直接解析工作区与原型路径
+    //
+    // 约定层级派生关系：
+    //   L1（L1-goal）：骨架原型，含完整 HTML 壳，是所有派生的根。
+    //   L3/L4/L5：派生 spec 的原型。将 L1 原型中的对应区域替换为 spec 定义的 web components，
+    //     使用 <{spec-name} data-level="L3|L4|L5"></{spec-name}> 包裹功能区。
+    //     派生原型 HTML 可通过 <link rel="skeleton" href="骨架相对路径"> 声明引用哪个 L1 骨架。
+    // ══════════════════════════════════════════════════════════════════════
+    (function initSessionContext() {
+      // 协议 1：URL ?_vibex_ctx=<base64url(JSON)>
+      const rawCtx = new URLSearchParams(location.search).get('_vibex_ctx');
+      if (rawCtx) {
+        try {
+          const base64 = rawCtx.replace(/-/g, '+').replace(/_/g, '/').replace(/\./g, '=');
+          const ctx = JSON.parse(atob(base64));
+          void browser.runtime.sendMessage({ type: 'ext:writeSessionContext', payload: ctx });
+        } catch (_) { /* ignore malformed ctx */ }
+        return;
+      }
+
+      // 协议 2：本地文件路径含 .vibex/prototypes/
+      // 格式：C:/project/repo/.vibex/prototypes/my.html
+      //       或  file:///C:/project/repo/.vibex/prototypes/my.html
+      // 分割 .vibex/prototypes/ 取前后：
+      //   前半  → workspaceRoot（去掉 file:// 前导 /[a-z]:/ → [a-z]:/）
+      //   后半  → prototypeRel（.vibex/prototypes/ 后的相对路径）
+      //   specRoot → workspaceRoot + .vibex/specs
+      try {
+        const VIBEX_PROTOS = '.vibex/prototypes/';
+        const rawPath = decodeURIComponent(location.pathname);
+        const sepIdx = rawPath.indexOf(VIBEX_PROTOS);
+        if (sepIdx === -1) return;
+
+        let wsRoot = rawPath.slice(0, sepIdx).replace(/^\/[a-z]:\//i, (m) => m.slice(1));
+        if (!/^[a-z]:/i.test(wsRoot) && !wsRoot.startsWith('/')) {
+          wsRoot = '/' + wsRoot;
+        }
+
+        const protoRel = rawPath.slice(sepIdx + VIBEX_PROTOS.length);
+        const specRoot = wsRoot + (wsRoot.endsWith('/') || wsRoot.endsWith('\\') ? '' : '/') + '.vibex/specs';
+
+        let level = 'L1';
+        if (/L5[\/-]/i.test(protoRel)) level = 'L5';
+        else if (/L4[\/-]/i.test(protoRel)) level = 'L4';
+        else if (/L3[\/-]/i.test(protoRel)) level = 'L3';
+        else if (/L2[\/-]/i.test(protoRel)) level = 'L2';
+
+        const ctx: Record<string, string> = {
+          workspaceRoot: wsRoot,
+          prototypeRel,
+          specRoot,
+          level,
+        };
+        void browser.runtime.sendMessage({ type: 'ext:writeSessionContext', payload: ctx });
+      } catch (_) { /* ignore malformed file path */ }
+    })();
 
     // ══════════════════════════════════════════════════════
     // content script 内联解析器（panel:parsePage / panel:diffPage）

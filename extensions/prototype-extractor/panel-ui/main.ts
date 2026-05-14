@@ -1,8 +1,6 @@
-// panel-ui/main.ts — Proto Spec 侧栏面板
-// 入口选择 → Spec 树展示 → 双向绑定控制 → 事件日志
+// panel-ui/main.ts — 原型操作台：纯原型对话 + PS 工具驱动
+// 无 spec 治理，无 relay，一切以扩展侧栏为唯一对话界面
 
-// === HTML 解析器 ===
-import { parseAndDiff, parseHTMLSpecTree, type SpecNode, type ParsedSpec, type DiffResult } from './html-parser';
 import {
 	fetchAgentHealth,
 	getAgentBaseUrl,
@@ -12,295 +10,520 @@ import {
 	setWorkspaceRootForAgent,
 } from '../lib/agent-client';
 
-// === Demo Spec 树（fallback）===
-const SPEC_TREE = [
-  { id: 'p1', name: 'page-shell', layer: 'L2', type: 'P', children: [
-    { id: 'c1', name: 'sidebar-nav', type: 'C', children: [
-      { id: 'b1', name: 'menu-item', type: 'B' },
-      { id: 's1', name: 'logo', type: 'S' },
-    ]},
-    { id: 'c2', name: 'main-content', type: 'C', children: [
-      { id: 'b2', name: 'card-list', type: 'B' },
-    ]},
-  ]},
-  { id: 'p2', name: 'page-login', layer: 'L2', type: 'P' },
+// ── Types ──────────────────────────────────────────────────────────
+
+interface ProtoContext {
+	workspaceRoot: string;
+	prototypeRel: string;
+	specRoot: string;
+	level: string;
+	threadId?: string;
+}
+
+interface SlashCmd {
+	command: string;
+	label_zh: string;
+	prompt: string;
+}
+
+// ── State ────────────────────────────────────────────────────────
+
+let _ctx: ProtoContext | null = null;
+let _sseSource: EventSource | null = null;
+let _threadId: string = '';
+let _running = false;
+
+// slash 菜单状态
+let _slashOpen = false;
+let _slashQuery = '';
+let _slashIndex = 0;
+let _slashPrevQuery = '';
+let _draft = '';
+
+// 原型专属 slash 命令
+const SLASH_COMMANDS: SlashCmd[] = [
+	{
+		command: '拆解',
+		label_zh: '拆解当前页面布局区块，按层级标注',
+		prompt: '拆解当前页面的布局区块，按 L1/L2/L3 层级标注每个区域的职责和关系',
+	},
+	{
+		command: '高亮',
+		label_zh: '高亮指定区域并描述其结构',
+		prompt: '高亮当前页面的主要布局区域，并描述每个高亮区域的语义和功能',
+	},
+	{
+		command: '标注',
+		label_zh: '在原型上叠加标注层，展示信息架构',
+		prompt: '在原型上叠加标注层，展示页面结构：标题、导航、内容、状态、交互',
+	},
+	{
+		command: '改造组件',
+		label_zh: '将原型区域改造为可交互 web component',
+		prompt: '将选定的原型区域改造为可交互的 web component，定义属性、状态和事件接口',
+	},
+	{
+		command: '调整样式',
+		label_zh: '调整元素样式和布局，参考业界最佳实践',
+		prompt: '调整原型中指定元素的样式和布局，参考业界最佳实践给出 CSS 建议',
+	},
+	{
+		command: '加状态',
+		label_zh: '为组件添加 loading/empty/error 等状态',
+		prompt: '为原型中的组件添加 states：loading、empty、error、disabled 等状态展示',
+	},
+	{
+		command: '引导',
+		label_zh: '生成 onboarding 引导流',
+		prompt: '生成 onboarding 引导流：在原型上叠加步骤提示气泡，说明核心操作流程',
+	},
+	{
+		command: '响应式',
+		label_zh: '分析并给出移动端适配方案',
+		prompt: '分析原型在移动端的适配方案，给出媒体查询和布局调整建议',
+	},
 ];
 
-const STORAGE_WORK_MODE = 'psWorkMode';
+// ── DOM refs ──────────────────────────────────────────────────────
 
-type WorkMode = 'governance' | 'browse' | 'debug';
-type EntryMode = 'local' | 'prompt' | 'url';
+const threadEl = (): HTMLElement => document.getElementById('agent-thread')!;
+const headlineEl = (): HTMLElement => document.getElementById('proto-headline')!;
+const statusEl = (): HTMLElement => document.getElementById('proto-status')!;
+const inputEl = (): HTMLTextAreaElement => document.getElementById('agent-input') as HTMLTextAreaElement;
+const sendBtn = (): HTMLButtonElement => document.getElementById('agent-send') as HTMLButtonElement;
 
-// === State ===
-let currentSpec: { id: string; name: string; layer: string; type: string; selector?: string } | null = null;
-let parsedSpec: ParsedSpec | null = null;
-let currentDiff: DiffResult | null = null;
-let logCount = 0;
-let pageTheme: 'dark' | 'light' = 'dark';
-let annotationsVisible = false;
-let entryMode: EntryMode = 'local';
-let undoStack: string[] = [];
-let redoStack: string[] = [];
+// ── Context 读取 ─────────────────────────────────────────────────
 
-// === Entry Selector ===
-function renderEntrySelector() {
-  const container = document.getElementById('entry-selector');
-  if (!container) return;
-  container.innerHTML = `
-    <div class="entry-modes">
-      <button class="entry-btn ${entryMode === 'local' ? 'active' : ''}" data-entry="local">
-        <span class="entry-icon">📁</span>
-        <span class="entry-label">本地 HTML</span>
-      </button>
-      <button class="entry-btn ${entryMode === 'prompt' ? 'active' : ''}" data-entry="prompt">
-        <span class="entry-icon">✏️</span>
-        <span class="entry-label">需求描述</span>
-      </button>
-      <button class="entry-btn ${entryMode === 'url' ? 'active' : ''}" data-entry="url">
-        <span class="entry-icon">🔗</span>
-        <span class="entry-label">竞品参考</span>
-      </button>
-    </div>
-    <div class="entry-input-area" id="entry-input-area">
-      ${entryMode === 'local' ? '<div class="entry-hint">已在解析当前页面…</div>' : ''}
-      ${entryMode === 'prompt' ? `
-        <textarea id="prompt-input" class="prompt-input" placeholder="描述你想做的页面，比如：一个登录页面，包含用户名、密码输入框和登录按钮"></textarea>
-        <button id="prompt-submit" class="action-btn primary">生成原型</button>
-      ` : ''}
-      ${entryMode === 'url' ? `
-        <input id="url-input" class="url-input" type="url" placeholder="输入竞品页面 URL">
-        <button id="url-submit" class="action-btn primary">分析并生成</button>
-      ` : ''}
-    </div>
-  `;
-
-  // Bind entry mode buttons
-  container.querySelectorAll<HTMLButtonElement>('.entry-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const mode = btn.dataset.entry as EntryMode;
-      if (mode) {
-        entryMode = mode;
-        renderEntrySelector();
-        if (mode === 'local') {
-          void triggerLocalParse();
-        }
-      }
-    });
-  });
-
-  // Bind submit buttons
-  document.getElementById('prompt-submit')?.addEventListener('click', () => void submitPrompt());
-  document.getElementById('url-submit')?.addEventListener('click', () => void submitUrl());
+/** 从 content script 写入的 storage 读取原型上下文 */
+async function loadProtoContext(): Promise<ProtoContext | null> {
+	try {
+		const res = await browser.runtime.sendMessage({ type: 'ext:getSessionContext' });
+		if (res?.session && typeof res.session === 'object') {
+			const s = res.session as Record<string, string>;
+			return {
+				workspaceRoot: s.workspaceRoot ?? '',
+				prototypeRel: s.prototypeRel ?? '',
+				specRoot: s.specRoot ?? '',
+				level: s.level ?? 'L1',
+				threadId: s.threadId,
+			};
+		}
+	} catch { /* ignore */ }
+	return null;
 }
 
-async function triggerLocalParse() {
-  try {
-    // 向 content script 请求当前页面的 Spec 树
-    const resp = await browser.runtime.sendMessage({ type: 'panel:parsePage' });
-    if (resp?.spec) {
-      parsedSpec = resp.spec as ParsedSpec;
-      renderSpecTree(parsedSpec.layers.pages, parsedSpec.layers.overlays);
-      setStatus('ok', `解析完成：${countNodes(parsedSpec.layers.pages)} 个节点`);
-    } else {
-      // Fallback：自己解析（需要 DOM 访问）
-      parsedSpec = parseHTMLSpecTree(document);
-      renderSpecTree(parsedSpec.layers.pages, parsedSpec.layers.overlays);
-      setStatus('ok', `解析完成：${countNodes(parsedSpec.layers.pages)} 个节点`);
-    }
-  } catch (e) {
-    parsedSpec = parseHTMLSpecTree(document);
-    renderSpecTree(parsedSpec.layers.pages, parsedSpec.layers.overlays);
-    setStatus('warn', '使用本地解析');
-  }
+// ── Chat 渲染 ─────────────────────────────────────────────────────
+
+let _msgCount = 0;
+
+function appendMsg(role: 'user' | 'assistant' | 'system' | 'tool', html: string) {
+	const thread = threadEl();
+	// 移除占位 hint
+	const hint = thread.querySelector('.proto-chat-hint');
+	if (hint) hint.remove();
+
+	const div = document.createElement('div');
+	div.className = `msg ${role}`;
+	div.innerHTML = `<span>${role}</span><pre>${html}</pre>`;
+	thread.appendChild(div);
+	thread.scrollTop = thread.scrollHeight;
 }
 
-async function submitPrompt() {
-	const input = document.getElementById('prompt-input') as HTMLTextAreaElement;
-	const text = input?.value.trim();
-	if (!text) { setStatus('warn', '请输入需求描述'); return; }
-	const ws = await getWorkspaceRootForAgent();
+function appendUserMsg(text: string) {
+	appendMsg('user', escapeHtml(text));
+}
+
+function appendAgentMsg(text: string) {
+	appendMsg('assistant', mdRender(text));
+}
+
+function appendToolResult(toolName: string, result: string) {
+	appendMsg('tool', `⚙ ${escapeHtml(toolName)}\n${escapeHtml(result)}`);
+}
+
+function appendError(text: string) {
+	appendMsg('system', `⚠ ${escapeHtml(text)}`);
+}
+
+function setRunning(running: boolean) {
+	_running = running;
+	sendBtn().disabled = running;
+	inputEl().disabled = running;
+	statusEl().style.display = running ? '' : 'none';
+	statusEl().textContent = running ? 'running' : '';
+}
+
+function escapeHtml(s: string): string {
+	return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function mdRender(text: string): string {
+	return text
+		.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, __, code) =>
+			`<pre class="proto-code"><code>${escapeHtml(code.trim())}</code></pre>`)
+		.replace(/`([^`]+)`/g, '<code class="proto-inline-code">$1</code>')
+		.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+		.replace(/\*([^*]+)\*/g, '<em>$1</em>')
+		.replace(/^- (.+)$/gm, '<li>$1</li>')
+		.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
+		.replace(/\n\n/g, '</p><p>')
+		.replace(/\n/g, '<br>')
+		.replace(/^<\/p><p>/, '')
+		.replace(/<\/p><p>$/, '');
+}
+
+// ── Slash 菜单 ─────────────────────────────────────────────────────
+
+function filterSlashCommands(q: string): SlashCmd[] {
+	const qq = q.toLowerCase();
+	return SLASH_COMMANDS.filter(
+		c => c.command.toLowerCase().startsWith(qq) || c.label_zh.toLowerCase().includes(qq)
+	).slice(0, 12);
+}
+
+function updateSlashFromText(text: string, cursor: number) {
+	const before = text.slice(0, cursor);
+	const m = before.match(/(?:^|\s)\/([\w-]*)$/);
+	if (!m) {
+		_slashOpen = false;
+		_slashPrevQuery = '';
+		_draft = text;
+		renderSlashMenu();
+		return;
+	}
+	_slashOpen = true;
+	_slashQuery = m[1] ?? '';
+	const repStart = before.lastIndexOf('/');
+	const filtered = filterSlashCommands(_slashQuery);
+	if (_slashQuery !== _slashPrevQuery) {
+		_slashIndex = 0;
+		_slashPrevQuery = _slashQuery;
+	}
+	if (filtered.length > 0) {
+		_slashIndex = Math.min(_slashIndex, filtered.length - 1);
+	}
+	_draft = text;
+	renderSlashMenu();
+}
+
+function renderSlashMenu() {
+	const container = document.getElementById('slash-menu');
+	if (!container) return;
+	if (!_slashOpen) {
+		container.innerHTML = '';
+		return;
+	}
+	const filtered = filterSlashCommands(_slashQuery);
+	container.innerHTML = filtered.map((cmd, i) => `
+		<button type="button" class="slash-item${i === _slashIndex ? ' slash-active' : ''}" data-cmd="${escapeHtml(cmd.command)}">
+			<code>/${escapeHtml(cmd.command)}</code>
+			<span class="slash-desc">${escapeHtml(cmd.label_zh)}</span>
+		</button>
+	`).join('');
+
+	container.querySelectorAll<HTMLButtonElement>('.slash-item').forEach(btn => {
+		btn.addEventListener('mousedown', e => e.preventDefault());
+		btn.addEventListener('click', () => pickSlashCommand(btn.dataset.cmd ?? ''));
+	});
+}
+
+function pickSlashCommand(command: string) {
+	const input = inputEl();
+	const before = _draft.slice(0, _draft.lastIndexOf('/'));
+	const tail = _draft.slice(input.selectionStart ?? _draft.length);
+	_draft = `${before}/${command} ${tail}`;
+	_slashOpen = false;
+	renderSlashMenu();
+	input.value = _draft;
+	input.focus();
+	const pos = (before.length + command.length + 1);
+	input.setSelectionRange(pos, pos);
+}
+
+// ── SSE 订阅 ──────────────────────────────────────────────────────
+
+async function startSSE(threadId: string) {
+	if (_sseSource) {
+		_sseSource.close();
+		_sseSource = null;
+	}
+	_threadId = threadId;
+
+	const base = await getAgentBaseUrl();
+	const url = `${base}/api/sse/${encodeURIComponent(threadId)}`;
+
+	try {
+		_sseSource = new EventSource(url);
+
+		_sseSource.addEventListener('agent:chunk', (ev: MessageEvent) => {
+			try {
+				const data = JSON.parse(ev.data) as { content?: string };
+				if (data.content) {
+					// 追加到最后一条 assistant 消息
+					const last = threadEl().lastElementChild;
+					if (last?.classList.contains('proto-msg--assistant')) {
+						const body = last.querySelector('.proto-msg-body');
+						if (body) body.innerHTML += mdRender(data.content);
+					}
+					threadEl().scrollTop = threadEl().scrollHeight;
+				}
+			} catch { /* ignore parse errors */ }
+		});
+
+		_sseSource.addEventListener('agent:message', (ev: MessageEvent) => {
+			try {
+				const data = JSON.parse(ev.data) as { content?: string; role?: string };
+				if (data.role === 'assistant' && data.content) {
+					appendAgentMsg(data.content);
+				}
+			} catch { /* ignore */ }
+		});
+
+		_sseSource.addEventListener('agent:tool:call', (ev: MessageEvent) => {
+			try {
+				const data = JSON.parse(ev.data) as { name?: string; args?: Record<string, unknown>; callId?: string };
+				void handlePSToolCall(data.name, data.args, data.callId);
+			} catch { /* ignore */ }
+		});
+
+		_sseSource.addEventListener('run.completed', () => {
+			setRunning(false);
+			inputEl().disabled = false;
+		});
+
+		_sseSource.addEventListener('run.failed', (ev: MessageEvent) => {
+			setRunning(false);
+			try {
+				const data = JSON.parse(ev.data) as { error?: string };
+				appendError(`Agent 出错: ${data.error ?? 'unknown'}`);
+			} catch { /* ignore */ }
+		});
+
+		_sseSource.onerror = () => {
+			_sseSource?.close();
+			_sseSource = null;
+			setRunning(false);
+			appendError('SSE 连接断开，请重新发送消息');
+		};
+	} catch (err) {
+		appendError(`无法连接 SSE: ${err instanceof Error ? err.message : String(err)}`);
+		setRunning(false);
+	}
+}
+
+// ── PS 工具分发 ──────────────────────────────────────────────────
+
+async function handlePSToolCall(toolName: string | undefined, args: Record<string, unknown> | undefined, callId: string | undefined) {
+	if (!toolName || !callId) return;
+
+	const ctx = _ctx;
+	if (!ctx?.workspaceRoot) {
+		appendError('缺少 workspaceRoot，无法执行 PS 工具');
+		return;
+	}
+
+	let result: string;
+	let toolError: string | undefined;
+
+	try {
+		switch (toolName) {
+			case 'ps_highlight': {
+				const selectors = (args?.selectors as string[] | undefined) ?? [];
+				const color = (args?.color as string | undefined) ?? '#7170ff';
+				await dispatchToContentScript({ type: 'PS_EXT_MSG_elem:highlight', selectors, color });
+				result = `高亮 ${selectors.length} 个元素（${color}）`;
+				break;
+			}
+			case 'ps_annotate': {
+				const mode = (args?.mode as string | undefined) ?? 'toggle';
+				await dispatchToContentScript({ type: 'PS_EXT_MSG_annotation:show', mode });
+				result = `标注已${mode === 'show' ? '显示' : '隐藏'}`;
+				break;
+			}
+			case 'ps_parse': {
+				await dispatchToContentScript({ type: 'panel:parsePage' });
+				result = '页面已解析';
+				break;
+			}
+			case 'ps_onboard': {
+				const steps = (args?.steps as Array<{ title?: string; body?: string; target?: string; ms?: number }> | undefined) ?? [];
+				await dispatchToContentScript({ type: 'PS_EXT_MSG_onboard:start', steps });
+				result = `引导 ${steps.length} 步`;
+				break;
+			}
+			case 'ps_refresh': {
+				await dispatchToContentScript({ type: 'page:reload' });
+				result = '页面已刷新';
+				break;
+			}
+			default:
+				result = `未知工具: ${toolName}`;
+		}
+	} catch (e) {
+		toolError = e instanceof Error ? e.message : String(e);
+		result = `执行失败: ${toolError}`;
+	}
+
+	appendToolResult(toolName, result);
+	await postToolResult({ toolName, callId, result, error: toolError, threadId: _threadId });
+}
+
+async function dispatchToContentScript(msg: Record<string, unknown>): Promise<void> {
+	const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+	const tabId = tabs[0]?.id;
+	if (!tabId) throw new Error('无活跃标签页');
+	await browser.tabs.sendMessage(tabId, msg);
+}
+
+async function postToolResult(payload: Record<string, string | undefined>): Promise<void> {
+	const base = await getAgentBaseUrl();
+	await fetch(`${base}/api/extension/tool-result`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(payload),
+	}).catch(() => { /* ignore */ });
+}
+
+// ── 发送消息 ─────────────────────────────────────────────────────
+
+async function sendMessage() {
+	if (_running) return;
+	const text = _draft.trim();
+	if (!text) return;
+
+	const ctx = _ctx;
+	const ws = ctx?.workspaceRoot || (await getWorkspaceRootForAgent());
 	if (!ws) {
-		setStatus('warn', '请先在侧栏「Go Agent」填写工作区根路径并保存');
+		appendError('请先在设置中填写工作区根路径');
 		return;
 	}
-	setStatus('warn', '正在请求 Go Agent…');
-	const res = await postAgentChat(`[扩展-需求描述原型] ${text}`, { threadId: `ext-prompt-${Date.now()}` });
+
+	_slashOpen = false;
+	renderSlashMenu();
+	appendUserMsg(text);
+	inputEl().value = '';
+	_draft = '';
+	setRunning(true);
+
+	const res = await postAgentChat(text, { threadId: _threadId || undefined });
 	if (!res.ok) {
-		setStatus('err', res.error?.slice(0, 200) ?? '请求失败');
-		addLog('ext', 'agent:chat:error', { error: res.error, status: res.status });
+		appendError(`发送失败: ${res.error ?? 'unknown'}`);
+		setRunning(false);
 		return;
 	}
-	setStatus('ok', `已投递 thread=${res.threadId}（异步执行，SSE 见 Workbench 或 ${await getAgentBaseUrl()}/api/sse/…）`);
-	addLog('ext', 'agent:chat:queued', { threadId: res.threadId, prompt: text.slice(0, 100) });
+
+	if (res.threadId && res.threadId !== _threadId) {
+		_threadId = res.threadId;
+		await startSSE(_threadId);
+	} else if (!_sseSource && _threadId) {
+		await startSSE(_threadId);
+	}
 }
 
-async function submitUrl() {
-  const input = document.getElementById('url-input') as HTMLInputElement;
-  const url = input?.value.trim();
-  if (!url) { setStatus('warn', '请输入 URL'); return; }
-  setStatus('warn', '正在分析竞品…');
-  // TODO: Agent 服务端调用
-  setStatus('ok', '（占位）Agent 尚未接入');
-  addLog('ext', 'agent:crawl', { url });
+// ── 工具条按钮 ───────────────────────────────────────────────────
+
+async function refreshPage() {
+	await dispatchToContentScript({ type: 'page:reload' });
 }
 
-function countNodes(nodes: SpecNode[]): number {
-  let count = nodes.length;
-  for (const n of nodes) {
-    count += countNodes(n.children);
-  }
-  return count;
+async function toggleAnnotations() {
+	await dispatchToContentScript({ type: 'PS_EXT_MSG_annotation:show', mode: 'toggle' });
 }
 
-// === Spec Tree Rendering ===
-function renderSpecTree(pages: SpecNode[], overlays: SpecNode[]) {
-  const container = document.getElementById('tree-list');
-  if (!container) return;
-  container.innerHTML = '';
-
-  for (const node of pages) {
-    container.appendChild(renderNode(node, 0));
-  }
-
-  // Overlays section
-  if (overlays.length > 0) {
-    const divider = document.createElement('div');
-    divider.className = 'tree-divider';
-    divider.textContent = '── Overlays ──';
-    container.appendChild(divider);
-    for (const node of overlays) {
-      container.appendChild(renderNode(node, 0, true));
-    }
-  }
-
-  if (pages.length === 0) {
-    container.innerHTML = '<div class="tree-empty">暂无 Spec，使用入口选择开始</div>';
-  }
+async function startHighlight() {
+	const input = inputEl();
+	input.value = '请高亮当前页面的主要布局区域';
+	await sendMessage();
 }
 
-function renderNode(node: SpecNode, depth: number, isOverlay = false): HTMLElement {
-  const el = document.createElement('div');
-  el.className = 'tree-node' + (depth > 0 ? ' tree-node-pad' : '');
-  if (currentSpec?.id === node.id || currentSpec?.name === node.name) {
-    el.classList.add('active');
-  }
-
-  const tagMap: Record<string, string> = { P: 'P', C: 'C', B: 'B', S: 'S' };
-  const typeClass = tagMap[node.type] ?? 'P';
-
-  const overlayHint = node.overlay ? ` → ${node.overlay}` : '';
-  const overlayTag = isOverlay ? '<span class="tag-P">P-overlay</span>' : `<span class="tag-${typeClass}">${node.type}</span>`;
-
-  el.innerHTML = `
-    ${overlayTag}
-    <span class="tree-node-name">${node.name}${overlayHint}</span>
-    <span class="tree-node-layer">${node.layer}</span>
-  `;
-
-  el.addEventListener('click', () => void selectSpec(node));
-
-  // Render children
-  const childContainer = document.createElement('div');
-  childContainer.className = 'tree-children';
-  for (const child of node.children) {
-    childContainer.appendChild(renderNode(child, depth + 1, isOverlay));
-  }
-  el.appendChild(childContainer);
-
-  return el;
+async function startOnboard() {
+	await dispatchToContentScript({
+		type: 'PS_EXT_MSG_onboard:start',
+		steps: [
+			{ title: '欢迎', body: '这是原型操作台简介', target: 'body', ms: 3000 },
+		],
+	});
 }
 
-async function selectSpec(node: SpecNode) {
-  currentSpec = { id: node.id, name: node.name, layer: node.layer, type: node.type, selector: node.selector };
-  const nameEl = document.getElementById('act-spec-name');
-  if (nameEl) nameEl.textContent = node.name;
-  renderSpecTree(parsedSpec?.layers.pages ?? [], parsedSpec?.layers.overlays ?? []);
-  refreshDataPreview();
+// ── 初始化 ───────────────────────────────────────────────────────
 
-  const resp = await browser.runtime.sendMessage({
-    type: 'ext:send',
-    payload: {
-      type: 'spec:select',
-      data: {
-        specName: node.name,
-        layer: node.layer,
-        selector: node.selector ?? `[data-ps-spec="${node.name}"],.${node.name},#${node.name}`,
-      },
-    },
-  });
-  addLog('ext', 'spec:select', { specName: node.name, layer: node.layer });
-  if (resp?.error) setStatus('err', resp.error);
-}
+async function init() {
+	// 连接设置
+	await initAgentBridge();
 
-// === Diff UI ===
-function renderDiff(diff: DiffResult) {
-  const container = document.getElementById('diff-list');
-  if (!container) return;
-  container.innerHTML = '';
+	// 读取原型上下文
+	_ctx = await loadProtoContext();
+	if (_ctx?.prototypeRel) {
+		headlineEl().textContent = _ctx.prototypeRel;
+	}
 
-  if (diff.added.length === 0 && diff.removed.length === 0) {
-    container.innerHTML = '<div class="diff-empty">无变更</div>';
-    return;
-  }
+	// 设置面板折叠
+	const bridgeEl = document.getElementById('agent-bridge')!;
+	bridgeEl.style.display = 'none';
+	document.getElementById('btn-open-settings')?.addEventListener('click', () => {
+		const hidden = bridgeEl.style.display === 'none';
+		bridgeEl.style.display = hidden ? '' : 'none';
+	});
 
-  for (const node of diff.added) {
-    const item = document.createElement('div');
-    item.className = 'diff-item diff-added';
-    item.innerHTML = `<span class="diff-op">+</span><span class="diff-name">${node.name}</span><span class="diff-type">${node.type}</span>`;
-    item.addEventListener('click', () => {
-      void browser.runtime.sendMessage({
-        type: 'ext:send',
-        payload: { type: 'elem:highlight', data: { selector: node.selector ?? node.name, color: '#10b981' } },
-      });
-    });
-    container.appendChild(item);
-  }
+	// 快捷按钮 — 直接发送给 Agent
+	document.querySelectorAll<HTMLButtonElement>('.quick-btn').forEach(btn => {
+		btn.addEventListener('click', () => {
+			const prompt = btn.dataset.prompt ?? '';
+			if (prompt && !_running) {
+				inputEl().value = prompt;
+				void sendMessage();
+			}
+		});
+	});
 
-  for (const rem of diff.removed) {
-    const item = document.createElement('div');
-    item.className = 'diff-item diff-removed';
-    item.innerHTML = `<span class="diff-op">-</span><span class="diff-name">${rem.name}</span>`;
-    container.appendChild(item);
-  }
-}
+	// 发送
+	sendBtn().addEventListener('click', () => void sendMessage());
+	inputEl().addEventListener('input', () => {
+		updateSlashFromText(inputEl().value, inputEl().selectionStart ?? 0);
+	});
+	inputEl().addEventListener('click', () => {
+		updateSlashFromText(inputEl().value, inputEl().selectionStart ?? 0);
+	});
+	inputEl().addEventListener('keydown', (e: KeyboardEvent) => {
+		if (_slashOpen) {
+			const filtered = filterSlashCommands(_slashQuery);
+			if (e.key === 'ArrowDown') {
+				e.preventDefault();
+				_slashIndex = Math.min(_slashIndex + 1, filtered.length - 1);
+				renderSlashMenu();
+				return;
+			}
+			if (e.key === 'ArrowUp') {
+				e.preventDefault();
+				_slashIndex = Math.max(_slashIndex - 1, 0);
+				renderSlashMenu();
+				return;
+			}
+			if (e.key === 'Enter' && !e.ctrlKey) {
+				if (filtered.length > 0) {
+					e.preventDefault();
+					pickSlashCommand(filtered[_slashIndex]?.command ?? filtered[0].command);
+				}
+				return;
+			}
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				_slashOpen = false;
+				renderSlashMenu();
+				return;
+			}
+		}
+		if (e.key === 'Enter' && e.ctrlKey) {
+			e.preventDefault();
+			void sendMessage();
+		}
+	});
 
-// === Undo/Redo ===
-function pushUndo(specJson: string) {
-  undoStack.push(specJson);
-  if (undoStack.length > 50) undoStack.shift();
-  redoStack = [];
-  updateUndoRedoUI();
-}
-
-function undo() {
-  if (undoStack.length === 0) return;
-  if (parsedSpec) {
-    redoStack.push(JSON.stringify(parsedSpec));
-  }
-  const prev = undoStack.pop()!;
-  parsedSpec = JSON.parse(prev) as ParsedSpec;
-  renderSpecTree(parsedSpec.layers.pages, parsedSpec.layers.overlays);
-  updateUndoRedoUI();
-  addLog('ext', 'undo', {});
-}
-
-function redo() {
-  if (redoStack.length === 0) return;
-  if (parsedSpec) {
-    undoStack.push(JSON.stringify(parsedSpec));
-  }
-  const next = redoStack.pop()!;
-  parsedSpec = JSON.parse(next) as ParsedSpec;
-  renderSpecTree(parsedSpec.layers.pages, parsedSpec.layers.overlays);
-  updateUndoRedoUI();
-  addLog('ext', 'redo', {});
-}
-
-function updateUndoRedoUI() {
-  const undoBtn = document.getElementById('btn-undo');
-  const redoBtn = document.getElementById('btn-redo');
-  if (undoBtn) (undoBtn as HTMLButtonElement).disabled = undoStack.length === 0;
-  if (redoBtn) (redoBtn as HTMLButtonElement).disabled = redoStack.length === 0;
+	// 工具条
+	document.getElementById('btn-highlight')?.addEventListener('click', () => void startHighlight());
+	document.getElementById('btn-annotate')?.addEventListener('click', () => void toggleAnnotations());
+	document.getElementById('btn-onboard')?.addEventListener('click', () => void startOnboard());
+	document.getElementById('btn-refresh')?.addEventListener('click', () => void refreshPage());
 }
 
 async function initAgentBridge(): Promise<void> {
@@ -320,8 +543,8 @@ async function initAgentBridge(): Promise<void> {
 	document.getElementById('btn-agent-save')?.addEventListener('click', async () => {
 		await setAgentBaseUrl(baseEl.value);
 		await setWorkspaceRootForAgent(wsEl.value);
-		setBridgeStatus('ok', '已保存基址与工作区路径');
-		addLog('ext', 'agent:settings:saved', { base: baseEl.value, workspace: wsEl.value });
+		setBridgeStatus('ok', '已保存');
+		_ctx = await loadProtoContext();
 	});
 
 	document.getElementById('btn-agent-ping')?.addEventListener('click', async () => {
@@ -330,270 +553,20 @@ async function initAgentBridge(): Promise<void> {
 		const h = await fetchAgentHealth();
 		if (h.ok && h.json) {
 			const wd = String(h.json.workspace_dir ?? '');
-			setBridgeStatus(
-				'ok',
-				`在线 model=${String(h.json.model ?? '')} skills=${String(h.json.skills_count ?? '')} workspace_dir=${wd}`
-			);
-			addLog('ext', 'agent:health', h.json);
+			setBridgeStatus('ok', `在线 model=${String(h.json.model ?? '')} workspace=${wd}`);
 		} else {
-			setBridgeStatus('err', `失败: ${h.error ?? 'unknown'}${h.status ? ` (${h.status})` : ''}`);
-			addLog('ext', 'agent:health:error', { error: h.error, status: h.status });
+			setBridgeStatus('err', `失败: ${h.error ?? 'unknown'}`);
 		}
 	});
 
+	// 启动时探测
 	const h = await fetchAgentHealth();
 	if (h.ok && h.json) {
-		setBridgeStatus('ok', `Agent 在线 · ${String(h.json.model ?? '')}`);
+		setBridgeStatus('ok', `在线 · ${String(h.json.model ?? '')}`);
 	} else {
-		setBridgeStatus('err', `Agent 未就绪: ${h.error ?? 'unknown'}（可改基址后点「测试连接」）`);
+		setBridgeStatus('err', `Agent 未就绪（可改基址后点连接）`);
 	}
 }
 
-// === Init ===
-async function init() {
-  renderEntrySelector();
-  await loadWorkMode();
-  bindEvents();
-  await initAgentBridge();
-  refreshDataPreview();
-  updateUndoRedoUI();
-
-  // 监听来自 content script 的消息
-  browser.runtime.onMessage.addListener((msg) => {
-    if (!msg) return;
-    if (msg.type === 'popup:receive') {
-      const { type, data } = msg.payload as { type: string; data?: unknown };
-      addLog('page', type, data);
-      if (type === 'proto:hub:ack') refreshDataPreview();
-      if (type === 'runtime:ready') setStatus('ok', 'Runtime 就绪');
-    }
-    if (msg.type === 'panel:parseResult') {
-      parsedSpec = msg.spec as ParsedSpec;
-      renderSpecTree(parsedSpec.layers.pages, parsedSpec.layers.overlays);
-      setStatus('ok', `解析完成：${countNodes(parsedSpec.layers.pages)} 个节点`);
-    }
-    if (msg.type === 'panel:diffResult') {
-      currentDiff = msg.diff as DiffResult;
-      renderDiff(currentDiff);
-      setStatus('ok', `变更：+${currentDiff.added.length} -${currentDiff.removed.length}`);
-    }
-  });
-
-  // 获取当前 tab
-  const resp = await browser.runtime.sendMessage({ type: 'ext:getActiveTab' });
-  if (resp?.tabId) {
-    setStatus('ok', '已连接当前标签页');
-  } else {
-    setStatus('warn', '请打开目标页面');
-  }
-}
-
-// === Event Binding ===
-function bindEvents() {
-  document.getElementById('btn-highlight')?.addEventListener('click', () => {
-    if (!currentSpec) { setStatus('warn', '请先选择 Spec'); return; }
-    void browser.runtime.sendMessage({
-      type: 'ext:send',
-      payload: { type: 'elem:highlight', data: { selector: currentSpec.selector ?? currentSpec.name, color: '#7170ff' } },
-    });
-    addLog('ext', 'elem:highlight', { spec: currentSpec.name });
-  });
-
-  document.getElementById('btn-annotate')?.addEventListener('click', () => {
-    annotationsVisible = !annotationsVisible;
-    void browser.runtime.sendMessage({
-      type: 'ext:send',
-      payload: { type: 'annotation:show', data: { mode: annotationsVisible ? 'show' : 'hide' } },
-    });
-    document.getElementById('btn-annotate')?.classList.toggle('act-btn--active', annotationsVisible);
-  });
-
-  document.getElementById('btn-onboard')?.addEventListener('click', () => {
-    if (!currentSpec) { setStatus('warn', '请先选择 Spec'); return; }
-    void browser.runtime.sendMessage({
-      type: 'ext:send',
-      payload: { type: 'onboard:start', data: { specName: currentSpec.name, selector: currentSpec.selector ?? currentSpec.name } },
-    });
-  });
-
-  document.getElementById('btn-bind')?.addEventListener('click', () => {
-    if (!currentSpec) { setStatus('warn', '请先选择 Spec'); return; }
-    pushUndo(JSON.stringify(parsedSpec));
-    void browser.runtime.sendMessage({
-      type: 'ext:send',
-      payload: { type: 'spec:bind', data: { specName: currentSpec.name, selector: currentSpec.selector ?? currentSpec.name } },
-    });
-    setStatus('ok', `已绑定: ${currentSpec.name}`);
-  });
-
-  document.getElementById('btn-refresh')?.addEventListener('click', () => {
-    void triggerLocalParse();
-  });
-
-  document.getElementById('btn-diff')?.addEventListener('click', () => {
-    if (!parsedSpec) { setStatus('warn', '请先解析页面'); return; }
-    const { spec, diff } = parseAndDiff(document);
-    parsedSpec = spec;
-    currentDiff = diff;
-    renderDiff(diff);
-    if (diff.added.length > 0 || diff.removed.length > 0) {
-      setStatus('ok', `变更：+${diff.added.length} -${diff.removed.length}`);
-    } else {
-      setStatus('ok', '无变更');
-    }
-  });
-
-  document.getElementById('btn-undo')?.addEventListener('click', undo);
-  document.getElementById('btn-redo')?.addEventListener('click', redo);
-
-  document.getElementById('btn-add-spec')?.addEventListener('click', () => {
-    const name = prompt('Spec 名称:');
-    if (name && parsedSpec) {
-      pushUndo(JSON.stringify(parsedSpec));
-      // 添加到 pages[0] 下
-      const newNode: SpecNode = { id: 'new-' + Date.now(), name, type: 'C', layer: 'L3', children: [] };
-      parsedSpec.layers.pages[0].children.push(newNode);
-      renderSpecTree(parsedSpec.layers.pages, parsedSpec.layers.overlays);
-      setStatus('ok', `已添加: ${name}`);
-    }
-  });
-
-  document.querySelectorAll<HTMLButtonElement>('.proto-mode').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const m = btn.dataset.mode;
-      if (m !== 'governance' && m !== 'browse' && m !== 'debug') return;
-      applyWorkMode(m as WorkMode);
-      void persistWorkMode(m as WorkMode);
-      addLog('ext', 'ui:workMode', { mode: m });
-    });
-  });
-
-  document.querySelectorAll<HTMLButtonElement>('.proto-dock-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      const id = tab.dataset.dockTab;
-      if (id === 'data' || id === 'status' || id === 'events') setDockTab(id as 'data' | 'status' | 'events');
-      if (id === 'diff') {
-        setDockTab('diff' as any);
-        if (parsedSpec) renderDiff(currentDiff ?? { added: [], removed: [], modified: [] });
-      }
-    });
-  });
-
-  // Agent prompt
-  const agentSend = async () => {
-    const input = document.getElementById('agent-input') as HTMLTextAreaElement | null;
-    if (!input) return;
-    const text = input.value.trim();
-    if (!text) return;
-    appendAgentBubble('user', text);
-    addLog('ext', 'agent:prompt', { text: text.slice(0, 200) });
-    const ws = await getWorkspaceRootForAgent();
-    if (!ws) {
-      appendAgentBubble('agent', '请先在「Go Agent」区填写工作区根路径并保存。');
-      input.value = '';
-      return;
-    }
-    const res = await postAgentChat(text, { threadId: `ext-panel-${Date.now()}` });
-    if (res.ok) {
-      appendAgentBubble(
-        'agent',
-        `已投递 Go Agent（thread=${res.threadId}）。回复流为 SSE，请在 Workbench 或自行订阅 ${await getAgentBaseUrl()}/api/sse/${encodeURIComponent(res.threadId!)}`
-      );
-    } else {
-      appendAgentBubble('agent', `请求失败: ${res.error?.slice(0, 400) ?? 'unknown'}`);
-    }
-    input.value = '';
-  };
-  document.getElementById('agent-send')?.addEventListener('click', agentSend);
-  document.getElementById('agent-input')?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); agentSend(); }
-  });
-}
-
-// === Work Mode ===
-function applyWorkMode(mode: WorkMode): void {
-  const shell = document.getElementById('proto-shell');
-  if (shell) shell.dataset.workMode = mode;
-  document.querySelectorAll<HTMLButtonElement>('.proto-mode').forEach(btn => {
-    btn.classList.toggle('is-active', btn.dataset.mode === mode);
-  });
-}
-
-async function loadWorkMode(): Promise<void> {
-  const { [STORAGE_WORK_MODE]: stored } = await browser.storage.local.get(STORAGE_WORK_MODE);
-  if (stored === 'governance' || stored === 'browse' || stored === 'debug') applyWorkMode(stored);
-  else applyWorkMode('governance');
-}
-
-async function persistWorkMode(mode: WorkMode): Promise<void> {
-  await browser.storage.local.set({ [STORAGE_WORK_MODE]: mode });
-}
-
-// === Dock Tab ===
-function setDockTab(tab: 'data' | 'status' | 'events' | 'diff'): void {
-  document.querySelectorAll('.proto-dock-tab').forEach(el => {
-    const t = el as HTMLButtonElement;
-    const id = t.dataset.dockTab;
-    const active = id === tab;
-    t.classList.toggle('is-active', active);
-    t.setAttribute('aria-selected', String(active));
-  });
-  document.querySelectorAll('.proto-dock-panel').forEach(el => {
-    const p = el as HTMLElement;
-    p.classList.toggle('is-active', p.dataset.dockPanel === tab);
-  });
-}
-
-// === Status ===
-function setStatus(state: 'ok' | 'err' | 'warn', text: string) {
-  const dot = document.getElementById('status-dot');
-  const textEl = document.getElementById('status-text');
-  if (dot) dot.className = 'dot ' + (state === 'ok' ? 'ok' : state === 'err' ? 'err' : 'warn');
-  if (textEl) textEl.textContent = text;
-}
-
-// === Agent Bubble ===
-function appendAgentBubble(role: 'user' | 'agent', text: string): void {
-  const thread = document.getElementById('agent-thread');
-  if (!thread) return;
-  const div = document.createElement('div');
-  div.className = `proto-agent-bubble proto-agent-bubble--${role}`;
-  div.textContent = text;
-  thread.appendChild(div);
-  thread.scrollTop = thread.scrollHeight;
-}
-
-// === Data Preview ===
-function refreshDataPreview(): void {
-  const pre = document.getElementById('data-preview');
-  if (!pre) return;
-  pre.textContent = JSON.stringify({
-    currentSpec: currentSpec,
-    specNodeCount: parsedSpec ? countNodes(parsedSpec.layers.pages) : 0,
-    overlayCount: parsedSpec?.layers.overlays.length ?? 0,
-    undoDepth: undoStack.length,
-    redoDepth: redoStack.length,
-  }, null, 2);
-}
-
-// === Event Log ===
-function addLog(dir: 'ext' | 'page', type: string, data?: unknown) {
-  logCount++;
-  const countEl = document.getElementById('log-count');
-  if (countEl) countEl.textContent = String(logCount);
-  const list = document.getElementById('log-list');
-  if (!list) return;
-  const item = document.createElement('div');
-  item.className = 'log-item';
-  item.innerHTML = `
-    <div>
-      <span class="log-dir ${dir}">${dir === 'ext' ? '→' : '←'}</span>
-      <span class="log-type">${type}</span>
-    </div>
-    ${data ? `<div class="log-data">${JSON.stringify(data).slice(0, 120)}</div>` : ''}
-  `;
-  list.insertBefore(item, list.firstChild);
-  while (list.children.length > 80) list.removeChild(list.lastChild!);
-}
-
+// 启动
 void init();
