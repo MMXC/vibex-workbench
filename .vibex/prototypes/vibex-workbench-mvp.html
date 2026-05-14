@@ -830,13 +830,88 @@
     }
 
     .pane-hidden { display: none !important; }
+
+    /* ── VibeX 原型层级标注样式（prototype-annotator 技能脚本） ── */
+    [data-vibex-annot] { position: relative; }
+    [data-vibex-annot]::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border: 2px dashed var(--vibex-color, #ccc);
+      border-radius: inherit;
+      pointer-events: none;
+      z-index: 9998;
+    }
+    [data-vibex-annot]::after {
+      content: attr(data-vibex-title);
+      position: absolute;
+      top: -18px;
+      left: 0;
+      background: var(--vibex-color, #ccc);
+      color: #fff;
+      font-size: 10px;
+      font-family: ui-monospace, monospace;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 3px 3px 3px 0;
+      white-space: nowrap;
+      z-index: 9999;
+      pointer-events: none;
+      line-height: 14px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.4);
+    }
+    [data-vibex-annot="L1"] { --vibex-color: #6b7280; }
+    [data-vibex-annot="L3"] { --vibex-color: #f59e0b; }
+    [data-vibex-annot="L4"] { --vibex-color: #8b5cf6; }
+    [data-vibex-annot="L5"] { --vibex-color: #06b6d4; }
+
+    /* ── VibeX 标注悬浮控制栏（prototype-annotator 技能脚本） ── */
+    #vibex-annot-ctrl {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      z-index: 99999;
+      display: flex;
+      gap: 4px;
+      background: rgba(15, 15, 15, 0.88);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      padding: 6px 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      backdrop-filter: blur(8px);
+    }
+    #vibex-annot-ctrl button {
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 4px;
+      background: transparent;
+      color: #9ca3af;
+      cursor: pointer;
+      padding: 3px 7px;
+      font-size: 11px;
+      font-family: ui-monospace, monospace;
+      transition: all 0.15s;
+      line-height: 1;
+    }
+    #vibex-annot-ctrl button:hover { background: rgba(255,255,255,0.08); color: #f3f4f6; }
+    #vibex-annot-ctrl button.active { font-weight: 700; }
+    #vibex-annot-ctrl button.active-l1.active { border-color: #9ca3af; color: #9ca3af; }
+    #vibex-annot-ctrl button.active-l3.active { border-color: #f59e0b; color: #f59e0b; }
+    #vibex-annot-ctrl button.active-l4.active { border-color: #8b5cf6; color: #8b5cf6; }
+    #vibex-annot-ctrl button.active-l5.active { border-color: #06b6d4; color: #06b6d4; }
+    #vibex-annot-ctrl button.active-all.active { border-color: #e5e7eb; color: #e5e7eb; background: rgba(255,255,255,0.1); }
+    #vibex-annot-ctrl button.active-hide.active { border-color: #6b7280; color: #6b7280; }
+    [data-vibex-hide] { position: static !important; }
+    [data-vibex-hide]::before,
+    [data-vibex-hide]::after { display: none !important; }
   </style>
 </head>
 <body>
   <div class="workbench-root">
-    <div class="wb-root">
+    <div class="wb-root" data-vibex-annot="L1" data-vibex-title="L1 · 页面骨架">
       <div class="wb-titlebar-slot">
-        <header class="titlebar">
+        <header class="titlebar" data-vibex-annot="L3" data-vibex-title="L3 · 顶部标题栏">
           <div class="lead">
             <a class="brand" href="#" title="VibeX Workbench" aria-label="VibeX Workbench">
               <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true">
@@ -845,23 +920,36 @@
               </svg>
             </a>
             <span class="workspace-mark">vibex-workbench</span>
-            <nav class="menu-strip" aria-label="菜单">
+            <nav class="menu-strip" aria-label="菜单"
+              data-vibex-annot="L4" data-vibex-title="L4 · 菜单栏">
               <button type="button" class="menu-btn active">文件</button>
-              <button type="button" class="menu-btn" disabled>编辑</button>
-              <button type="button" class="menu-btn" disabled>视图</button>
-              <button type="button" class="menu-btn" disabled>终端</button>
-              <button type="button" class="menu-btn" disabled>帮助</button>
+              <button type="button" class="menu-btn" disabled
+              data-vibex-annot="L5" data-vibex-title="L5 · 菜单按钮"
+              data-vibex-parent-l3="titlebar">编辑</button>
+              <button type="button" class="menu-btn" disabled
+                data-vibex-annot="L5" data-vibex-title="L5 · 菜单按钮"
+                data-vibex-parent-l3="titlebar">视图</button>
+              <button type="button" class="menu-btn" disabled
+                data-vibex-annot="L5" data-vibex-title="L5 · 菜单按钮"
+                data-vibex-parent-l3="titlebar">终端</button>
+              <button type="button" class="menu-btn" disabled
+                data-vibex-annot="L5" data-vibex-title="L5 · 菜单按钮"
+                data-vibex-parent-l3="titlebar">帮助</button>
             </nav>
           </div>
-          <div class="command-center" aria-label="命令中心">
+            <div class="command-center" aria-label="命令中心"
+              data-vibex-annot="L4" data-vibex-title="L4 · 命令中心">
             <span aria-hidden="true" style="opacity:.6">⌕</span>
             <span>VibeX Workbench · self-bootstrap workspace</span>
           </div>
           <div class="trail">
-            <button type="button" class="init-specs-btn">初始化 specs</button>
+            <button type="button" class="init-specs-btn"
+              data-vibex-annot="L5" data-vibex-title="L5 · 初始化 Specs"
+              data-vibex-parent-l3="titlebar">初始化 specs</button>
             <span class="run-pill">make validate ✓</span>
             <span class="run-pill warn">backend path</span>
-            <div class="window-controls" role="toolbar" aria-label="窗口">
+            <div class="window-controls" role="toolbar" aria-label="窗口"
+              data-vibex-annot="L4" data-vibex-title="L4 · 窗口控制">
               <button type="button" class="win win-min" aria-label="最小化">─</button>
               <button type="button" class="win win-max" aria-label="最大化">▢</button>
               <button type="button" class="win win-close" aria-label="关闭">✕</button>
@@ -871,26 +959,37 @@
       </div>
 
       <div class="wb-row">
-        <div class="wb-left-composite">
+        <div class="wb-left-composite" data-vibex-annot="L3" data-vibex-title="L3 · 左侧栏">
           <div class="wb-activity-slot">
-            <nav class="activity-bar" aria-label="活动栏">
+            <nav class="activity-bar" aria-label="活动栏"
+              data-vibex-annot="L4" data-vibex-title="L4 · 活动图标栏">
               <div class="activity-top">
-                <button type="button" class="active" title="资源管理器">
+                <button type="button" class="active" title="资源管理器"
+                  data-vibex-annot="L5" data-vibex-title="L5 · 资源管理器"
+                  data-vibex-parent-l3="wb-left-composite">
                   <svg class="ab-svg" viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 015.5 5H10l2 2h6.5A2.5 2.5 0 0121 9.5v7A2.5 2.5 0 0118.5 19h-13A2.5 2.5 0 013 16.5z"/></svg>
                 </button>
-                <button type="button" title="搜索">
+                <button type="button" title="搜索"
+                  data-vibex-annot="L5" data-vibex-title="L5 · 搜索"
+                  data-vibex-parent-l3="wb-left-composite">
                   <svg class="ab-svg" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.2-4.2"/></svg>
                 </button>
-                <button type="button" title="源代码管理">
+                <button type="button" title="源代码管理"
+                  data-vibex-annot="L5" data-vibex-title="L5 · Git"
+                  data-vibex-parent-l3="wb-left-composite">
                   <svg class="ab-svg" viewBox="0 0 24 24"><circle cx="18" cy="18" r="2.7"/><circle cx="6" cy="6" r="2.7"/><circle cx="6" cy="18" r="2.7"/><path d="M6 9v6M8.5 6.8A9 9 0 0118 15.3"/></svg>
                   <span class="activity-badge">8</span>
                 </button>
-                <button type="button" title="扩展与自定义">
+                <button type="button" title="扩展与自定义"
+                  data-vibex-annot="L5" data-vibex-title="L5 · 扩展"
+                  data-vibex-parent-l3="wb-left-composite">
                   <svg class="ab-svg" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/></svg>
                 </button>
               </div>
               <div class="activity-bottom">
-                <button type="button" title="账户">
+                <button type="button" title="账户"
+                  data-vibex-annot="L5" data-vibex-title="L5 · 账户"
+                  data-vibex-parent-l3="wb-left-composite">
                   <svg class="ab-svg" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg>
                 </button>
                 <button type="button" title="管理">
@@ -900,13 +999,17 @@
             </nav>
           </div>
           <div class="wb-sidebar-slot">
-            <div class="spec-explorer">
-              <div class="hdr">
+            <div class="spec-explorer" data-vibex-annot="L4" data-vibex-title="L4 · Spec 资源管理器">
+              <div class="hdr"
+                data-vibex-annot="L5" data-vibex-title="L5 · Spec 栏标题"
+                data-vibex-parent-l3="wb-left-composite">
                 <div>
                   <span class="eyebrow">Spec Index</span>
                   <span class="hdr-title">资源管理器</span>
                 </div>
-                <button type="button" class="reload" title="刷新列表">↻</button>
+                <button type="button" class="reload" title="刷新列表"
+                  data-vibex-annot="L5" data-vibex-title="L5 · 刷新 Spec"
+                  data-vibex-parent-l3="wb-left-composite">↻</button>
               </div>
               <div class="workspace-head">
                 <span>▾</span>
@@ -917,7 +1020,9 @@
                 <div class="tree-section"><span>▾</span><span>workspace</span></div>
                 <button type="button" class="tree-btn dir"><span>▾</span><span>.vibex</span></button>
                 <button type="button" class="tree-btn dir" style="margin-left:22px"><span>▾</span><span>specs</span></button>
-                <button type="button" class="tree-btn file active" style="margin-left:36px"><span>◆</span><span>L1-goal/vibex-workbench-mvp.yaml</span></button>
+                <button type="button" class="tree-btn file active" style="margin-left:36px"
+                  data-vibex-annot="L5" data-vibex-title="L5 · Spec 文件节点"
+                  data-vibex-parent-l3="wb-left-composite"><span>◆</span><span>L1-goal/vibex-workbench-mvp.yaml</span></button>
                 <button type="button" class="tree-btn file" style="margin-left:36px"><span>◆</span><span>L2-skeleton/vibex-workbench-skeleton.yaml</span></button>
               </div>
             </div>
@@ -926,9 +1031,11 @@
 
         <button type="button" class="wb-gutter wb-gutter-v" aria-label="拖动调整左侧栏总宽度"></button>
 
-        <main class="wb-main">
-          <div class="center-r2">
-            <div class="tab-bar" role="tablist" aria-label="编辑器视图">
+        <main class="wb-main" data-vibex-annot="L3" data-vibex-title="L3 · 主内容区">
+          <div class="center-r2" data-vibex-annot="L4" data-vibex-title="L4 · 中心视图">
+            <div class="tab-bar" role="tablist" aria-label="编辑器视图"
+              data-vibex-annot="L5" data-vibex-title="L5 · 编辑器标签组"
+              data-vibex-parent-l3="wb-main">
               <button type="button" class="editor-tab active" data-tab="dashboard" role="tab">控制台</button>
               <button type="button" class="editor-tab" data-tab="canvas" role="tab">画布</button>
               <button type="button" class="editor-tab" data-tab="artifacts" role="tab">构件</button>
@@ -971,30 +1078,40 @@
 
         <button type="button" class="wb-gutter wb-gutter-v wb-gutter-main-right" aria-label="拖动调整右侧 AI 栏宽度"></button>
 
-        <aside class="wb-right">
-          <div class="ai-column">
-            <div class="hdr">
+        <aside class="wb-right" data-vibex-annot="L3" data-vibex-title="L3 · 右侧 AI 栏">
+          <div class="ai-column" data-vibex-annot="L4" data-vibex-title="L4 · Agent 对话">
+            <div class="hdr"
+              data-vibex-annot="L5" data-vibex-title="L5 · AI 栏标题"
+              data-vibex-parent-l3="wb-right">
               <div>
                 <span class="hdr-title">Agent Workspace</span>
                 <span class="hdr-sub">Focused Chat · Actions · Composer</span>
               </div>
               <div class="hdr-tools">
                 <span class="hdr-dot" title="SSE / backend"></span>
-                <button type="button" style="width:28px;height:28px;border-radius:8px;border:1px solid #303746;background:#12151c;color:#a3abb9" aria-label="会话历史">🕘</button>
+                <button type="button" style="width:28px;height:28px;border-radius:8px;border:1px solid #303746;background:#12151c;color:#a3abb9" aria-label="会话历史"
+                  data-vibex-annot="L5" data-vibex-title="L5 · 会话历史"
+                  data-vibex-parent-l3="wb-right">🕘</button>
               </div>
             </div>
-            <div class="quick-actions" aria-label="快捷操作">
+            <div class="quick-actions" aria-label="快捷操作"
+              data-vibex-annot="L5" data-vibex-title="L5 · 快捷操作"
+              data-vibex-parent-l3="wb-right">
               <button type="button">检测状态</button>
               <button type="button">新项目初始化</button>
               <button type="button">旧项目对齐</button>
               <button type="button">治理校验</button>
             </div>
-            <div class="chat-region">
+            <div class="chat-region"
+              data-vibex-annot="L5" data-vibex-title="L5 · 对话历史"
+              data-vibex-parent-l3="wb-right">
               <strong style="color:#eef0f5">ConversationPanel</strong> — 消息列表为运行时数据；对齐组件见
               <code>ConversationPanel.svelte</code> / <code>Composer.svelte</code>。
             </div>
             <div class="split-ai" aria-hidden="true"></div>
-            <div class="composer-region">
+            <div class="composer-region"
+              data-vibex-annot="L5" data-vibex-title="L5 · 作曲输入"
+              data-vibex-parent-l3="wb-right">
               <textarea class="composer-mock" readonly rows="4" aria-label="Composer 占位">Composer 输入区（静态占位）</textarea>
             </div>
           </div>
@@ -1003,16 +1120,28 @@
 
       <button type="button" class="wb-gutter wb-gutter-h wb-gutter-dock" aria-label="拖动调整底部 Dock 高度"></button>
 
-      <div class="wb-dock-wrap">
+      <div class="wb-dock-wrap" data-vibex-annot="L3" data-vibex-title="L3 · 底部 Dock">
         <div class="dock">
-          <div class="dock-tabs" role="tablist" aria-label="底部面板">
-            <button type="button" class="dock-tab active" data-dock="problems">问题 <span class="badge">2</span></button>
-            <button type="button" class="dock-tab" data-dock="output">输出 <span class="badge none">0</span></button>
-            <button type="button" class="dock-tab" data-dock="terminal">终端 <span class="badge none">0</span></button>
-            <button type="button" class="dock-tab" data-dock="debug">调试 <span class="badge none">0</span></button>
-            <button type="button" class="dock-tab dock-more" data-dock="more" aria-label="更多">⋯</button>
+          <div class="dock-tabs" role="tablist" aria-label="底部面板"
+            data-vibex-annot="L4" data-vibex-title="L4 · Dock Tab 栏">
+            <button type="button" class="dock-tab active" data-dock="problems"
+              data-vibex-annot="L5" data-vibex-title="L5 · Dock Tab"
+              data-vibex-parent-l3="wb-dock-wrap">问题 <span class="badge">2</span></button>
+            <button type="button" class="dock-tab" data-dock="output"
+              data-vibex-annot="L5" data-vibex-title="L5 · Dock Tab"
+              data-vibex-parent-l3="wb-dock-wrap">输出 <span class="badge none">0</span></button>
+            <button type="button" class="dock-tab" data-dock="terminal"
+              data-vibex-annot="L5" data-vibex-title="L5 · Dock Tab"
+              data-vibex-parent-l3="wb-dock-wrap">终端 <span class="badge none">0</span></button>
+            <button type="button" class="dock-tab" data-dock="debug"
+              data-vibex-annot="L5" data-vibex-title="L5 · Dock Tab"
+              data-vibex-parent-l3="wb-dock-wrap">调试 <span class="badge none">0</span></button>
+            <button type="button" class="dock-tab dock-more" data-dock="more" aria-label="更多"
+              data-vibex-annot="L5" data-vibex-title="L5 · Dock Tab"
+              data-vibex-parent-l3="wb-dock-wrap">⋯</button>
           </div>
-          <div class="dock-body" data-dock-body="problems">
+          <div class="dock-body" data-dock-body="problems"
+            data-vibex-annot="L4" data-vibex-title="L4 · Dock 内容区">
             <div class="problem-row ok"><span>✓</span><p><b>make validate</b><small>与 R2Dock.svelte 占位文案对齐</small></p></div>
             <div class="problem-row warn"><span>!</span><p><b>backend auto-spawn</b><small>示例告警行</small></p></div>
           </div>
@@ -1027,13 +1156,13 @@
         </div>
       </div>
 
-      <div class="statusbar" role="status" aria-label="状态栏">
-        <div class="sb-left">
+      <div class="statusbar" role="status" aria-label="状态栏" data-vibex-annot="L3" data-vibex-title="L3 · 底部状态栏">
+        <div class="sb-left" data-vibex-annot="L4" data-vibex-title="L4 · 状态栏左">
           <span class="sb-badge" style="color:var(--accent-green)">● 就绪</span>
           <span class="sb-sep">|</span>
           <span class="sb-path" title="C:\project\vibex-workbench">…/vibex-workbench</span>
         </div>
-        <div class="sb-right">
+        <div class="sb-right" data-vibex-annot="L4" data-vibex-title="L4 · 状态栏右">
           <button type="button" class="sb-toggle">Canvas Auto UI: On</button>
           <span class="sb-sep">|</span>
           <span class="sb-badge" style="color:var(--accent-green)">后端就绪</span>
@@ -1065,5 +1194,51 @@
       });
     });
   </script>
+
+<!-- VibeX 标注控制栏（prototype-annotator 技能脚本注入） -->
+<div id="vibex-annot-ctrl">
+  <button id="vbtn-all" class="active-all active" data-level="all">全部</button>
+  <button id="vbtn-l1" class="active-l1" data-level="L1">L1</button>
+  <button id="vbtn-l3" class="active-l3" data-level="L3">L3</button>
+  <button id="vbtn-l4" class="active-l4" data-level="L4">L4</button>
+  <button id="vbtn-l5" class="active-l5" data-level="L5">L5</button>
+  <button id="vbtn-hide" class="active-hide" data-level="hide">隐藏</button>
+</div>
+<script>
+(function () {
+  var ctrl = document.getElementById('vibex-annot-ctrl');
+  if (!ctrl) return;
+  var btnAll = document.getElementById('vbtn-all');
+  var btns = Array.prototype.slice.call(
+    document.querySelectorAll('#vibex-annot-ctrl button[data-level]')
+  );
+  function activate(level) {
+    btns.forEach(function (b) { b.classList.remove('active'); });
+    if (level === 'all') {
+      btnAll.classList.add('active');
+      document.querySelectorAll('[data-vibex-annot]').forEach(function (el) {
+        el.removeAttribute('data-vibex-hide');
+      });
+    } else if (level === 'hide') {
+      btnAll.classList.add('active');
+      document.querySelectorAll('[data-vibex-annot]').forEach(function (el) {
+        el.setAttribute('data-vibex-hide', '');
+      });
+    } else {
+      btns.filter(function (b) { return b.dataset.level === level; })
+          .forEach(function (b) { b.classList.add('active'); });
+      document.querySelectorAll('[data-vibex-annot]').forEach(function (el) {
+        el.setAttribute('data-vibex-hide', '');
+      });
+      document.querySelectorAll('[data-vibex-annot="' + level + '"]').forEach(function (el) {
+        el.removeAttribute('data-vibex-hide');
+      });
+    }
+  }
+  btns.forEach(function (b) {
+    b.addEventListener('click', function () { activate(b.dataset.level); });
+  });
+})();
+</script>
 </body>
 </html>
