@@ -73,6 +73,12 @@ io_contract:
     - grill-me 追问 → 每轮 ClarificationPanel 更新当前问题
     - 追问完成 → 显示完整决策树 + spec 草稿路径
     - 用户确认草稿 → 生成 L2 spec 文件 → 进入 spec-first 后续流程
+prototype:
+  file: ".vibex/prototypes/MOD-perception-trigger.html"
+  validates: []
+  status: derived
+  generated_at: 2026-05-15
+
 constraints:
   rules:
     - id: PT-C1

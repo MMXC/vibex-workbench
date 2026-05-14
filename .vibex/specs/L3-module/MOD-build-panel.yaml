@@ -43,9 +43,15 @@ constraints:
   rules: []
   forbidden: []
 prototype:
-  file: ""
-  validates: []
-  status: none
+  file: .vibex/prototypes/MOD-build-panel.html
+  validates:
+    - trail 区显示 lint-specs / validate / generate 三个按钮
+    - 点击按钮打开 Build Output 弹窗
+    - 弹窗显示实时终端输出（逐行打印）
+    - 成功：绿色 ✅ + 通过提示，弹窗可关闭
+    - 失败：红色错误摘要 + exit code，弹窗可关闭或重试
+  status: derived
+  generated_at: 2026-05-15
 io_contract:
   input: |
     用户点击「校验 Spec」或「生成代码」按钮

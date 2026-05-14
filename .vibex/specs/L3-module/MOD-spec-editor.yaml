@@ -50,9 +50,10 @@ constraints:
   forbidden: []
 
 prototype:
-  file: ''
+  file: ".vibex/prototypes/MOD-spec-editor.html"
   validates: []
-  status: none
+  status: derived
+  generated_at: 2026-05-15
 
 io_contract:
   input: |

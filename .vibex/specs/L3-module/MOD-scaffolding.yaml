@@ -51,13 +51,14 @@ constraints:
   forbidden: []
 prototype:
   file: .vibex/prototypes/MOD-scaffolding.html
+  generated_at: 2026-05-15
   validates:
     - 空目录显示欢迎卡
     - 工具栏显示脚手架按钮
     - 配置弹窗可选择模块
     - 生成预览展示文件树
     - 进度视图显示生成步骤
-  status: prototype
+  status: derived
   intent:
     target_user: VibeX 新用户
     business_goal: 为零配置项目快速初始化 VibeX 骨架
