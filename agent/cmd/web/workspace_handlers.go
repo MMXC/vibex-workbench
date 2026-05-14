@@ -1243,3 +1243,49 @@ func workspaceSpecsConventionHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(convention)
 }
+
+// extensionPrototypeURLHandler GET|POST /api/extension/prototype-url
+// GET:  返回 { "url": "当前配置的原型预览地址" }
+// POST: Body { "url": "..." } → 持久化到 .vibex/.vibex-prototype-url
+func extensionPrototypeURLHandler(w http.ResponseWriter, r *http.Request) {
+	protoURLFile := filepath.Join(cfg.WorkspaceDir, ".vibex", ".vibex-prototype-url")
+
+	switch r.Method {
+	case http.MethodGet:
+		data, err := os.ReadFile(protoURLFile)
+		url := strings.TrimSpace(string(data))
+		if err != nil || url == "" {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"url": ""})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"url": url})
+
+	case http.MethodPost:
+		var body struct{ URL string }
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			return
+		}
+		url := strings.TrimSpace(body.URL)
+		if url == "" {
+			// 空值表示清除
+			os.Remove(protoURLFile)
+		} else {
+			if err := os.MkdirAll(filepath.Dir(protoURLFile), 0o755); err != nil {
+				http.Error(w, "mkdir: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if err := os.WriteFile(protoURLFile, []byte(url), 0o644); err != nil {
+				http.Error(w, "write: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}

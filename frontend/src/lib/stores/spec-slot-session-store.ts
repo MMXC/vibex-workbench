@@ -63,6 +63,14 @@ export type SpecSlotMessage = {
 	toolOpenPath?: string | null;
 };
 
+/** Stream 阶段的消息（ts: ISO 时间戳），最终合并为 SpecSlotMessage */
+export type A2UIStreamMsg = {
+	id: string;
+	role: 'system' | 'user' | 'assistant' | 'tool';
+	content: string;
+	ts: string;
+};
+
 /** 由嵌入原型的 vibex-prototype-agent-bridge postMessage 上报，用于抽屉内高亮叠层 */
 export type PrototypeAgentHighlightRect = {
 	sel: string;
@@ -479,6 +487,25 @@ function createSpecSlotSessionStore() {
 	function closeStream() {
 		activeSource?.close();
 		activeSource = null;
+	}
+
+	/** 追加消息到指定 session 的 messages 数组（内部使用） */
+	function appendMessage(key: string, msg: SpecSlotMessage) {
+		commit(state => {
+			const session = state.sessions[key];
+			if (!session) return state;
+			return {
+				...state,
+				sessions: {
+					...state.sessions,
+					[key]: {
+						...session,
+						messages: [...session.messages, msg],
+						updatedAt: nowIso(),
+					},
+				},
+			};
+		});
 	}
 
 	/** 实现槽：一轮对话跑完后拉盘刷新 YAML，供右侧 implementation.preview_html iframe 与槽位摘要同步 */

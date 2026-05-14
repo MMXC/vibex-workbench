@@ -24,6 +24,33 @@
 	let protoRefreshTick = $state(0);
 	let mainFrame: HTMLIFrameElement | undefined = $state();
 	let draftFrame: HTMLIFrameElement | undefined = $state();
+	/** 用户在 Chrome 扩展侧栏配置的原型预览服务地址（从 Go Agent 读取）。 */
+	let prototypeOverrideUrl = $state('');
+
+	onMount(() => {
+		if (wsRoot) {
+			// 异步拉取用户在 Chrome 扩展配置的原型预览服务地址
+			(async () => {
+				try {
+					const api = getAgentApiBase();
+					const res = await fetch(`${api}/api/extension/prototype-url?workspaceRoot=${encodeURIComponent(wsRoot)}`);
+					if (res.ok) {
+						const json = await res.json() as { url?: string };
+						prototypeOverrideUrl = (json.url ?? '').trim();
+					}
+				} catch { /* ignore */ }
+			})();
+		}
+
+		function bridgeHandler(ev: MessageEvent) {
+			specSlotSessionStore.applyPrototypeBridgeMessage(String(ev.origin ?? ''), ev.data);
+		}
+
+		window.addEventListener('message', bridgeHandler);
+		return () => {
+			window.removeEventListener('message', bridgeHandler);
+		};
+	});
 
 	const bustedFileSrc = $derived.by(() => {
 		if (!fileSrc) return '';
@@ -43,10 +70,24 @@
 		protoRefreshTick += 1;
 	}
 
-	function openInNewTab() {
+	/**
+	 * 复制本地原型文件路径。
+	 * 格式如：C:/project/my-repo/.vibex/prototypes/my.html
+	 * 扩展 content script 读取后按 .vibex/prototypes/ 分割：
+	 *   前半  → 工作区根路径 workspaceRoot
+	 *   后半  → 原型相对路径 prototypeRel
+	 *   specRoot 自动推断为 workspaceRoot + / + .vibex/specs
+	 *   level 从路径中的 L2/L3/L4/L5 目录段推断
+	 *
+	 * 约定层级派生：
+	 *   L1（L1-goal）：骨架原型，含完整 HTML 壳，是所有派生的根。
+	 *   L3/L4/L5：派生 spec 的原型，派生 HTML 中使用
+	 *     <{spec-name} data-level="L3|L4|L5"></{spec-name}> 包裹功能区，
+	 *     可通过 <link rel="skeleton" href="骨架相对路径"> 声明引用哪个 L1 骨架。
+	 */
+	function copyPrototypePath() {
 		if (!fileSrc) return;
-		const sep = fileSrc.includes('?') ? '&' : '?';
-		window.open(`${fileSrc}${sep}_vibex_tab=${Date.now()}`, '_blank', 'noopener,noreferrer');
+		void navigator.clipboard.writeText(fileSrc);
 	}
 
 	function copyExtensionContext() {
@@ -65,8 +106,8 @@
 			'2. 点击「新标签打开」在本机浏览器打开原型页；扩展侧栏选「本地 HTML」解析当前标签。',
 			'',
 			'### 页面内桥（供 Agent 高亮意图）',
-			'在原型 HTML 中加入：`<script src=".vibex/assets/vibex-prototype-agent-bridge.js" defer></script>`',
-			'然后：`vibexPrototypeBridge.highlight([\\'#id\\'])` 或 `vibexPrototypeBridge.onboard([{title,body,target,ms}])`。',
+			'在原型 HTML 中加入：' + '<script src=".vibex/assets/vibex-prototype-agent-bridge.js" defer></' + 'script>',
+			'然后：vibexPrototypeBridge.highlight(["#id"]) 或 vibexPrototypeBridge.onboard([{title,body,target,ms}])。',
 		].join('\n');
 		void navigator.clipboard.writeText(text).catch(() => {});
 	}
@@ -113,14 +154,6 @@
 			].join('\n')
 		);
 	}
-
-	onMount(() => {
-		function handler(ev: MessageEvent) {
-			specSlotSessionStore.applyPrototypeBridgeMessage(String(ev.origin ?? ''), ev.data);
-		}
-		window.addEventListener('message', handler);
-		return () => window.removeEventListener('message', handler);
-	});
 </script>
 
 <div class="proto-kit" class:proto-kit-hero={hero}>
@@ -128,8 +161,8 @@
 		<button type="button" class="tb" onclick={refreshPreview} disabled={!fileSrc} title="重新加载 iframe（绕过缓存）">
 			刷新预览
 		</button>
-		<button type="button" class="tb" onclick={openInNewTab} disabled={!fileSrc} title="在系统浏览器打开，便于 Chrome 扩展解析">
-			新标签打开
+		<button type="button" class="tb" onclick={copyPrototypePath} disabled={!fileSrc} title="复制本地原型路径，粘贴到浏览器地址栏，扩展自动解析工作区与原型路径">
+			复制原型路径
 		</button>
 		<button type="button" class="tb" onclick={copyExtensionContext} title="复制 Markdown 说明到剪贴板">复制扩展上下文</button>
 		<button type="button" class="tb tb-demo" onclick={demoHighlight} title="向 iframe 发 postMessage（需已注入 bridge）">演示高亮</button>

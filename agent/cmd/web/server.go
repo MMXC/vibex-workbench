@@ -340,6 +340,14 @@ func sseToolLoopHooks(threadID string) *runtime.ToolLoopHooks {
 				"toolName": name, "tool": name, "invocationId": callID, "call_id": callID,
 				"runId": threadID, "args": args,
 			})
+			// PS 工具：额外广播 agent:tool:call 事件，扩展侧订阅此事件驱动 DOM 操作
+			if isPSTool(name) {
+				broadcastSSE(threadID, "agent:tool:call", map[string]interface{}{
+					"name":   name,
+					"args":   args,
+					"callId": callID,
+				})
+			}
 		},
 		OnToolCompleted: func(name, callID, result string) {
 			broadcastSSE(threadID, "tool.completed", map[string]interface{}{
@@ -354,6 +362,15 @@ func sseToolLoopHooks(threadID string) *runtime.ToolLoopHooks {
 			})
 		},
 	}
+}
+
+// isPSTool returns true if name is a Prototype-Skill PS tool.
+func isPSTool(name string) bool {
+	switch name {
+	case "ps_highlight", "ps_annotate", "ps_parse", "ps_bind", "ps_onboard", "ps_get_page_context":
+		return true
+	}
+	return false
 }
 
 // ── Build tools & handlers ──────────────────────────────────────
@@ -394,6 +411,9 @@ func buildToolsAndHandlers(threadID string, cfg common.Config,
 	vibexSpecs := vibexReg.ToolSpecs()
 	specs = append(specs, vibexSpecs...)
 
+	// Prototype-Skill PS 工具：供 Agent 通过 SSE+HTTP 回调与 Chrome 扩展通信
+	specs = append(specs, rtools.PSSpecs...)
+
 	specs = filterSpecsByAllowlist(specs, allowedTools)
 	tools := rtools.BuildTools(specs)
 	handlers := rtools.BuildHandlers(specs)
@@ -409,7 +429,51 @@ func buildToolsAndHandlers(threadID string, cfg common.Config,
 		}
 	}
 
+	// Wrap PS tool handlers: register pending result, wait for extension callback, return real result
+	for _, name := range []string{"ps_highlight", "ps_annotate", "ps_parse", "ps_bind", "ps_onboard", "ps_get_page_context"} {
+		if len(allowedTools) > 0 {
+			if _, ok := allowedTools[name]; !ok {
+				continue
+			}
+		}
+		baseHandler := handlers[name]
+		handlers[name] = wrapPSToolHandler(name, baseHandler, threadID)
+	}
+
 	return tools, handlers, bgMgr, subMgr
+}
+
+// wrapPSToolHandler wraps a PS tool handler so it waits for extension callback before returning.
+func wrapPSToolHandler(name string, base rtools.Handler, threadID string) rtools.Handler {
+	return func(args string) string {
+		// Extract callId from args JSON
+		callID := rtools.ExtractCallID(args)
+		registerWrite, waitForResult := RegisterPSToolCall(callID)
+		_ = registerWrite // stored in global registry for extensionToolResultHandler to write
+
+		// Call base handler (broadcasts SSE event, returns placeholder text)
+		_ = base(args)
+
+		// Check if extension already responded (non-blocking)
+		if existing, ok := GetPSResult(callID); ok {
+			return formatPSResult(name, existing)
+		}
+
+		// Block and wait for extension callback
+		pending := waitForResult()
+		return formatPSResult(name, pending)
+	}
+}
+
+func formatPSResult(name string, r psToolResult) string {
+	if r.Error != "" {
+		return "[PS-" + name + "] extension error: " + r.Error
+	}
+	if r.Result == nil {
+		return "[PS-" + name + "] no result from extension"
+	}
+	data, _ := json.Marshal(r.Result)
+	return "[PS-" + name + "] result: " + string(data)
 }
 
 // ── Agent turn ─────────────────────────────────────────────────

@@ -69,6 +69,25 @@ export function hasNativeWindowHost(): boolean {
 	return isWails() || isWailsHost();
 }
 
+/**
+ * 在系统浏览器（而非 WebView 内部）中打开 URL。
+ * - Wails 环境：通过 runtime.BrowserOpenURL 调系统默认浏览器。
+ * - 浏览器开发环境：直接 window.open（Chrome DevTools 可用扩展）。
+ */
+export async function browserOpenUrl(url: string): Promise<void> {
+	if (!url) return;
+	if (isWails()) {
+		try {
+			await (window as any).runtime?.BrowserOpenURL?.(url);
+			return;
+		} catch {
+			// fall through to window.open
+		}
+	}
+	// 浏览器环境：window.open 产生的标签在 DevTools 可控，Chrome 扩展可用
+	window.open(url, '_blank', 'noopener,noreferrer');
+}
+
 /** Browser-dev directory picker fallback.
  *  Wails desktop must use window.go.main.App.OpenDirectoryDialog via wails-dialogs.ts.
  *  This wrapper intentionally does not use <input webkitdirectory>: it returns only

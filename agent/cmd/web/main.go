@@ -90,6 +90,8 @@ func main() {
 	http.HandleFunc("/api/agent/plan-graph", withCORS(agentPlanGraphHandler))
 	http.HandleFunc("/api/agent/tool-route", withCORS(agentToolRouteHandler))
 	http.HandleFunc("/api/workbench/inspector/ws", inspectorWebSocketHandler)
+	http.HandleFunc("/api/extension/tool-result", withCORS(extensionToolResultHandler))
+	http.HandleFunc("/api/extension/prototype-url", withCORS(extensionPrototypeURLHandler))
 	http.HandleFunc("/api/workbench/inspector/snapshot", withCORS(inspectorSnapshotHandler))
 	http.HandleFunc("/api/workbench/inspector/trace", withCORS(inspectorTraceHandler))
 
