@@ -3,43 +3,101 @@ package tools
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"vibex/agent/agents/background"
 )
 
-// Repo relative path to bundled SpecPilot assets
-const specpilotRepoCLI   = "cmd/specpilot"
-const specpilotRepoMF    = "cmd/specpilot-mf"
-const specpilotInstallCLI = "/tmp/specpilot"
-const specpilotInstallMF  = "/tmp/specpilot-mf"
+// ---------------------------------------------------------------------------
+// Path constants — resolved relative to workspace root
+// ---------------------------------------------------------------------------
 
-// workingDir returns the current working directory (workspace root)
-func workingDir() string {
-	d, _ := os.Getwd()
-	return d
+// skillRef returns the absolute path to specpilot skill references
+func skillRef(wsRoot string) string {
+	return filepath.Join(wsRoot, ".vibex", "agents", "skills", "specpilot", "references")
 }
 
-// installDir copies src dir to dest if dest doesn't exist
-func installDir(src, dest string) error {
-	if _, err := os.Stat(dest); err == nil {
+// wsInstall returns the workspace-local .specpilot install dir
+func wsInstall(wsRoot string) string {
+	return filepath.Join(wsRoot, ".specpilot")
+}
+
+// wsMF returns the workspace-local .specpilot-mf install dir
+func wsMF(wsRoot string) string {
+	return filepath.Join(wsRoot, ".specpilot-mf")
+}
+
+// ---------------------------------------------------------------------------
+// Port config — env override with sensible defaults
+// ---------------------------------------------------------------------------
+
+func dcPort() int {
+	if p := os.Getenv("SPECPILOT_DC_PORT"); p != "" {
+		if n, err := strconv.Atoi(p); err == nil {
+			return n
+		}
+	}
+	return 7890
+}
+
+func mfPort() int {
+	if p := os.Getenv("SPECPILOT_MF_PORT"); p != "" {
+		if n, err := strconv.Atoi(p); err == nil {
+			return n
+		}
+	}
+	return 5177
+}
+
+// ---------------------------------------------------------------------------
+// Install — copy from skill references to workspace-local .specpilot/
+// ---------------------------------------------------------------------------
+
+func installSpecPilot(wsRoot string) error {
+	srcCLI := filepath.Join(skillRef(wsRoot), "cli")
+	dstCLI := wsInstall(wsRoot)
+	dstMF := wsMF(wsRoot)
+
+	if _, err := os.Stat(dstCLI); err == nil {
 		return nil // already installed
 	}
-	os.MkdirAll(filepath.Dir(dest), 0o755)
-	return copyDir(src, dest)
+
+	os.MkdirAll(dstCLI, 0o755)
+	os.MkdirAll(dstMF, 0o755)
+
+	// Copy CLI files
+	if err := copyDirRecursive(srcCLI, dstCLI); err != nil {
+		return fmt.Errorf("copy CLI: %w", err)
+	}
+
+	// Copy MF HTML
+	srcMFHTML := filepath.Join(skillRef(wsRoot), "mf", "index.html")
+	data, err := os.ReadFile(srcMFHTML)
+	if err != nil {
+		return fmt.Errorf("read MF HTML: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(dstMF, "index.html"), data, 0o644); err != nil {
+		return fmt.Errorf("write MF HTML: %w", err)
+	}
+
+	return nil
 }
 
-// copyDir recursively copies src to dst
-func copyDir(src, dst string) error {
+func copyDirRecursive(src, dst string) error {
 	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		rel, _ := filepath.Rel(src, path)
+		if rel == "." {
+			return nil
+		}
 		destPath := filepath.Join(dst, rel)
 		if info.IsDir() {
 			return os.MkdirAll(destPath, info.Mode())
@@ -52,132 +110,183 @@ func copyDir(src, dst string) error {
 	})
 }
 
-// waitForPort polls a TCP port until it's open (max 30s)
-func waitForPort(host string, timeout time.Duration) error {
+// ---------------------------------------------------------------------------
+// Port checking
+// ---------------------------------------------------------------------------
+
+func isPortOpen(port int) bool {
+	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err == nil {
+		ln.Close()
+		return false
+	}
+	return true
+}
+
+func waitForPort(port int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		cmd := exec.Command("sh", "-c", fmt.Sprintf("nc -z %s 2>/dev/null || curl -s %s > /dev/null 2>&1 || true", host, host))
-		if err := cmd.Run(); err == nil {
-			// Try actual connection check
-			check := exec.Command("sh", "-c", fmt.Sprintf("curl -s --connect-timeout 1 %s > /dev/null 2>&1 && echo ok || echo fail", host))
-			out, _ := check.CombinedOutput()
-			if strings.Contains(string(out), "ok") {
-				return nil
-			}
+		if !isPortOpen(port) {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		// Double-check with actual connection
+		conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second)
+		if err == nil {
+			conn.Close()
+			return nil
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-	return fmt.Errorf("timeout waiting for %s", host)
+	return fmt.Errorf("timeout waiting for port %d", port)
 }
 
-// mfBootstrapHandler wraps mfBootstrapHandlerImpl to match the Handler signature
+// ---------------------------------------------------------------------------
+// Seed demo data
+// ---------------------------------------------------------------------------
+
+func seedData(wsRoot, component string) {
+	cli := wsInstall(wsRoot)
+	baseArgs := []string{"-m", "cli"}
+
+	seedCmds := [][2]string{
+		{"dc", "set kpi.revenue 1284500"},
+		{"dc", "set kpi.users 48291"},
+		{"dc", "set kpi.conversion 3.8"},
+		{"dc", "set kpi.latency 142"},
+		{"dc", "set kpi.trend 12.3"},
+		{"dc", `set alert.status healthy`},
+		{"dc", "set alert.count 0"},
+		{"dc", `set table.users [{"id":1,"name":"Alice Chen","email":"alice@example.com","status":"active","score":98},{"id":2,"name":"Bob Kim","email":"bob@example.com","status":"active","score":85},{"id":3,"name":"Carol Wu","email":"carol@example.com","status":"inactive","score":72},{"id":4,"name":"David Lee","email":"david@example.com","status":"active","score":91}]`},
+		{"mf", fmt.Sprintf("register %s %s", component, component)},
+	}
+
+	for _, pair := range seedCmds {
+		subcmd, arg := pair[0], pair[1]
+		cmd := exec.Command("python3", append(baseArgs, subcmd, arg)...)
+		cmd.Dir = cli
+		cmd.Run()
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Bootstrap handler
+// ---------------------------------------------------------------------------
+
 func mfBootstrapHandler(bgMgr *background.Manager) Handler {
 	return func(arguments string) string {
 		return mfBootstrapHandlerImpl(arguments, bgMgr)
 	}
 }
 
-// mfBootstrapHandlerImpl — installs and starts SpecPilot services, returns URLs
 func mfBootstrapHandlerImpl(arguments string, bgMgr *background.Manager) string {
-	wsRoot := workingDir()
-	cliSrc := filepath.Join(wsRoot, specpilotRepoCLI)
-	mfSrc := filepath.Join(wsRoot, specpilotRepoMF)
+	wsRoot, _ := os.Getwd()
 
-	// 1. Install CLI to /tmp/specpilot
-	if err := installDir(cliSrc, specpilotInstallCLI); err != nil {
-		return fmt.Sprintf(`{"error": "failed to install specpilot CLI: %v"}`, err)
+	// Parse optional component name
+	var args struct {
+		Component string `json:"component"`
 	}
-	// 2. Install MF app to /tmp/specpilot-mf
-	if err := installDir(mfSrc, specpilotInstallMF); err != nil {
-		return fmt.Sprintf(`{"error": "failed to install specpilot MF: %v"}`, err)
+	if arguments != "" {
+		json.Unmarshal([]byte(arguments), &args)
+	}
+	component := args.Component
+	if component == "" {
+		component = "Dashboard"
 	}
 
-	// 3. Check if services already running
-	dcRunning := isPortOpen("127.0.0.1:7890")
-	mfRunning := isPortOpen("127.0.0.1:5177")
+	dp := dcPort()
+	mp := mfPort()
 
-	// 4. Start DC API server (7890)
+	// 1. Install from skill references to workspace-local dirs
+	if err := installSpecPilot(wsRoot); err != nil {
+		return fmt.Sprintf(`{"error": "install failed: %v"}`, err)
+	}
+
+	// 2. Start DC API server
+	dcRunning := isPortOpen(dp)
 	if !dcRunning {
-		apiScript := filepath.Join(specpilotInstallCLI, "api_server.py")
+		apiScript := filepath.Join(wsInstall(wsRoot), "api_server.py")
 		cmd := exec.Command("python3", apiScript)
-		cmd.Dir = specpilotInstallCLI
+		cmd.Dir = wsInstall(wsRoot)
 		cmd.Stdout = nil
 		cmd.Stderr = nil
-		if err := cmd.Start(); err != nil {
-			return fmt.Sprintf(`{"error": "failed to start api_server: %v"}`, err)
-		}
+		cmd.Start()
 	}
 
-	// 5. Start MF dev server (5177)
+	// 3. Start MF dev server
+	mfRunning := isPortOpen(mp)
 	if !mfRunning {
-		cmd := exec.Command("python3", "-m", "http.server", "5177")
-		cmd.Dir = specpilotInstallMF
+		cmd := exec.Command("python3", "-m", "http.server", strconv.Itoa(mp))
+		cmd.Dir = wsMF(wsRoot)
 		cmd.Stdout = nil
 		cmd.Stderr = nil
-		if err := cmd.Start(); err != nil {
-			return fmt.Sprintf(`{"error": "failed to start MF server: %v"}`, err)
-		}
+		cmd.Start()
 	}
 
-	// 6. Wait for ports
-	waitForPort("http://127.0.0.1:7890", 10*time.Second)
-	waitForPort("http://127.0.0.1:5177", 10*time.Second)
+	// 4. Wait for services
+	waitForPort(dp, 10*time.Second)
+	waitForPort(mp, 10*time.Second)
 
-	// 7. Seed demo data
-	seedData()
+	// 5. Seed demo data
+	seedData(wsRoot, component)
 
+	mfUrl := fmt.Sprintf("http://localhost:%d/#/%s", mp, component)
 	return fmt.Sprintf(`{
 		"ok": true,
-		"dcUrl": "http://127.0.0.1:7890",
-		"mfUrl": "http://localhost:5177",
-		"mfRemoteUrl": "http://localhost:5177/#/%s",
-		"message": "SpecPilot services bootstrapped successfully"
-	}`, "{component}")
-}
-
-// isPortOpen checks if a TCP port is listening
-func isPortOpen(addr string) bool {
-	cmd := exec.Command("sh", "-c", fmt.Sprintf("nc -z 127.0.0.1 %s 2>/dev/null && echo open || echo closed", strings.Split(addr, ":")[1]))
-	out, _ := cmd.CombinedOutput()
-	return strings.Contains(string(out), "open")
-}
-
-// seedData populates demo data into the DataCenter
-func seedData() {
-	cmds := [][]string{
-		{"python3", "-m", "cli", "dc", "set", "kpi.revenue", "1284500"},
-		{"python3", "-m", "cli", "dc", "set", "kpi.users", "48291"},
-		{"python3", "-m", "cli", "dc", "set", "kpi.conversion", "3.8"},
-		{"python3", "-m", "cli", "dc", "set", "kpi.latency", "142"},
-		{"python3", "-m", "cli", "dc", "set", "kpi.trend", "12.3"},
-		{"python3", "-m", "cli", "dc", "set", "alert.status", "healthy"},
-		{"python3", "-m", "cli", "dc", "set", "alert.count", "0"},
-		{"python3", "-m", "cli", "dc", "set", "table.users", `[{"id":1,"name":"Alice Chen","email":"alice@example.com","status":"active","score":98},{"id":2,"name":"Bob Kim","email":"bob@example.com","status":"active","score":85},{"id":3,"name":"Carol Wu","email":"carol@example.com","status":"inactive","score":72},{"id":4,"name":"David Lee","email":"david@example.com","status":"active","score":91}]`},
-	}
-	for _, args := range cmds {
-		cmd := exec.Command(args[0], args[1:]...)
-		cmd.Dir = specpilotInstallCLI
-		cmd.Run()
-	}
+		"dcPort": %d,
+		"mfPort": %d,
+		"dcUrl": "http://127.0.0.1:%d",
+		"mfUrl": "http://localhost:%d",
+		"mfRemoteUrl": "%s",
+		"installDir": "%s",
+		"message": "SpecPilot services bootstrapped in workspace .specpilot/"
+	}`, dp, mp, dp, mp, mfUrl, wsInstall(wsRoot))
 }
 
 // ---------------------------------------------------------------------------
-// Existing handlers (unchanged)
+// Status check — lightweight, safe to call frequently
 // ---------------------------------------------------------------------------
 
-// runSP runs a specpilot CLI command and returns the output
-func runSP(args ...string) string {
+func mfStatusHandler(arguments string) string {
+	wsRoot, _ := os.Getwd()
+	dp, mp := dcPort(), mfPort()
+	installed := false
+	if _, err := os.Stat(wsInstall(wsRoot)); err == nil {
+		installed = true
+	}
+	return fmt.Sprintf(`{
+		"installed": %t,
+		"dcRunning": %t,
+		"mfRunning": %t,
+		"dcPort": %d,
+		"mfPort": %d,
+		"dcUrl": "http://127.0.0.1:%d",
+		"mfUrl": "http://localhost:%d"
+	}`,
+		installed,
+		isPortOpen(dp),
+		isPortOpen(mp),
+		dp, mp, dp, mp,
+	)
+}
+
+// ---------------------------------------------------------------------------
+// Existing CLI wrappers
+// ---------------------------------------------------------------------------
+
+func runSP(wsRoot string, args ...string) string {
 	cmd := exec.Command("python3", append([]string{"-m", "cli"}, args...)...)
-	cmd.Dir = specpilotInstallCLI
+	cmd.Dir = wsInstall(wsRoot)
 	out, err := cmd.Output()
 	if err != nil {
-		return fmt.Sprintf(`{"error": "specpilot CLI failed: %v", "stderr": "%v"}`, err, err)
+		return fmt.Sprintf(`{"error": "specpilot CLI failed: %v"}`, err)
 	}
 	return strings.TrimSpace(string(out))
 }
 
 func dcListHandler(arguments string) string {
-	return runSP("dc", "list")
+	wsRoot, _ := os.Getwd()
+	return runSP(wsRoot, "dc", "list")
 }
 
 func dcGetHandler(arguments string) string {
@@ -187,7 +296,8 @@ func dcGetHandler(arguments string) string {
 	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 		return `{"error": "invalid args: key required"}`
 	}
-	return runSP("dc", "get", args.Key)
+	wsRoot, _ := os.Getwd()
+	return runSP(wsRoot, "dc", "get", args.Key)
 }
 
 func dcSetHandler(arguments string) string {
@@ -198,11 +308,13 @@ func dcSetHandler(arguments string) string {
 	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 		return `{"error": "invalid args: key and value required"}`
 	}
-	return runSP("dc", "set", args.Key, fmt.Sprintf("%v", args.Value))
+	wsRoot, _ := os.Getwd()
+	return runSP(wsRoot, "dc", "set", args.Key, fmt.Sprintf("%v", args.Value))
 }
 
 func ecHistoryHandler(arguments string) string {
-	return runSP("ec", "history")
+	wsRoot, _ := os.Getwd()
+	return runSP(wsRoot, "ec", "history")
 }
 
 func ecEmitHandler(arguments string) string {
@@ -213,8 +325,9 @@ func ecEmitHandler(arguments string) string {
 	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 		return `{"error": "invalid args: event and payload required"}`
 	}
+	wsRoot, _ := os.Getwd()
 	payloadJSON, _ := json.Marshal(args.Payload)
-	return runSP("ec", "emit", args.Event, string(payloadJSON))
+	return runSP(wsRoot, "ec", "emit", args.Event, string(payloadJSON))
 }
 
 func ecSubscribeHandler(arguments string) string {
@@ -225,11 +338,13 @@ func ecSubscribeHandler(arguments string) string {
 	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 		return `{"error": "invalid args: event and subscriber required"}`
 	}
-	return runSP("ec", "subscribe", args.Event, args.Subscriber)
+	wsRoot, _ := os.Getwd()
+	return runSP(wsRoot, "ec", "subscribe", args.Event, args.Subscriber)
 }
 
 func adListHandler(arguments string) string {
-	return runSP("ad", "list")
+	wsRoot, _ := os.Getwd()
+	return runSP(wsRoot, "ad", "list")
 }
 
 func adSwitchHandler(arguments string) string {
@@ -239,7 +354,8 @@ func adSwitchHandler(arguments string) string {
 	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 		return `{"error": "invalid args: adapter name required"}`
 	}
-	return runSP("ad", "switch", args.Adapter)
+	wsRoot, _ := os.Getwd()
+	return runSP(wsRoot, "ad", "switch", args.Adapter)
 }
 
 func adQueryHandler(arguments string) string {
@@ -249,11 +365,13 @@ func adQueryHandler(arguments string) string {
 	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 		return `{"error": "invalid args: query required"}`
 	}
-	return runSP("ad", "query", args.Query)
+	wsRoot, _ := os.Getwd()
+	return runSP(wsRoot, "ad", "query", args.Query)
 }
 
 func specListHandler(arguments string) string {
-	return runSP("spec", "list")
+	wsRoot, _ := os.Getwd()
+	return runSP(wsRoot, "spec", "list")
 }
 
 func specGetHandler(arguments string) string {
@@ -263,7 +381,8 @@ func specGetHandler(arguments string) string {
 	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 		return `{"error": "invalid args: spec name required"}`
 	}
-	return runSP("spec", "get", args.Name)
+	wsRoot, _ := os.Getwd()
+	return runSP(wsRoot, "spec", "get", args.Name)
 }
 
 func specBindingHandler(arguments string) string {
@@ -273,11 +392,13 @@ func specBindingHandler(arguments string) string {
 	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 		return `{"error": "invalid args: spec name required"}`
 	}
-	return runSP("spec", "binding", args.Name)
+	wsRoot, _ := os.Getwd()
+	return runSP(wsRoot, "spec", "binding", args.Name)
 }
 
 func mfListHandler(arguments string) string {
-	return runSP("mf", "list")
+	wsRoot, _ := os.Getwd()
+	return runSP(wsRoot, "mf", "list")
 }
 
 func mfRegisterHandler(arguments string) string {
@@ -288,7 +409,8 @@ func mfRegisterHandler(arguments string) string {
 	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 		return `{"error": "invalid args: name and path required"}`
 	}
-	return runSP("mf", "register", args.Name, args.Path)
+	wsRoot, _ := os.Getwd()
+	return runSP(wsRoot, "mf", "register", args.Name, args.Path)
 }
 
 func mfResolveHandler(arguments string) string {
@@ -298,5 +420,6 @@ func mfResolveHandler(arguments string) string {
 	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 		return `{"error": "invalid args: spec name required"}`
 	}
-	return runSP("mf", "resolve-from-spec", args.Spec)
+	wsRoot, _ := os.Getwd()
+	return runSP(wsRoot, "mf", "resolve-from-spec", args.Spec)
 }

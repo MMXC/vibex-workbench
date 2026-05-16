@@ -195,9 +195,15 @@ func ParentSpecs(
 		},
 		Spec{
 			Name:        "mf_bootstrap",
-			Description: "Bootstrap SpecPilot services: install CLI to /tmp/specpilot, start DC API (7890), start MF dev server (5177), seed demo data. Idempotent — skips already-running services. Returns {dcUrl, mfUrl, mfRemoteUrl}.",
-			Parameters:  objectSchemaFromFields(),
+			Description: "Bootstrap SpecPilot services in workspace .specpilot/ dir: copies from skill references, starts DC API + MF dev server, seeds demo data. Ports configurable via SPECPILOT_DC_PORT / SPECPILOT_MF_PORT env vars. Idempotent.",
+			Parameters:  objectSchemaFromFields(reqString("component", "MF component name to display (default: Dashboard)")),
 			Handler:     mfBootstrapHandler(backgroundMgr),
+		},
+		Spec{
+			Name:        "mf_status",
+			Description: "Lightweight status check for SpecPilot services: returns installed, dcRunning, mfRunning, ports.",
+			Parameters:  objectSchemaFromFields(),
+			Handler:     mfStatusHandler,
 		},
 	)
 	return specs

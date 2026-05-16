@@ -1,4 +1,0 @@
-#!/bin/bash
-# SpecPilot CLI wrapper — 放在 PATH 中供前端调用
-cd /tmp/specpilot
-exec python3 -m cli "$@"
