@@ -72,6 +72,26 @@ description: |
 - 四态结构（idle/open/loading/done/error）在 shadow DOM 内部
 - 执行后输出派生原型文件路径
 
+**⚠ 必读：script 注入约束（踩坑总结）**
+
+inline script 在 DOM 完全解析之前执行，直接追加到 `</script>` 前会导致 `getElementById` 返回 null。
+**两条铁律**：
+
+1. **注入点**：追加到最后一个 `</script>`（`rfind`），而非第一个。
+   MVP 可能有多个 `<script>` 块（editor-tabs 在抽屉 HTML 之前，vibex-annot-ctrl 在抽屉 HTML 之后）。
+   必须追加到**抽屉 HTML 之后**执行的 script 块。
+
+2. **DOM 安全性**：行为脚本必须用 `DOMContentLoaded` 包裹：
+   ```javascript
+   document.addEventListener('DOMContentLoaded', function () {
+     (function () {
+       'use strict';
+       // ... all drawer logic ...
+     })();
+   });
+   ```
+   禁止直接追加裸 IIFE 到 `</script>` 前——虽然 HTML 解析是顺序的，但 `</script>` 标签本身可能被错误匹配，且 inline script 执行时目标 DOM 元素可能尚未被解析。
+
 ### Step 3：脚本验证
 
 调用 `scripts/validate.py` 对生成的 HTML 进行约束校验：
@@ -158,8 +178,9 @@ spec-prototype-fragment/
 ├── SKILL.md               # 本文件（workflow orchestrator，Step 0–5）
 ├── agent.json
 ├── scripts/
-│   ├── wc-gen.py         # 参数化原型生成脚本
-│   └── validate.py       # 约束校验脚本
+│   ├── wc-gen.py          # 参数化原型生成脚本（通用 WC 替换）
+│   ├── gen-detail-drawer.py  # 详情抽屉专用生成脚本
+│   └── validate.py        # 约束校验脚本
 └── ref/
     ├── wc-template.md    # WC 模板速查
     └── example-run.md    # 完整运行示例

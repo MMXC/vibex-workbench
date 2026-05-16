@@ -199,12 +199,12 @@ def run(path: str) -> bool:
         all_issues[name] = issues
         if issues:
             failed += 1
-            print(f"  ✗ {name}:")
+            print(f"  [FAIL] {name}:")
             for issue in issues:
                 print(f"    - {issue}")
         else:
             passed += 1
-            print(f"  ✓ {name}")
+            print(f"  [PASS] {name}")
 
     print(f"\n{passed}/{passed+failed} 检查通过")
     return failed == 0
