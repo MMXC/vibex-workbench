@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>SpecPilot MF</title>
+<style>
+:root {
+  --bg: #0d0d12; --surface: #13131a; --border: #2a2a3a;
+  --text: #e5e7eb; --muted: #64748b; --accent: #5858f4;
+  --green: #4ade80; --yellow: #fbbf24; --red: #f87171;
+  --teal: #72d6d0; --mono: 'Cascadia Code', ui-monospace, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 13px; }
+.nav { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.nav-logo { background: var(--accent); color: #fff; font-size: 10px; font-weight: 900; padding: 2px 8px; border-radius: 6px; }
+.nav-route { color: var(--text); font-size: 13px; font-weight: 600; font-family: var(--mono); }
+.nav-dc { margin-left: auto; color: var(--teal); font-size: 10px; font-family: var(--mono); }
+.content { padding: 16px; }
+.dash { display: flex; flex-direction: column; gap: 16px; }
+
+/* KPI Grid */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; }
+.kpi-label { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.kpi-value { font-size: 26px; font-weight: 800; color: var(--text); margin: 4px 0 2px; }
+.kpi-trend { font-size: 12px; font-weight: 600; }
+.kpi-trend.up { color: var(--green); }
+.kpi-trend.down { color: var(--red); }
+.kpi-source { font-size: 9px; color: #3d4656; margin-top: 8px; font-family: var(--mono); }
+
+/* Data Table */
+.dt-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.dt-head { padding: 10px 14px; font-size: 10px; color: var(--teal); font-family: var(--mono); border-bottom: 1px solid var(--border); }
+.dt-scroll { overflow-x: auto; max-height: 200px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { padding: 8px 12px; text-align: left; color: var(--muted); font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); }
+td { padding: 8px 12px; color: #c5cdd8; border-bottom: 1px solid #1e2030; }
+tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+/* Alert Badge */
+.badge-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.badge-wrap { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid; }
+.badge-dot { width: 8px; height: 8px; border-radius: 50%; animation: pulse 2s infinite; }
+.badge-status { font-size: 10px; font-weight: 900; letter-spacing: 0.1em; }
+.badge-count { font-size: 10px; font-weight: 900; padding: 1px 6px; border-radius: 999px; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* DC Status */
+.dc-status { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; font-family: var(--mono); font-size: 11px; overflow: hidden; }
+.dc-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.dc-title { font-weight: 700; }
+.dc-live { color: var(--green); font-size: 10px; animation: blink 2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.dc-sec-label { display: block; font-size: 9px; color: #3d4656; letter-spacing: 0.12em; padding: 8px 14px 4px; }
+.dc-adapters { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 14px 8px; }
+.ad-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; font-size: 10px; color: var(--muted); cursor: pointer; font-family: inherit; }
+.ad-btn.active { background: rgba(88,101,242,0.2); border-color: var(--accent); color: #9fc0ff; }
+.dc-entries { max-height: 200px; overflow-y: auto; padding-bottom: 8px; }
+.dc-row { display: flex; gap: 8px; padding: 3px 14px; }
+.dc-row:hover { background: rgba(255,255,255,0.03); }
+.dc-key { color: var(--teal); flex-shrink: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; }
+.dc-val { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Dashboard layout */
+.dash-mid { display: grid; grid-template-columns: 1fr auto; gap: 12px; }
+.dash-alerts { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+
+/* Loading skeleton */
+.skeleton { height: 28px; background: linear-gradient(90deg, #1a1a24 25%, #242434 50%, #1a1a24 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 6px; }
+.skeleton-sm { height: 14px; width: 60%; }
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-logo">MFE</span>
+  <span class="nav-route" id="route">/Dashboard</span>
+  <span class="nav-dc">DC:7890</span>
+</nav>
+
+<div class="content" id="app">
+  <!-- rendered by JS -->
+</div>
+
+<script>
+const DC_API = 'http://127.0.0.1:7890/api';
+const $ = id => document.getElementById(id);
+
+async function dcList() {
+  try {
+    const r = await fetch(DC_API + '/dc/query', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{"keys":[]}' });
+    const d = await r.json();
+    return d.data || {};
+  } catch { return {}; }
+}
+
+async function ecEmit(event, payload) {
+  try {
+    await fetch(DC_API + '/ec/publish', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({event, payload}) });
+  } catch {}
+}
+
+async function getAdapters() {
+  try {
+    const r = await fetch(DC_API + '/adapters');
+    const d = await r.json();
+    return d.adapters || [];
+  } catch { return []; }
+}
+
+async function switchAdapter(name) {
+  await fetch(DC_API + '/ad/switch', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({adapter:name}) });
+}
+
+function fmt(v, format) {
+  if (v === null || v === undefined) return '--';
+  if (format === 'currency') return new Intl.NumberFormat('en-US', {style:'currency', currency:'USD', maximumFractionDigits:0}).format(Number(v));
+  if (format === 'percent') return Number(v).toFixed(1) + '%';
+  return new Intl.NumberFormat('en-US').format(Number(v));
+}
+
+async function renderKPICard(key, title, format = 'number') {
+  const data = await dcList();
+  const v = data[key] ?? null;
+  const trend = Number(data[key + '.trend'] ?? data['kpi.trend'] ?? 0);
+  return `<div class="kpi-card">
+    <div class="kpi-label">${title}</div>
+    <div class="kpi-value">${fmt(v, format)}</div>
+    ${trend !== 0 ? `<div class="kpi-trend ${trend>0?'up':'down'}">${trend>0?'▲':'▼'} ${Math.abs(trend).toFixed(1)}%</div>` : ''}
+    <div class="kpi-source">DC: ${key}</div>
+  </div>`;
+}
+
+async function renderDataTable(tableKey, columns) {
+  const data = await dcList();
+  const rows = Array.isArray(data[tableKey]) ? data[tableKey].slice(0, 20) : [];
+  const header = columns.map(c => `<th>${c}</th>`).join('');
+  const body = rows.map((row, i) =>
+    `<tr class="${i%2===1?'alt':''}">${columns.map(c => `<td>${row[c] ?? '--'}</td>`).join('')}</tr>`
+  ).join('');
+  return `<div class="dt-wrap">
+    <div class="dt-head">${tableKey}</div>
+    <div class="dt-scroll"><table><thead><tr>${header}</tr></thead><tbody>${body||'<tr><td colspan="'+columns.length+'" style="color:#3d4656;padding:20px">No data</td></tr>'}</tbody></table></div>
+  </div>`;
+}
+
+async function renderAlertBadge(alertKey, label) {
+  const data = await dcList();
+  const status = String(data[alertKey] ?? data['alert.status'] ?? 'unknown').toLowerCase();
+  const count = Number(data[alertKey + '.count'] ?? data['alert.count'] ?? 0);
+  const cfg = {
+    healthy:  { color:'#4ade80', bg:'rgba(74,222,128,0.12)' },
+    warning:  { color:'#fbbf24', bg:'rgba(251,191,36,0.12)' },
+    critical: { color:'#f87171', bg:'rgba(248,113,113,0.12)' },
+  }[status] || { color:'#64748b', bg:'rgba(100,116,139,0.12)' };
+  const text = status.toUpperCase();
+  return `<div class="badge-wrap" style="--c:${cfg.color};--bg:${cfg.bg}">
+    <div class="badge-dot" style="background:${cfg.color}"></div>
+    <span>${label}</span>
+    <span class="badge-status" style="color:${cfg.color}">${text}</span>
+    ${count > 0 ? `<span class="badge-count" style="background:${cfg.color}">${count}</span>` : ''}
+  </div>`;
+}
+
+async function renderDCStatus() {
+  const [data, adapters] = await Promise.all([dcList(), getAdapters()]);
+  const active = adapters.find(a => a.status === 'active');
+  const activeName = active?.name ?? 'mock';
+  const entries = Object.entries(data).slice(0, 12);
+  const rows = entries.map(([k,v]) =>
+    `<div class="dc-row"><code class="dc-key">${k}</code><code class="dc-val">${JSON.stringify(v)?.slice(0,40)}</code></div>`
+  ).join('');
+  const buttons = adapters.map(a =>
+    `<button class="ad-btn ${a.name===activeName?'active':''}" onclick="handleAdSwitch('${a.name}')">${a.name}</button>`
+  ).join('');
+  return `<div class="dc-status">
+    <div class="dc-head"><span class="dc-title">DataCenter</span><span class="dc-live">● LIVE</span></div>
+    <span class="dc-sec-label">ADAPTER</span>
+    <div class="dc-adapters">${buttons}</div>
+    <span class="dc-sec-label">STATE (${Object.keys(data).length} keys)</span>
+    <div class="dc-entries">${rows || '<div style="padding:12px;color:#3d4656">No state data</div>'}</div>
+  </div>`;
+}
+
+window.handleAdSwitch = async function(name) {
+  await switchAdapter(name);
+  render();
+};
+
+async function render() {
+  const hash = window.location.hash.replace(/^#\/?/, '') || 'Dashboard';
+  $('route').textContent = '/' + hash;
+  const app = $('app');
+
+  if (hash === 'Dashboard') {
+    const [r1, r2, r3, r4, table, alerts] = await Promise.all([
+      renderKPICard('kpi.revenue', 'Revenue', 'currency'),
+      renderKPICard('kpi.users', 'Active Users', 'number'),
+      renderKPICard('kpi.conversion', 'Conversion', 'percent'),
+      renderKPICard('kpi.latency', 'P99 Latency', 'number'),
+      renderDataTable('table.users', ['id','name','email','status']),
+      Promise.all([
+        renderAlertBadge('alert.system', 'System'),
+        renderAlertBadge('alert.network', 'Network'),
+        renderAlertBadge('alert.database', 'Database'),
+      ]),
+    ]);
+    app.innerHTML = `<div class="dash">
+      <div class="kpi-grid">${r1+r2+r3+r4}</div>
+      <div class="dash-mid">
+        <div>${table}</div>
+        <div class="dash-alerts">${alerts.join('')}</div>
+      </div>
+      ${await renderDCStatus()}
+    </div>`;
+
+  } else if (hash === 'KPICard') {
+    const [r1, r2] = await Promise.all([
+      renderKPICard('kpi.revenue', 'Revenue', 'currency'),
+      renderKPICard('kpi.users', 'Active Users', 'number'),
+    ]);
+    app.innerHTML = `<div class="kpi-grid">${r1+r2}</div>`;
+
+  } else if (hash === 'DataTable') {
+    app.innerHTML = await renderDataTable('table.users', ['id','name','email','status']);
+
+  } else if (hash === 'AlertBadge') {
+    const alerts = await Promise.all([
+      renderAlertBadge('alert.system', 'System'),
+      renderAlertBadge('alert.network', 'Network'),
+      renderAlertBadge('alert.database', 'Database'),
+    ]);
+    app.innerHTML = `<div class="badge-row">${alerts.join('')}</div>`;
+
+  } else if (hash === 'DCStatus') {
+    app.innerHTML = await renderDCStatus();
+
+  } else {
+    app.innerHTML = `<div style="color:#3d4656;padding:20px">Unknown component: ${hash}<br>Try: Dashboard, KPICard, DataTable, AlertBadge, DCStatus</div>`;
+  }
+}
+
+window.addEventListener('hashchange', render);
+render();
+</script>
+</body>
+</html>

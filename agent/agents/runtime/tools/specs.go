@@ -193,6 +193,12 @@ func ParentSpecs(
 			Parameters:  objectSchemaFromFields(reqString("spec", "Spec name")),
 			Handler:     mfResolveHandler,
 		},
+		Spec{
+			Name:        "mf_bootstrap",
+			Description: "Bootstrap SpecPilot services: install CLI to /tmp/specpilot, start DC API (7890), start MF dev server (5177), seed demo data. Idempotent — skips already-running services. Returns {dcUrl, mfUrl, mfRemoteUrl}.",
+			Parameters:  objectSchemaFromFields(),
+			Handler:     mfBootstrapHandler(backgroundMgr),
+		},
 	)
 	return specs
 }
