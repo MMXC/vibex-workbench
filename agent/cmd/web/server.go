@@ -789,6 +789,61 @@ var (
 	skillRegistry *skills.Registry
 )
 
+// ── SpecPilot HTTP Handlers (for StatusBar button) ─────────────────
+
+// specpilotStatusHandler: GET /api/specpilot/status
+func specpilotStatusHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	wsRoot := cfg.WorkspaceDir
+	if wsRoot == "" {
+		http.Error(w, `{"error": "no workspace set"}`, http.StatusBadRequest)
+		return
+	}
+	dp := rtools.SpecpilotDCPort()
+	mp := rtools.SpecpilotMFPort()
+	installed, dcRunning, mfRunning := rtools.SpecpilotServiceStatus(wsRoot)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"installed":  installed,
+		"dcRunning": dcRunning,
+		"mfRunning": mfRunning,
+		"dcPort":    dp,
+		"mfPort":    mp,
+	})
+}
+
+// specpilotBootstrapHandler: POST /api/specpilot/bootstrap { component?: string }
+// Starts DC API + MF dev server, returns URLs.
+func specpilotBootstrapHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost && r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	wsRoot := cfg.WorkspaceDir
+	if wsRoot == "" {
+		http.Error(w, `{"error": "no workspace set"}`, http.StatusBadRequest)
+		return
+	}
+	var req struct {
+		Component string `json:"component"`
+	}
+	if r.Method == http.MethodPost {
+		json.NewDecoder(r.Body).Decode(&req)
+	}
+	component := req.Component
+	if component == "" {
+		component = "Dashboard"
+	}
+	dp := rtools.SpecpilotDCPort()
+	mp := rtools.SpecpilotMFPort()
+	result := rtools.SpecpilotBootstrap(wsRoot, component, dp, mp)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(result)
+}
+
 // ── MemLace Clarification API ─────────────────────────────────
 
 // memLaceMgr is a singleton, initialized on first use.

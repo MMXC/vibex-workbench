@@ -24,24 +24,60 @@
 	interface SpStatus { installed: boolean; dcRunning: boolean; mfRunning: boolean; dcPort: number; mfPort: number; }
 	let spStatus: SpStatus | null = $state(null);
 	let spPollTimer: ReturnType<typeof setInterval> | null = null;
+	let spBootstrapping = $state(false);
+	let spError = $state('');
 
 	async function pollSpStatus() {
 		try {
-			// Try DC health endpoint (SPECPILOT_DC_PORT defaults to 7890)
-			const r = await fetch('http://127.0.0.1:7890/api/health', { signal: AbortSignal.timeout(2000) });
+			// Poll the Go backend HTTP endpoint
+			const r = await fetch('http://localhost:33338/api/specpilot/status', { signal: AbortSignal.timeout(3000) });
 			if (r.ok) {
 				const d = await r.json();
 				spStatus = {
-					installed: true,
-					dcRunning: true,
-					mfRunning: true, // if DC is up, assume MF too
-					dcPort: d.port ?? 7890,
+					installed: d.installed ?? false,
+					dcRunning: d.dcRunning ?? false,
+					mfRunning: d.mfRunning ?? false,
+					dcPort: d.dcPort ?? 7890,
 					mfPort: d.mfPort ?? 5177,
 				};
+				spError = '';
+				return;
+			}
+		} catch {}
+		// Fallback: try DC health directly
+		try {
+			const r = await fetch('http://127.0.0.1:7890/api/health', { signal: AbortSignal.timeout(2000) });
+			if (r.ok) {
+				const d = await r.json();
+				spStatus = { installed: true, dcRunning: true, mfRunning: true, dcPort: d.port ?? 7890, mfPort: d.mfPort ?? 5177 };
+				spError = '';
 				return;
 			}
 		} catch {}
 		spStatus = null;
+	}
+
+	async function bootstrap() {
+		spBootstrapping = true;
+		spError = '';
+		try {
+			const r = await fetch('http://localhost:33338/api/specpilot/bootstrap', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ component: 'Dashboard' }),
+			});
+			const d = await r.json();
+			if (d.error) {
+				spError = d.error;
+			} else {
+				// Update status after bootstrap
+				await pollSpStatus();
+			}
+		} catch (e: any) {
+			spError = e?.message ?? '启动失败';
+		} finally {
+			spBootstrapping = false;
+		}
 	}
 
 	onMount(() => {
@@ -127,10 +163,26 @@
 				MF:{spStatus.mfPort}
 			</span>
 		{:else}
-			<span class="sb-sp sb-sp-off" title="SpecPilot 未启动 — mf_bootstrap 启动服务">
-				<span class="sp-dot" style="color: var(--accent-muted, #555558)">○</span>
+			<span class="sb-sp sb-sp-off" title="SpecPilot 未启动">
+				<span class="sp-dot" style="color: var(--accent-orange, #f09a6a)">○</span>
 				DC:—
 			</span>
+			<span class="sb-sep" aria-hidden="true">|</span>
+			<button
+				type="button"
+				class="sb-sp-btn"
+				disabled={spBootstrapping}
+				title={spBootstrapping ? '启动中…' : spError || '启动 SpecPilot DC+MF 服务'}
+				onclick={bootstrap}
+			>
+				{#if spBootstrapping}
+					<span class="sp-dot" style="color: var(--accent-yellow, #efc66b)">⟳</span> 启动中…
+				{:else if spError}
+					<span class="sp-dot" style="color: var(--accent-red, #e16d75)">✗</span> 重试
+				{:else}
+					<span class="sp-dot" style="color: var(--accent-orange, #f09a6a)">▶</span> SpecPilot
+				{/if}
+			</button>
 		{/if}
 
 		<span class="sb-sep" aria-hidden="true">|</span>
@@ -219,6 +271,31 @@
 	.sp-dot {
 		font-size: 10px;
 		line-height: 1;
+	}
+
+	.sb-sp-btn {
+		border: none;
+		background: transparent;
+		color: var(--accent-orange, #f09a6a);
+		font-size: 11.5px;
+		font-weight: 500;
+		padding: 2px 6px;
+		border-radius: 4px;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		gap: 2px;
+		white-space: nowrap;
+		transition: background 0.15s;
+	}
+
+	.sb-sp-btn:hover:not(:disabled) {
+		background: rgba(240, 154, 106, 0.12);
+	}
+
+	.sb-sp-btn:disabled {
+		cursor: default;
+		opacity: 0.7;
 	}
 
 	.sb-toggle {

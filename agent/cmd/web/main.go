@@ -94,6 +94,8 @@ func main() {
 	http.HandleFunc("/api/extension/prototype-url", withCORS(extensionPrototypeURLHandler))
 	http.HandleFunc("/api/workbench/inspector/snapshot", withCORS(inspectorSnapshotHandler))
 	http.HandleFunc("/api/workbench/inspector/trace", withCORS(inspectorTraceHandler))
+	http.HandleFunc("/api/specpilot/status", withCORS(specpilotStatusHandler))
+	http.HandleFunc("/api/specpilot/bootstrap", withCORS(specpilotBootstrapHandler))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

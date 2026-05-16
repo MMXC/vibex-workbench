@@ -423,3 +423,76 @@ func mfResolveHandler(arguments string) string {
 	wsRoot, _ := os.Getwd()
 	return runSP(wsRoot, "mf", "resolve-from-spec", args.Spec)
 }
+
+// ── Exported for HTTP handlers (rtools package) ──────────────────────────────
+
+// SpecpilotDCPort returns the configured DC port
+func SpecpilotDCPort() int { return dcPort() }
+
+// SpecpilotMFPort returns the configured MF port
+func SpecpilotMFPort() int { return mfPort() }
+
+// SpecpilotServiceStatus returns (installed, dcRunning, mfRunning)
+func SpecpilotServiceStatus(wsRoot string) (bool, bool, bool) {
+	dp := dcPort()
+	mp := mfPort()
+	installed := false
+	if _, err := os.Stat(wsInstall(wsRoot)); err == nil {
+		installed = true
+	}
+	return installed, isPortOpen(dp), isPortOpen(mp)
+}
+
+// SpecpilotBootstrap runs the full bootstrap and returns result map
+func SpecpilotBootstrap(wsRoot, component string, dp, mp int) map[string]any {
+	component2 := component
+	if component2 == "" {
+		component2 = "Dashboard"
+	}
+
+	// Set env overrides for port config
+	os.Setenv("SPECPILOT_DC_PORT", strconv.Itoa(dp))
+	os.Setenv("SPECPILOT_MF_PORT", strconv.Itoa(mp))
+
+	// 1. Install
+	if err := installSpecPilot(wsRoot); err != nil {
+		return map[string]any{"ok": false, "error": fmt.Sprintf("install failed: %v", err)}
+	}
+
+	// 2. Start DC API
+	if !isPortOpen(dp) {
+		apiScript := filepath.Join(wsInstall(wsRoot), "api_server.py")
+		cmd := exec.Command("python3", apiScript)
+		cmd.Dir = wsInstall(wsRoot)
+		cmd.Stdout = nil
+		cmd.Stderr = nil
+		cmd.Start()
+	}
+
+	// 3. Start MF dev server
+	if !isPortOpen(mp) {
+		cmd := exec.Command("python3", "-m", "http.server", strconv.Itoa(mp))
+		cmd.Dir = wsMF(wsRoot)
+		cmd.Stdout = nil
+		cmd.Stderr = nil
+		cmd.Start()
+	}
+
+	// 4. Wait for services
+	waitForPort(dp, 10*time.Second)
+	waitForPort(mp, 10*time.Second)
+
+	// 5. Seed demo data
+	seedData(wsRoot, component2)
+
+	mfUrl := fmt.Sprintf("http://localhost:%d/#/%s", mp, component2)
+	return map[string]any{
+		"ok":          true,
+		"dcPort":      dp,
+		"mfPort":      mp,
+		"dcUrl":       fmt.Sprintf("http://127.0.0.1:%d", dp),
+		"mfUrl":       fmt.Sprintf("http://localhost:%d", mp),
+		"mfRemoteUrl": mfUrl,
+		"message":     "SpecPilot bootstrapped",
+	}
+}
