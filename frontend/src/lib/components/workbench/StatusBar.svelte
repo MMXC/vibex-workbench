@@ -3,6 +3,7 @@
 -->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { specSlotSessionStore } from '$lib/stores/spec-slot-session-store';
 
 	interface Props {
 		workspaceRoot?: string;
@@ -70,7 +71,19 @@
 			if (d.error) {
 				spError = d.error;
 			} else {
-				// Update status after bootstrap
+				// Inject structured bootstrap result as a tool message in the active session
+				const payload = {
+					type: 'specpilot_bootstrap',
+					dcPort: d.dcPort,
+					mfPort: d.mfPort,
+					dcUrl: d.dcUrl,
+					mfUrl: d.mfUrl,
+					mfRemoteUrl: d.mfRemoteUrl,
+					message: d.message ?? 'SpecPilot 服务已启动',
+				};
+				specSlotSessionStore.injectToolResult(JSON.stringify(payload));
+				// Ensure the drawer is open so the user can see the result card
+				specSlotSessionStore.openDrawer();
 				await pollSpStatus();
 			}
 		} catch (e: any) {

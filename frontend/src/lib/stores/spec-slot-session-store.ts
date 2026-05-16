@@ -635,6 +635,24 @@ function createSpecSlotSessionStore() {
 		});
 	}
 
+	/** Inject a tool result message into the active session (used by StatusBar bootstrap button) */
+	function injectToolResult(content: string, openPath?: string | null) {
+		const { activeKey, sessions } = (() => {
+			let current: SpecSlotSessionState = {} as SpecSlotSessionState;
+			specSlotSessionStore.subscribe(s => { current = s; })();
+			return current;
+		})();
+		if (!activeKey || !sessions[activeKey]) return;
+		const msg: SpecSlotMessage = {
+			id: `bootstrap-${Date.now()}`,
+			role: 'tool',
+			content,
+			createdAt: nowIso(),
+			toolOpenPath: openPath,
+		};
+		appendToolCallSessionMessage(activeKey, msg);
+	}
+
 	function patchSessionMessage(key: string, messageId: string, patch: Partial<SpecSlotMessage>) {
 		commit(state => {
 			const session = state.sessions[key];
@@ -836,6 +854,13 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 
 	return {
 		subscribe,
+		injectToolResult,
+		openDrawer() {
+			commit(state => ({
+				...state,
+				drawerOpen: true,
+			}));
+		},
 		open(input: OpenSlotSessionInput) {
 			const key = sessionKey(input.spec.path, input.slot.id);
 			commit(state => {
