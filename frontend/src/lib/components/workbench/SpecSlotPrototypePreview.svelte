@@ -216,6 +216,24 @@
 					></iframe>
 				</div>
 			{/if}
+		{:else if panel.mode === 'mf_remote'}
+			<span class="k">{panel.caption ?? `MF: ${panel.mfComponent ?? 'remote'}`}</span>
+			<div class="mf-status-bar">
+				<span class="mf-badge">MF</span>
+				<span class="mf-comp">{panel.mfComponent}</span>
+				<span class="mf-api">DC @ localhost:7890</span>
+				<a class="mf-open" href={panel.mfRemoteUrl} target="_blank" rel="noopener">↗ 新窗口</a>
+			</div>
+			<div class="proto-frame-host">
+				<iframe
+					bind:this={mainFrame}
+					class="proto-frame"
+					title="MF remote prototype: {panel.mfComponent}"
+					sandbox="allow-scripts allow-same-origin allow-forms"
+					referrerpolicy="no-referrer"
+					src={panel.mfRemoteUrl ?? ''}
+				></iframe>
+			</div>
 		{:else}
 			<span class="k">{panel.caption ?? 'Prototype'}</span>
 			{#if snippetSrcdoc}
@@ -421,6 +439,49 @@
 	.muted {
 		color: #7b8496;
 		font-size: 12px;
+	}
+
+	.mf-status-bar {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 5px 8px;
+		background: rgba(88, 101, 242, 0.12);
+		border: 1px solid rgba(88, 101, 242, 0.3);
+		border-radius: 8px;
+		font-size: 11px;
+	}
+
+	.mf-badge {
+		background: #5858f4;
+		color: #fff;
+		font-weight: 900;
+		font-size: 9px;
+		padding: 1px 6px;
+		border-radius: 999px;
+		letter-spacing: 0.05em;
+	}
+
+	.mf-comp {
+		color: #c5cdd8;
+		font-weight: 700;
+	}
+
+	.mf-api {
+		color: #72d6d0;
+		font-family: 'Cascadia Code', ui-monospace, monospace;
+		font-size: 10px;
+	}
+
+	.mf-open {
+		margin-left: auto;
+		color: #9fc0ff;
+		font-size: 11px;
+		text-decoration: none;
+	}
+
+	.mf-open:hover {
+		text-decoration: underline;
 	}
 
 	.proto-fallback {

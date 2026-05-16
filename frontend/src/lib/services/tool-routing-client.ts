@@ -161,13 +161,17 @@ export type A2UICard = {
 };
 
 export type A2UIPrototypePanel = {
-	mode: 'html_snippet' | 'placeholder' | 'workspace_file';
+	mode: 'html_snippet' | 'placeholder' | 'workspace_file' | 'mf_remote';
 	html?: string;
 	/** 当 mode 为 workspace_file：相对工作区根的 HTML 路径（来自 spec prototype.file） */
 	fileRel?: string;
 	/** workspace_file 下助手 fenced HTML，与磁盘原型并存 */
 	assistantDraftHtml?: string;
 	caption?: string;
+	/** mf_remote 模式：MF remote app 的完整 URL（含 query 参数） */
+	mfRemoteUrl?: string;
+	/** mf_remote 模式：加载的 MF 组件名 */
+	mfComponent?: string;
 };
 
 export type A2UIStageLayout = 'cards' | 'fireworks' | 'split';
@@ -360,7 +364,32 @@ export function toA2UIModel(params: {
 		});
 	}
 
-	let prototype: A2UIPrototypePanel | undefined;
+/** 检测 spec YAML 是否声明了 MF 组件 */
+function hasMFComponents(yamlContent: string): { has: boolean; component?: string; url?: string } {
+	if (!yamlContent?.trim()) return { has: false };
+	// 匹配 mf_components: [xxx] 或 mf_component: xxx 或 mf:
+	const lines = yamlContent.split('\n');
+	for (const line of lines) {
+		const trimmed = line.trim();
+		if (/^mf[_-]?component[s]?:/.test(trimmed)) {
+			// 提取组件名
+			const match = trimmed.match(/\[([^\]]+)\]/);
+			if (match) {
+				return { has: true, component: match[1].trim() };
+			}
+			const bare = trimmed.split(':')[1]?.trim().replace(/[\[\],]/g, '').trim();
+			if (bare) return { has: true, component: bare };
+		}
+	}
+	return { has: false };
+}
+
+function buildMFRemoteUrl(component: string): string {
+	// MF dev server 默认端口 5177，/remote#/ComponentName
+	return `http://localhost:5177/#/${component}`;
+}
+
+let prototype: A2UIPrototypePanel | undefined;
 	let uiWorkflowGate: UiWorkflowGateModel | undefined;
 	let showFireworks = true;
 	let primaryStage: A2UIStageLayout = 'split';
@@ -377,7 +406,16 @@ export function toA2UIModel(params: {
 			}
 		}
 
-		if (protoRel) {
+		// 检测 MF 组件：spec prototype 槽或 YAML mf_component 声明
+		const mf = hasMFComponents(params.specYamlContent ?? '');
+		if (mf.has) {
+			prototype = {
+				mode: 'mf_remote',
+				mfComponent: mf.component,
+				mfRemoteUrl: buildMFRemoteUrl(mf.component!),
+				caption: `MF 原型预览：${mf.component}（mfe_remote 模式；shared DataCenter @ localhost:7890）`,
+			};
+		} else if (protoRel) {
 			prototype = {
 				mode: 'workspace_file',
 				fileRel: protoRel,

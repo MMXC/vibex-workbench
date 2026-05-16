@@ -1,0 +1,4 @@
+#!/bin/bash
+# SpecPilot CLI wrapper — place in PATH or call directly
+cd /tmp/specpilot
+python3 -m cli "$@"
