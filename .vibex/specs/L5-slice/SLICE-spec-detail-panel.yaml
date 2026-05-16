@@ -57,6 +57,25 @@ prototype:
   validates: []
   status: none
 
+mf_components:
+  # HeaderBar 元信息：LevelBadge + StatusChip → MF KPICard
+  - component: SpecMetaKPIs
+    mf_url: http://localhost:5177/#/KPICard
+    dc_key: spec.meta
+    description: Spec 元信息卡片：level/status/name + parent/children chips
+
+  # ValidateBar 状态：pass/fail/warning → MF AlertBadge
+  - component: ValidateStatusBadge
+    mf_url: http://localhost:5177/#/AlertBadge
+    dc_key: spec.validate
+    description: Validate 状态徽章：pass=绿/fail=红/warning=黄/running=灰
+
+  # ChildrenChips：子 spec 列表 → MF DataTable
+  - component: SpecChildrenTable
+    mf_url: http://localhost:5177/#/DataTable
+    dc_key: spec.children
+    description: 子 Spec 列表表格：name/level/status
+
 io_contract:
   input: |
     selectedSpecPath（当前选中节点路径），

@@ -47,6 +47,19 @@ prototype:
   validates: []
   status: none
 
+mf_components:
+  # StatusBar 布局：workspace 状态 + backend 状态 + SpecPilot DC/MF 指标
+  - component: StatusBarLayout
+    mf_url: http://localhost:5177/#/KPICard
+    dc_key: statusbar.layout
+    description: 底部状态栏：workspace/后端/SpecPilot 指标卡片
+
+  # 工作台实时指标：workspaceState + backendStatus + DC/MF 服务状态
+  - component: WorkbenchMetrics
+    mf_url: http://localhost:5177/#/KPICard
+    dc_key: metrics.workbench
+    description: 实时指标：workspace 就绪度、后端连接状态、DC/MF 服务在线数
+
 io_contract:
   input: 'workspaceRoot、backendStatus、workspaceState、workbenchLayoutStore dimensions。
 
