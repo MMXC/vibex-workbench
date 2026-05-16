@@ -1,0 +1,70 @@
+name: MOD-console
+level: "4"
+type: feature
+
+display:
+  title: 控制台
+  icon: "📋"
+  description: SpecDashboardConsole — L1–L5 spec 卡片列表，支持按层级筛选，点击卡片打开详情抽屉
+
+structure:
+  parent_selector: ".center-r2 .pane[data-pane=\"dashboard\"]"
+  area: dashboard-console
+
+content:
+  summary: |
+    控制台是 VibeX Workbench 的主工作区视图，以层级（L1–L5）为维度组织所有 spec。
+    每个 spec 显示为一张卡片，包含标题、描述、元数据和「查看详情」按钮。
+    点击「查看详情」触发详情抽屉打开。
+
+  ui_spec:
+    states:
+      - id: idle
+        description: 初始加载完成，卡片列表正常显示，用户可交互
+      - id: loading-detail
+        description: 用户点击「查看详情」，抽屉打开并显示加载中
+      - id: drawer-open
+        description: 详情抽屉已打开（content/metadata/journal 三 tab）
+
+    layout:
+      top: ".level-row"  # L1–L5 层级筛选标签
+      body: ".spec-card-section"  # spec 卡片列表
+
+    interactions:
+      - trigger: ".level-pill"
+        action: filter cards by level
+        description: 点击 L1/L2/L3/L4/L5 标签筛选对应层级卡片
+      - trigger: ".spec-card-detail-btn"
+        action: openDetailDrawer(specPath)
+        description: 点击「查看详情」按钮，调用 openDetailDrawer(specPath) 打开详情抽屉
+
+  io:
+    input:
+      - spec list from workspace scanner
+      - level filter selection
+      - drawer trigger
+    output:
+      - filtered card display
+      - drawer open/close
+
+  behavior: |
+    1. 用户在控制台看到 L1–L5 层级标签和对应的 spec 卡片列表
+    2. 点击层级标签切换筛选（当前实现为 tab 切换，非本 spec 范围）
+    3. 点击卡片上的「查看详情」→ openDetailDrawer(path) → 详情抽屉从右侧滑入
+    4. 详情抽屉见 MOD-detail-drawer spec
+
+  notes:
+    - spec 卡片列表数据来自 workspace spec scanner，为运行时数据
+    - 层级标签行为（tab 切换）不在本 spec 范围，由父 spec 或 L1 布局 spec 定义
+
+io_contract:
+  with_parent:
+    - MOD-detail-drawer: trigger drawer open via openDetailDrawer()
+    - L1 spec: provides workspace spec list
+
+prototype:
+  file: ".vibex/prototypes/vibex-workbench-mvp.html"
+  validates: []
+  status: base
+
+generated_at: "2026-05-15"

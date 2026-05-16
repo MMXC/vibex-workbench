@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EVT-titlebar-menu-click — 功能规格说明</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" id="theme-link" href="../assets/themes/blueprint.css">
+  <link rel="stylesheet" href="../assets/animations/animations.css">
+</head>
+<body>
+
+<main class="deck">
+
+  <!-- ===================== SLIDE 1: 封面 ===================== -->
+  <section class="slide is-active" data-slide="1">
+    <div class="slide-header">
+      <span class="deck-title">VibeX Workbench — 功能规格说明</span>
+      <span class="deck-tag">L4 · EVT · 待实现</span>
+    </div>
+    <div class="slide-body">
+      <div class="hero-title-block">
+        <div class="tag-row">
+          <span class="tag tag-blue">L4-event</span>
+          <span class="tag tag-yellow">待实现</span>
+          <span class="tag tag-red">缺失 summary</span>
+        </div>
+        <h1 class="hero-title">EVT-titlebar-menu-click</h1>
+        <p class="hero-sub">标题栏菜单点击事件 — 规格说明与落地差距分析</p>
+      </div>
+      <div class="grid-2col gap-6 mt-6">
+        <div class="card card-border">
+          <div class="card-label">核心事件</div>
+          <ul class="list-bullet">
+            <li><code>EVT_titlebar_menu_click</code></li>
+            <li><code>EVT_titlebar_menu_close</code></li>
+          </ul>
+        </div>
+        <div class="card card-border">
+          <div class="card-label">当前状态</div>
+          <ul class="list-bullet">
+            <li>spec 定义已存在</li>
+            <li>无 prototype 文件</li>
+            <li>代码中无对应实现</li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-row">
+        <span>📅 2025-01-25</span>
+        <span>VibeX Workbench · .vibex/specs/L4-event/</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SLIDE 2: 功能目标 ===================== -->
+  <section class="slide" data-slide="2">
+    <div class="slide-header">
+      <span class="deck-title">功能目标</span>
+      <span class="deck-tag">Why / What / Success</span>
+    </div>
+    <div class="slide-body">
+      <h2 class="slide-title">为什么要做 — 业务价值</h2>
+      <div class="grid-2col gap-6">
+        <div>
+          <div class="section-label">🎯 目标（What）</div>
+          <ul class="list-bullet">
+            <li>在 IDE 标题栏菜单（文件/编辑/视图…）点击时触发事件</li>
+            <li>支持 <strong>open</strong> 与 <strong>close</strong> 两种状态</li>
+            <li>暴露菜单项 ID / 标签，供业务层监听与响应</li>
+            <li>为"菜单驱动"的工作流自动化奠定事件基础</li>
+          </ul>
+        </div>
+        <div>
+          <div class="section-label">💡 价值（Why）</div>
+          <ul class="list-bullet">
+            <li>打通 UI 交互层 → 业务逻辑层的事件总线</li>
+            <li>支持插件/脚本订阅菜单行为，实现自定义扩展</li>
+            <li>为"菜单点击 → 动作执行 → 日志记录"提供原子化钩子</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card card-border mt-5">
+        <div class="card-label">✅ 成功标准</div>
+        <ul class="list-bullet">
+          <li>点击任意标题栏菜单项 → 控制台输出 <code>EVT_titlebar_menu_click</code>（含 menu_id）</li>
+          <li>菜单关闭时 → 控制台输出 <code>EVT_titlebar_menu_close</code></li>
+          <li>测试用例覆盖 open / close / error 三种路径</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SLIDE 3: As-Is 现状（无实现） ===================== -->
+  <section class="slide" data-slide="3">
+    <div class="slide-header">
+      <span class="deck-title">As-Is 现状</span>
+      <span class="deck-tag">真实工作区证据</span>
+    </div>
+    <div class="slide-body">
+      <h2 class="slide-title">现状证据 — 工作区可验证</h2>
+      <div class="grid-3col gap-4">
+        <div class="card card-border">
+          <div class="card-label">📄 Spec 定义</div>
+          <ul class="list-bullet">
+            <li>✅ <code>EVT_titlebar_menu_click</code> 已定义</li>
+            <li>✅ <code>EVT_titlebar_menu_close</code> 已定义</li>
+            <li>⚠️ <code>display.summary</code> 缺失（未填写）</li>
+            <li>⚠️ <code>constraints</code> 无 rules</li>
+          </ul>
+        </div>
+        <div class="card card-border">
+          <div class="card-label">🗂️ 原型文件</div>
+          <ul class="list-bullet">
+            <li>❌ <code>.vibex/prototypes/FEAT-ide-titlebar.html</code> 不存在</li>
+            <li>❌ 无关联 prototype.file</li>
+            <li>ℹ️ 需新建原型验证交互</li>
+          </ul>
+        </div>
+        <div class="card card-border">
+          <div class="card-label">💻 代码实现</div>
+          <ul class="list-bullet">
+            <li>❌ 前端无 titlebar 菜单事件处理</li>
+            <li>❌ Wails 无 EVT 绑定</li>
+            <li>❌ 无 TypeScript 类型定义</li>
+          </ul>
+        </div>
+      </div>
+      <div class="alert alert-warn mt-5">
+        <strong>⚠️ 关键差距：</strong>spec 存在但无落地实现，menu 点击行为完全未接入事件系统。
+        需要从零构建：Wails 前端事件 → TypeScript handler → 事件对象发布。
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SLIDE 4: 状态矩阵 ===================== -->
+  <section class="slide" data-slide="4">
+    <div class="slide-header">
+      <span class="deck-title">状态矩阵</span>
+      <span class="deck-tag">Loading · Empty · Error</span>
+    </div>
+    <div class="slide-body">
+      <h2 class="slide-title">标题栏菜单事件 — 状态矩阵</h2>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>场景</th>
+              <th>触发方式</th>
+              <th>预期事件</th>
+              <th>数据字段</th>
+              <th>当前状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>✅ 菜单正常打开</td>
+              <td>点击任意菜单按钮</td>
+              <td><code>EVT_titlebar_menu_click</code></td>
+              <td>menu_id, label, timestamp</td>
+              <td><span class="badge badge-red">未实现</span></td>
+            </tr>
+            <tr>
+              <td>✅ 菜单正常关闭</td>
+              <td>点击菜单外 / 按 Esc / 选择后</td>
+              <td><code>EVT_titlebar_menu_close</code></td>
+              <td>menu_id, reason, timestamp</td>
+              <td><span class="badge badge-red">未实现</span></td>
+            </tr>
+            <tr>
+              <td>🔄 Loading</td>
+              <td>菜单项数据异步加载中</td>
+              <td><code>EVT_titlebar_menu_loading</code>（建议新增）</td>
+              <td>menu_id</td>
+              <td><span class="badge badge-gray">待规划</span></td>
+            </tr>
+            <tr>
+              <td>🚫 Error</td>
+              <td>菜单数据加载失败</td>
+              <td><code>EVT_titlebar_menu_error</code>（建议新增）</td>
+              <td>menu_id, error_code, message</td>
+              <td><span class="badge badge-gray">待规划</span></td>
+            </tr>
+            <tr>
+              <td>📭 Empty</td>
+              <td>菜单无任何可见项</td>
+              <td><code>EVT_titlebar_menu_empty</code>（建议新增）</td>
+              <td>menu_id</td>
+              <td><span class="badge badge-gray">待规划</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout callout-blue mt-4">
+        <strong>建议：</strong>除了 spec 定义的 open/close 两个事件，建议补充 loading/error/empty 三种状态事件，提升可观测性与测试覆盖。
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SLIDE 5: 边界演示 ===================== -->
+  <section class="slide" data-slide="5">
+    <div class="slide-header">
+      <span class="deck-title">边界演示</span>
+      <span class="deck-tag">Constraints · Edge Cases</span>
+    </div>
+    <div class="slide-body">
+      <h2 class="slide-title">边界场景与触发条件</h2>
+      <div class="grid-2col gap-6">
+        <div>
+          <div class="section-label">⚡ 核心边界（spec 定义）</div>
+          <ul class="list-number">
+            <li><strong>点击菜单外区域</strong> → 触发 <code>EVT_titlebar_menu_close</code>，reason=outside</li>
+            <li><strong>按 Esc 键</strong> → 触发 close，reason=escape</li>
+            <li><strong>点击菜单项后关闭</strong> → 触发 close，reason=select</li>
+            <li><strong>窗口失焦</strong> → 触发 close，reason=blur（建议补充）</li>
+          </ul>
+        </div>
+        <div>
+          <div class="section-label">🛡️ 防御边界</div>
+          <ul class="list-number">
+            <li><strong>重复点击同一菜单按钮</strong> → toggle（先关后开）</li>
+            <li><strong>菜单打开时切 tab</strong> → close，reason=blur</li>
+            <li><strong>右键非标题栏菜单</strong> → 不触发（仅标题栏）</li>
+            <li><strong>禁用状态菜单项</strong> → 仍触发 click 但不响应 action</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card card-border mt-5">
+        <div class="card-label">📋 Constraints 现状</div>
+        <p class="mt-2">当前 <code>constraints.rules</code> 为空数组。需由开发者在实现阶段补充具体规则（如：菜单层级限制、点击防抖、事件冷却时间）。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SLIDE 6: 四视角覆盖 ===================== -->
+  <section class="slide" data-slide="6">
+    <div class="slide-header">
+      <span class="deck-title">四视角覆盖</span>
+      <span class="deck-tag">CTO · 开发 · 测试 · 用户</span>
+    </div>
+    <div class="slide-body">
+      <h2 class="slide-title">利益相关者视角</h2>
+      <div class="grid-2col gap-5">
+        <div class="card card-border">
+          <div class="card-label">👔 CTO 视角</div>
+          <ul class="list-bullet mt-2">
+            <li><strong>架构价值：</strong>事件驱动架构的最小可行单元</li>
+            <li><strong>资源投入：</strong>前端 2d + Wails 1d + 测试 1d</li>
+            <li><strong>风险：</strong>无现有依赖，可独立交付</li>
+            <li><strong>优先级：</strong>中等（依赖菜单 UI 先行）</li>
+          </ul>
+        </div>
+        <div class="card card-border">
+          <div class="card-label">💻 开发视角</div>
+          <ul class="list-bullet mt-2">
+            <li><strong>改动面：</strong>前端菜单组件 + Wails event bridge</li>
+            <li><strong>技术债：</strong>需新增 TypeScript 类型定义</li>
+            <li><strong>接口：</strong><code>window.vibex.emit()</code> 发布事件</li>
+            <li><strong>验证：</strong>DevTools console 监听事件</li>
+          </ul>
+        </div>
+        <div class="card card-border">
+          <div class="card-label">🧪 测试视角</div>
+          <ul class="list-bullet mt-2">
+            <li><strong>可测性：</strong>单元测试（Vitest）+ E2E（Playwright）</li>
+            <li><strong>覆盖路径：</strong>open / close / error / 边界条件</li>
+            <li><strong>回归风险：</strong>低（无现有实现）</li>
+            <li><strong>建议：</strong>事件订阅 spy 覆盖所有分支</li>
+          </ul>
+        </div>
+        <div class="card card-border">
+          <div class="card-label">👤 用户视角</div>
+          <ul class="list-bullet mt-2">
+            <li><strong>直接收益：</strong>无（底层事件基础设施）</li>
+            <li><strong>间接收益：</strong>菜单驱动的插件/自动化将可响应</li>
+            <li><strong>可见变化：</strong>无 UI 变更</li>
+            <li><strong>用户教育：</strong>API 文档 + 插件开发指南</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SLIDE 7: 优化分析与决策 ===================== -->
+  <section class="slide" data-slide="7">
+    <div class="slide-header">
+      <span class="deck-title">优化分析 &amp; 决策</span>
+      <span class="deck-tag">方案对比 · Why / Why-Not</span>
+    </div>
+    <div class="slide-body">
+      <h2 class="slide-title">方案对比与决策</h2>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>维度</th>
+              <th>方案 A：自定义事件派发</th>
+              <th>方案 B：Wails 已有事件总线</th>
+              <th>方案 C：不实现（保持现状）</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>实现成本</strong></td>
+              <td><span class="badge badge-green">低</span> 1-2d</td>
+              <td><span class="badge badge-yellow">中</span> 3-5d</td>
+              <td><span class="badge badge-blue">零</span></td>
+            </tr>
+            <tr>
+              <td><strong>跨层通信</strong></td>
+              <td>前端内部有效</td>
+              <td>前端 ↔ Go 后端均可监听</td>
+              <td>无事件</td>
+            </tr>
+            <tr>
+              <td><strong>可扩展性</strong></td>
+              <td>需手动桥接</td>
+              <td>开箱即用</td>
+              <td>无</td>
+            </tr>
+            <tr>
+              <td><strong>推荐度</strong></td>
+              <td><span class="badge badge-green">✅ 推荐 MVP</span></td>
+              <td><span class="badge badge-blue">备选后期</span></td>
+              <td><span class="badge badge-red">❌ 不选</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="grid-2col gap-5 mt-5">
+        <div class="callout callout-green">
+          <strong>✅ 推荐方案 A（MVP）</strong><br>
+          <strong>Why：</strong>成本最低，验证路径最清晰。先交付 open/close 基础事件，满足 L4 落地要求。
+        </div>
+        <div class="callout callout-red">
+          <strong>❌ 为什么不选方案 B</strong><br>
+          <strong>Why-Not：</strong>Wails 事件总线接入成本高（需 Go 侧注册 + IPC），超出当前 L4 MVP 范围。建议在 L5 实现。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SLIDE 8: spec 与实现偏差 ===================== -->
+  <section class="slide" data-slide="8">
+    <div class="slide-header">
+      <span class="deck-title">偏差分析</span>
+      <span class="deck-tag">Gap · Deviation</span>
+    </div>
+    <div class="slide-body">
+      <h2 class="slide-title">spec 与实际实现偏差</h2>
+      <div class="grid-2col gap-6">
+        <div>
+          <div class="section-label">🔴 spec 定义 → 代码现状</div>
+          <ul class="list-bullet">
+            <li><code>EVT_titlebar_menu_click</code> → ❌ 未实现</li>
+            <li><code>EVT_titlebar_menu_close</code> → ❌ 未实现</li>
+            <li><code>display.summary</code> → ❌ 缺失（需补齐）</li>
+            <li><code>constraints.rules</code> → ❌ 空数组</li>
+            <li>无 prototype 原型验证</li>
+          </ul>
+        </div>
+        <div>
+          <div class="section-label">🟡 待补齐项</div>
+          <ul class="list-bullet">
+            <li>TypeScript 类型定义（event payload）</li>
+            <li>前端菜单组件事件监听</li>
+            <li>Wails event emit 到前端 runtime</li>
+            <li>Playwright E2E 测试用例</li>
+            <li>display.summary 描述文本</li>
+          </ul>
+        </div>
+      </div>
+      <div class="alert alert-info mt-5">
+        <strong>执行建议：</strong>以 spec 为准，将缺失项作为 TODO 清单，逐项验收。先补 summary，再实现代码，最后补测试。
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SLIDE 9: 风险与验证 ===================== -->
+  <section class="slide" data-slide="9">
+    <div class="slide-header">
+      <span class="deck-title">风险与验证</span>
+      <span class="deck-tag">Risk · Verification · Rollback</span>
+    </div>
+    <div class="slide-body">
+      <h2 class="slide-title">风险、验证与回滚</h2>
+      <div class="grid-2col gap-6">
+        <div>
+          <div class="section-label">⚠️ 风险项</div>
+          <ul class="list-bullet">
+            <li><strong>风险 1：</strong>菜单 UI 组件不存在 → 事件无触发载体<br><em>对策：先建 UI 组件，再接入事件</em></li>
+            <li><strong>风险 2：</strong>Wails 事件名冲突 → 覆盖已有事件<br><em>对策：命名空间隔离 <code>vibex.menu.*</code></em></li>
+            <li><strong>风险 3：</strong>频繁点击导致事件风暴 → 影响性能<br><em>对策：防抖 100ms + 事件冷却</em></li>
+          </ul>
+        </div>
+        <div>
+          <div class="section-label">🔬 验证方式</div>
+          <ul class="list-number">
+            <li>DevTools Console：<code>window.vibex.on('menu.*', console.log)</code></li>
+            <li>Vitest：mock 菜单点击 → 断言事件派发</li>
+            <li>Playwright：点击菜单 → 等待控制台事件日志</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card card-border mt-5">
+        <div class="card-label">↩️ 回滚策略</div>
+        <ul class="list-bullet mt-2">
+          <li>Git revert 前端 commit（事件代码独立成 commit）</li>
+          <li>回滚后菜单降级为纯 UI 无事件状态</li>
+          <li>Wails 事件总线解注册：<code>window.vibex.off('menu.*')</code></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SLIDE 10: 可复制问题清单 ===================== -->
+  <section class="slide" data-slide="10">
+    <div class="slide-header">
+      <span class="deck-title">可复制问题清单</span>
+      <span class="deck-tag">Q&amp;A · 详情抽屉对话</span>
+    </div>
+    <div class="slide-body">
+      <h2 class="slide-title">落地前需确认的问题（可直接复制）</h2>
+      <div class="grid-2col gap-4">
+        <div>
+          <ul class="list-number">
+            <li>标题栏菜单 UI 组件的代码路径是什么？</li>
+            <li>菜单点击事件目前在前端哪个模块处理？</li>
+            <li>是否已有 Wails 事件总线的使用示例？</li>
+            <li>EVT_titlebar_menu_click 的 payload 字段需要哪些？</li>
+            <li>菜单关闭的 reason 字段枚举值有哪些？</li>
+            <li>是否需要支持右键上下文菜单的事件？</li>
+          </ul>
+        </div>
+        <div>
+          <ul class="list-number">
+            <li start="7">菜单项 loading/error/empty 状态如何展示？</li>
+            <li>事件防抖的合理阈值是多少 ms？</li>
+            <li>是否需要记录菜单点击日志到后端？</li>
+            <li>插件系统如何订阅这些事件？接口定义在哪？</li>
+            <li>display.summary 应该怎么写才能满足 L4 标准？</li>
+            <li>constraints.rules 需要补充哪些具体规则？</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout callout-blue mt-5">
+        <strong>下一步：</strong>在详情抽屉中向 agent 提问，从上述问题清单任选一条开始，agent 将帮助完善 spec 与实现路径。
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SLIDE 11: 执行页 ===================== -->
+  <section class="slide" data-slide="11">
+    <div class="slide-header">
+      <span class="deck-title">执行计划</span>
+      <span class="deck-tag">Milestone · Owner · Acceptance</span>
+    </div>
+    <div class="slide-body">
+      <h2 class="slide-title">执行计划与验收</h2>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>阶段</th>
+              <th>任务</th>
+              <th>负责人</th>
+              <th>验收标准</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="badge badge-blue">Phase 1</span></td>
+              <td>补齐 <code>display.summary</code></td>
+              <td>产品/SE</td>
+              <td>summary ≥ 20 字，描述用户可见价值</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-blue">Phase 2</span></td>
+              <td>前端菜单组件 + click 事件派发</td>
+              <td>前端开发</td>
+              <td>console 输出 EVT_titlebar_menu_click（含 menu_id）</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-blue">Phase 3</span></td>
+              <td>close 事件 + 边界处理</td>
+              <td>前端开发</td>
+              <td>outside/escape/select 三种 reason 均可触发</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-blue">Phase 4</span></td>
+              <td>TypeScript 类型 + 单元测试</td>
+              <td>测试开发</td>
+              <td>Vitest 覆盖率 ≥ 80%</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-blue">Phase 5</span></td>
+              <td>E2E + constraints.rules 补充</td>
+              <td>测试开发</td>
+              <td>Playwright 菜单点击路径 100% 通过</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="grid-2col gap-5 mt-5">
+        <div class="card card-border">
+          <div class="card-label">⏱️ 预计工时</div>
+          <p class="mt-2">总工期：<strong>5 个工作日</strong>（Phase 1-5 串行或并行）</p>
+        </div>
+        <div class="card card-border">
+          <div class="card-label">🎯 L4 完成标准</div>
+          <p class="mt-2">spec 所有 key 有值 + 原型可演示 + 测试用例就绪</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="../assets/runtime.js"></script>
+<script src="../assets/vibex-ppt-nav.js"></script>
+</body>
+</html>

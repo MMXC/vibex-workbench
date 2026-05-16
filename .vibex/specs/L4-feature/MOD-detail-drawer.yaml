@@ -1,0 +1,99 @@
+name: MOD-detail-drawer
+level: "4"
+type: feature
+
+display:
+  title: 详情抽屉
+  icon: "📄"
+  description: SpecDetailPanel — 右侧滑入抽屉，展示 spec 内容/元数据/日志三个 tab
+
+structure:
+  parent_selector: ".detail-drawer"
+  area: spec-detail-drawer
+  annotation:
+    data-vibex-annot: "L4"
+    data-vibex-title: "L4 · 详情抽屉"
+
+content:
+  summary: |
+    详情抽屉是 VibeX Workbench 的 spec 详情查看器。
+    触发方式：点击控制台卡片上的「查看详情」按钮，或从 spec 文件树选中文件。
+    抽屉从右侧滑入（宽度 480px），包含头部（文件路径+tab导航+关闭）和内容体（content/metadata/journal 三种视图）。
+
+  ui_spec:
+    states:
+      - id: closed
+        description: 抽屉关闭（默认状态）
+        visual: 抽屉 transform: translateX(100%)，遮罩 display:none
+      - id: loading
+        description: 抽屉已打开，正在加载 spec 内容
+        visual: 遮罩 open class，drawer open class，内容区显示加载中提示
+      - id: content
+        description: 内容 tab（默认），显示 YAML spec 文本
+        visual: pre.drawer-content 显示加载后的 spec 内容
+      - id: metadata
+        description: 元数据 tab，显示文件路径、文件名、层级等
+        visual: div.drawer-meta 显示键值对
+      - id: journal
+        description: 日志 tab（预留，暂不实现）
+        visual: 显示占位提示
+      - id: error
+        description: 加载失败
+        visual: 显示错误提示，tab 保持 content
+
+    layout:
+      backdrop: ".detail-drawer-backdrop"
+      drawer: ".detail-drawer"
+      head: ".detail-drawer-head"
+        left: ".detail-drawer-head-left"   # Spec 标签 + 文件名
+        right: ".detail-drawer-head-right"  # tab 导航 + 关闭按钮
+      body: ".detail-drawer-body"
+
+    interactions:
+      - trigger: ".detail-drawer-backdrop"
+        action: closeDetailDrawer()
+        description: 点击遮罩关闭抽屉
+      - trigger: ".drawer-close-btn"
+        action: closeDetailDrawer()
+        description: 点击 × 关闭抽屉
+      - trigger: ".drawer-tab"
+        action: switchDrawerTab(tab)
+        description: 切换 content/metadata/journal tab
+      - trigger: openDetailDrawer(specPath)
+        action: open drawer with specPath, load content asynchronously
+        description: 外部调用打开抽屉并加载 spec 内容
+
+  io:
+    input:
+      - specPath: string (spec 文件路径)
+    output:
+      - spec content loaded from /api/workspace/specs/read
+      - spec metadata parsed from path
+      - drawer state: closed | loading | content | metadata | journal | error
+
+  behavior: |
+    1. 抽屉关闭时：drawer 有 transform:translateX(100%)，遮罩隐藏
+    2. openDetailDrawer(specPath) 调用：
+       - 切换 content tab
+       - 显示加载中（600ms 模拟异步）
+       - 加载完成后显示 YAML 内容
+    3. tab 切换：content/metadata/journal 三种视图，内容区切换显示
+    4. 关闭：遮罩点击或 × 按钮 → drawer 返回 translateX(100%)，遮罩隐藏
+
+  notes:
+    - 抽屉宽度 480px，固定在右侧
+    - 内容加载为模拟（生产接 /api/workspace/specs/read）
+    - Journal tab 为预留（生产未实现）
+    - 与 SpecDetailPanel.svelte 对齐
+
+io_contract:
+  with_parent:
+    - MOD-console: receives openDetailDrawer(specPath) trigger from card detail buttons
+    - spec-explorer: receives specPath from file tree selection
+
+prototype:
+  file: ".vibex/prototypes/vibex-workbench-mvp.html"
+  validates: []
+  status: base
+
+generated_at: "2026-05-15"

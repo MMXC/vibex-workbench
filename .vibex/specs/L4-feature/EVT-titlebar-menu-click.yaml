@@ -35,3 +35,5 @@ derived_from_behavior_detail: |
   来自 FEAT-ide-titlebar content.behaviors[B1]：
   - trigger: 用户点击「文件」菜单
   - action: 打开 WebView 内菜单或触发 menu:file 事件
+
+ppt_file: .vibex/ppt/EVT-titlebar-menu-click.html

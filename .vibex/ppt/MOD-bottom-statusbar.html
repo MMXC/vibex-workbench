@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="tokyo-night">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>L3 · 底部状态栏 - Spec 说明稿</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" id="theme-link" href="../assets/themes/tokyo-night.css">
+  <link rel="stylesheet" href="../assets/animations/animations.css">
+  <style>
+    :root {
+      --accent: #7aa2f7;
+      --accent-secondary: #bb9af7;
+      --warning: #e0af68;
+      --success: #9ece6a;
+      --danger: #f7768e;
+    }
+    .slide-tag {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .tag-cto { background: var(--accent); color: #1a1b26; }
+    .tag-dev { background: var(--accent-secondary); color: #1a1b26; }
+    .tag-test { background: var(--success); color: #1a1b26; }
+    .tag-user { background: var(--warning); color: #1a1b26; }
+    .tag-as-is { background: var(--danger); color: #1a1b26; }
+    .tag-to-be { background: var(--success); color: #1a1b26; }
+    .gap-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      background: rgba(250,118,142,0.2);
+      border: 1px solid var(--danger);
+      border-radius: 4px;
+      font-size: 0.7rem;
+      color: var(--danger);
+    }
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    .comparison-table th, .comparison-table td {
+      padding: 0.75rem;
+      border: 1px solid rgba(255,255,255,0.1);
+      text-align: left;
+    }
+    .comparison-table th {
+      background: rgba(122,162,247,0.15);
+      color: var(--accent);
+    }
+    .comparison-table tr:nth-child(even) td {
+      background: rgba(255,255,255,0.02);
+    }
+    .check-icon { color: var(--success); }
+    .cross-icon { color: var(--danger); }
+    .partial-icon { color: var(--warning); }
+    .question-card {
+      background: rgba(255,255,255,0.05);
+      border-left: 3px solid var(--accent);
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+    .flow-diagram {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      padding: 1rem;
+      flex-wrap: wrap;
+    }
+    .flow-node {
+      background: rgba(122,162,247,0.15);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      padding: 0.75rem 1.25rem;
+      text-align: center;
+      min-width: 120px;
+    }
+    .flow-arrow {
+      color: var(--accent);
+      font-size: 1.5rem;
+    }
+    .risk-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+    .risk-card {
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .risk-card.high { border-left: 4px solid var(--danger); }
+    .risk-card.medium { border-left: 4px solid var(--warning); }
+    .risk-card.low { border-left: 4px solid var(--success); }
+    .milestone {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .milestone-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #1a1b26;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+    .why-box {
+      background: rgba(158,206,106,0.1);
+      border: 1px solid var(--success);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      margin: 0.25rem 0;
+      font-size: 0.85rem;
+    }
+    .why-not-box {
+      background: rgba(247,118,142,0.1);
+      border: 1px solid var(--danger);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      margin: 0.25rem 0;
+      font-size: 0.85rem;
+    }
+    .notes { display: none; }
+  </style>
+</head>
+<body>
+<main class="deck">
+
+<!-- ========== Slide 1: 封面 ========== -->
+<section class="slide is-active" data-slide="1">
+  <div class="slide-content" style="display:flex; flex-direction:column; justify-content:center; align-items:center; height:100%; text-align:center;">
+    <div style="font-size:0.9rem; color:var(--text-2); margin-bottom:1rem; letter-spacing:0.2em;">SPEC LEVEL 3 · MODULE</div>
+    <h1 style="font-size:2.5rem; margin-bottom:0.5rem;">底部状态栏</h1>
+    <div style="font-size:1.25rem; color:var(--accent); margin-bottom:2rem;">MOD-bottom-statusbar</div>
+    <div style="display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; margin-bottom:2rem;">
+      <span class="slide-tag tag-cto">CTO</span>
+      <span class="slide-tag tag-dev">开发</span>
+      <span class="slide-tag tag-test">测试</span>
+      <span class="slide-tag tag-user">用户</span>
+    </div>
+    <div style="font-size:0.85rem; color:var(--text-2); max-width:600px;">
+      IDE 底部状态栏，含运行状态指示和快捷开关<br>
+      状态：<strong style="color:var(--warning);">proposal</strong> · 版本：0.1 · 父级：vibex-workbench-mvp
+    </div>
+  </div>
+  <div class="notes">欢迎各位！今天我们来看 L3 模块——底部状态栏的实现现状与规划。这是 IDE 底部 .statusbar 容器的规格说明稿，会覆盖现状证据、缺失功能、决策建议和执行计划。</div>
+</section>
+
+<!-- ========== Slide 2: 模块结构 ========== -->
+<section class="slide" data-slide="2">
+  <div class="slide-header">
+    <span class="slide-tag tag-dev">模块结构</span>
+    <h2>状态栏模块层级关系</h2>
+  </div>
+  <div class="slide-body">
+    <div class="flow-diagram" style="margin:1.5rem 0;">
+      <div class="flow-node" style="background:rgba(187,154,247,0.2); border-color:var(--accent-secondary);">
+        <strong>L2 Parent</strong><br>
+        <span style="font-size:0.8rem;">vibex-workbench-mvp</span>
+      </div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-node" style="background:rgba(122,162,247,0.25); border-color:var(--accent); border-width:2px;">
+        <strong>L3 本模块</strong><br>
+        <span style="font-size:0.8rem;">MOD-bottom-statusbar</span>
+      </div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-node" style="background:rgba(122,162,247,0.15);">
+        <strong>L4 子切片</strong><br>
+        <span style="font-size:0.8rem;">SLICE-statusbar-left</span>
+      </div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-node" style="background:rgba(122,162,247,0.15);">
+        <strong>L4 子切片</strong><br>
+        <span style="font-size:0.8rem;">SLICE-statusbar-right</span>
+      </div>
+    </div>
+    <table class="comparison-table">
+      <tr><th>字段</th><th>值</th><th>说明</th></tr>
+      <tr><td>parent_selector</td><td><code>.statusbar</code></td><td>对应原型中的 CSS 选择器</td></tr>
+      <tr><td>io.boundary</td><td>仅定义展示层</td><td>不涉及状态获取逻辑</td></tr>
+      <tr><td>io.input</td><td>后端状态变化</td><td>实时更新触发源</td></tr>
+      <tr><td>io.output</td><td>运行状态/路径/开关</td><td>状态栏展示内容</td></tr>
+    </table>
+  </div>
+  <div class="notes">模块结构清晰：L3 定义边界，L4 分为左右两个切片。左区通常放路径信息，右区放快捷开关。io.boundary 明确指出只管展示，不管状态怎么来的——这是前后端职责边界。</div>
+</section>
+
+<!-- ========== Slide 3: 原型现状 ========== -->
+<section class="slide" data-slide="3">
+  <div class="slide-header">
+    <span class="slide-tag tag-user">原型现状</span>
+    <h2>原型文件可用性评估</h2>
+  </div>
+  <div class="slide-body">
+    <table class="comparison-table">
+      <tr><th>文件路径</th><th>状态</th><th>结论</th></tr>
+      <tr>
+        <td><code>.vibex/prototypes/MOD-bottom-statusbar.html</code></td>
+        <td><span class="cross-icon">❌ 文件不存在</span></td>
+        <td style="color:var(--warning);">⚠️ 待生成</td>
+      </tr>
+    </table>
+    <div style="margin-top:1.5rem; padding:1rem; background:rgba(224,175,104,0.1); border:1px solid var(--warning); border-radius:8px;">
+      <strong style="color:var(--warning);">⚠️ 缺口说明</strong>
+      <ul style="margin:0.5rem 0 0 1.5rem; line-height:1.8;">
+        <li>原型文件尚未生成，无法直接展示 .statusbar 容器</li>
+        <li>建议：优先生成原型，再进行开发实现</li>
+        <li>原型验证路径：<code>.vibex/prototypes/MOD-bottom-statusbar.html</code></li>
+      </ul>
+    </div>
+  </div>
+  <div class="notes">原型文件缺失是当前最大风险。没有原型意味着：1）前端没有可参考的 UI 稿；2）测试没有可用的验收基准；3）需求理解可能存在偏差。建议优先级 P0 先补原型。</div>
+</section>
+
+<!-- ========== Slide 4: As-Is vs To-Be ========== -->
+<section class="slide" data-slide="4">
+  <div class="slide-header">
+    <span class="slide-tag tag-as-is">As-Is</span>
+    <h2>现状 vs 目标</h2>
+  </div>
+  <div class="slide-body">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+      <div style="padding:1rem; background:rgba(247,118,142,0.1); border-radius:8px;">
+        <h4 style="color:var(--danger); margin-bottom:1rem;">❌ As-Is（现状）</h4>
+        <ul style="line-height:2; padding-left:1.5rem;">
+          <li>spec 状态为 <strong>proposal</strong></li>
+          <li>无实现代码证据</li>
+          <li>无 L4 功能定义（l4_features: []）</li>
+          <li>无原型文件</li>
+          <li>io_contract 仅声明边界</li>
+        </ul>
+      </div>
+      <div style="padding:1rem; background:rgba(158,206,106,0.1); border-radius:8px;">
+        <h4 style="color:var(--success); margin-bottom:1rem;">✅ To-Be（目标）</h4>
+        <ul style="line-height:2; padding-left:1.5rem;">
+          <li>statusbar 容器完整渲染</li>
+          <li>左侧：路径信息 + 运行状态</li>
+          <li>右侧：Canvas 开关等快捷按钮</li>
+          <li>实时响应后端状态变化</li>
+          <li>支持 error/empty/loading 状态</li>
+        </ul>
+      </div>
+    </div>
+    <div class="gap-badge" style="margin-top:1.5rem;">
+      <span>📐 差距：5项缺失 → 需完整实现</span>
+    </div>
+  </div>
+  <div class="notes">现状是零基础提案阶段，目标是从无到有完整实现状态栏。核心差距在于：没有代码、没有原型、没有状态定义。需要按优先级逐步补齐。</div>
+</section>
+
+<!-- ========== Slide 5: 缺失功能与优先级 ========== -->
+<section class="slide" data-slide="5">
+  <div class="slide-header">
+    <span class="slide-tag tag-dev">缺失功能</span>
+    <h2>功能缺失影响与优先级</h2>
+  </div>
+  <div class="slide-body">
+    <table class="comparison-table">
+      <tr><th>缺失项</th><th>影响范围</th><th>优先级</th><th>Why（为何做）</th></tr>
+      <tr>
+        <td>原型文件</td>
+        <td>开发/测试/设计</td>
+        <td style="color:var(--danger);"><strong>P0</strong></td>
+        <td>无原型则无验收基准</td>
+      </tr>
+      <tr>
+        <td>L4 功能切片</td>
+        <td>开发</td>
+        <td style="color:var(--danger);"><strong>P0</strong></td>
+        <td>无切片则无法并行开发</td>
+      </tr>
+      <tr>
+        <td>运行状态指示</td>
+        <td>用户</td>
+        <td style="color:var(--warning);"><strong>P1</strong></td>
+        <td>用户需感知当前运行状态</td>
+      </tr>
+      <tr>
+        <td>路径信息展示</td>
+        <td>用户/开发</td>
+        <td style="color:var(--warning);"><strong>P1</strong></td>
+        <td>IDE 基础功能，定位文件</td>
+      </tr>
+      <tr>
+        <td>Canvas 快捷开关</td>
+        <td>用户</td>
+        <td style="color:var(--text-2);">P2</td>
+        <td>提升操作效率，非阻塞</td>
+      </tr>
+      <tr>
+        <td>状态矩阵（error/loading/empty）</td>
+        <td>测试/用户</td>
+        <td style="color:var(--text-2);">P2</td>
+        <td>提升异常情况可观测性</td>
+      </tr>
+    </table>
+  </div>
+  <div class="notes">优先级判断逻辑：原型和 L4 切片是基础设施，不做后续无法推进；运行状态和路径是用户可见的核心价值；状态矩阵和开关是锦上添花。Why 理由简洁——不做会阻塞谁、影响什么。</div>
+</section>
+
+<!-- ========== Slide 6: 决策页 ========== -->
+<section class="slide" data-slide="6">
+  <div class="slide-header">
+    <span class="slide-tag tag-dev">决策</span>
+    <h2>方案决策：推荐 vs 备选</h2>
+  </div>
+  <div class="slide-body">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+      <div style="padding:1rem; background:rgba(158,206,106,0.15); border:2px solid var(--success); border-radius:8px;">
+        <h4 style="color:var(--success);">✅ 推荐方案：先原型后实现</h4>
+        <div class="why-box"><strong>Why:</strong> 降低返工风险，测试有验收基准</div>
+        <div class="why-box"><strong>Why:</strong> 原型可提前暴露 UI 理解偏差</div>
+        <div class="why-box"><strong>Why:</strong> 并行化：设计出原型后，开发可同时进行</div>
+        <div style="margin-top:0.75rem; font-size:0.85rem; color:var(--text-2);">
+          <strong>成本：</strong>1~2 天原型 + 3~5 天实现<br>
+          <strong>风险：</strong>低（路径清晰）
+        </div>
+      </div>
+      <div style="padding:1rem; background:rgba(247,118,142,0.1); border:1px solid var(--danger); border-radius:8px;">
+        <h4 style="color:var(--danger);">❌ 备选方案：直接实现</h4>
+        <div class="why-not-box"><strong>Why Not:</strong> 无原型导致 UI 返工概率高</div>
+        <div class="why-not-box"><strong>Why Not:</strong> 测试无法提前介入</div>
+        <div class="why-not-box"><strong>Why Not:</strong> 需求理解偏差后期修复成本高</div>
+        <div style="margin-top:0.75rem; font-size:0.85rem; color:var(--text-2);">
+          <strong>成本：</strong>看似省 1~2 天，实际返工 3~5 天<br>
+          <strong>风险：</strong>高（不确定性大）
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:1.5rem; padding:1rem; background:rgba(122,162,247,0.1); border-radius:8px;">
+      <strong>📋 决策结论：</strong>采用「推荐方案」，前置条件为原型文件必须在开发启动前完成。切换条件：如果原型验证后发现 UI 方案不可行，立即回滚到需求澄清阶段。
+    </div>
+  </div>
+  <div class="notes">决策页核心是「为何选 A 而不选 B」。推荐方案的成本/风险/收益要量化。切换条件是风险预案——如果前提不成立怎么办，要提前想好。</div>
+</section>
+
+<!-- ========== Slide 7: 执行页 ========== -->
+<section class="slide" data-slide="7">
+  <div class="slide-header">
+    <span class="slide-tag tag-test">执行</span>
+    <h2>执行计划与验收标准</h2>
+  </div>
+  <div class="slide-body">
+    <div class="milestone">
+      <div class="milestone-num">1</div>
+      <div>
+        <strong>生成原型文件</strong>
+        <div style="font-size:0.85rem; color:var(--text-2);">负责人：设计/前端 · 验收：原型可预览 · 回滚：撤销文件</div>
+      </div>
+    </div>
+    <div class="milestone">
+      <div class="milestone-num">2</div>
+      <div>
+        <strong>定义 L4 功能切片</strong>
+        <div style="font-size:0.85rem; color:var(--text-2);">负责人：后端/前端 · 验收：l4_features 非空 · 回滚：清空 l4_features</div>
+      </div>
+    </div>
+    <div class="milestone">
+      <div class="milestone-num">3</div>
+      <div>
+        <strong>实现状态栏容器与布局</strong>
+        <div style="font-size:0.85rem; color:var(--text-2);">负责人：前端 · 验收：.statusbar 可见，左右布局正确 · 回滚：git revert</div>
+      </div>
+    </div>
+    <div class="milestone">
+      <div class="milestone-num">4</div>
+      <div>
+        <strong>实现状态实时更新逻辑</strong>
+        <div style="font-size:0.85rem; color:var(--text-2);">负责人：前端/后端 · 验收：模拟状态变化后 500ms 内刷新 · 回滚：禁用实时更新</div>
+      </div>
+    </div>
+    <div style="margin-top:1rem; padding:0.75rem; background:rgba(224,175,104,0.1); border-radius:6px;">
+      <strong style="color:var(--warning);">⚠️ 风险预案：</strong>若后端状态接口变更，状态栏需同步调整 io_contract；建议接口契约文档化并加入版本管理。
+    </div>
+  </div>
+  <div class="notes">执行页必须包含：谁做、怎么做、做完怎么验收、做坏了怎么回滚。每个 milestone 的验收标准要可量化（不是「做完了」而是「.statusbar 可见且左右布局正确」）。</div>
+</section>
+
+<!-- ========== Slide 8: 风险与验证 ========== -->
+<section class="slide" data-slide="8">
+  <div class="slide-header">
+    <span class="slide-tag tag-test">风险</span>
+    <h2>风险矩阵与验证策略</h2>
+  </div>
+  <div class="slide-body">
+    <div class="risk-grid">
+      <div class="risk-card high">
+        <strong>高风险：原型缺失</strong>
+        <div style="font-size:0.85rem; margin-top:0.5rem;">后果：开发/测试无验收基准，返工率高</div>
+        <div style="font-size:0.8rem; color:var(--danger); margin-top:0.5rem;">缓解：优先生成原型</div>
+      </div>
+      <div class="risk-card high">
+        <strong>高风险：状态接口不稳定</strong>
+        <div style="font-size:0.85rem; margin-top:0.5rem;">后果：状态栏显示错误或停滞</div>
+        <div style="font-size:0.8rem; color:var(--danger); margin-top:0.5rem;">缓解：接口契约文档化 + 单元测试</div>
+      </div>
+      <div class="risk-card medium">
+        <strong>中风险：L4 切片粒度不当</strong>
+        <div style="font-size:0.85rem; margin-top:0.5rem;">后果：并行开发时接口冲突</div>
+        <div style="font-size:0.8rem; color:var(--warning); margin-top:0.5rem;">缓解：先定义接口再并行</div>
+      </div>
+      <div class="risk-card low">
+        <strong>低风险：性能问题</strong>
+        <div style="font-size:0.85rem; margin-top:0.5rem;">后果：状态刷新导致 UI 卡顿</div>
+        <div style="font-size:0.8rem; color:var(--success); margin-top:0.5rem;">缓解：防抖 + requestAnimationFrame</div>
+      </div>
+    </div>
+    <div style="margin-top:1.5rem;">
+      <strong>验证策略：</strong>
+      <ul style="margin-top:0.5rem; padding-left:1.5rem; line-height:1.8;">
+        <li>单元测试：状态变化 → 组件更新</li>
+        <li>E2E 测试：模拟后端推送，验证 UI 刷新</li>
+        <li>视觉回归：原型截图 vs 实现截图</li>
+      </ul>
+    </div>
+  </div>
+  <div class="notes">风险按高中低分级，每项要有「后果」和「缓解措施」。验证策略要覆盖单元/E2E/视觉三个层面，确保测试能兜底。</div>
+</section>
+
+<!-- ========== Slide 9: 可复制问题清单 ========== -->
+<section class="slide" data-slide="9">
+  <div class="slide-header">
+    <span class="slide-tag tag-cto">Q&A</span>
+    <h2>可复制的问题清单</h2>
+    <div style="font-size:0.85rem; color:var(--text-2); margin-top:0.25rem;">用于详情抽屉继续和 agent 对话完善 spec</div>
+  </div>
+  <div class="slide-body" style="columns:2; column-gap:1.5rem;">
+    <div class="question-card">
+      1. 状态栏高度固定还是可配置？支持主题定制吗？
+    </div>
+    <div class="question-card">
+      2. 运行状态的「运行中/空闲/错误」状态码定义在哪里？
+    </div>
+    <div class="question-card">
+      3. Canvas 开关是单选还是多选？默认状态是什么？
+    </div>
+    <div class="question-card">
+      4. 路径信息格式：相对路径还是绝对路径？截断规则？
+    </div>
+    <div class="question-card">
+      5. 后端状态推送使用 WebSocket 还是轮询？频率？
+    </div>
+    <div class="question-card">
+      6. error 状态时：显示错误码还是友好文案？支持重试吗？
+    </div>
+    <div class="question-card">
+      7. loading 状态：骨架屏还是 spinner？超时多久显示？
+    </div>
+    <div class="question-card">
+      8. empty 状态：未打开项目时显示什么？
+    </div>
+    <div class="question-card">
+      9. 左/右区域各支持多少个快捷按钮？有扩展机制吗？
+    </div>
+    <div class="question-card">
+      10. 状态栏是否支持用户自定义布局或隐藏？
+    </div>
+    <div class="question-card">
+      11. 与其他模块（如 terminal、preview）的 z-index 层级关系？
+    </div>
+    <div class="question-card">
+      12. 移动端/小屏幕下状态栏是否需要响应式折叠？
+    </div>
+  </div>
+  <div class="notes">这 12 个问题覆盖了：UI 定制、状态定义、交互细节、性能、异常处理、可扩展性、响应式。可以在详情抽屉里逐条确认，每确认一条就更新一条 spec 内容。</div>
+</section>
+
+<!-- ========== Slide 10: 总结 ========== -->
+<section class="slide" data-slide="10">
+  <div class="slide-header">
+    <span class="slide-tag tag-cto">Summary</span>
+    <h2>总结：下一步行动</h2>
+  </div>
+  <div class="slide-body">
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:1.5rem;">
+      <div style="text-align:center; padding:1rem; background:rgba(122,162,247,0.15); border-radius:8px;">
+        <div style="font-size:1.5rem; margin-bottom:0.5rem;">👤</div>
+        <strong>CTO 关注</strong>
+        <div style="font-size:0.85rem; margin-top:0.5rem; color:var(--text-2);">P0 原型 → P1 功能<br>预计 1~2 周交付 MVP</div>
+      </div>
+      <div style="text-align:center; padding:1rem; background:rgba(187,154,247,0.15); border-radius:8px;">
+        <div style="font-size:1.5rem; margin-bottom:0.5rem;">💻</div>
+        <strong>开发关注</strong>
+        <div style="font-size:0.85rem; margin-top:0.5rem; color:var(--text-2);">L4 切片定义<br>io_contract 接口契约</div>
+      </div>
+      <div style="text-align:center; padding:1rem; background:rgba(158,206,106,0.15); border-radius:8px;">
+        <div style="font-size:1.5rem; margin-bottom:0.5rem;">🧪</div>
+        <strong>测试关注</strong>
+        <div style="font-size:0.85rem; margin-top:0.5rem; color:var(--text-2);">状态矩阵用例<br>E2E 验收路径</div>
+      </div>
+      <div style="text-align:center; padding:1rem; background:rgba(224,175,104,0.15); border-radius:8px;">
+        <div style="font-size:1.5rem; margin-bottom:0.5rem;">👥</div>
+        <strong>用户关注</strong>
+        <div style="font-size:0.85rem; margin-top:0.5rem; color:var(--text-2);">运行状态可见<br>路径信息准确</div>
+      </div>
+    </div>
+    <div style="padding:1rem; background:rgba(122,162,247,0.1); border-radius:8px;">
+      <strong>🎯 Spec 调整建议（高收益/高风险优先）：</strong>
+      <ul style="margin-top:0.75rem; padding-left:1.5rem; line-height:1.8;">
+        <li><strong style="color:var(--success);">高收益：</strong>补全 l4_features，定义 SLICE-statusbar-left/right 边界</li>
+        <li><strong style="color:var(--success);">高收益：</strong>添加 io_contract，明确状态推送协议</li>
+        <li><strong style="color:var(--danger);">高风险：</strong>补充 prototype.file 路径，关联 .vibex/prototypes/</li>
+        <li><strong style="color:var(--danger);">高风险：</strong>添加 constraints.rules，定义状态栏层级与边界行为</li>
+      </ul>
+    </div>
+  </div>
+  <div class="notes">总结页要覆盖四类受众各自关注的点，并给出 spec 调整的优先建议。CTO 看资源和时间线，开发看接口和边界，测试看用例，用户看价值。最后再点一下 spec 本身的改进空间。</div>
+</section>
+
+</main>
+
+<footer class="deck-footer">
+  <span class="slide-counter"><span class="current">1</span> / <span class="total">10</span></span>
+</footer>
+
+<script src="../assets/runtime.js"></script>
+<script src="../assets/vibex-ppt-nav.js"></script>
+<script src="../assets/runtime.js"><\/script>
+<script src="../assets/vibex-ppt-nav.js"><\/script>
+</body>
+</html>
