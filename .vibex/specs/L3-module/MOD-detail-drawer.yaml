@@ -1,0 +1,72 @@
+name: MOD-detail-drawer
+title: detail drawer
+level: L3-module
+version: "1.0"
+generated_at: "2026-05-15"
+
+prototype:
+  file: ".vibex/prototypes/MOD-detail-drawer.html"
+  generated_at: "2026-05-15"
+  validates:
+    - no-mvp-spec-behavior    # MVP 无 spec 专属行为（已清理 onclick / 抽屉 JS）
+    - drawer-four-states      # idle → loading → content|error → idle
+    - tab-switch              # 内容 / 元数据 / 日志 tab 切换
+    - close-wired             # 关闭按钮 + 遮罩点击已接入
+    - derived-from-mvp        # 从干净 MVP 派生
+  status: derived
+
+display:
+  description: >
+    Spec 详情抽屉。点击 spec 卡片或文件树节点 → 右侧滑出抽屉 →
+    显示 yaml 内容 / 元数据 / 日志三个 tab。
+  annot_parent: wb-root
+
+content:
+  ui_spec:
+    states:
+      - name: idle
+        description: 抽屉隐藏（display:none / class 无 open）
+      - name: loading
+        description: 异步加载中，显示加载中占位
+      - name: loaded
+        description: 内容加载完成，显示内容 tab
+      - name: error
+        description: 加载失败，显示错误信息
+    acceptance:
+      open: >
+        用户点击 spec 卡片「查看详情」或文件树节点 → 抽屉从右侧滑入
+      tab_switch: >
+        支持内容 / 元数据 / 日志三个 tab 切换
+      close: >
+        点击关闭按钮或遮罩背景 → 抽屉关闭回到 idle
+
+structure:
+  parent_selector: body
+  layout: fixed overlay，右侧滑入，宽度 ~480px，遮罩覆盖全屏
+
+io:
+  input:
+    - name: spec_path
+      type: string
+      description: spec 文件路径（如 .vibex/specs/L1-goal/xxx.yaml）
+      from: spec-explorer 文件树节点点击 / spec 卡片「查看详情」按钮
+  output:
+    - name: spec_content
+      type: string
+      description: 从 /api/workspace/specs/read 读取的 yaml 内容
+
+io_contract:
+  open_drawer:
+    - trigger: spec-explorer 文件节点点击 或 spec 卡片「查看详情」按钮
+    - input: spec_path
+    - behavior: >
+      1. 抽屉滑入（add class 'open'）
+      2. 加载中状态（drawer-loading 显示）
+      3. 异步 fetch('/api/workspace/specs/read?path=...')
+      4. 成功 → 内容 tab 显示 yaml 内容
+      5. 失败 → 错误状态显示错误信息
+    - close_behavior: 关闭按钮 / 遮罩点击 → 抽屉滑出（remove class 'open'）
+
+trigger_selector:
+  - ".spec-card-detail-btn[data-action='open-drawer']"
+  - ".tree-btn.file"

@@ -1561,6 +1561,134 @@
   });
 })();
 
+
+
+document.addEventListener('DOMContentLoaded', function () {
+  (function () {
+    'use strict';
+
+  /* ── 抽屉元素 ── */
+  var backdrop     = document.getElementById('detail-drawer-backdrop');
+  var drawer      = document.getElementById('detail-drawer');
+  var specNameEl  = document.getElementById('drawer-spec-name');
+  var tabContent  = document.getElementById('drawer-tab-content');
+  var tabMeta     = document.getElementById('drawer-tab-metadata');
+  var tabJournal  = document.getElementById('drawer-tab-journal');
+  var emptyEl     = document.getElementById('drawer-empty-panel');
+  var loadingEl   = document.getElementById('drawer-loading');
+  var errPanel    = document.getElementById('drawer-error-panel');
+  var contentPanel = document.getElementById('drawer-content-panel');
+  var metaPanel   = document.getElementById('drawer-meta-panel');
+  var journalPanel = document.getElementById('drawer-journal-panel');
+
+  /* ── 四态辅助 ── */
+  function hideAll() {
+    emptyEl.style.display      = 'none';
+    loadingEl.style.display    = 'none';
+    errPanel.style.display     = 'none';
+    contentPanel.style.display = 'none';
+    metaPanel.style.display    = 'none';
+    journalPanel.style.display = 'none';
+  }
+
+  function showEmpty() {
+    hideAll();
+    emptyEl.style.display = '';
+  }
+
+  function showLoading() {
+    hideAll();
+    loadingEl.style.display = '';
+  }
+
+  function showError(msg) {
+    hideAll();
+    errPanel.style.display  = '';
+    errPanel.textContent   = msg;
+  }
+
+  function showContent(text) {
+    hideAll();
+    contentPanel.style.display = '';
+    contentPanel.textContent   = text;
+  }
+
+  function showMetadata(specPath) {
+    var parts = specPath.split('/');
+    var name  = parts[parts.length - 1];
+    var path  = specPath;
+    var level = (name.match(/^(L[1-5])-/) || ['L?'])[1];
+    document.getElementById('drawer-path-value').textContent     = path;
+    document.getElementById('drawer-filename-value').textContent = name;
+    document.getElementById('drawer-level-value').textContent   = level;
+    hideAll();
+    metaPanel.style.display = '';
+  }
+
+  /* ── 当前打开的 specPath（闭包变量） ── */
+  var _currentSpecPath = '';
+
+  /* ── 切换 Tab ── */
+  function switchTab(name) {
+    [tabContent, tabMeta, tabJournal].forEach(function (b) {
+      b.classList.toggle('active', b.id === 'drawer-tab-' + name);
+    });
+    if (name === 'content') {
+      showContent('spec: ' + _currentSpecPath + '\n# content placeholder\u2026');
+    } else if (name === 'metadata') {
+      showMetadata(_currentSpecPath);
+    } else if (name === 'journal') {
+      hideAll();
+      journalPanel.style.display = '';
+    }
+  }
+
+  /* ── 初始化 Tab 按钮事件 ── */
+  [tabContent, tabMeta, tabJournal].forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var name = btn.id.replace('drawer-tab-', '');
+      switchTab(name);
+    });
+  });
+
+  /* ── 关闭抽屉 ── */
+  function closeDrawer() {
+    backdrop.classList.remove('open');
+    drawer.style.display       = 'none';
+    backdrop.style.display     = 'none';
+    specNameEl.textContent     = '\u2014';
+    hideAll();
+    _currentSpecPath = '';
+  }
+
+  document.querySelector('.drawer-close-btn')
+    .addEventListener('click', closeDrawer);
+
+  backdrop.addEventListener('click', closeDrawer);
+
+  /* ── 打开抽屉：idle -> loading -> content|error -> idle ── */
+  function openDrawer(specPath) {
+    _currentSpecPath = specPath;
+    specNameEl.textContent = specPath.split('/').pop().replace('.yaml', '');
+
+    backdrop.style.display = '';
+    drawer.style.display   = '';
+    backdrop.classList.add('open');
+
+    showLoading();
+  }
+
+  /* ── 将 MVP 中 data-action="open-drawer" 的按钮接入行为 ── */
+  document.querySelectorAll('[data-action="open-drawer"]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var specPath = btn.getAttribute('data-spec-path') || btn.dataset.specPath;
+      if (specPath) openDrawer(specPath);
+    });
+  });
+
+  })();
+});
+
 </script>
 
 <!-- 详情抽屉（标注由 spec-prototype-fragment 补充） -->
