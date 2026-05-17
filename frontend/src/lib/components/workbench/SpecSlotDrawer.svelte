@@ -27,31 +27,55 @@
 	const session = $derived.by(() => activeSpecSlotSession(state));
 </script>
 
-{#if state.drawerOpen && session}
-	<div class="drawer-backdrop" role="presentation">
-		<section class="slot-drawer" aria-label="Spec 槽位澄清抽屉">
-			<header class="drawer-head">
-				<div class="title">
-					<span class="eyebrow">Spec Slot Workspace</span>
-					<h2>{session.spec.display.title}</h2>
-					<p>{session.slot.label} · {session.slot.status} · {session.spec.path}</p>
-				</div>
-				<div class="tools">
-					<button type="button" onclick={() => specSlotSessionStore.compactActive()}>Compact</button>
-					<button type="button" onclick={() => specSlotSessionStore.resetActive()}>Reset</button>
-					<button type="button" class="primary" onclick={() => specSlotSessionStore.close()}>Close</button>
-				</div>
-			</header>
-			<div class="drawer-body">
-				<div class="chat-wrap">
-					<SpecSlotChatPane {session} />
-				</div>
-				<div class="visual-wrap">
-					<SpecSlotVisualPane {session} />
-				</div>
+{#if state.drawerOpen}
+<div class="drawer-backdrop" role="presentation">
+	<section class="slot-drawer" aria-label="Spec 槽位澄清抽屉">
+		{#if session}
+		<header class="drawer-head">
+			<div class="title">
+				<span class="eyebrow">Spec Slot Workspace</span>
+				<h2>{session.spec.display.title}</h2>
+				<p>{session.slot.label} · {session.slot.status} · {session.spec.path}</p>
 			</div>
-		</section>
-	</div>
+			<div class="tools">
+				<button type="button" onclick={() => specSlotSessionStore.compactActive()}>Compact</button>
+				<button type="button" onclick={() => specSlotSessionStore.resetActive()}>Reset</button>
+				<button type="button" class="primary" onclick={() => specSlotSessionStore.close()}>Close</button>
+			</div>
+		</header>
+		<div class="drawer-body">
+			<div class="chat-wrap">
+				<SpecSlotChatPane {session} />
+			</div>
+			<div class="visual-wrap">
+				<SpecSlotVisualPane {session} />
+			</div>
+		</div>
+		{:else}
+		<!-- 无 active session 时显示引导页 -->
+		<header class="drawer-head">
+			<div class="title">
+				<span class="eyebrow">Spec Slot Workspace</span>
+				<h2>原型插槽</h2>
+				<p class="hint">在中央面板选择一个 spec 节点后，可在此处与 Agent 澄清并预览原型</p>
+			</div>
+			<div class="tools">
+				<button type="button" class="primary" onclick={() => specSlotSessionStore.close()}>关闭</button>
+			</div>
+		</header>
+		<div class="drawer-empty">
+			<div class="empty-icon">📋</div>
+			<p class="empty-title">暂无激活的 Spec 槽位</p>
+			<p class="empty-hint">请在左侧或中央面板选择一个 spec 节点，<br>然后点击「打开槽位」按钮</p>
+			<div class="empty-actions">
+				<button type="button" class="empty-btn" onclick={() => specSlotSessionStore.close()}>
+					关闭
+				</button>
+			</div>
+		</div>
+		{/if}
+	</section>
+</div>
 {/if}
 
 <style>
@@ -151,6 +175,68 @@
 		min-height: 0;
 		display: grid;
 		grid-template-columns: minmax(360px, 0.95fr) minmax(440px, 1.05fr);
+	}
+
+	.drawer-empty {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 16px;
+		padding: 40px;
+	}
+
+	.empty-icon {
+		font-size: 48px;
+		line-height: 1;
+		opacity: 0.6;
+	}
+
+	.empty-title {
+		margin: 0;
+		color: #c8d3f5;
+		font-size: 16px;
+		font-weight: 600;
+		text-align: center;
+	}
+
+	.empty-hint {
+		margin: 0;
+		color: #6f7888;
+		font-size: 13px;
+		text-align: center;
+		line-height: 1.6;
+	}
+
+	.empty-actions {
+		display: flex;
+		gap: 10px;
+		margin-top: 8px;
+	}
+
+	.empty-btn {
+		border: 1px solid #465064;
+		border-radius: 999px;
+		background: rgba(12, 14, 19, 0.52);
+		color: #d4d8e3;
+		padding: 6px 16px;
+		font-size: 12px;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.empty-btn:hover {
+		border-color: #7aa2ff;
+		background: rgba(122, 162, 255, 0.13);
+		color: #eef0f5;
+	}
+
+	p.hint {
+		margin-top: 4px;
+		color: #6f7888;
+		font-size: 12px;
+	}
 	}
 
 	.chat-wrap,

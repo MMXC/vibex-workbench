@@ -164,6 +164,18 @@
 		</button>
 		<span class="sb-sep" aria-hidden="true">|</span>
 
+		<!-- SpecSlot 手动打开 -->
+		<button
+			type="button"
+			class="sb-sp-btn"
+			title="打开 Spec 槽位抽屉"
+			onclick={() => specSlotSessionStore.openDrawer()}
+		>
+			<span class="sp-dot" style="color: var(--accent-green, #87cf8a)">▣</span>
+			SpecSlot
+		</button>
+		<span class="sb-sep" aria-hidden="true">|</span>
+
 		<!-- SpecPilot DC status -->
 		{#if spStatus}
 			<span class="sb-sp" title="SpecPilot DataCenter: {spStatus.dcPort}">
