@@ -603,7 +603,7 @@ ${latestExcerpt}`;
 			/>
 		{/snippet}
 	</WorkbenchLayoutResizable>
-	<SpecSlotDrawer />
+	<SpecSlotDrawer {workspaceRoot} />
 	<SpecChildDraftDrawer />
 	<WindowResizeFrame />
 </div>

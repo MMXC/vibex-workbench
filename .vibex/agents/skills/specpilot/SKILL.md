@@ -1,178 +1,145 @@
 ---
-name: specpilot-datalayer
+name: specpilot-agent
 description: |
-  SpecPilot 四层数据能力 — 数据中心 / 事件中心 / 适配器切换 / Spec治理 / MF组件注册。
-  触发条件：用户提到"数据中心"、"事件中心"、"适配器切换"、"spec治理"、"MF组件"、"四层"、"数据联动"、"状态中心"。
-  触发词：dc、event、adapter、spec、mf、datacenter、eventcenter。
-  当用户在项目中需要管理多数据源、事件总线、适配器热切换、或 spec 驱动的组件注册时，加载此技能。
+  SpecPilot Agent — Agent-accessible prototype workspace manager.
+  触发条件：用户提到"原型"、"preview"、"specpilot"、"MF组件"、"数据中心"、"生成原型"、"看原型"、"启动服务"。
+  触发词：prototype、preview、specpilot、mf、datacenter、start、generate。
+  当用户在项目中需要生成/预览原型、管理 MF 组件、或通过 AI Agent 驱动原型迭代时，加载此技能。
 ---
 
-# SpecPilot — 四层数据能力
+# SpecPilot Agent
 
-SpecPilot 提供五层 CLI 能力，通过 subprocess 调用，返回 JSON 格式结果。
+SpecPilot 是一个 workspace 级别的 prototype workspace manager，每个 workspace 独立运行自己的 SpecPilot CLI 实例（init → start 后台常驻）。
+
+## 核心架构
+
+```
+workspace/
+  .specpilot/
+    cli/                   # SpecPilot CLI（python -m specpilot）
+    components/            # 已注册的 MF 组件
+    previews/              # 原型 HTML 文件
+    static/                # 静态资源
+    .meta.json             # 端口等元信息
+    .pids.json             # 运行中的服务进程
+```
 
 ## CLI 路径
 
 ```bash
-SPECPILOT=/tmp/specpilot/specpilot
-# 或直接 python3 -m cli（从 /tmp/specpilot 目录运行）
+cd <workspace>
+python3 -m specpilot          # 从 workspace 根运行（自动找 .specpilot/）
+# 或
+specpilot                     # 需 pip install -e .specpilot/cli
 ```
 
-## 五层命令速查
+## 命令速查
 
-### L2 数据中心（DataCenter）
-
+### 初始化（首次打开 workspace）
 ```bash
-# 查询所有状态
-$SPECPILOT dc list
-{"data":{"cpu_usage":{"value":65,"updated":"..."},"memory_percent":{"value":72,"updated":"..."}}}
-
-# 查询单个 key
-$SPECPILOT dc get cpu_usage
-{"key":"cpu_usage","value":65,"updated":"..."}
-
-# 设置状态
-$SPECPILOT dc set cpu_usage 80
-
-# 订阅变更（watch，5秒超时返回当前值）
-$SPECPILOT dc watch cpu_usage
-{"key":"cpu_usage","value":65,"version":3}
-
-# SQL 风格查询
-$SPECPILOT dc query "SELECT *"
+specpilot init
+# 输出: [specpilot] Initialized at <workspace>/.specpilot
+#       [specpilot] Run 'specpilot start' to launch services.
 ```
 
-### L3 事件中心（EventCenter）
-
+### 启动服务（init 后执行一次，之后每次打开 workspace 复用）
 ```bash
-# 订阅事件
-$SPECPILOT ec subscribe kpi:threshold.exceeded KPICard
-{"subscriber":"KPICard","event":"kpi:threshold.exceeded"}
-
-# 发布事件
-$SPECPILOT ec emit kpi:threshold.exceeded '{"threshold":80}'
-{"event":"kpi:threshold.exceeded","payload":{"threshold":80},"subscribers":["KPICard","AlertBadge"]}
-
-# 查看事件历史
-$SPECPILOT ec history
-{"events":[{"event":"kpi:threshold.exceeded","subscribers":["KPICard","AlertBadge"]}]}
+specpilot start
+# 前台阻塞，直到 Ctrl+C
+# 启动 DataCenter (:7890) + Preview (:5177) 两个 HTTP 服务
+# 幂等：检测到端口已监听则跳过
 ```
 
-### L4 适配器管理器（Adapter）
-
+### 查看状态
 ```bash
-# 列出所有适配器
-$SPECPILOT ad list
-{"adapters":[{"name":"mock","active":true},{"name":"http","active":false}]}
-
-# 切换适配器
-$SPECPILOT ad switch ws
-{"ok":true,"active":"ws"}
-
-# 查询（通过当前适配器）
-$SPECPILOT ad query "SELECT * FROM servers"
-{"result":{"cpu_usage":65,"memory_percent":72}}
-
-# 测试连接
-$SPECPILOT ad test ws
-{"ok":true,"latency_ms":12}
+specpilot status
+# Workspace : /path/to/workspace
+# SpecPilot : initialized
+# DataCenter: 🟢 running  (port 7890)
+# Preview   : 🟢 running  (port 5177)
+# DC keys   : 7
 ```
 
-### L4 Spec 注册表（SpecRegistry）
-
+### 停止服务
 ```bash
-# 列出所有 spec
-$SPECPILOT spec list
-{"specs":[{"name":"L3-dashboard-kpi","level":"L3","title":"KPI Dashboard","field_count":3,"event_count":2}]}
-
-# 获取单个 spec 详情
-$SPECPILOT spec get L3-dashboard-kpi
-
-# 检查字段绑定覆盖率
-$SPECPILOT spec binding L3-dashboard-kpi
-{"coverage":0.83,"bindings":[...]}
-
-# 检查 spec 完整性
-$SPECPILOT spec check L3-dashboard-kpi
+specpilot stop
 ```
 
-### L1 MF 组件注册表（MFRegistry）
-
+### 生成原型（从 spec YAML 生成 HTML）
 ```bash
-# 列出已注册组件（按当前 spec 解析）
-$SPECPILOT mf list
-{"components":[{"name":"KPICard","path":"prototype/pages/KPICard.svelte"}]}
-
-# 注册新组件
-$SPECPILOT mf register KPICard "prototype/pages/KPICard.svelte"
-
-# 按 spec 联动注册
-$SPECPILOT mf resolve-from-spec L3-dashboard-kpi
-{"components":["KPICard","TrendChart","AlertBadge"],"spec":"L3-dashboard-kpi"}
+specpilot generate <spec.yaml> [-o <output.html>]
+# 输出: [specpilot] Generated: .specpilot/previews/index.html
+#       [specpilot] Preview:   http://127.0.0.1:5177/preview
 ```
 
-## 四层联动场景
+### DataCenter 读写
+```bash
+specpilot dc list
+# {"ok":true,"keys":{"kpi.revenue":"1.2M","table.users":{...},...}}
 
-### 场景：用户说"CPU超过80%时KPICard标红"
+specpilot dc get <key>
+# {"ok":true,"key":"kpi.revenue","value":"1.2M"}
 
-```
-1. 写入 spec field：
-   dc set cpu_threshold 80
-
-2. 绑定事件链路：
-   ec subscribe kpi:threshold.exceeded KPICard
-
-3. 注册触发组件：
-   mf register AlertBadge "prototype/pages/AlertBadge.svelte"
-
-4. 发布事件验证：
-   ec emit kpi:threshold.exceeded '{"threshold":80}'
-
-5. 验证数据绑定：
-   dc query "SELECT cpu_usage WHERE cpu_usage > 80"
+specpilot dc set <key> <value>
+# {"ok":true,"key":"kpi.revenue","value":"2.0M"}
 ```
 
-### 场景：切换数据源适配器
-
-```
-1. 切换到真实 WebSocket 源：
-   ad switch ws
-
-2. 验证连接：
-   ad test ws
-
-3. 查询新数据：
-   ad query "SELECT * FROM servers"
-
-4. 写入 DataCenter 同步：
-   dc query "SELECT *"
-
-5. 检查事件订阅是否保持：
-   ec history
+### MF 组件注册
+```bash
+specpilot register <component> --mf-url "/#/KPICard" --dc-key "kpi.revenue"
+# [specpilot] Registered: KPICard → /#/KPICard
 ```
 
-## 集成模式
+### 打开预览 URL
+```bash
+specpilot preview
+```
 
-### 模式 1：Agent 主导（推荐）
-Agent 分析用户意图 → 调用 CLI 命令 → 将结果写入 SpecRegistry → 通知用户完成
+## 端到端流程（Agent 驱动）
 
-### 模式 2：前端轮询
-HTML/JS 每 5 秒调用 `SPECPILOT dc list` 刷新四层状态（参考 /tmp/specpilot-verify/index.html）
+### 流程 1：首次打开项目，原型预览
+```
+1. specpilot init                        # 初始化 workspace
+2. specpilot start                       # 启动 DC + Preview
+3. specpilot generate .specpilot/specs/L3-dashboard.yaml
+4. → iframe 加载 http://127.0.0.1:5177/preview
+```
 
-### 模式 3：事件驱动
-`ec subscribe` 建立长连接 → 数据变更时事件推送 → 自动更新 DataCenter 状态
+### 流程 2：用户说"把收入改成 2.0M"
+```
+1. specpilot dc set kpi.revenue 2.0M
+2. → iframe 自动热刷新（WebSocket reload）
+```
 
-## 内置 Spec（开箱即用）
+### 流程 3：用户说"做一个新的按钮"
+```
+1. Agent 生成新的 HTML 内容
+2. 写入 .specpilot/previews/index.html
+3. → iframe 自动热刷新
+```
 
-| Name | Level | Fields | Events |
-|------|-------|--------|--------|
-| L3-dashboard-kpi | L3 | cpu_usage, memory_percent, alert_threshold | kpi:threshold.exceeded, data:updated |
-| L3-dashboard-server | L3 | server_name, status, uptime | server:status.changed |
-| L3-dashboard-import | L3 | import_status, file_count, rows | import:completed |
+### 流程 4：注册新组件
+```
+1. specpilot register KPICard --mf-url "/#/KPICard" --dc-key "kpi.revenue"
+2. curl http://127.0.0.1:5177/api/components
+```
+
+## 前端集成（iframe 预览）
+
+- 预览 URL：`http://127.0.0.1:5177/preview`
+- DataCenter API：`http://127.0.0.1:7890/api/dc/<key>`
+- 端口可通过环境变量覆盖：`SPECPILOT_DC_PORT=18090 SPECPILOT_MF_PORT=18077`
+
+## 幂等性保证
+
+- **目录层**：每个 workspace 有独立的 `.specpilot/`，多 workspace 并行
+- **安装层**：`init` 发现已存在则跳过
+- **进程层**：`start` 检测端口已监听则跳过
+- **Meta 层**：`init` 写入 `.meta.json`，`start` 读取决定端口
 
 ## 注意事项
 
-- CLI 命令必须从 `/tmp/specpilot` 目录运行，或设置 `SPECPILOT_BASEDIR=/tmp/specpilot`
-- 适配器切换后 DataCenter 不会自动刷新，需要手动 `dc query "SELECT *"` 或 `dc apply-result`
-- Spec 绑定覆盖率 < 80% 时会有警告，建议补全字段绑定
-- MF 组件注册后需要重新访问原型页面才能热更新
+- CLI 从 workspace 根目录运行，自动找 `.specpilot/` 子目录
+- `start` 是前台阻塞命令，Go Agent 需要后台 fork subprocess
+- 预览 iframe 的 HTML 会自动注入 DataCenter API helper（`window.__dc.get/set/list`）
+- 热加载通过 WebSocket `ws://127.0.0.1:5177/__live` 触发页面 reload
