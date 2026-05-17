@@ -26,6 +26,15 @@
 	let draftFrame: HTMLIFrameElement | undefined = $state();
 	/** 用户在 Chrome 扩展侧栏配置的原型预览服务地址（从 Go Agent 读取）。 */
 	let prototypeOverrideUrl = $state('');
+	/** 工具栏模式切换：'proto' = 原生 HTML 预览，'mf' = MF 原型 */
+	let protoViewMode = $state<'proto' | 'mf'>('proto');
+
+	/** MF iframe 目标 URL，fallback 到 localhost:5177 */
+	const mfTargetUrl = $derived.by(() => {
+		const port = (window as any).__specpilotMfPort;
+		if (port) return `http://localhost:${port}/#/Dashboard`;
+		return 'http://localhost:5177/#/Dashboard';
+	});
 
 	onMount(() => {
 		if (wsRoot) {
@@ -158,6 +167,24 @@
 
 <div class="proto-kit" class:proto-kit-hero={hero}>
 	<div class="proto-toolbar" aria-label="原型预览与扩展">
+		<div class="tb-mode-toggle" role="group" aria-label="原型模式">
+			<button
+				type="button"
+				class="tb-toggle-btn"
+				class:active={protoViewMode === 'proto'}
+				onclick={() => (protoViewMode = 'proto')}
+			>
+				HTML
+			</button>
+			<button
+				type="button"
+				class="tb-toggle-btn"
+				class:active={protoViewMode === 'mf'}
+				onclick={() => (protoViewMode = 'mf')}
+			>
+				MF
+			</button>
+		</div>
 		<button type="button" class="tb" onclick={refreshPreview} disabled={!fileSrc} title="重新加载 iframe（绕过缓存）">
 			刷新预览
 		</button>
@@ -172,7 +199,8 @@
 	</div>
 
 	<div class="proto-wrap" class:proto-hero={hero}>
-		{#if panel.mode === 'workspace_file'}
+		{#if protoViewMode === 'proto'}
+			{#if panel.mode === 'workspace_file'}
 			<span class="k">{panel.caption ?? 'Prototype'}</span>
 			{#if !wsRoot && panel.fileRel?.trim()}
 				<p class="muted proto-fallback">请在工作台选择工作区根目录后再预览 prototype.file。</p>
@@ -216,24 +244,6 @@
 					></iframe>
 				</div>
 			{/if}
-		{:else if panel.mode === 'mf_remote'}
-			<span class="k">{panel.caption ?? `MF: ${panel.mfComponent ?? 'remote'}`}</span>
-			<div class="mf-status-bar">
-				<span class="mf-badge">MF</span>
-				<span class="mf-comp">{panel.mfComponent}</span>
-				<span class="mf-api">DC @ localhost:7890</span>
-				<a class="mf-open" href={panel.mfRemoteUrl} target="_blank" rel="noopener">↗ 新窗口</a>
-			</div>
-			<div class="proto-frame-host">
-				<iframe
-					bind:this={mainFrame}
-					class="proto-frame"
-					title="MF remote prototype: {panel.mfComponent}"
-					sandbox="allow-scripts allow-same-origin allow-forms"
-					referrerpolicy="no-referrer"
-					src={panel.mfRemoteUrl ?? ''}
-				></iframe>
-			</div>
 		{:else}
 			<span class="k">{panel.caption ?? 'Prototype'}</span>
 			{#if snippetSrcdoc}
@@ -263,6 +273,25 @@
 			{:else}
 				<p class="muted proto-fallback">暂无原型 HTML，请在对话中生成或配置 prototype.file。</p>
 			{/if}
+		{/if}
+		{:else}
+			<span class="k">MF 原型</span>
+			<div class="mf-status-bar">
+				<span class="mf-badge">MF</span>
+				<span class="mf-comp">Module Federation</span>
+				<span class="mf-api">DC @ localhost:7890</span>
+				<a class="mf-open" href={mfTargetUrl} target="_blank" rel="noopener">↗ 新窗口</a>
+			</div>
+			<div class="proto-frame-host">
+				<iframe
+					bind:this={mainFrame}
+					class="proto-frame"
+					title="MF remote prototype"
+					sandbox="allow-scripts allow-same-origin allow-forms"
+					referrerpolicy="no-referrer"
+					src={mfTargetUrl}
+				></iframe>
+			</div>
 		{/if}
 	</div>
 
@@ -318,8 +347,44 @@
 	}
 
 	.tb:hover:not(:disabled) {
-		background: #232936;
+		background: #252e3e;
 	}
+
+	/* 分段切换按钮 */
+	.tb-mode-toggle {
+		display: flex;
+		border: 1px solid #3d4656;
+		border-radius: 8px;
+		overflow: hidden;
+		margin-right: 4px;
+	}
+
+	.tb-toggle-btn {
+		border: none;
+		padding: 4px 10px;
+		font-size: 10px;
+		font-weight: 700;
+		cursor: pointer;
+		background: #1a1f2a;
+		color: #7a8599;
+		transition: background 0.15s, color 0.15s;
+	}
+
+	.tb-toggle-btn:first-child {
+		border-right: 1px solid #3d4656;
+	}
+
+	.tb-toggle-btn.active {
+		background: #7c3aed;
+		color: #fff;
+	}
+
+	.tb-toggle-btn:not(.active):hover {
+		background: #252e3e;
+		color: #c5cdd8;
+	}
+
+	/* 原型区 iframe */
 
 	.tb-demo {
 		border-color: rgba(122, 162, 255, 0.45);
