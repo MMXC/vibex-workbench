@@ -866,6 +866,110 @@ func (a *App) DesignKitExtract(root, sourcePath, outBasename string, confirm boo
 	return designkit.Extract(root, sourcePath, outBasename, confirm, specYAML)
 }
 
+// ── SpecPilot DC / EC / MF Wails Bindings ──────────────────────────────────────
+// 前端直接调用，无需 HTTP 跨域。
+
+// SpecpilotServicesGet — 返回当前运行服务信息（端口等）
+func (a *App) SpecpilotServicesGet() map[string]interface{} {
+	return map[string]interface{}{
+		"workspace": a.workspaceRoot,
+		"dcPort":   7890,
+		"mfPort":   5177,
+		"running":  false,
+	}
+}
+
+// SpecpilotDCList — 等价 GET /api/dc：列出 DC 全量状态
+func (a *App) SpecpilotDCList() map[string]interface{} {
+	path := filepath.Join(a.workspaceRoot, ".specpilot", "dc_state.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return map[string]interface{}{"error": err.Error(), "data": map[string]any{}, "total": 0}
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return map[string]interface{}{"error": err.Error(), "data": map[string]any{}, "total": 0}
+	}
+	entries, ok := raw["data"].(map[string]any)
+	if !ok {
+		return map[string]interface{}{"data": map[string]any{}, "total": 0}
+	}
+	return map[string]interface{}{"data": entries, "total": len(entries)}
+}
+
+// SpecpilotDCSet — 等价 POST /api/dc/set：写入 DC key/value
+func (a *App) SpecpilotDCSet(key string, value interface{}) map[string]interface{} {
+	path := filepath.Join(a.workspaceRoot, ".specpilot", "dc_state.json")
+	var raw map[string]any
+	if d, err := os.ReadFile(path); err == nil {
+		json.Unmarshal(d, &raw)
+	}
+	if raw == nil {
+		raw = make(map[string]any)
+	}
+	entries, _ := raw["data"].(map[string]any)
+	if entries == nil {
+		entries = make(map[string]any)
+	}
+	entries[key] = value
+	raw["data"] = entries
+	raw["total"] = len(entries)
+	out, err := json.Marshal(raw)
+	if err == nil {
+		os.WriteFile(path, out, 0644)
+	}
+	return map[string]interface{}{"ok": true, "key": key}
+}
+
+// SpecpilotECHistory — 等价 GET /api/ec/history：事件历史
+func (a *App) SpecpilotECHistory(limit int) []map[string]interface{} {
+	if limit <= 0 {
+		limit = 20
+	}
+	path := filepath.Join(a.workspaceRoot, ".specpilot", "ec_state.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return []map[string]interface{}{}
+	}
+	var records []map[string]interface{}
+	if err := json.Unmarshal(data, &records); err != nil {
+		return []map[string]interface{}{}
+	}
+	if len(records) > limit {
+		return records[len(records)-limit:]
+	}
+	return records
+}
+
+// SpecpilotMFComponents — 等价 mf list：列出已注册 MF 组件及契约
+func (a *App) SpecpilotMFComponents() map[string]interface{} {
+	path := filepath.Join(a.workspaceRoot, ".specpilot", "mf_registry.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return map[string]interface{}{"components": []any{}, "total": 0}
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return map[string]interface{}{"error": err.Error(), "components": []any{}, "total": 0}
+	}
+	comps, ok := raw["components"].(map[string]any)
+	if !ok {
+		return map[string]interface{}{"components": []any{}, "total": 0}
+	}
+	items := []map[string]any{}
+	for name, info := range comps {
+		if m, ok := info.(map[string]any); ok {
+			items = append(items, map[string]any{
+				"name":     name,
+				"path":     m["path"],
+				"status":   m["registered"],
+				"contract": m["contract"],
+			})
+		}
+	}
+	return map[string]interface{}{"components": items, "total": len(items)}
+}
+
 // PrototypeManifestGet Wails：等价 GET /api/workspace/prototype-manifest
 func (a *App) PrototypeManifestGet(root string) map[string]interface{} {
 	if root == "" {

@@ -38,6 +38,16 @@ export function SetWorkspaceRoot(arg1:context.Context,arg2:string):Promise<void>
 
 export function SpawnGoBackend(arg1:context.Context):Promise<Record<string, any>>;
 
+export function SpecpilotDCList():Promise<Record<string, any>>;
+
+export function SpecpilotDCSet(arg1:string,arg2:any):Promise<Record<string, any>>;
+
+export function SpecpilotECHistory(arg1:number):Promise<Array<Record<string, any>>>;
+
+export function SpecpilotMFComponents():Promise<Record<string, any>>;
+
+export function SpecpilotServicesGet():Promise<Record<string, any>>;
+
 export function VerifySpecs(arg1:context.Context,arg2:string,arg3:Record<string, string>):Promise<string>;
 
 export function WriteSpecFile(arg1:string,arg2:string,arg3:string):Promise<void>;

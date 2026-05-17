@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>cal4god2 - 角色卡渲染 & 装备组合系统</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" href="../assets/themes/blueprint.css">
+  <link rel="stylesheet" href="../assets/animations.css">
+  <style>
+    :root {
+      --theme-primary: #2563eb;
+      --theme-bg: #0f172a;
+      --theme-surface: #1e293b;
+      --theme-border: #334155;
+      --theme-text: #e2e8f0;
+      --theme-muted: #94a3b8;
+      --theme-accent: #38bdf8;
+      --theme-success: #22c55e;
+      --theme-warning: #f59e0b;
+      --theme-danger: #ef4444;
+    }
+    .deck { background: var(--theme-bg); color: var(--theme-text); }
+    .slide { 
+      min-height: 100vh; 
+      padding: 3rem;
+      display: flex;
+      flex-direction: column;
+      border-bottom: 2px solid var(--theme-border);
+    }
+    .slide-header {
+      border-bottom: 1px solid var(--theme-border);
+      padding-bottom: 1rem;
+      margin-bottom: 2rem;
+    }
+    .slide-title { color: var(--theme-accent); font-size: 2rem; font-weight: 700; }
+    .slide-subtitle { color: var(--theme-muted); font-size: 1rem; margin-top: 0.5rem; }
+    .slide-content { flex: 1; }
+    .slide-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid var(--theme-border);
+      padding-top: 1rem;
+      margin-top: auto;
+      font-size: 0.875rem;
+      color: var(--theme-muted);
+    }
+    .page-num { font-weight: 600; color: var(--theme-accent); }
+    /* Cards & Grids */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem; }
+    .card {
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+    }
+    .card-title { color: var(--theme-accent); font-weight: 600; margin-bottom: 0.75rem; }
+    /* Lists */
+    .bullet-list { list-style: none; padding: 0; }
+    .bullet-list li {
+      position: relative;
+      padding-left: 1.5rem;
+      margin-bottom: 0.75rem;
+      line-height: 1.6;
+    }
+    .bullet-list li::before {
+      content: "▸";
+      position: absolute;
+      left: 0;
+      color: var(--theme-accent);
+    }
+    /* Tables */
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th, .data-table td {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border: 1px solid var(--theme-border);
+    }
+    .data-table th { background: var(--theme-surface); color: var(--theme-accent); }
+    .data-table tr:nth-child(even) { background: rgba(30,41,59,0.5); }
+    /* Tags */
+    .tag {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .tag-success { background: rgba(34,197,94,0.2); color: var(--theme-success); }
+    .tag-warning { background: rgba(245,158,11,0.2); color: var(--theme-warning); }
+    .tag-danger { background: rgba(239,68,68,0.2); color: var(--theme-danger); }
+    .tag-info { background: rgba(56,189,248,0.2); color: var(--theme-accent); }
+    /* Cover specific */
+    .cover-slide {
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      background: linear-gradient(135deg, var(--theme-bg) 0%, var(--theme-surface) 100%);
+    }
+    .cover-title { font-size: 3.5rem; font-weight: 800; color: var(--theme-accent); margin-bottom: 1rem; }
+    .cover-subtitle { font-size: 1.5rem; color: var(--theme-muted); margin-bottom: 2rem; }
+    .cover-meta { font-size: 0.875rem; color: var(--theme-muted); }
+    /* Comparison */
+    .comparison-row { display: flex; align-items: center; margin-bottom: 1rem; }
+    .comparison-label { width: 120px; font-weight: 600; color: var(--theme-text); }
+    .comparison-bar { flex: 1; height: 24px; background: var(--theme-surface); border-radius: 4px; overflow: hidden; }
+    .comparison-fill { height: 100%; display: flex; align-items: center; padding: 0 0.5rem; font-size: 0.75rem; }
+    .comparison-fill.as-is { background: var(--theme-warning); }
+    .comparison-fill.to-be { background: var(--theme-success); }
+    /* Flow */
+    .flow-diagram { display: flex; align-items: center; justify-content: center; gap: 1rem; flex-wrap: wrap; }
+    .flow-box { 
+      background: var(--theme-surface); 
+      border: 2px solid var(--theme-border); 
+      border-radius: 0.5rem; 
+      padding: 1rem 1.5rem;
+      text-align: center;
+      min-width: 140px;
+    }
+    .flow-box.active { border-color: var(--theme-success); }
+    .flow-box.pending { border-color: var(--theme-warning); border-style: dashed; }
+    .flow-arrow { color: var(--theme-accent); font-size: 1.5rem; }
+    /* Questions */
+    .question-item {
+      background: var(--theme-surface);
+      border-left: 3px solid var(--theme-accent);
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+      font-family: monospace;
+      font-size: 0.9rem;
+    }
+    .kbd {
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: 4px;
+      padding: 0.125rem 0.5rem;
+      font-size: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+<main class="deck">
+
+<!-- Slide 1: 封面 -->
+<section class="slide cover-slide">
+  <div>
+    <div class="cover-title">cal4god2</div>
+    <div class="cover-subtitle">角色卡渲染 & 装备组合系统</div>
+    <div class="cover-meta">
+      <span class="tag tag-info">L1-Goal</span>
+      <span class="tag tag-info">v1.0.0</span>
+    </div>
+    <div style="margin-top: 3rem; color: var(--theme-muted); font-size: 0.875rem;">
+      spec: .vibex/specs/L1-goal/cal4god2.yaml
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>VibeX Workbench</span>
+    <span class="page-num">1 / 8</span>
+  </div>
+</section>
+
+<!-- Slide 2: 背景 -->
+<section class="slide">
+  <div class="slide-header">
+    <div class="slide-title">📋 背景与目标</div>
+    <div class="slide-subtitle">What & Why — 为什么需要角色卡渲染 & 装备组合系统</div>
+  </div>
+  <div class="slide-content">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">🎯 核心目标 (To-Be)</div>
+        <ul class="bullet-list">
+          <li>提供角色卡完整渲染数据接口</li>
+          <li>实时管理 6 个装备槽位状态</li>
+          <li>计算套装/羁绊/符文之语激活效果</li>
+          <li>汇总 atk/def/技能加成</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">📦 数据结构规范</div>
+        <table class="data-table">
+          <tr><th>模块</th><th>字段</th></tr>
+          <tr><td>character_display</td><td>char_id, name, level, class</td></tr>
+          <tr><td>equipment_slots</td><td>head, body, weapon, shield, acc1, acc2</td></tr>
+          <tr><td>combo_status</td><td>sets, bonds, runes</td></tr>
+          <tr><td>effect_summary</td><td>atk_bonus, def_bonus, skills</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="card" style="margin-top: 1.5rem;">
+      <div class="card-title">💡 Why This System</div>
+      <ul class="bullet-list">
+        <li><strong>Why:</strong> 需要统一渲染数据入口，避免前端拼装逻辑散乱</li>
+        <li><strong>Why not</strong> 分散接口: 难以保证组合效果计算一致性，combo_activation 难以达标</li>
+        <li><strong>前提:</strong> 角色基础数据已结构化，装备系统支持槽位概念</li>
+      </ul>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>VibeX Workbench</span>
+    <span class="page-num">2 / 8</span>
+  </div>
+</section>
+
+<!-- Slide 3: 现状证据 (As-Is) -->
+<section class="slide">
+  <div class="slide-header">
+    <div class="slide-title">🔍 现状证据 (As-Is)</div>
+    <div class="slide-subtitle">当前工作区可验证证据 — 禁止臆测</div>
+  </div>
+  <div class="slide-content">
+    <div class="card">
+      <div class="card-title">📂 Spec 定义现状 (来自 cal4god2.yaml)</div>
+      <table class="data-table">
+        <tr><th>Key</th><th>定义状态</th><th>证据</th></tr>
+        <tr><td>data.character_display</td><td class="tag tag-warning">结构已定义</td><td>spec.yaml lines 5-12</td></tr>
+        <tr><td>data.equipment_slots</td><td class="tag tag-warning">结构已定义</td><td>spec.yaml lines 13-20</td></tr>
+        <tr><td>data.combo_status</td><td class="tag tag-warning">结构已定义</td><td>spec.yaml lines 21-26</td></tr>
+        <tr><td>io_contract.getCharacterDisplay</td><td class="tag tag-warning">接口已定义</td><td>spec.yaml lines 29-31</td></tr>
+        <tr><td>io_contract.updateEquipmentSlot</td><td class="tag tag-warning">接口已定义</td><td>spec.yaml lines 32-34</td></tr>
+        <tr><td>io_contract.getEffectSummary</td><td class="tag tag-warning">接口已定义</td><td>spec.yaml lines 35-37</td></tr>
+      </table>
+    </div>
+    <div class="grid-2" style="margin-top: 1.5rem;">
+      <div class="card">
+        <div class="card-title">✅ 已验证</div>
+        <ul class="bullet-list">
+          <li>Spec 文档完整 (v1.0.0)</li>
+          <li>数据类型定义清晰</li>
+          <li>接口契约明确</li>
+          <li>性能约束已量化</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">❓ 待验证</div>
+        <ul class="bullet-list">
+          <li>实际代码实现状态</li>
+          <li>TypeScript >=4.0 兼容性</li>
+          <li><50ms 性能实测数据</li>
+          <li>99% 准确率测试报告</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>VibeX Workbench</span>
+    <span class="page-num">3 / 8</span>
+  </div>
+</section>
+
+<!-- Slide 4: 差距与优化 -->
+<section class="slide">
+  <div class="slide-header">
+    <div class="slide-title">📊 差距分析 & 优化方向</div>
+    <div class="slide-subtitle">As-Is → To-Be Gap Analysis</div>
+  </div>
+  <div class="slide-content">
+    <div class="comparison-row">
+      <div class="comparison-label">Spec 定义</div>
+      <div class="comparison-bar"><div class="comparison-fill to-be" style="width: 100%;">100% 完成</div></div>
+    </div>
+    <div class="comparison-row">
+      <div class="comparison-label">接口实现</div>
+      <div class="comparison-bar"><div class="comparison-fill pending" style="width: 30%;">待开发 30%</div></div>
+    </div>
+    <div class="comparison-row">
+      <div class="comparison-label">测试覆盖</div>
+      <div class="comparison-bar"><div class="comparison-fill pending" style="width: 0%;">0%</div></div>
+    </div>
+    <div class="comparison-row">
+      <div class="comparison-label">性能验证</div>
+      <div class="comparison-bar"><div class="comparison-fill pending" style="width: 0%;">未验证</div></div>
+    </div>
+    <div class="card" style="margin-top: 1.5rem;">
+      <div class="card-title">🔧 优化方向</div>
+      <div class="grid-3">
+        <div>
+          <strong style="color: var(--theme-accent);">优先级 P0</strong>
+          <ul class="bullet-list">
+            <li>实现 3 个 IO 契约接口</li>
+            <li>Combo 激活逻辑 (<50ms)</li>
+          </ul>
+        </div>
+        <div>
+          <strong style="color: var(--theme-accent);">优先级 P1</strong>
+          <ul class="bullet-list">
+            <li>Effect Summary 计算</li>
+            <li>准确率 >=99% 验证</li>
+          </ul>
+        </div>
+        <div>
+          <strong style="color: var(--theme-accent);">优先级 P2</strong>
+          <ul class="bullet-list">
+            <li>TypeScript 类型导出</li>
+            <li>边界 case 测试</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>VibeX Workbench</span>
+    <span class="page-num">4 / 8</span>
+  </div>
+</section>
+
+<!-- Slide 5: 风险 & 验证 -->
+<section class="slide">
+  <div class="slide-header">
+    <div class="slide-title">⚠️ 风险 & 验证策略</div>
+    <div class="slide-subtitle">Risk Mitigation & Validation</div>
+  </div>
+  <div class="slide-content">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">🚨 高风险项</div>
+        <table class="data-table">
+          <tr><th>风险</th><th>影响</th><th>缓解</th></tr>
+          <tr>
+            <td>Combo 计算复杂度过高</td>
+            <td class="tag tag-danger">性能超标</td>
+            <td>预计算 + 缓存</td>
+          </tr>
+          <tr>
+            <td>套装激活规则变更</td>
+            <td class="tag tag-warning">准确率下降</td>
+            <td>规则引擎化</td>
+          </tr>
+          <tr>
+            <td>多端数据不一致</td>
+            <td class="tag tag-danger">显示 BUG</td>
+            <td>统一数据源</td>
+          </tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-title">✅ 验证策略</div>
+        <ul class="bullet-list">
+          <li><strong>单元测试:</strong> 覆盖 3 接口 + 组合规则</li>
+          <li><strong>性能测试:</strong> 1000 次 combo 计算耗时</li>
+          <li><strong>准确率测试:</strong> 对比预期效果与实际输出</li>
+          <li><strong>回归测试:</strong> 装备变更后验证 effect_summary</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card" style="margin-top: 1.5rem;">
+      <div class="card-title">📋 性能约束清单</div>
+      <div class="grid-3">
+        <div>
+          <div style="color: var(--theme-muted);">combo_activation</div>
+          <div style="font-size: 1.5rem; font-weight: 700; color: var(--theme-success);">&lt;50ms</div>
+        </div>
+        <div>
+          <div style="color: var(--theme-muted);">effect_summary_accuracy</div>
+          <div style="font-size: 1.5rem; font-weight: 700; color: var(--theme-success);">≥99%</div>
+        </div>
+        <div>
+          <div style="color: var(--theme-muted);">TypeScript</div>
+          <div style="font-size: 1.5rem; font-weight: 700; color: var(--theme-success);">≥4.0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>VibeX Workbench</span>
+    <span class="page-num">5 / 8</span>
+  </div>
+</section>
+
+<!-- Slide 6: 四视角覆盖 -->
+<section class="slide">
+  <div class="slide-header">
+    <div class="slide-title">👥 四视角覆盖</div>
+    <div class="slide-subtitle">CTO · 开发 · 测试 · 用户</div>
+  </div>
+  <div class="slide-content">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">🏢 CTO 视角</div>
+        <ul class="bullet-list">
+          <li><strong>业务价值:</strong> 统一渲染数据，提升用户体验</li>
+          <li><strong>资源投入:</strong> 1-2 人月开发 + 测试</li>
+          <li><strong>风险:</strong> 性能不达标导致用户流失</li>
+          <li><strong>ROI:</strong> 减少前端重复逻辑，降低维护成本</li>
+        </ul>
+        <div style="margin-top: 0.75rem;">
+          <span class="tag tag-success">架构可控</span>
+          <span class="tag tag-warning">性能敏感</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">💻 开发 视角</div>
+        <ul class="bullet-list">
+          <li><strong>模块边界:</strong> 3 个 IO 接口，职责清晰</li>
+          <li><strong>技术栈:</strong> TypeScript >=4.0</li>
+          <li><strong>改动面:</strong> 新增服务模块，不改现有逻辑</li>
+          <li><strong>技术债:</strong> 需提前设计 combo 规则引擎</li>
+        </ul>
+        <div style="margin-top: 0.75rem;">
+          <span class="tag tag-info">接口清晰</span>
+          <span class="tag tag-warning">规则复杂</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🧪 测试 视角</div>
+        <ul class="bullet-list">
+          <li><strong>可测性:</strong> 3 接口 + 组合规则可独立测试</li>
+          <li><strong>覆盖盲区:</strong> 边界 case (空装备/全套装)</li>
+          <li><strong>回归风险:</strong> 装备变更逻辑需重点验证</li>
+          <li><strong>性能验证:</strong> 需压测工具支持</li>
+        </ul>
+        <div style="margin-top: 0.75rem;">
+          <span class="tag tag-info">接口稳定</span>
+          <span class="tag tag-danger">边界复杂</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🎮 用户 视角</div>
+        <ul class="bullet-list">
+          <li><strong>体验收益:</strong> 装备变更即时反馈</li>
+          <li><strong>可见价值:</strong> 套装/羁绊激活可视化</li>
+          <li><strong>流程变化:</strong> 无感知，后端静默计算</li>
+          <li><strong>失败场景:</strong> 需降级兜底策略</li>
+        </ul>
+        <div style="margin-top: 0.75rem;">
+          <span class="tag tag-success">体验提升</span>
+          <span class="tag tag-info">无感知</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>VibeX Workbench</span>
+    <span class="page-num">6 / 8</span>
+  </div>
+</section>
+
+<!-- Slide 7: 决策页 -->
+<section class="slide">
+  <div class="slide-header">
+    <div class="slide-title">🎯 决策页</div>
+    <div class="slide-subtitle">Decision Matrix</div>
+  </div>
+  <div class="slide-content">
+    <div class="card">
+      <div class="card-title">📊 方案对比</div>
+      <table class="data-table">
+        <tr><th>维度</th><th>方案 A: 集中计算</th><th>方案 B: 前端计算</th><th>方案 C: 混合模式</th></tr>
+        <tr>
+          <td>性能</td>
+          <td class="tag tag-success">✅ 统一优化</td>
+          <td class="tag tag-danger">❌ 难以保证 50ms</td>
+          <td class="tag tag-warning">⚠️ 需权衡</td>
+        </tr>
+        <tr>
+          <td>一致性</td>
+          <td class="tag tag-success">✅ 单点数据源</td>
+          <td class="tag tag-danger">❌ 多端差异风险</td>
+          <td class="tag tag-success">✅ 主数据同步</td>
+        </tr>
+        <tr>
+          <td>复杂度</td>
+          <td class="tag tag-warning">⚠️ 中等</td>
+          <td class="tag tag-success">✅ 简单</td>
+          <td class="tag tag-danger">❌ 复杂</td>
+        </tr>
+        <tr>
+          <td>维护性</td>
+          <td class="tag tag-success">✅ 高</td>
+          <td class="tag tag-danger">❌ 分散</td>
+          <td class="tag tag-warning">⚠️ 中</td>
+        </tr>
+      </table>
+    </div>
+    <div class="grid-2" style="margin-top: 1.5rem;">
+      <div class="card" style="border-left: 4px solid var(--theme-success);">
+        <div class="card-title">✅ 推荐方案: 方案 A (集中计算)</div>
+        <ul class="bullet-list">
+          <li><strong>Why:</strong> 保证 combo 激活 <50ms，数据一致性高</li>
+          <li><strong>Why not B:</strong> 前端计算无法保证跨端一致</li>
+          <li><strong>Why not C:</strong> 混合模式增加维护复杂度</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">💰 成本与风险</div>
+        <ul class="bullet-list">
+          <li><strong>开发成本:</strong> 1-2 人月</li>
+          <li><strong>风险:</strong> 计算复杂度需提前压测</li>
+          <li><strong>切换条件:</strong> 若 50ms 不达标，降级为方案 C</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>VibeX Workbench</span>
+    <span class="page-num">7 / 8</span>
+  </div>
+</section>
+
+<!-- Slide 8: 执行页 -->
+<section class="slide">
+  <div class="slide-header">
+    <div class="slide-title">🚀 执行页</div>
+    <div class="slide-subtitle">Execution Plan</div>
+  </div>
+  <div class="slide-content">
+    <div class="card">
+      <div class="card-title">📅 里程碑 & 负责人</div>
+      <table class="data-table">
+        <tr><th>阶段</th><th>内容</th><th>负责人</th><th>验收标准</th></tr>
+        <tr>
+          <td>M1: 基础框架</td>
+          <td>搭建 TS 项目，定义类型</td>
+          <td>后端开发</td>
+          <td>编译通过，类型完整</td>
+        </tr>
+        <tr>
+          <td>M2: IO 接口</td>
+          <td>实现 3 个 IO 契约</td>
+          <td>后端开发</td>
+          <td>接口返回符合 schema</td>
+        </tr>
+        <tr>
+          <td>M3: Combo 逻辑</td>
+          <td>实现套装/羁绊/符文计算</td>
+          <td>后端开发</td>
+          <td>准确率 >=99%，耗时 &lt;50ms</td>
+        </tr>
+        <tr>
+          <td>M4: 集成测试</td>
+          <td>端到端测试，性能压测</td>
+          <td>QA</td>
+          <td>测试覆盖率 >80%</td>
+        </tr>
+      </table>
+    </div>
+    <div class="grid-2" style="margin-top: 1.5rem;">
+      <div class="card">
+        <div class="card-title">🔄 回滚策略</div>
+        <ul class="bullet-list">
+          <li>M1/M2 失败: 回退到原型阶段，重新评估</li>
+          <li>M3 性能不达标: 降级为方案 C 或增加缓存</li>
+          <li>M4 测试失败: 修复 BUG 后继续，不回退</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">📋 验收标准汇总</div>
+        <ul class="bullet-list">
+          <li>✅ 3 个 IO 接口可用</li>
+          <li>✅ combo_activation &lt;50ms</li>
+          <li>✅ effect_summary_accuracy >=99%</li>
+          <li>✅ TypeScript >=4.0 兼容</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>VibeX Workbench</span>
+    <span class="page-num">8 / 8</span>
+  </div>
+</section>
+
+<!-- Slide 9: 可复制问题清单 (结尾) -->
+<section class="slide">
+  <div class="slide-header">
+    <div class="slide-title">❓ 可复制问题清单</div>
+    <div class="slide-subtitle">用于在详情抽屉继续和 agent 对话完善 spec</div>
+  </div>
+  <div class="slide-content">
+    <div class="grid-2">
+      <div>
+        <div class="question-item">1. combo_activation &lt;50ms 的基准测试环境是什么？</div>
+        <div class="question-item">2. effect_summary_accuracy >=99% 如何定义和测量？</div>
+        <div class="question-item">3. equipment_slots 的 6 个槽位是否有顺序依赖？</div>
+        <div class="question-item">4. combo_status 的 activation_types (sets/bonds/runes) 优先级？</div>
+        <div class="question-item">5. effect_summary.computed_fields (atk_bonus/def_bonus/skills) 累加规则？</div>
+        <div class="question-item">6. 角色卡渲染数据 (character_display) 的刷新策略？</div>
+      </div>
+      <div>
+        <div class="question-item">7. 现有代码库路径是什么？是否已有部分实现？</div>
+        <div class="question-item">8. TypeScript >=4.0 兼容的具体要求是什么？</div>
+        <div class="question-item">9. 多角色同时在线时，combo 计算是否有并发问题？</div>
+        <div class="question-item">10. 装备变更时，是推送还是拉取 effect_summary？</div>
+        <div class="question-item">11. 是否有现有的 combo 规则文档或配置中心？</div>
+        <div class="question-item">12. 性能不达标时的降级策略具体是什么？</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top: 1.5rem; border-left: 4px solid var(--theme-accent);">
+      <div class="card-title">💡 Spec 调整建议</div>
+      <div class="grid-3">
+        <div>
+          <strong style="color: var(--theme-success);">高收益项</strong>
+          <ul class="bullet-list">
+            <li>增加缓存策略描述</li>
+            <li>明确推送/拉取机制</li>
+          </ul>
+        </div>
+        <div>
+          <strong style="color: var(--theme-warning);">高风险项</strong>
+          <ul class="bullet-list">
+            <li>补充性能测试方法</li>
+            <li>定义准确率测量口径</li>
+          </ul>
+        </div>
+        <div>
+          <strong style="color: var(--theme-danger);">潜在风险</strong>
+          <ul class="bullet-list">
+            <li>规则变更缺乏版本控制</li>
+            <li>缺少异常场景处理</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>VibeX Workbench</span>
+    <span class="page-num">9 / 9</span>
+  </div>
+</section>
+
+</main>
+<script src="../assets/runtime.js"><\/script>
+<script src="../assets/vibex-ppt-nav.js"><\/script>
+</body>
+</html>

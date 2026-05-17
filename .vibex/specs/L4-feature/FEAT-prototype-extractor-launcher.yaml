@@ -8,6 +8,7 @@ spec:
   status: draft
   owner: vibex-team
   created: 2026-05-13
+  ppt_file: .vibex/ppt/FEAT-prototype-extractor-launcher.html
 
 io_contract:
   inputs:

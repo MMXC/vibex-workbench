@@ -1,23 +1,23 @@
----
 spec:
   version: "0.1"
-  level: "5_slice"
-  name: "SLICE-statusbar-left"
-  parent: "MOD-bottom-statusbar"
-  status: "proposal"
-  prototype_ref: "../../prototypes/vibex-workbench-mvp.html"
+  level: 5_slice
+  name: SLICE-statusbar-left
+  parent: MOD-bottom-statusbar
+  status: proposal
+  prototype_ref: ../../prototypes/vibex-workbench-mvp.html
+  ppt_file: .vibex/ppt/SLICE-statusbar-left.html
 prototype:
-  file: ".vibex/prototypes/MOD-bottom-statusbar.html"
+  file: .vibex/prototypes/MOD-bottom-statusbar.html
   validates: []
   status: derived
 meta:
-  type: "slice"
-  owner: "user"
-  created: "2026-05-14"
+  type: slice
+  owner: user
+  created: 2026-05-14
 display:
   title: L5 · 状态栏左
   summary: 底部状态栏左侧，展示就绪状态和路径信息
 structure:
   parent: MOD-bottom-statusbar
-  parent_selector: ".statusbar .sb-left"
+  parent_selector: .statusbar .sb-left
   is_leaf: true

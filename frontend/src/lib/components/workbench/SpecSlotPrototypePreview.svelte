@@ -4,6 +4,7 @@
 	import { specSlotSessionStore } from '$lib/stores/spec-slot-session-store';
 	import type { A2UIPrototypePanel } from '$lib/services/tool-routing-client';
 	import { getAgentApiBase } from '$lib/runtime/agent-transport';
+	import { specpilotStatusStore } from '$lib/stores/specpilot-status-store';
 
 	let {
 		session,
@@ -29,11 +30,11 @@
 	/** 工具栏模式切换：'proto' = 原生 HTML 预览，'mf' = MF 原型 */
 	let protoViewMode = $state<'proto' | 'mf'>('proto');
 
-	/** MF iframe 目标 URL，fallback 到 localhost:5177 */
+	/** MF iframe 目标 URL，从共享 specpilotStatusStore 读取动态端口，带 dcPort 参数供 MF app 连接 DC API */
 	const mfTargetUrl = $derived.by(() => {
-		const port = (window as any).__specpilotMfPort;
-		if (port) return `http://localhost:${port}/#/Dashboard`;
-		return 'http://localhost:5177/#/Dashboard';
+		const port = $specpilotStatusStore?.mfPort ?? 5177;
+		const dcPort = $specpilotStatusStore?.dcPort ?? 7890;
+		return `http://localhost:${port}/#/Dashboard?dcPort=${dcPort}`;
 	});
 
 	onMount(() => {
@@ -279,7 +280,7 @@
 			<div class="mf-status-bar">
 				<span class="mf-badge">MF</span>
 				<span class="mf-comp">Module Federation</span>
-				<span class="mf-api">DC @ localhost:7890</span>
+				<span class="mf-api">DC @ localhost:{$specpilotStatusStore?.dcPort ?? 7890}</span>
 				<a class="mf-open" href={mfTargetUrl} target="_blank" rel="noopener">↗ 新窗口</a>
 			</div>
 			<div class="proto-frame-host">

@@ -1,5 +1,5 @@
 spec:
-  version: '0.2'
+  version: "0.2"
   level: 1_project-goal
   name: vibex-workbench-mvp
   parent: null
@@ -14,16 +14,16 @@ lifecycle:
   current: implementation
   updated: 2026-04-29
   history:
-  - status: proposal
-    at: 2026-04-24 00:00:00
-    by: hermes
-    trigger: user:manual
-    note: 基于空仓库场景定义 MVP 目标
-  - status: implementation
-    at: 2026-04-29 10:35:00
-    by: hermes
-    trigger: system:e2e-validated
-    note: 五项最小能力端到端验证通过，进入 implementation phase
+    - status: proposal
+      at: 2026-04-24 00:00:00
+      by: hermes
+      trigger: user:manual
+      note: 基于空仓库场景定义 MVP 目标
+    - status: implementation
+      at: 2026-04-29 10:35:00
+      by: hermes
+      trigger: system:e2e-validated
+      note: 五项最小能力端到端验证通过，进入 implementation phase
 display:
   title: vibex workbench mvp
   summary: 一个完整可运行的项目，含：
@@ -31,55 +31,54 @@ display:
 structure:
   parent: null
   children:
-  - specs/L2-skeleton/vibex-workbench-skeleton.yaml
+    - .vibex/specs/L2-skeleton/vibex-workbench-skeleton.yaml
   dependencies: []
   impacted_files: []
 io:
   input:
-  - '用户选定一个空目录，描述产品意图（如"我想做一个笔记应用"），
-
-    系统从零开始完成：脚手架 → spec 编写 → 校验/生成 → 可运行项目。'
+    - |-
+      用户选定一个空目录，描述产品意图（如"我想做一个笔记应用"），
+      系统从零开始完成：脚手架 → spec 编写 → 校验/生成 → 可运行项目。
   output:
-  - '一个完整可运行的项目，含：
-
-    - specs/L1–L5 规格文件
-
-    - 最小可跑骨架（目录结构、生成器、配置）
-
-    - spec → 代码的校验/生成闭环'
-  boundary: 'MVP 只支持"空仓库 → 边做边长"单链路。
-
-    不支持：多 workspace 并行、历史 spec 迁移、图谱全量编辑。'
+    - |-
+      一个完整可运行的项目，含：
+      - specs/L1–L5 规格文件
+      - 最小可跑骨架（目录结构、生成器、配置）
+      - spec → 代码的校验/生成闭环
+  boundary: |-
+    MVP 只支持"空仓库 → 边做边长"单链路。
+    不支持：多 workspace 并行、历史 spec 迁移、图谱全量编辑。
 constraints:
   rules:
-  - id: C1
-    name: 仓库根唯一性
-    rule: 所有读写/命令统一在用户选定的仓库根下执行，不允许跨目录
-    maps_to: AC1
-  - id: C2
-    name: 三态探测
-    rule: 系统能区分空目录/半就绪/就绪三种状态，UI 展示状态 badge 和建议
-    maps_to: AC2
-  - id: C3
-    name: 显式确认门槛
-    rule: 首次写入脚手架必须经过用户确认，不能静默污染磁盘
-    maps_to: AC3
-  - id: C4
-    name: spec 写闭环
-    rule: 用户能读 spec 也能写 spec，保存后能触发校验
-    maps_to: AC4
-  - id: C5
-    name: 可验证链路
-    rule: make validate/generate 在 UI 可触发，失败时显示错误摘要
-    maps_to: AC5
+    - id: C1
+      name: 仓库根唯一性
+      rule: 所有读写/命令统一在用户选定的仓库根下执行，不允许跨目录
+      maps_to: AC1
+    - id: C2
+      name: 三态探测
+      rule: 系统能区分空目录/半就绪/就绪三种状态，UI 展示状态 badge 和建议
+      maps_to: AC2
+    - id: C3
+      name: 显式确认门槛
+      rule: 首次写入脚手架必须经过用户确认，不能静默污染磁盘
+      maps_to: AC3
+    - id: C4
+      name: spec 写闭环
+      rule: 用户能读 spec 也能写 spec，保存后能触发校验
+      maps_to: AC4
+    - id: C5
+      name: 可验证链路
+      rule: make validate/generate 在 UI 可触发，失败时显示错误摘要
+      maps_to: AC5
   forbidden: []
 prototype:
   file: .vibex/prototypes/vibex-workbench-mvp.html
   validates:
-  - 静态 HTML 与 workbench/+page.svelte、WorkbenchLayoutResizable、WorkbenchTitlebar、ActivityBar、SpecExplorer、WorkbenchCenterTabs、AiChatColumn、R2Dock、StatusBar
-    的 DOM 区域与类名对齐（见原型文件头注释）
-  - 中央「控制台 / 画布 / …」Tab 与底部 Dock Tab 可切换；复杂子树（SpecViewer、Canvas、Composer 真数据）以源码为准，必要时从运行实例
-    DevTools 补片段
+    - 静态 HTML 与
+      workbench/+page.svelte、WorkbenchLayoutResizable、WorkbenchTitlebar、ActivityBar、SpecExplorer、WorkbenchCenterTabs、AiChatColumn、R2Dock、StatusBar
+      的 DOM 区域与类名对齐（见原型文件头注释）
+    - 中央「控制台 / 画布 / …」Tab 与底部 Dock Tab 可切换；复杂子树（SpecViewer、Canvas、Composer
+      真数据）以源码为准，必要时从运行实例 DevTools 补片段
   status: draft
   intent:
     target_user: 个人开发者
@@ -89,259 +88,224 @@ prototype:
   ui_spec:
     page_purpose: spec 原型治理工作台（三层架构：核心层-单一spec完善治理/扩展层-交互原型+spec初版推导/后台层-agent能力延伸）
     sections:
-    - name: ActivityBar
-      component_type: toolbar
-      priority: high
-    - name: SpecExplorer
-      component_type: tree-view
-      priority: high
-    - name: WorkbenchCenterTabs
-      component_type: tab-panel
-      priority: high
-    - name: AiChatColumn
-      component_type: chat-panel
-      priority: high
-    - name: R2Dock
-      component_type: dock-panel
-      priority: high
-    - name: StatusBar
-      component_type: status-bar
-      priority: high
+      - name: ActivityBar
+        component_type: toolbar
+        priority: high
+      - name: SpecExplorer
+        component_type: tree-view
+        priority: high
+      - name: WorkbenchCenterTabs
+        component_type: tab-panel
+        priority: high
+      - name: AiChatColumn
+        component_type: chat-panel
+        priority: high
+      - name: R2Dock
+        component_type: dock-panel
+        priority: high
+      - name: StatusBar
+        component_type: status-bar
+        priority: high
     states:
-    - loading
-    - empty
-    - error
-    - partial
-    - normal
+      - loading
+      - empty
+      - error
+      - partial
+      - normal
     responsive:
       desktop: 桌面优先，≥1280px 完整布局
       mobile: 移动端 <768px 降级查看模式，不支持复杂编辑
     acceptance:
-    - intent 9项 gate 检查全部通过
-    - 原型 HTML 与源码 DOM 对齐
-    - Tab 切换、状态切换演示可用
+      - intent 9项 gate 检查全部通过
+      - 原型 HTML 与源码 DOM 对齐
+      - Tab 切换、状态切换演示可用
 io_contract:
-  input: '用户选定一个空目录，描述产品意图（如"我想做一个笔记应用"），
-
+  input: |
+    用户选定一个空目录，描述产品意图（如"我想做一个笔记应用"），
     系统从零开始完成：脚手架 → spec 编写 → 校验/生成 → 可运行项目。
-
-    '
-  output: '一个完整可运行的项目，含：
-
+  output: |
+    一个完整可运行的项目，含：
     - specs/L1–L5 规格文件
-
     - 最小可跑骨架（目录结构、生成器、配置）
-
     - spec → 代码的校验/生成闭环
-
-    '
-  boundary: 'MVP 只支持"空仓库 → 边做边长"单链路。
-
+  boundary: |
+    MVP 只支持"空仓库 → 边做边长"单链路。
     不支持：多 workspace 并行、历史 spec 迁移、图谱全量编辑。
-
-    '
   behavior:
-  - 用户选定仓库根
-  - 系统探测目录状态（空/半/就绪）
-  - 用户确认后写入最小脚手架
-  - 用户编写 L1–L4 spec
-  - 系统校验 spec 语法 + 父子链
-  - 系统生成代码骨架
-  - 用户迭代 spec → 生成 → 验收
+    - 用户选定仓库根
+    - 系统探测目录状态（空/半/就绪）
+    - 用户确认后写入最小脚手架
+    - 用户编写 L1–L4 spec
+    - 系统校验 spec 语法 + 父子链
+    - 系统生成代码骨架
+    - 用户迭代 spec → 生成 → 验收
 acceptance_criteria:
-- id: AC1
-  name: 仓库根绑定
-  description: '用户选定目录后，前端 SSR、Go agent、所有读写和命令统一在该目录下执行。
+  - id: AC1
+    name: 仓库根绑定
+    description: |
+      用户选定目录后，前端 SSR、Go agent、所有读写和命令统一在该目录下执行。
+      验证方式：POST /api/workspace/detect-state 传入空目录，返回 state: empty，
+      前端显示正确的状态和下一步建议。
+    test_scenario: >
+      1. 选一个完全空的目录 /tmp/vibex-e2e-test
 
-    验证方式：POST /api/workspace/detect-state 传入空目录，返回 state: empty，
+      2. POST /api/workspace/detect-state {workspace_root: /tmp/vibex-e2e-test}
 
-    前端显示正确的状态和下一步建议。
+      3. 断言返回 state == "empty"，三个信号（hasSpecDir / hasGenerators /
+      hasPackageJson）全为 false
 
-    '
-  test_scenario: '1. 选一个完全空的目录 /tmp/vibex-e2e-test
+      4. 断言返回的 nextAction 包含"创建脚手架"建议
+  - id: AC2
+    name: 三态探测
+    description: |
+      系统能区分空目录（无任何 VibeX 文件）、半就绪目录（有部分结构）、
+      就绪目录（含 specs/、gen.py、package.json、Makefile）。
+      UI 只展示状态和一句"下一步建议"，不强制全自动。
+    test_scenario: >
+      1. 空目录 -> state: empty, nextAction: scaffold
 
-    2. POST /api/workspace/detect-state {workspace_root: /tmp/vibex-e2e-test}
+      2. scaffold 后 -> state: ready, hasSpecDir: true, hasGenerators: true,
+      hasPackageJson: true
 
-    3. 断言返回 state == "empty"，三个信号（hasSpecDir / hasGenerators / hasPackageJson）全为 false
+      3. 部分删除 specs/ -> state: partial
 
-    4. 断言返回的 nextAction 包含"创建脚手架"建议
+      4. 前端 UI 正确渲染三种状态的 badge 和建议文案
+  - id: AC3
+    name: 脚手架确认式写入
+    description: >
+      在空仓库里生成最小可跑骨架：specs/ 目录（含 L1 ENTRY.yaml）、
 
-    '
-- id: AC2
-  name: 三态探测
-  description: '系统能区分空目录（无任何 VibeX 文件）、半就绪目录（有部分结构）、
+      generators/gen.py、package.json、Makefile（含 lint-specs / generate /
+      validate）。
 
-    就绪目录（含 specs/、gen.py、package.json、Makefile）。
+      写入前必须有显式确认，禁止静默污染磁盘。
+    test_scenario: |
+      1. 空目录调用 POST /api/workspace/scaffold {confirm: true}
+      2. 断言落地文件：specs/L1-goal/ENTRY.yaml、generators/gen.py、Makefile、package.json
+      3. 断言 ENTRY.yaml 含 YAML frontmatter 且 spec.level == "1_project-goal"
+      4. 断言再次调用 detect-state 返回 state: ready
+  - id: AC4
+    name: Spec 可读可写
+    description: |
+      读取：spec 图谱/列表能反映 specs/ 里的节点关系。
+      写入：能保存对 spec 文件的修改（或新建 L1/L2 向导写盘）。
+      这是"人机交互澄清目标"的基础。
+    test_scenario: >
+      1. GET /api/workspace/spec?path=specs/L1-goal/ENTRY.yaml
+         断言返回 200 和 YAML 文件内容
+      2. POST /api/workspace/specs/write
+         {workspace_root, path: specs/L1-goal/ENTRY.yaml, content: "mission: E2E测试目标"}
+         断言返回 ok: true
+      3. 断言文件内容包含 mission: E2E测试目标
+  - id: AC5
+    name: 校验/生成一触即达
+    description: |
+      在同一仓库根执行 make lint-specs / validate / generate。
+      失败时在 UI 露出可读错误摘要。
+      否则 spec 写完仍要用户切终端，产品边界会糊在"编辑器外壳"里。
+    test_scenario: >
+      1. scaffold 后调用 POST /api/workspace/run-make {workspace: /tmp/xxx, target:
+      "validate"}
 
-    UI 只展示状态和一句"下一步建议"，不强制全自动。
+      2. 断言返回 exitCode: 0（91 specs 全绿）
 
-    '
-  test_scenario: '1. 空目录 -> state: empty, nextAction: scaffold
+      3. 断言 validate_specs.py parent chain 检查无警告
 
-    2. scaffold 后 -> state: ready, hasSpecDir: true, hasGenerators: true, hasPackageJson:
-    true
+      4. 前端 action bar 有 make 按钮，失败时显示 stdout 前 500 字符
+  - id: AC6
+    name: 感知触发文字系统
+    description: |
+      「不是让用户找技能，而是技能在合适的时机自己跳出来」。
 
-    3. 部分删除 specs/ -> state: partial
+      系统根据对话上下文（用户描述意图 + 当前状态）主动以文字形式引导用户：
+      - 空目录 → 提示「可以开始澄清需求了」
+      - 用户描述模糊需求 → 自动触发 grill-me 追问
+      - 追问中 → 每轮显示当前问题 + 推荐答案 + 进度
+      - 澄清完成 → 提示「下一步：确认/生成 spec」
+      - 生成后 → 提示「下一步：校验/迭代」
 
-    4. 前端 UI 正确渲染三种状态的 badge 和建议文案
-
-    '
-- id: AC3
-  name: 脚手架确认式写入
-  description: '在空仓库里生成最小可跑骨架：specs/ 目录（含 L1 ENTRY.yaml）、
-
-    generators/gen.py、package.json、Makefile（含 lint-specs / generate / validate）。
-
-    写入前必须有显式确认，禁止静默污染磁盘。
-
-    '
-  test_scenario: '1. 空目录调用 POST /api/workspace/scaffold {confirm: true}
-
-    2. 断言落地文件：specs/L1-goal/ENTRY.yaml、generators/gen.py、Makefile、package.json
-
-    3. 断言 ENTRY.yaml 含 YAML frontmatter 且 spec.level == "1_project-goal"
-
-    4. 断言再次调用 detect-state 返回 state: ready
-
-    '
-- id: AC4
-  name: Spec 可读可写
-  description: '读取：spec 图谱/列表能反映 specs/ 里的节点关系。
-
-    写入：能保存对 spec 文件的修改（或新建 L1/L2 向导写盘）。
-
-    这是"人机交互澄清目标"的基础。
-
-    '
-  test_scenario: "1. GET /api/workspace/spec?path=specs/L1-goal/ENTRY.yaml\n   断言返回\
-    \ 200 和 YAML 文件内容\n2. POST /api/workspace/specs/write\n   {workspace_root, path:\
-    \ specs/L1-goal/ENTRY.yaml, content: \"mission: E2E测试目标\"}\n   断言返回 ok: true\n\
-    3. 断言文件内容包含 mission: E2E测试目标\n"
-- id: AC5
-  name: 校验/生成一触即达
-  description: '在同一仓库根执行 make lint-specs / validate / generate。
-
-    失败时在 UI 露出可读错误摘要。
-
-    否则 spec 写完仍要用户切终端，产品边界会糊在"编辑器外壳"里。
-
-    '
-  test_scenario: '1. scaffold 后调用 POST /api/workspace/run-make {workspace: /tmp/xxx,
-    target: "validate"}
-
-    2. 断言返回 exitCode: 0（91 specs 全绿）
-
-    3. 断言 validate_specs.py parent chain 检查无警告
-
-    4. 前端 action bar 有 make 按钮，失败时显示 stdout 前 500 字符
-
-    '
-- id: AC6
-  name: 感知触发文字系统
-  description: '「不是让用户找技能，而是技能在合适的时机自己跳出来」。
-
-
-    系统根据对话上下文（用户描述意图 + 当前状态）主动以文字形式引导用户：
-
-    - 空目录 → 提示「可以开始澄清需求了」
-
-    - 用户描述模糊需求 → 自动触发 grill-me 追问
-
-    - 追问中 → 每轮显示当前问题 + 推荐答案 + 进度
-
-    - 澄清完成 → 提示「下一步：确认/生成 spec」
-
-    - 生成后 → 提示「下一步：校验/迭代」
-
-
-    文字引导是 ClarificationPanel 的核心输出，驱动整个 spec-first 链路。
-
-    感知触发的介质是文字，不是 UI 动画（动画是次要的，文字是主要的）。
-
-    '
-  test_scenario: "1. 选空目录，查看状态指示器 → 应显示\"空目录 · 下一步：创建脚手架或开始澄清需求\"\n2. scaffold 后 →\
-    \ 应显示\"已就绪 · 可以开始描述你的产品意图\"\n3. 用户输入模糊需求（如\"我想做一个笔记应用\"）\n   → 系统自动展示 grill-me\
-    \ 第一问（不是用户手动触发）\n   → ClarificationPanel 显示：问题 + 推荐答案 + 进度\n4. 用户逐轮回答 → ClarificationPanel\
-    \ 展示完整决策树（可折叠/展开）\n5. 所有问答完成 → ClarificationPanel 显示 spec 草稿路径 + 「确认并生成 L2 spec」按钮\n"
+      文字引导是 ClarificationPanel 的核心输出，驱动整个 spec-first 链路。
+      感知触发的介质是文字，不是 UI 动画（动画是次要的，文字是主要的）。
+    test_scenario: |
+      1. 选空目录，查看状态指示器 → 应显示"空目录 · 下一步：创建脚手架或开始澄清需求"
+      2. scaffold 后 → 应显示"已就绪 · 可以开始描述你的产品意图"
+      3. 用户输入模糊需求（如"我想做一个笔记应用"）
+         → 系统自动展示 grill-me 第一问（不是用户手动触发）
+         → ClarificationPanel 显示：问题 + 推荐答案 + 进度
+      4. 用户逐轮回答 → ClarificationPanel 展示完整决策树（可折叠/展开）
+      5. 所有问答完成 → ClarificationPanel 显示 spec 草稿路径 + 「确认并生成 L2 spec」按钮
 behaviors:
-- id: B-PHASE
-  trigger: lifecycle phase transition
-  phases:
-  - name: proposal
-    entry: L1 spec 创建，定义 MVP 5 项能力边界
-    exit_condition: 五项最小能力 AC1–AC5 端到端验证通过
-  - name: implementation
-    entry: 2026-04-29 五项能力全部 e2e 验证通过，lifecycle.current 设为 implementation
-    exit_condition: '所有 6 个 MOD 的 L4 feature 至少有一个进入 implementation 状态
-
-      或 spec_coverage.py 全绿（92 specs，无 missing L5）
-
-      '
-  - name: delivered
-    entry: 所有 L4 feature 均有 L5 slice 落地且 make validate 全绿
-    exit_condition: 持续迭代，无终点
-- id: B-E2E
-  trigger: 五项最小能力任意一项实现变更
-  action: Go agent 执行 e2e 验证脚本，输出 results.json
-  expected_result: '每次 code change 后自动跑 AC1–AC5，
-
-    失败时 Slack 通知，阻止 merge 到 master。
-
-    '
-  error_handling: e2e 超时 300s 标记为 skip，不阻塞 deploy
+  - id: B-PHASE
+    trigger: lifecycle phase transition
+    phases:
+      - name: proposal
+        entry: L1 spec 创建，定义 MVP 5 项能力边界
+        exit_condition: 五项最小能力 AC1–AC5 端到端验证通过
+      - name: implementation
+        entry: 2026-04-29 五项能力全部 e2e 验证通过，lifecycle.current 设为 implementation
+        exit_condition: |
+          所有 6 个 MOD 的 L4 feature 至少有一个进入 implementation 状态
+          或 spec_coverage.py 全绿（92 specs，无 missing L5）
+      - name: delivered
+        entry: 所有 L4 feature 均有 L5 slice 落地且 make validate 全绿
+        exit_condition: 持续迭代，无终点
+  - id: B-E2E
+    trigger: 五项最小能力任意一项实现变更
+    action: Go agent 执行 e2e 验证脚本，输出 results.json
+    expected_result: |
+      每次 code change 后自动跑 AC1–AC5，
+      失败时 Slack 通知，阻止 merge 到 master。
+    error_handling: e2e 超时 300s 标记为 skip，不阻塞 deploy
 content:
   constraints:
-  - id: C1
-    name: 仓库根唯一性
-    rule: 所有读写/命令统一在用户选定的仓库根下执行，不允许跨目录
-    maps_to: AC1
-  - id: C2
-    name: 三态探测
-    rule: 系统能区分空目录/半就绪/就绪三种状态，UI 展示状态 badge 和建议
-    maps_to: AC2
-  - id: C3
-    name: 显式确认门槛
-    rule: 首次写入脚手架必须经过用户确认，不能静默污染磁盘
-    maps_to: AC3
-  - id: C4
-    name: spec 写闭环
-    rule: 用户能读 spec 也能写 spec，保存后能触发校验
-    maps_to: AC4
-  - id: C5
-    name: 可验证链路
-    rule: make validate/generate 在 UI 可触发，失败时显示错误摘要
-    maps_to: AC5
+    - id: C1
+      name: 仓库根唯一性
+      rule: 所有读写/命令统一在用户选定的仓库根下执行，不允许跨目录
+      maps_to: AC1
+    - id: C2
+      name: 三态探测
+      rule: 系统能区分空目录/半就绪/就绪三种状态，UI 展示状态 badge 和建议
+      maps_to: AC2
+    - id: C3
+      name: 显式确认门槛
+      rule: 首次写入脚手架必须经过用户确认，不能静默污染磁盘
+      maps_to: AC3
+    - id: C4
+      name: spec 写闭环
+      rule: 用户能读 spec 也能写 spec，保存后能触发校验
+      maps_to: AC4
+    - id: C5
+      name: 可验证链路
+      rule: make validate/generate 在 UI 可触发，失败时显示错误摘要
+      maps_to: AC5
   l1_l2_lineage: null
-  summary: 'L1 定义"空仓库脚手架 + spec 驱动开发"作为产品能力集。
-
+  summary: |
+    L1 定义"空仓库脚手架 + spec 驱动开发"作为产品能力集。
     L2 将能力集落地为具体技术架构（agent/backend/frontend/generators）。
-
-    '
   what_l1_owns:
-  - MVP 5 项能力的边界定义
-  - 用户场景：空目录 → 边做边长
-  - 成功标准：不依赖外部模板，纯原生落地
+    - MVP 5 项能力的边界定义
+    - 用户场景：空目录 → 边做边长
+    - 成功标准：不依赖外部模板，纯原生落地
   what_l2_owns:
-  - Go agent（nanoClaudeCode 扩展）
-  - SvelteKit 前端
-  - Python generators（gen.py 等）
-  - memlace（Go实现的轻量记忆系统）
-  - spec-templates（L0–L5 模板）
+    - Go agent（nanoClaudeCode 扩展）
+    - SvelteKit 前端
+    - Python generators（gen.py 等）
+    - memlace（Go实现的轻量记忆系统）
+    - spec-templates（L0–L5 模板）
   traceability:
-  - l1_concern: 用户能指定仓库根
-    in_l2: frontend workspace/+page.svelte + backend workspace_handlers.go
-  - l1_concern: 能探测目录状态
-    in_l2: generators/state_detector.py + /api/workspace/detect-state
-  - l1_concern: 能生成脚手架
-    in_l2: generators/scaffolder.py + /api/workspace/scaffold
-  - l1_concern: 能读写 spec
-    in_l2: frontend spec detail panel + /api/workspace/spec (GET/POST)
-  - l1_concern: 能跑校验/生成
-    in_l2: Makefile + /api/workspace/run-make + frontend action bar
+    - l1_concern: 用户能指定仓库根
+      in_l2: frontend workspace/+page.svelte + backend workspace_handlers.go
+    - l1_concern: 能探测目录状态
+      in_l2: generators/state_detector.py + /api/workspace/detect-state
+    - l1_concern: 能生成脚手架
+      in_l2: generators/scaffolder.py + /api/workspace/scaffold
+    - l1_concern: 能读写 spec
+      in_l2: frontend spec detail panel + /api/workspace/spec (GET/POST)
+    - l1_concern: 能跑校验/生成
+      in_l2: Makefile + /api/workspace/run-make + frontend action bar
 product_value_layers:
-  summary: '三层价值：① 开发者直接价值 ② 体系自举价值 ③ 工具链价值。
-
-    '
+  summary: |
+    三层价值：① 开发者直接价值 ② 体系自举价值 ③ 工具链价值。
   direct_value:
     meaning: 从空目录到可运行项目，零模板依赖，原生自举
   proof_value:
@@ -349,33 +313,33 @@ product_value_layers:
   experience_value:
     meaning: clarification 循环 + canvas 可视化 + TDD，让开发过程可追溯
 changelog:
-- version: '0.1'
-  date: 2026-04-24
-  author: hermes
-  changes:
-  - 初始版本，定义 MVP 5 项最小能力
-- version: '0.2'
-  date: 2026-04-29
-  author: hermes
-  changes:
-  - 五项最小能力全部 e2e 验证通过，lifecycle.current 从 proposal 升级为 implementation
-  - 新增 acceptance_criteria（AC1–AC5）：五项能力的具体验收条件和测试场景
-  - 新增 behaviors：phase transition 定义（B-PHASE）+ e2e 自动验证（B-E2E）
-  - constraints C1–C4 与五项能力一一对应
-- version: '0.3'
-  date: 2026-04-30
-  author: hermes
-  changes:
-  - AC3 确认式脚手架实现：scaffold 端点强制检查 confirm=true，partial mode 支持
-  - AC4 Spec 读端点修复：workspaceSpecReadHandler 正确读 query workspaceRoot，增加 path traversal
-    保护
-  - scaffolder.py 返回值格式更新：written_files / skipped_files / state
-- version: '0.4'
-  date: 2026-05-12
-  author: hermes
-  changes:
-  - 新增 AC6「感知触发文字系统」：grill-me 追问范式 + ClarificationPanel 文字引导，驱动用户走完 spec 澄清链路
-  - 新增 MOD-perception-trigger（L3）：整合 grill-me skill + ClarificationPanel grill-me
-    模式 + SSE skill.suggested
-  - 产品定位澄清：vibex-workbench 核心是 spec 语义化 + 流程可视化 + 输入输出标准化； Go agent 是可插拔执行后端，不绑定本地
-    nanoClaudeCode
+  - version: "0.1"
+    date: 2026-04-24
+    author: hermes
+    changes:
+      - 初始版本，定义 MVP 5 项最小能力
+  - version: "0.2"
+    date: 2026-04-29
+    author: hermes
+    changes:
+      - 五项最小能力全部 e2e 验证通过，lifecycle.current 从 proposal 升级为 implementation
+      - 新增 acceptance_criteria（AC1–AC5）：五项能力的具体验收条件和测试场景
+      - 新增 behaviors：phase transition 定义（B-PHASE）+ e2e 自动验证（B-E2E）
+      - constraints C1–C4 与五项能力一一对应
+  - version: "0.3"
+    date: 2026-04-30
+    author: hermes
+    changes:
+      - AC3 确认式脚手架实现：scaffold 端点强制检查 confirm=true，partial mode 支持
+      - AC4 Spec 读端点修复：workspaceSpecReadHandler 正确读 query workspaceRoot，增加 path
+        traversal 保护
+      - scaffolder.py 返回值格式更新：written_files / skipped_files / state
+  - version: "0.4"
+    date: 2026-05-12
+    author: hermes
+    changes:
+      - 新增 AC6「感知触发文字系统」：grill-me 追问范式 + ClarificationPanel 文字引导，驱动用户走完 spec 澄清链路
+      - 新增 MOD-perception-trigger（L3）：整合 grill-me skill + ClarificationPanel
+        grill-me 模式 + SSE skill.suggested
+      - 产品定位澄清：vibex-workbench 核心是 spec 语义化 + 流程可视化 + 输入输出标准化； Go agent
+        是可插拔执行后端，不绑定本地 nanoClaudeCode

@@ -1,172 +1,260 @@
----
 spec:
-  version: "0.1"
-  level: "4_feature"
-  name: "FEAT-workspace-design-prototype-gate"
-  parent: "MOD-ide-chrome"
-  status: "implementation"
-
-display:
-  title: "工作区设计门禁与原型物料库"
-  summary: "每仓库维护 DESIGN.md 与 prototypes 物料；原型槽提供可操作策略条；spec 与 prototype 修改均经显式确认写盘。"
+  id: FEAT-workspace-design-prototype-gate
+  version: 1.0.0
+  title: 工作区设计门禁与原型物料库
+  level: L4
+  status: review
+  spec_file: .vibex/specs/L4-feature/FEAT-workspace-design-prototype-gate.yaml
+  ppt_file: .vibex/ppt/FEAT-workspace-design-prototype-gate.html
+  type: feature
+  author: vibex-system
+  created: 2025-01-15
+  updated: 2025-01-15
+  tags:
+    - workspace
+    - prototype
+    - design-gate
+    - material-repository
+  summary: |
+    工作区设计门禁与原型物料库。核心能力：每仓库维护 DESIGN.md 与 prototypes 物料；
+    原型槽提供可操作策略条；spec 与 prototype 修改均经显式确认写盘。
   description: |
-    约束 Agent 与原型生成都对齐本仓库真实栈与样式，避免脱离框架自由发挥。
-    工作区根下约定 `.vibex/design/DESIGN.md`（设计令牌、栈、组件边界、禁止项）与 `.vibex/prototypes/`（可交付 HTML 物料）。
-    Spec 槽位 `prototype` 在 A2UI 区之上展示 Design Kit 工具条：初始化物料、查看 DESIGN、从现有页面提取物料、预填合并 prototype 段落到当前 spec。
-    **双轨确认**：(1) 修改当前 spec YAML（含 `prototype.file`）仅通过用户确认后的 `specs/write` 或等效显式流程；(2) 写入物料文件仅通过带 `confirm: true` 的 design-kit API。工具条「关联到当前 spec」只允许预填对话，不得静默写盘。
+    ## 目标
+    建立工作区级别的设计门禁机制，确保设计意图与实现同步、可追溯。
 
-structure:
-  parent: "MOD-ide-chrome"
-  children:
-    - "SLICE-workspace-design-kit-http-api"
-    - "SLICE-spec-slot-prototype-kit-ui"
-  dependencies:
-    - "FEAT-agent-tool-routing-graph"
-    - "FEAT-workspace-runtime-safety"
-    - "FEAT-workspace-lifecycle"
-  impacted_files:
-    - "frontend/src/routes/api/workspace/design-kit/status/+server.ts"
-    - "frontend/src/routes/api/workspace/design-kit/scaffold/+server.ts"
-    - "frontend/src/routes/api/workspace/design-kit/extract/+server.ts"
-    - "frontend/src/routes/api/workspace/specs/read/+server.ts"
-    - "frontend/src/lib/services/design-kit-client.ts"
-    - "frontend/src/lib/components/workbench/SpecSlotPrototypeKitBar.svelte"
-    - "frontend/src/lib/components/workbench/SpecSlotVisualPane.svelte"
-    - "frontend/src/lib/stores/spec-slot-session-store.ts"
-    - "frontend/src/lib/services/tool-routing-client.ts"
-    - "pkg/designkit/designkit.go"
-    - "main.go（Wails：DesignKit*、ReadSpecFile/WriteSpecFile 路径安全）"
+    ## 核心功能
+    1. **DESIGN.md 双轨维护**：每个仓库根目录维护设计意图文档
+    2. **prototypes 物料库**：每个模块维护原型物料目录
+    3. **显式确认写盘**：spec 与 prototype 修改需用户确认后写盘
+    4. **原型槽策略条**：工作台提供可操作的原型状态策略条
 
-io:
-  input:
-    - "已绑定的 WORKSPACE_ROOT"
-    - "用户在设计门禁工具条上的操作（初始化、查看 DESIGN、提取源路径、预填关联 spec）"
-    - "spec 槽位 prototype 会话上下文（当前 spec path、左侧对话）"
-  output:
-    - "design-kit status（DESIGN.md / prototypes 目录是否存在）"
-    - "初始化写入的 DESIGN.md、prototypes README、manifest（缺失则创建，已存在则跳过）"
-    - "从源文件剥离生成的 `*-extracted.html` 与返回的 `specSnippet`（prototype 块草稿）"
-    - "预填到槽位对话的文案（合并 YAML、设计门禁提示），供用户发送后由 Agent 或人工执行 specs/write"
-  boundary: "不替代 A2UI 底部「确认/微调/草稿/取消/重新生成」语义；不在本 feature 内实现 Agent 自动合并 YAML 需另行约定；SvelteKit `/api/workspace/design-kit/*` 仅在 dev/适配器下可用，与 Go agent 并行时仍受 vite bypass 规则约束。"
+    ## 设计原则
+    - 禁止静默覆盖历史版本
+    - spec 与 prototype 一对一映射
+    - 每次写盘生成版本快照 + diff
 
-constraints:
-  rules:
-    - id: "DG1"
-      name: "设计物料路径固定"
-      rule: "门禁与物料相对工作区根路径为 `.vibex/design/DESIGN.md` 与 `.vibex/prototypes/`。"
-      verification: "status API 返回的 designPath、prototypesPath 与实现一致。"
-    - id: "DG2"
-      name: "写盘需确认"
-      rule: "scaffold 与 extract 的 HTTP API 必须在 body 中带 confirm=true 才允许写入；禁止静默覆盖已有 DESIGN.md。"
-      verification: "confirm 缺省或 false 时不写入；DESIGN.md 已存在时 scaffold 跳过该文件。"
-    - id: "DG3"
-      name: "源路径安全"
-      rule: "extract 的 source_path 解析后必须仍位于 WORKSPACE_ROOT 内。"
-      verification: "越界路径返回 403 或错误 JSON，不写入。"
-    - id: "DG4"
-      name: "Spec 修改与原型修改分离确认"
-      rule: "更新当前 spec 中 prototype 字段须经由 specs/write（或用户明确确认的写盘动作）；更新 `.vibex/prototypes` 下 HTML 须经由 design-kit extract 或后续等效 API。禁止从「关联预填」单步直接写 YAML。"
-      verification: "工具条仅调用 prefillActiveChat 合并建议，不调用 specs/write；extract 只写 prototypes 目录。"
-    - id: "DG5"
-      name: "原型槽可见操作"
-      rule: "`slot_id=prototype` 时 SpecSlotVisualPane 须在 A2UI 主体之上渲染 Design Kit 工具条，且按钮可触发上述 API 或预填。"
-      verification: "手动打开原型槽位可见初始化、查看 DESIGN、注入提示、提取、关联预填。"
-    - id: "DG6"
-      name: "Intent 必填（方法论对齐）"
-      rule: "进入可写盘原型流程前，会话上下文须包含结构化 Intent：目标用户、核心业务目标、用户核心动作、成功验收口径（至少一句）。缺失时前端 gate 为 intent_incomplete，仅允许澄清预填，不允许 confirm=true 的 extract/scaffold。"
-      verification: "gate 未通过时 POST extract/scaffold 返回 structured error（见 SLICE-workspace-design-kit-http-api）。"
-    - id: "DG7"
-      name: "UI Spec 必填（方法论对齐）"
-      rule: "进入可写盘原型流程前，须具备可机读 UI Spec：页面目的、模块列表（含优先级）、组件类型映射、状态矩阵（至少 loading/empty/error/normal）、桌面与移动端响应式策略摘要、验收要点列表。缺失时 gate 为 ui_spec_incomplete 或 acceptance_missing。"
-      verification: "可由槽位 YAML io.prototype.ui_spec 区块或会话 ui_workflow_run 快照承载；A2UI checklist 展示缺口。"
-    - id: "DG8"
-      name: "Prototype Gate 先于物料写盘"
-      rule: "未通过 Prototype Gate（ui_workflow_run.decision != passed）时，design-kit extract/scaffold 仅允许 dry-run（confirm=false 且不写入）；confirm=true 请求须被拒绝或降级为 409 + gate_failure 明细。"
-      verification: "手动：Intent 不完整时点提取→不入磁盘且返回 gate；补齐后 confirm=true 才写入。"
-  forbidden:
-    - "无 confirm 写入工作区任意文件"
-    - "从 UI 绕过路径校验读取仓库外文件"
-    - "将 A2UI「确认」按钮改为自动 specs/write 全文件"
+  as_is:
+    workspace_design_doc: 不存在 DESIGN.md
+    prototype_material: 不存在 prototypes/ 目录
+    spec_storage: 仅内存/本地 .vibex/specs/
+    confirmation: 无确认机制，静默覆盖风险
 
-prototype:
-  file: ""
-  validates: []
-  status: "none"
+  to_be:
+    design_doc: 每仓库根目录维护 DESIGN.md
+    prototype_material: 模块级 prototypes/ 统一管理
+    explicit_confirmation: 修改需 diff 展示 + 用户确认
+    prototype_slot: ActionStrip 策略条快速访问
 
-meta:
-  type: "feature"
-  module: "frontend"
-  owner: "hermes"
-  created: "2026-05-04"
-  updated: "2026-05-09"
+  constraints:
+    rules:
+      - id: no-silent-overwrite
+        description: 禁止静默覆盖
+        trigger: 修改 DESIGN.md 或 prototype 文件
+        action: 弹出 diff 确认对话框
+      - id: cross-repo-isolation
+        description: 跨仓库隔离
+        trigger: 切换工作区
+        action: 刷新 ActionStrip，加载当前仓库上下文
+      - id: version-rollback
+        description: 版本回滚能力
+        trigger: 详情抽屉 → 历史版本 → 回滚
+        action: 生成新快照，二次确认后回滚
 
-lifecycle:
-  current: "implementation"
-  updated: "2026-05-09"
+  state_matrix:
+    - state: has-prototype
+      badge: success
+      icon: "✅"
+      description: 显示缩略图 + 版本号 + 最后修改时间
+      action_strip: 绿色状态条，可点击展开
+    - state: empty-prototype
+      badge: info
+      icon: "📭"
+      description: 空状态提示 + "生成原型" 按钮
+      action_strip: 灰色状态条 + 创建入口
+    - state: loading
+      badge: warning
+      icon: "⏳"
+      description: 骨架屏 + loading 动画
+      action_strip: 脉冲动画表示加载中
+    - state: error
+      badge: danger
+      icon: "❌"
+      description: 错误提示 + 重试按钮
+      action_strip: 红色状态条 + 警告图标
 
-io_contract:
-  input: |
-    用户已在 Workbench 绑定仓库根，并打开某 spec 的 prototype 槽位或需初始化设计物料库。
-  output: |
-    可查 status；可一键 scaffold；可从相对路径读取页面源并生成物料 HTML；可将 prototype 段落以对话预填方式衔接至 specs 修改确认流程。
-  boundary: |
-    不实现自动三路合并 spec；不强制 Agent 逐字遵守 DESIGN（由治理与其它 feature 约束）。
-  behavior:
-    - "GET design-kit/status 反映 DESIGN 与 prototypes 是否存在"
-    - "POST design-kit/scaffold 在确认后创建缺失的设计物料文件"
-    - "POST design-kit/extract 在确认后写入 prototypes 并返回可粘贴的 prototype 草稿"
-    - "Spec 中 prototype.file 的最终变更须用户确认后走 specs/write"
-    - "槽位 store 提供 prefillActiveChat 承载「关联 spec」与设计门禁提示"
+  io:
+    file_paths:
+      design_md: "{workspace.root}/DESIGN.md"
+      prototypes_dir: "{workspace.root}/prototypes/"
+      spec_dir: ".vibex/specs/"
+    interfaces:
+      - name: confirm-write
+        type: dialog
+        input: file_path, new_content, old_content
+        output: confirmed: boolean
+      - name: get-prototype-state
+        type: query
+        input: spec_id
+        output: state: prototype_state
+      - name: rollback-version
+        type: action
+        input: file_path, target_version
+        output: success: boolean
 
-content:
-  io_surfaces:
-    workspace_disk: dual_wails_http
-    workspace_http_kit: dual_wails_http
-    agent: agent_http_sse_ws
-    inspector: io_na
-  io_surfaces_notes: |
-    Design Kit 双通道；槽位 Agent 行为使用 agent_http_sse_ws。
+  acceptance:
+    design_md_generation:
+      - id: AC-1
+        description: spec 变更可生成/更新 DESIGN.md
+        criteria: 内容完整，包含设计意图与变更原因
+      - id: AC-2
+        description: DESIGN.md 修改需 diff 展示
+        criteria: 用户可见变更前后对比
+    prototype_management:
+      - id: AC-3
+        description: prototypes/ 目录按模块组织
+        criteria: 与 spec 一一对应，可追溯
+      - id: AC-4
+        description: 原型槽显示正确状态
+        criteria: 三态（has/empty/error）覆盖完整
+    explicit_confirmation:
+      - id: AC-5
+        description: 修改需用户确认后才写盘
+        criteria: 无静默覆盖，有变更记录
+      - id: AC-6
+        description: 支持版本回滚
+        criteria: 可回滚到任意历史版本
 
-  verification:
-    commands:
-      - "make lint-specs"
-      - "npm --prefix frontend run build"
-    manual_checks:
-      - "原型槽位显示 Design Kit 工具条，且 WORKSPACE 未绑定时有提示"
-      - "初始化后磁盘出现 .vibex/design/DESIGN.md；再次初始化不覆盖该文件"
-      - "提取合法相对路径后生成 .vibex/prototypes/*-extracted.html 且返回 specSnippet"
-      - "关联到当前 spec 仅预填对话，网络面板无未经确认的 specs/write"
-      - "查看 DESIGN.md 可拉取并展示正文（文件不存在时按钮不可用或报错清晰）"
-    failure_conditions:
-      - "confirm=false 仍写入磁盘"
-      - "source_path 可逃出 WORKSPACE_ROOT"
-      - "工具条在非 prototype 槽位误显"
+  four_perspectives:
+    cto:
+      - 设计意图可追溯、可审计
+      - 跨仓库设计资产统一管控
+      - 降低知识流失风险
+    developer:
+      - DESIGN.md 即设计文档，减少文档维护负担
+      - 原型物料快速访问，提升开发效率
+      - spec ↔ prototype 双向跳转
+    tester:
+      - 基于 spec 设计验收用例
+      - 原型变更触发测试用例更新提示
+      - diff 对比便于回归分析
+    user:
+      - 原型槽提供直观的原型预览
+      - 详情抽屉快速访问设计上下文
+      - 版本回滚提升使用信心
 
-ui_workflow:
-  stages:
-    - "intent_captured"
-    - "ui_spec_drafted"
-    - "gate_pending"
-    - "gate_passed"
-  gate_failure_codes:
-    - "intent_incomplete"
-    - "ui_spec_incomplete"
-    - "acceptance_missing"
-    - "confirm_required"
+  decisions:
+    recommended:
+      - dimension: 存储位置
+        choice: 每仓库根目录 DESIGN.md
+        reason: 便于 Git 管理，与代码同生命周期
+      - dimension: 确认时机
+        choice: 修改后立即确认写盘
+        reason: 降低数据丢失风险
+      - dimension: 版本快照
+        choice: 每次写盘生成快照 + diff
+        reason: 支持回溯，高风险场景必须
+      - dimension: 原型关联
+        choice: spec.id → prototype 一对一映射
+        reason: 多对多增加歧义，一对一更清晰
+    alternatives:
+      - dimension: 存储位置
+        choice: 统一 .vibex/design/ 集中存储
+        reason: 集中管理但不便于 Git 追踪
+      - dimension: 确认时机
+        choice: 批量确认（定时/退出时）
+        reason: 便利性高但风险也高
+      - dimension: 版本快照
+        choice: 仅保留最新版本
+        reason: 存储空间小但无历史追溯
+    cost_estimate:
+      development: 3 人天
+      testing: 2 人天
+      documentation: 1 人天
+      total: 6 人天
+    risk_level: 中
+    risk_factors:
+      - 文件系统 I/O 依赖
+      - 无网络依赖，风险可控
 
-changelog:
-  - version: "0.1"
-    date: "2026-05-04"
-    author: "agent"
-    changes:
-      - "新增设计门禁与原型物料库 L4：双轨确认（spec YAML vs 原型文件）、API 与 UI 边界"
-  - version: "0.2"
-    date: "2026-05-04"
-    author: "agent"
-    changes:
-      - "落地实现：SvelteKit API、Wails DesignKit* 绑定、pkg/designkit、specs/read 与槽位 prompt 设计门禁段、scaffold/extract 无 confirm 返回 400"
-  - version: "0.3"
-    date: "2026-05-05"
-    author: "agent"
-    changes:
-      - "对齐 AI UI 工作流：Intent/UI Spec/Prototype Gate 总则、失败分类与 stage 枚举（DG6–DG8）"
+  execution:
+    milestones:
+      - phase: 1-design-doc
+        title: DESIGN.md 模板与生成逻辑
+        duration: 1 人天
+        deliverable: 设计文档模板 + spec → DESIGN.md 转换工具
+      - phase: 2-prototype-material
+        title: prototypes/ 目录结构与关联
+        duration: 1 人天
+        deliverable: 目录规范 + spec ↔ prototype 映射机制
+      - phase: 3-confirmation-dialog
+        title: 确认对话框与 diff 展示
+        duration: 1 人天
+        deliverable: 确认组件 + diff 展示 + 版本快照
+      - phase: 4-action-strip
+        title: ActionStrip 原型槽策略条
+        duration: 2 人天
+        deliverable: 策略条组件 + 状态管理 + 详情抽屉
+      - phase: 5-testing
+        title: 集成测试与验收
+        duration: 2 人天
+        deliverable: 测试用例 + 验收报告
+    owners:
+      - role: 前端开发
+        responsibility: ActionStrip 组件 + 确认对话框
+      - role: 后端开发
+        responsibility: 文件 I/O + 版本快照存储
+      - role: 测试
+        responsibility: 状态矩阵覆盖 + 回滚测试
+    rollback:
+      strategy: 版本快照本地保留，回滚操作生成反向快照
+      trigger: 用户主动回滚或重大缺陷
+      verification: 回滚后自动校验文件完整性
+
+  spec_deviation:
+    - item: 原型深链 URL 格式
+      status: 待确定
+      impact: 影响 ActionStrip → 详情抽屉跳转
+    - item: 多人并发编辑策略
+      status: 待确定
+      impact: 影响 DESIGN.md 协作场景
+
+  risks:
+    high:
+      - id: R-1
+        description: DESIGN.md 与 spec 同步不一致
+        mitigation: 变更时强制 diff 展示
+    medium:
+      - id: R-2
+        description: 大型原型文件加载性能
+        mitigation: 懒加载 + 骨架屏
+      - id: R-3
+        description: 版本快照存储空间
+        mitigation: 差异化存储 + 定期清理策略
+
+  spec_enhancement_questions:
+    basic:
+      - DESIGN.md 的 Markdown 模板结构是什么？
+      - prototypes/ 目录的文件命名规范？
+      - spec.id 与 prototype 文件名的映射规则？
+      - 确认对话框的 UI 组件是复用还是新建？
+      - 版本快照的存储格式（JSON / Git blob）？
+      - 历史版本保留期限（7天/30天/永久）？
+    advanced:
+      - DESIGN.md 修改时是否触发 Git commit？
+      - 原型深链 URL 的格式规范？
+      - 多人并发编辑同一 DESIGN.md 的冲突策略？
+      - ActionStrip 策略条是否支持拖拽排序？
+      - 旧版 spec 迁移到 DESIGN.md 的批量工具？
+      - spec 与 prototype 双向同步的失败补偿机制？
+      - 大型原型文件（>10MB）的加载策略？
+      - 回滚后是否自动更新相关引用？
+      - 国际化（i18n）场景下 DESIGN.md 的处理？
+      - 性能基准：ActionStrip 加载耗时应 ≤？
+
+  changelog:
+    - version: 1.0.0
+      date: 2025-01-15
+      changes:
+        - 初始版本，定义核心功能与约束规则
+        - 添加状态矩阵与四视角覆盖
+        - 添加决策页与执行页

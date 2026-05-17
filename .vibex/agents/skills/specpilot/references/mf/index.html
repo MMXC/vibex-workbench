@@ -85,8 +85,23 @@ tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
 </div>
 
 <script>
-const DC_API = 'http://127.0.0.1:7890/api';
 const $ = id => document.getElementById(id);
+
+// Read DC port from URL query param (?dcPort=7890)
+// Parent frame (SpecSlotPrototypePreview) passes this when rendering the iframe
+function getDCUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const port = params.get('dcPort') || '7890';
+  return `http://127.0.0.1:${port}/api`;
+}
+const DC_API = getDCUrl();
+
+// Update nav DC label
+const navDc = document.querySelector('.nav-dc');
+if (navDc) {
+  const params = new URLSearchParams(window.location.search);
+  navDc.textContent = 'DC:' + (params.get('dcPort') || '7890');
+}
 
 async function dcList() {
   try {

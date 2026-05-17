@@ -450,9 +450,10 @@ func SpecpilotBootstrap(wsRoot, component string, dp, mp int) map[string]any {
 		component2 = "Dashboard"
 	}
 
-	// Set env overrides for port config
+	// Set env overrides for port config and workspace root
 	os.Setenv("SPECPILOT_DC_PORT", strconv.Itoa(dp))
 	os.Setenv("SPECPILOT_MF_PORT", strconv.Itoa(mp))
+	os.Setenv("SPECPILOT_WORKSPACE_ROOT", wsRoot)
 
 	// 1. Install
 	if err := installSpecPilot(wsRoot); err != nil {
@@ -482,7 +483,10 @@ func SpecpilotBootstrap(wsRoot, component string, dp, mp int) map[string]any {
 	waitForPort(dp, 10*time.Second)
 	waitForPort(mp, 10*time.Second)
 
-	// 5. Seed demo data
+	// 5. Write services.json so frontend can read workspace-local ports
+	writeServicesJson(wsRoot, dp, mp)
+
+	// 6. Seed demo data
 	seedData(wsRoot, component2)
 
 	mfUrl := fmt.Sprintf("http://localhost:%d/#/%s", mp, component2)
@@ -495,4 +499,13 @@ func SpecpilotBootstrap(wsRoot, component string, dp, mp int) map[string]any {
 		"mfRemoteUrl": mfUrl,
 		"message":     "SpecPilot bootstrapped",
 	}
+}
+
+// writeServicesJson writes current service ports to workspace-local .specpilot/services.json
+func writeServicesJson(wsRoot string, dcPort, mfPort int) {
+	specPilotDir := filepath.Join(wsRoot, ".specpilot")
+	os.MkdirAll(specPilotDir, 0o755)
+	path := filepath.Join(specPilotDir, "services.json")
+	content := fmt.Sprintf(`{"dcPort":%d,"mfPort":%d,"workspace":"%s"}`, dcPort, mfPort, wsRoot)
+	os.WriteFile(path, []byte(content), 0o644)
 }

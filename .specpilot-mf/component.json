@@ -1,0 +1,46 @@
+{
+  "name": "God2Calc",
+  "version": "1.0.0",
+  "description": "神之亵渎2 BD计算器 - SpecPilot MF Component",
+  "type": "application",
+  "entry": "public/prototypes/index.html",
+  "framework": "vanilla",
+  "sandbox": false,
+  "capabilities": ["localStorage", "fileImport", "fileExport"],
+  "slots": {
+    "tabs": {
+      "zk": { "label": "主属性", "data": "zk.json" },
+      "fn": { "label": "符文", "data": "fn.json" },
+      "jb": { "label": "装备", "data": "jb.json" },
+      "tz": { "label": "套装", "data": "tz.json" },
+      "zb": { "label": "装备池", "data": "zb.json" },
+      "yg": { "label": "预言", "data": "yg.json" },
+      "hy": { "label": "花瓣", "data": "hy.json" },
+      "fw": { "label": "符文词缀", "data": "fw.json" },
+      "fwzy": { "label": "终极词缀", "data": "fwzy.json" }
+    }
+  },
+  "io_contract": {
+    "input": {
+      "selectedItems": "array of item ids",
+      "activeTab": "string",
+      "importData": "json object"
+    },
+    "output": {
+      "stats": "computed stat object",
+      "exportData": "json string",
+      "validationErrors": "array of strings"
+    },
+    "boundary": {
+      "maxItems": 12,
+      "maxBuilds": 50,
+      "supportedFormats": ["json", "clipboard"]
+    },
+    "behavior": [
+      "user selects items from tab → stats update in real-time",
+      "user clicks export → download JSON file",
+      "user pastes JSON → import modal shows preview",
+      "user confirms import → data loads into calculator"
+    ]
+  }
+}

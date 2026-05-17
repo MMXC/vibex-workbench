@@ -1,5 +1,5 @@
 spec:
-  version: '0.1'
+  version: "0.1"
   level: 2_skeleton
   name: vibex-workbench-skeleton
   parent: vibex-workbench-mvp
@@ -15,33 +15,37 @@ lifecycle:
   current: proposal
   updated: 2026-04-24
   history:
-  - status: proposal
-    at: 2026-04-24 00:00:00
-    by: hermes
-    trigger: user:manual
-    note: 定义技术骨架与模块划分
+    - status: proposal
+      at: 2026-04-24 00:00:00
+      by: hermes
+      trigger: user:manual
+      note: 定义技术骨架与模块划分
 display:
   title: vibex workbench skeleton
   summary: 技术骨架 spec，基于 127 个 L3/L4/L5 子规格 + 当前工作区实现状态
-  description: 技术骨架 spec，定义 6 个技术模块（agent/backend/frontend/ide-chrome/generators/spec-templates），包含
-    tech_stack、modules_matrix（含 spec 分布）、api_design、entry_points、l2_l3_lineage（实现状态映射）。输入：L1
-    goal + 工作区状态 + 127 个子规格 + 技术约束。
+  description: 技术骨架 spec，定义 6
+    个技术模块（agent/backend/frontend/ide-chrome/generators/spec-templates），包含
+    tech_stack、modules_matrix（含 spec
+    分布）、api_design、entry_points、l2_l3_lineage（实现状态映射）。输入：L1 goal + 工作区状态 + 127
+    个子规格 + 技术约束。
 structure:
   parent: vibex-workbench-mvp
   children:
-  - specs/L3-module/MOD-build-panel.yaml
-  - specs/L3-module/MOD-ide-chrome.yaml
-  - specs/L3-module/MOD-scaffolding.yaml
-  - specs/L3-module/MOD-spec-editor.yaml
-  - specs/L3-module/MOD-state-detection.yaml
-  - specs/L3-module/MOD-workspace-root.yaml
-  - specs/L3-module/MOD-perception-trigger.yaml
+    - .vibex/specs/L3-module/MOD-build-panel.yaml
+    - .vibex/specs/L3-module/MOD-ide-chrome.yaml
+    - .vibex/specs/L3-module/MOD-perception-trigger.yaml
+    - .vibex/specs/L3-module/MOD-scaffolding.yaml
+    - .vibex/specs/L3-module/MOD-spec-editor.yaml
+    - .vibex/specs/L3-module/MOD-state-detection.yaml
+    - .vibex/specs/L3-module/MOD-workspace-root.yaml
+    - .vibex/specs/L4-feature/FEAT-mvp-governance.yaml
+    - .vibex/specs/L3-module/MOD-bottom-statusbar.yaml
   dependencies:
-  - specs/L1-goal/vibex-workbench-mvp.yaml
+    - specs/L1-goal/vibex-workbench-mvp.yaml
   impacted_files: []
 io:
   input:
-  - L1 goal spec（vibex-workbench-mvp）
+    - L1 goal spec（vibex-workbench-mvp）
   output:
     primary: 本 spec YAML（L2 Skeleton 治理文档）
     readable_form: .vibex/ppt/vibex-workbench-skeleton.html
@@ -49,19 +53,19 @@ io:
   boundary: L2 定义技术选型和模块划分，不定义模块内部实现（L3 职责）。
   verification:
     criteria:
-    - PPT 能讲清楚项目面貌（目标、约束、现状）
-    - PPT 能讲清楚技术路线（tech_stack 选择依据）
-    - PPT 能讲清楚模块划分（modules_matrix 及其依赖关系）
-    - PPT 能讲清楚缺失模块（missing_modules 清单 + why-not）
-    - 所有 L3 spec 必须有 parent 指向本 spec（make validate 检查）
-    - modules_matrix 中的 module 必须覆盖所有 workspace/ 核心目录
-    - 无循环依赖（make validate 检查）
+      - PPT 能讲清楚项目面貌（目标、约束、现状）
+      - PPT 能讲清楚技术路线（tech_stack 选择依据）
+      - PPT 能讲清楚模块划分（modules_matrix 及其依赖关系）
+      - PPT 能讲清楚缺失模块（missing_modules 清单 + why-not）
+      - 所有 L3 spec 必须有 parent 指向本 spec（make validate 检查）
+      - modules_matrix 中的 module 必须覆盖所有 workspace/ 核心目录
+      - 无循环依赖（make validate 检查）
     regression: true
     method: 用户通过 PPT 自查 + make validate 自动回归
   degradation:
     on_incomplete_spec:
       output: missing_modules_report.yaml（即使不完整也输出）
-      action: '标注 status: missing，继续提供服务'
+      action: "标注 status: missing，继续提供服务"
     on_validation_failure:
       output: why_not_report.yaml（含 why-not 分析 + 修复建议）
       action: 引导修复，不阻塞开发流程
@@ -72,49 +76,67 @@ constraints:
   rules: []
   forbidden: []
 prototype:
-  file: ''
+  file: ""
   validates: []
   status: none
 io_contract:
-  input: "1. L1 goal spec（vibex-workbench-mvp）\n   - 5 项最小能力已 e2e 验证通过\n   - lifecycle:\
-    \ implementation\n   - 目标：空目录 → 边做边长\n   - 约束：仓库根唯一性，WORKSPACE_ROOT 贯穿全链路\n\n\
-    2. 当前工作区已有实现状态\n   workspace_detect_state: ready\n   ├── agent 模块：部分实现\n   │ \
-    \  ├── 已有：agent/cmd/web/、SSE 通信框架\n   │   └── 待扩展：tool handlers（46 个 L4 feature\
-    \ 对应实现）\n   ├── backend 模块：部分实现\n   │   ├── 已有：HTTP 路由骨架\n   │   └── 缺失：workspace\
-    \ API 实现\n   ├── frontend 模块：部分实现\n   │   ├── 已有：SvelteKit 基础 + services 层骨架\n\
-    \   │   └── 待实现：spec editor、canvas、ide-chrome UI\n   ├── generators 模块：部分实现\n\
-    \   │   ├── 已有：validate_specs.py、gen.py\n   │   └── 缺失：scaffolder.py、state_detector.py\n\
-    \   └── spec-templates 模块：完整\n       └── L0–L5 模板齐全\n\n3. L3/L4 子规格清单（127 个 spec）\n\
-    \   ├── L3-module: 6 个\n   │   ├── MOD-build-panel      → frontend/build-panel\n\
-    \   │   ├── MOD-ide-chrome       → frontend/ide-chrome\n   │   ├── MOD-scaffolding\
-    \      → generators/scaffolder\n   │   ├── MOD-spec-editor      → frontend/spec-editor\n\
-    \   │   ├── MOD-state-detection  → generators/state_detector\n   │   └── MOD-workspace-root\
-    \   → frontend/workspace-root\n   ├── L4-feature: 46 个\n   │   └── 分布在 agent /\
-    \ backend / frontend / generators\n   └── L5-slice: 73 个\n\n4. 技术约束\n   - Go 1.22+\
-    \ / Node.js 20+ / Python 3.11+\n   - 仓库根唯一性（WORKSPACE_ROOT 贯穿全链路）\n   - 无 Auth（MVP\
-    \ 阶段）\n   - 纯本地运行，无远程依赖"
-  output: '技术骨架治理文档：
+  input: |-
+    1. L1 goal spec（vibex-workbench-mvp）
+       - 5 项最小能力已 e2e 验证通过
+       - lifecycle: implementation
+       - 目标：空目录 → 边做边长
+       - 约束：仓库根唯一性，WORKSPACE_ROOT 贯穿全链路
 
+    2. 当前工作区已有实现状态
+       workspace_detect_state: ready
+       ├── agent 模块：部分实现
+       │   ├── 已有：agent/cmd/web/、SSE 通信框架
+       │   └── 待扩展：tool handlers（46 个 L4 feature 对应实现）
+       ├── backend 模块：部分实现
+       │   ├── 已有：HTTP 路由骨架
+       │   └── 缺失：workspace API 实现
+       ├── frontend 模块：部分实现
+       │   ├── 已有：SvelteKit 基础 + services 层骨架
+       │   └── 待实现：spec editor、canvas、ide-chrome UI
+       ├── generators 模块：部分实现
+       │   ├── 已有：validate_specs.py、gen.py
+       │   └── 缺失：scaffolder.py、state_detector.py
+       └── spec-templates 模块：完整
+           └── L0–L5 模板齐全
+
+    3. L3/L4 子规格清单（127 个 spec）
+       ├── L3-module: 6 个
+       │   ├── MOD-build-panel      → frontend/build-panel
+       │   ├── MOD-ide-chrome       → frontend/ide-chrome
+       │   ├── MOD-scaffolding      → generators/scaffolder
+       │   ├── MOD-spec-editor      → frontend/spec-editor
+       │   ├── MOD-state-detection  → generators/state_detector
+       │   └── MOD-workspace-root   → frontend/workspace-root
+       ├── L4-feature: 46 个
+       │   └── 分布在 agent / backend / frontend / generators
+       └── L5-slice: 73 个
+
+    4. 技术约束
+       - Go 1.22+ / Node.js 20+ / Python 3.11+
+       - 仓库根唯一性（WORKSPACE_ROOT 贯穿全链路）
+       - 无 Auth（MVP 阶段）
+       - 纯本地运行，无远程依赖
+  output: |-
+    技术骨架治理文档：
     - tech_stack（语言/框架/关键库）
-
     - modules_matrix（6 个模块职责划分 + 依赖关系）
-
     - api_design（workspace API endpoints 概览）
-
     - entry_points（agent / frontend 入口点）
-
     - missing_modules（缺失模块清单 + why-not + 修复建议）
 
-
-    注：content 字段为治理指导性内容，不替代 L3 实现 spec 的详细定义。'
-  boundary: 'L2 定义技术选型和模块划分，不定义模块内部实现（L3 职责）。
-
-    '
+    注：content 字段为治理指导性内容，不替代 L3 实现 spec 的详细定义。
+  boundary: |
+    L2 定义技术选型和模块划分，不定义模块内部实现（L3 职责）。
   behavior:
-  - 解析 L1 mission 和 constraints
-  - 拆解为 5 个技术模块
-  - 定义模块间依赖关系
-  - 输出 modules_matrix
+    - 解析 L1 mission 和 constraints
+    - 拆解为 5 个技术模块
+    - 定义模块间依赖关系
+    - 输出 modules_matrix
   verification:
     criteria: 用户通过 ppt_file 能全面了解：项目面貌、真实情况、技术路线、模块划分
     regression: true
@@ -127,185 +149,181 @@ content:
     language: Go / TypeScript / Python
     framework: nanoClaudeCode (agent) / SvelteKit (frontend) / stdlib (generators)
     key_libraries:
-    - name: nanoClaudeCode
-      version: S01-S08
-      purpose: Go coding agent engine
-    - name: memlace
-      version: pure stdlib
-      purpose: 轻量记忆系统，Go 实现
-    - name: SvelteKit
-      version: latest
-      purpose: 前端 SSR 框架
-    - name: sse
-      version: stdlib
-      purpose: Server-Sent Events，agent ↔ frontend 通信
+      - name: nanoClaudeCode
+        version: S01-S08
+        purpose: Go coding agent engine
+      - name: memlace
+        version: pure stdlib
+        purpose: 轻量记忆系统，Go 实现
+      - name: SvelteKit
+        version: latest
+        purpose: 前端 SSR 框架
+      - name: sse
+        version: stdlib
+        purpose: Server-Sent Events，agent ↔ frontend 通信
     runtime: Go 1.22+ / Node.js 20+ / Python 3.11+
     package_manager: go mod / npm / pip
     summary: Go agent / SvelteKit frontend / Python generators（详见 L3 实现 spec）
     key_principle: L2 定义技术选型方向，不定义版本锁定（由 L3 spec 细化）
   modules_matrix:
-    summary: 6 个技术模块：agent / backend / frontend / ide-chrome / generators / spec-templates
-    governance_rule: modules_matrix 为描述性信息，用于 L3/L4 spec 作者理解模块职责边界；L3 spec 实现时需遵循但可适度偏离（需在
-      L3 spec 中说明原因）
+    summary: 6 个技术模块：agent / backend / frontend / ide-chrome / generators /
+      spec-templates
+    governance_rule: modules_matrix 为描述性信息，用于 L3/L4 spec 作者理解模块职责边界；L3 spec
+      实现时需遵循但可适度偏离（需在 L3 spec 中说明原因）
     module_count: 6
     l3_spec_count: 6
   api_design:
     base_url: /api
     auth: none (MVP 阶段无 Auth）
     key_endpoints:
-    - path: /api/workspace/detect-state
-      method: GET
-      description: 探测仓库状态：empty / partial / ready + 下一步建议
-    - path: /api/workspace/scaffold
-      method: POST
-      description: 在仓库根生成最小脚手架
-    - path: /api/workspace/run-make
-      method: POST
-      description: 执行 make target，返回 stdout/stderr
-    - path: /api/workspace/specs/list
-      method: GET
-      description: 列出仓库中所有 spec 文件
-    - path: /api/workspace/specs/read
-      method: GET
-      description: 读取单个 spec 文件内容
-    - path: /api/workspace/specs/write
-      method: POST
-      description: 写入/创建 spec 文件
-    - path: /api/chat
-      method: POST
-      description: 发送消息给 agent，返回 threadId
-    - path: /api/sse/{threadId}
-      method: GET
-      description: SSE 流，接收 agent 事件
+      - path: /api/workspace/detect-state
+        method: GET
+        description: 探测仓库状态：empty / partial / ready + 下一步建议
+      - path: /api/workspace/scaffold
+        method: POST
+        description: 在仓库根生成最小脚手架
+      - path: /api/workspace/run-make
+        method: POST
+        description: 执行 make target，返回 stdout/stderr
+      - path: /api/workspace/specs/list
+        method: GET
+        description: 列出仓库中所有 spec 文件
+      - path: /api/workspace/specs/read
+        method: GET
+        description: 读取单个 spec 文件内容
+      - path: /api/workspace/specs/write
+        method: POST
+        description: 写入/创建 spec 文件
+      - path: /api/chat
+        method: POST
+        description: 发送消息给 agent，返回 threadId
+      - path: /api/sse/{threadId}
+        method: GET
+        description: SSE 流，接收 agent 事件
     summary: workspace API endpoints 概览（详见 backend L3 spec）
     principle: L2 只定义 API 分组，不定义具体 request/response schema
   entry_points:
     summary: agent web server / frontend dev server 入口点（详见各模块 L3 spec）
     principle: L2 只定义启动方式，不定义运行时配置
   l2_l3_lineage:
-    summary: L2 定义 6 个技术模块，L3 把每个模块展开为具体实现。当前工作区为 ready 状态，6 个 L3 module spec 已定义。127
-      个 L4/L5 spec 待实现。
+    summary: L2 定义 6 个技术模块，L3 把每个模块展开为具体实现。当前工作区为 ready 状态，6 个 L3 module spec
+      已定义。127 个 L4/L5 spec 待实现。
     which_modules_become_l3:
-    - module: agent
-      l3_note: 扩展 tool handlers，支持 15+ 个 agent 相关 L4 feature
-    - module: backend
-      l3_note: 实现 6 个 workspace API endpoints + SSE bridge
-    - module: frontend
-      l3_note: 实现 services 层 + 4 个 L3 module UI
-    - module: ide-chrome
-      l3_note: 实现 7 个 Svelte 组件 + 状态管理
-    - module: generators
-      l3_note: 实现 state_detector + scaffolder
-    - module: spec-templates
-      l3_note: 无需开发
+      - module: agent
+        l3_note: 扩展 tool handlers，支持 15+ 个 agent 相关 L4 feature
+      - module: backend
+        l3_note: 实现 6 个 workspace API endpoints + SSE bridge
+      - module: frontend
+        l3_note: 实现 services 层 + 4 个 L3 module UI
+      - module: ide-chrome
+        l3_note: 实现 7 个 Svelte 组件 + 状态管理
+      - module: generators
+        l3_note: 实现 state_detector + scaffolder
+      - module: spec-templates
+        l3_note: 无需开发
     implementation_status:
       agent:
         l2_status: partial
         l3_dependencies:
-        - FEAT-agent-*-context-injection (L4×1)
-        - FEAT-agent-*-memory (L4×1)
-        - FEAT-agent-*-rules-engine (L4×1)
-        - FEAT-agent-*-spec-write-protocol (L4×1)
-        - 其他 agent 相关 L4×N
+          - FEAT-agent-*-context-injection (L4×1)
+          - FEAT-agent-*-memory (L4×1)
+          - FEAT-agent-*-rules-engine (L4×1)
+          - FEAT-agent-*-spec-write-protocol (L4×1)
+          - 其他 agent 相关 L4×N
         spec_count: ~15 个 L4
         implementation_todos:
-        - 实现 workspace API 调用（backend 未完成）
-        - 扩展 tool handlers
-        - 实现 memlace 集成
-        - 实现 context injection
+          - 实现 workspace API 调用（backend 未完成）
+          - 扩展 tool handlers
+          - 实现 memlace 集成
+          - 实现 context injection
       backend:
         l2_status: partial
         l3_dependencies:
-        - MOD-build-panel (L3)
-        - MOD-state-detection (L3)
-        - MOD-scaffolding (L3)
+          - MOD-build-panel (L3)
+          - MOD-state-detection (L3)
+          - MOD-scaffolding (L3)
         spec_count: ~5 个 L4
         implementation_todos:
-        - 实现 workspace API endpoints（6 个）
-        - 实现 SSE bridge
-        - 实现 state detection 端点
-        - 实现 make target 执行
+          - 实现 workspace API endpoints（6 个）
+          - 实现 SSE bridge
+          - 实现 state detection 端点
+          - 实现 make target 执行
       frontend:
         l2_status: partial
         l3_dependencies:
-        - MOD-ide-chrome (L3)
-        - MOD-spec-editor (L3)
-        - MOD-workspace-root (L3)
-        - MOD-build-panel (L3)
+          - MOD-ide-chrome (L3)
+          - MOD-spec-editor (L3)
+          - MOD-workspace-root (L3)
+          - MOD-build-panel (L3)
         spec_count: ~30 个 L4
         implementation_todos:
-        - 实现 IDE chrome 组件
-        - 实现 spec editor（CodeMirror）
-        - 实现 canvas 视图
-        - 实现 services 层（当前 NotImplemented）
+          - 实现 IDE chrome 组件
+          - 实现 spec editor（CodeMirror）
+          - 实现 canvas 视图
+          - 实现 services 层（当前 NotImplemented）
       ide-chrome:
         l2_status: partial
         l3_note: 依赖 frontend，待 frontend services 层完成后可生成
         spec_count: ~10 个 L4
         implementation_todos:
-        - Titlebar / ActivityBar / StatusBar 组件
-        - AI Chat Column
-        - Editor Tabs
-        - R2 Dock
+          - Titlebar / ActivityBar / StatusBar 组件
+          - AI Chat Column
+          - Editor Tabs
+          - R2 Dock
       generators:
         l2_status: partial
         l3_dependencies:
-        - MOD-state-detection (L3)
-        - MOD-scaffolding (L3)
+          - MOD-state-detection (L3)
+          - MOD-scaffolding (L3)
         spec_count: ~10 个 L4
         implementation_todos:
-        - 实现 state_detector.py（已有 spec，缺实现）
-        - 实现 scaffolder.py（已有 spec，缺实现）
-        - 完善 validate_specs.py
+          - 实现 state_detector.py（已有 spec，缺实现）
+          - 实现 scaffolder.py（已有 spec，缺实现）
+          - 完善 validate_specs.py
       spec-templates:
         l2_status: complete
         l3_note: L0–L5 模板完整，无需进一步开发
         spec_count: 5 个模板目录
     implementation_priority_order:
-    - priority: P0
-      module: generators
-      reason: state_detector/scaffolder 是 scaffold 前提
-      blocks: workspace API
-    - priority: P0
-      module: backend
-      reason: workspace API 是 frontend 所有功能的前提
-      blocks: frontend
-    - priority: P1
-      module: agent
-      reason: agent 是用户直接交互层
-      depends_on: backend workspace API
-    - priority: P2
-      module: frontend
-      reason: services 层 + 4 个 L3 module
-      depends_on: backend
-    - priority: P3
-      module: ide-chrome
-      reason: UI 体验优化
-      depends_on: frontend services
+      - priority: P0
+        module: generators
+        reason: state_detector/scaffolder 是 scaffold 前提
+        blocks: workspace API
+      - priority: P0
+        module: backend
+        reason: workspace API 是 frontend 所有功能的前提
+        blocks: frontend
+      - priority: P1
+        module: agent
+        reason: agent 是用户直接交互层
+        depends_on: backend workspace API
+      - priority: P2
+        module: frontend
+        reason: services 层 + 4 个 L3 module
+        depends_on: backend
+      - priority: P3
+        module: ide-chrome
+        reason: UI 体验优化
+        depends_on: frontend services
   bootstrap_hints:
-    gen_py_pattern: 'gen.py 读取 L3 module specs → 解析 modules_matrix →
-
+    gen_py_pattern: |
+      gen.py 读取 L3 module specs → 解析 modules_matrix →
       对每个 module 查找对应模板 → 渲染 Skeleton 文件
-
-      '
-    skeleton_principle: 'Skeleton = 架构骨架 + 类型定义 + 公开 API 签名，
-
+    skeleton_principle: |
+      Skeleton = 架构骨架 + 类型定义 + 公开 API 签名，
       不含业务逻辑（那是开发者填的）
-
-      '
-    idempotency: 'gen.py 必须幂等：只覆盖 *.Skeleton.svelte，不覆盖 *.svelte
-
-      '
+    idempotency: |
+      gen.py 必须幂等：只覆盖 *.Skeleton.svelte，不覆盖 *.svelte
   missing_modules:
     status: 需动态检测
     detection: 通过 workspace_detect_state + verify_spec_suite 自动检测
     report: missing_modules_report.yaml（含 why-not + 修复建议）
 changelog:
-- version: '0.1'
-  date: 2026-04-24
-  author: hermes
-  changes:
-  - 初始骨架，定义 5 模块 + API 设计
+  - version: "0.1"
+    date: 2026-04-24
+    author: hermes
+    changes:
+      - 初始骨架，定义 5 模块 + API 设计
 governance_notes:
   focus: 总体技术架构、代码骨架、分层治理、缺失模块
   avoid: L3/L4 实现细节（由子规格定义）

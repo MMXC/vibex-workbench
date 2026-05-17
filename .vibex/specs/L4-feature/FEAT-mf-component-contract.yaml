@@ -1,0 +1,201 @@
+name: FEAT-mf-component-contract
+title: MF 组件契约注册协议
+level: L4-feature
+version: "1.0"
+generated_at: "2026-05-17"
+
+prototype:
+  file: ""
+  status: generated
+
+display:
+  description: >
+    定义 MF 组件在 MFRegistry 中的注册契约格式，以及从 MFRegistry manifest
+    派生 spec mf_binding 块的协议。DC API 是 Data / State / Event 的唯一事实来源，
+    MF app 和 spec 均依赖 DC API 实现自动对齐，从根本上消除漂移。
+  annot_parent: wb-root
+
+content:
+  # ── MF 组件注册契约 ──────────────────────────────────────────────────
+  #
+  # 一个 MF 组件在 MFRegistry 中登记时，必须提供以下三个维度的契约：
+  #
+  #   inputs   — 组件接收的 props（props schema）
+  #   outputs  — 组件写入 DC 的数据 key 前缀列表
+  #   events   — 组件对外发出的事件通道列表
+  #
+  # 这三个维度构成组件的"接口"，与实现语言/框架无关。
+  # MF app 实现组件时遵守 inputs/outputs/events，
+  # spec 通过 mf_binding 引用组件时只需声明需要的接口，
+  # 两者都从 DC API 获取数据/事件——天然对齐。
+  #
+  # 架构图：
+  #
+  #   MFRegistry (登记契约)
+  #        │
+  #   ┌────┴────┐
+  #   ↓         ↓
+  # spec ← DC API → MF app
+  # (派生)  (唯一事实)  (订阅)
+  #
+  # ──────────────────────────────────────────────────────────────────
+
+  contract_schema:
+    # 输入契约：组件接收的 props
+    inputs:
+      type: object
+      description: >
+        组件的 props schema，key = prop 名，value = 类型描述。
+        支持标准 JSON Schema 子集：type / description / enum / default。
+      properties:
+        key:
+          type: string          # prop 名，如 "kpiCards"
+          description: string    # 用途说明
+          type: string          # 值类型：string | number | boolean | object | array
+          enum: [optional list] # 可选值枚举
+          default: any          # 默认值
+
+    # 输出契约：组件写入 DC 的数据
+    outputs:
+      type: object
+      description: >
+        组件会写入 DC 的数据 key 前缀列表。
+        格式为 {prefix}.{field}，如 "kpi.revenue" 匹配 "kpi.revenue.total"。
+        spec 前端通过 DC API 订阅这些 key，实时展示数据。
+      properties:
+        - prefix: string       # key 前缀，如 "kpi"
+          description: string  # 数据用途
+          schema: object      # 值结构（可选，用于校验）
+
+    # 事件契约：组件发出的事件
+    events:
+      type: object
+      description: >
+        组件对外发出的事件通道列表。
+        spec 前端通过 EC 订阅这些事件，组件间通信。
+      properties:
+        - event: string        # 事件名，如 "kpi.click"
+          description: string  # 触发条件
+          payload: object      # payload schema
+
+  # ── MFRegistry.register() 签名 ──────────────────────────────────────
+  #
+  # register(name, path, inputs={}, outputs=[], events=[])
+  #
+  # 例：注册 KPICard 组件
+  #
+  #   MFRegistry.register(
+  #     name   = "KPICard",
+  #     path   = "@specpilot/kpi-card",
+  #     inputs = {
+  #       "cards": {
+  #         "description": "KPI 卡片列表",
+  #         "type": "array",
+  #         "items": {
+  #           "label": {"type": "string"},
+  #           "value": {"type": "number"},
+  #           "trend": {"type": "number"},
+  #           "unit": {"type": "string", "default": "%"}
+  #         }
+  #       }
+  #     },
+  #     outputs = [
+  #       {"prefix": "kpi.click", "description": "点击事件", "schema": {"cardId": "string"}}
+  #     ],
+  #     events = [
+  #       {"event": "kpi.card.click", "description": "点击单个 KPI 卡片", "payload": {"cardId": "string", "value": "number"}}
+  #     ]
+  #   )
+  #
+  # ──────────────────────────────────────────────────────────────────
+
+  # ── mf_resolve 返回 manifest ────────────────────────────────────────
+  #
+  # resolve_from_spec(spec_name) 返回：
+  #
+  #   {
+  #     "spec": "L3-dashboard-kpi",
+  #     "components": [
+  #       {
+  #         "component": "KPICard",
+  #         "path": "@specpilot/kpi-card",
+  #         "status": "ready",
+  #         "contract": {
+  #           "inputs": { ... },      # 来自 register 时的 inputs
+  #           "outputs": [ ... ],     # 来自 register 时的 outputs
+  #           "events": [ ... ]       # 来自 register 时的 events
+  #         }
+  #       }
+  #     ],
+  #     "total": 1
+  #   }
+  #
+  # manifest 是 spec mf_binding 块的来源：agent 读取 manifest，
+  # 填充 spec 的 mf_binding.components[].contract 字段，
+  # 即完成 spec 派生。
+  #
+  # ──────────────────────────────────────────────────────────────────
+
+  # ── spec mf_binding 块格式 ─────────────────────────────────────────
+  #
+  # mf_binding:
+  #   source: mf_registry          # 事实来源：mf_registry | manual
+  #   manifest_hash: "sha256:..." # manifest 快照哈希，校验用
+  #   components:
+  #     - name: KPICard
+  #       source: "@specpilot/kpi-card"
+  #       contract:
+  #         inputs:
+  #           cards: { type: array, description: ... }
+  #         outputs:
+  #           - prefix: kpi.click
+  #         events:
+  #           - event: kpi.card.click
+  #
+  # source = mf_registry 时，contract 由 manifest 派生，manifest_hash 用于漂移检测。
+  # source = manual 时，contract 由人工维护，不做自动对齐。
+  #
+  # ──────────────────────────────────────────────────────────────────
+
+  mf_binding:
+    source: mf_registry | manual
+    manifest_hash: string        # sha256 of resolved manifest
+    components:
+      - name: string
+        source: string            # remote path, e.g. "@specpilot/kpi-card"
+        contract:
+          inputs: object         # JSON Schema subset
+          outputs: list
+          events: list
+
+io:
+  input:
+    - name: component_name
+      type: string
+      description: MF 组件名（如 KPICard）
+      from: MF app 启动时注册 / agent 注册
+  output:
+    - name: manifest
+      type: object
+      description: >
+        MFRegistry.resolve_from_spec() 返回的完整 manifest，
+        包含 components[].contract（inputs/outputs/events）
+
+io_contract:
+  register:
+    - trigger: MF app bootstrap 或 agent 显式调用
+    - input: name, path, inputs, outputs, events
+    - behavior: >
+        MFRegistry.register() 写入内存状态，
+        DC API 持久化到 ~/.specpilot/mf_registry.json
+    - manifest_update: mf_resolve 自动反映新注册
+  resolve:
+    - trigger: spec prototype preview 渲染时
+    - input: spec_name
+    - behavior: >
+        按 spec_name 查 spec_component_map，
+        返回所有匹配组件的 name/path/status + 完整 contract
+    - spec_derive: agent 读取 manifest，填充 spec mf_binding.contract
+
+trigger_selector:
+  - "#vibex-annot-ctrl"   # 仅在有 mf_binding 的 spec 渲染时触发

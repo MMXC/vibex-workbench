@@ -70,6 +70,26 @@ export function SpawnGoBackend(arg1) {
   return window['go']['main']['App']['SpawnGoBackend'](arg1);
 }
 
+export function SpecpilotDCList() {
+  return window['go']['main']['App']['SpecpilotDCList']();
+}
+
+export function SpecpilotDCSet(arg1, arg2) {
+  return window['go']['main']['App']['SpecpilotDCSet'](arg1, arg2);
+}
+
+export function SpecpilotECHistory(arg1) {
+  return window['go']['main']['App']['SpecpilotECHistory'](arg1);
+}
+
+export function SpecpilotMFComponents() {
+  return window['go']['main']['App']['SpecpilotMFComponents']();
+}
+
+export function SpecpilotServicesGet() {
+  return window['go']['main']['App']['SpecpilotServicesGet']();
+}
+
 export function VerifySpecs(arg1, arg2, arg3) {
   return window['go']['main']['App']['VerifySpecs'](arg1, arg2, arg3);
 }

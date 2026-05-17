@@ -90,9 +90,12 @@ def main():
     mf = sub.add_parser('mf', help='MF registry operations')
     mf_sub = mf.add_subparsers(dest='sub')
 
-    p = mf_sub.add_parser('register', help='Register component')
+    p = mf_sub.add_parser('register', help='Register component with contract')
     p.add_argument('name', help='Component name')
     p.add_argument('path', help='Component path/URL')
+    p.add_argument('--inputs', default='{}', help='JSON inputs schema')
+    p.add_argument('--outputs', default='[]', help='JSON outputs list')
+    p.add_argument('--events', default='[]', help='JSON events list')
 
     p = mf_sub.add_parser('list', help='List registered components')
 
@@ -189,8 +192,18 @@ def main():
 
     elif args.cmd == 'mf':
         if args.sub == 'register':
-            _mr.register(args.name, args.path)
-            print(json.dumps({'name': args.name, 'path': args.path, 'ok': True}))
+            _mr.register(
+                args.name, args.path,
+                inputs=json.loads(args.inputs),
+                outputs=json.loads(args.outputs),
+                events=json.loads(args.events),
+            )
+            print(json.dumps({
+                'name': args.name,
+                'path': args.path,
+                'contract': _mr.get_contract(args.name).to_dict(),
+                'ok': True,
+            }))
         elif args.sub == 'list':
             print(json.dumps(_mr.list_components()))
         elif args.sub == 'resolve':

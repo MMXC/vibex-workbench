@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -842,6 +843,145 @@ func specpilotBootstrapHandler(w http.ResponseWriter, r *http.Request) {
 	result := rtools.SpecpilotBootstrap(wsRoot, component, dp, mp)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(result)
+}
+
+// specpilotDCHandler: GET /api/specpilot/dc → read .specpilot/dc_state.json
+func specpilotDCHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	wsRoot := cfg.WorkspaceDir
+	path := filepath.Join(wsRoot, ".specpilot", "dc_state.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{}, "total": 0})
+		return
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{}, "total": 0})
+		return
+	}
+	entries, _ := raw["data"].(map[string]any)
+	if entries == nil {
+		entries = map[string]any{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"data": entries, "total": len(entries)})
+}
+
+// specpilotDCSetHandler: POST /api/specpilot/dc/set { key, value }
+func specpilotDCSetHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	wsRoot := cfg.WorkspaceDir
+	path := filepath.Join(wsRoot, ".specpilot", "dc_state.json")
+	var req struct {
+		Key   string `json:"key"`
+		Value any    `json:"value"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Key == "" {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": "missing key"})
+		return
+	}
+	var raw map[string]any
+	if data, err := os.ReadFile(path); err == nil {
+		json.Unmarshal(data, &raw)
+	}
+	if raw == nil {
+		raw = make(map[string]any)
+	}
+	entries, _ := raw["data"].(map[string]any)
+	if entries == nil {
+		entries = make(map[string]any)
+	}
+	entries[req.Key] = req.Value
+	raw["data"] = entries
+	raw["total"] = len(entries)
+	if out, err := json.Marshal(raw); err == nil {
+		os.WriteFile(path, out, 0644)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "key": req.Key})
+}
+
+// specpilotECHistoryHandler: GET /api/specpilot/ec/history?limit=20
+func specpilotECHistoryHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	wsRoot := cfg.WorkspaceDir
+	limit := 20
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
+	}
+	path := filepath.Join(wsRoot, ".specpilot", "ec_state.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode([]any{})
+		return
+	}
+	var records []map[string]any
+	if err := json.Unmarshal(data, &records); err != nil {
+		records = []map[string]any{}
+	}
+	if len(records) > limit {
+		records = records[len(records)-limit:]
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(records)
+}
+
+// specpilotMFComponentsHandler: GET /api/specpilot/mf/components
+func specpilotMFComponentsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	wsRoot := cfg.WorkspaceDir
+	path := filepath.Join(wsRoot, ".specpilot", "mf_registry.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"components": []any{}, "total": 0})
+		return
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error(), "components": []any{}, "total": 0})
+		return
+	}
+	comps, _ := raw["components"].(map[string]any)
+	if comps == nil {
+		comps = map[string]any{}
+	}
+	var items []map[string]any
+	for name, info := range comps {
+		if m, ok := info.(map[string]any); ok {
+			items = append(items, map[string]any{
+				"name":     name,
+				"path":     m["path"],
+				"status":   m["registered"],
+				"contract": m["contract"],
+			})
+		}
+	}
+	if items == nil {
+		items = []map[string]any{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"components": items, "total": len(items)})
 }
 
 // ── MemLace Clarification API ─────────────────────────────────

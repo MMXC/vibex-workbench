@@ -4,6 +4,7 @@
 		specSlotSessionStore,
 		type SpecSlotSession,
 	} from '$lib/stores/spec-slot-session-store';
+	import { specpilotStatusStore } from '$lib/stores/specpilot-status-store';
 	import SpecSlotChatPane from '$lib/components/workbench/SpecSlotChatPane.svelte';
 	import SpecSlotVisualPane from '$lib/components/workbench/SpecSlotVisualPane.svelte';
 
@@ -26,20 +27,18 @@
 
 	const session = $derived.by(() => activeSpecSlotSession(state));
 
-	// Fetch MF port from StatusBar's spStatus — accessed via parent window
+	// Read MF port from shared specpilotStatusStore, pass dcPort to MF app
 	async function getMfUrl(): Promise<string> {
-		const port = (window as any).__specpilotMfPort;
-		if (port) return `http://localhost:${port}/#/Dashboard`;
-		// Try DC health endpoint
-		try {
-			const r = await fetch('http://127.0.0.1:7890/api/health', { signal: AbortSignal.timeout(2000) });
-			if (r.ok) {
-				const d = await r.json();
-				const p = (d as any).mfPort ?? 5177;
-				return `http://localhost:${p}/#/Dashboard`;
+		let mfPort = 5177;
+		let dcPort = 7890;
+		const unsubscribe = specpilotStatusStore.subscribe((s) => {
+			if (s) {
+				mfPort = s.mfPort;
+				dcPort = s.dcPort;
 			}
-		} catch {}
-		return 'http://localhost:5177/#/Dashboard';
+		});
+		unsubscribe();
+		return `http://localhost:${mfPort}/#/Dashboard?dcPort=${dcPort}`;
 	}
 
 	async function openMfInTab() {
@@ -51,8 +50,6 @@
 		const mfUrl = await getMfUrl();
 		const payload = {
 			type: 'specpilot_bootstrap',
-			mfPort: 5177,
-			dcPort: 7890,
 			mfUrl,
 			mfRemoteUrl: mfUrl,
 			message: 'MF 原型已加载，点击「新窗口打开」可全屏查看',
@@ -347,7 +344,6 @@
 		margin-top: 4px;
 		color: #6f7888;
 		font-size: 12px;
-	}
 	}
 
 	.chat-wrap,

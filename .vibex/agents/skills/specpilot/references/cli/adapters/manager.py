@@ -7,6 +7,7 @@ import os
 from typing import Protocol, Optional
 from dataclasses import dataclass
 import random
+from workspace import adapter_state_file
 
 
 class Adapter(Protocol):
@@ -103,7 +104,7 @@ class AdapterManager:
         return cls._instance
 
     def _init(self):
-        self._state_file = os.path.expanduser('~/.specpilot/adapter_state.json')
+        self._state_file = adapter_state_file()
         self._adapters: dict[str, Adapter] = {
             'mock': MockAdapter(),
             'http': HttpAdapter(),

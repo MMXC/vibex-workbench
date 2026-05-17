@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>L5 · 状态栏左侧 · SLICE-statusbar-left</title>
+<link rel="stylesheet" href="../assets/base.css">
+<link rel="stylesheet" href="../assets/fonts.css">
+<link rel="stylesheet" href="../assets/themes/engineering-whiteprint.css">
+<link rel="stylesheet" href="../assets/animations/animations.css">
+<style>
+:root {
+  --accent: #0a4a8a;
+  --accent-light: #e8f4fc;
+  --grid-line: rgba(10, 74, 138, 0.12);
+  --tech-blue: #0066cc;
+  --code-bg: #f5f8fa;
+}
+.deck { counter-reset: slide; }
+.slide { background: #fff; border-left: 4px solid var(--accent); }
+.slide-number::after { content: counter(slide); }
+h1, h2, h3 { color: var(--accent); font-weight: 600; }
+.section-tag { 
+  background: var(--accent); color: #fff; 
+  font-size: 0.7rem; padding: 2px 8px; border-radius: 2px;
+}
+.toc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.toc-item { 
+  border: 1px solid var(--accent); padding: 12px; 
+  border-radius: 4px; text-align: center;
+}
+.toc-item.num { background: var(--accent); color: #fff; }
+.spec-table { width: 100%; border-collapse: collapse; }
+.spec-table th, .spec-table td { 
+  border: 1px solid #ddd; padding: 8px 12px; text-align: left;
+}
+.spec-table th { background: var(--accent); color: #fff; }
+.key { font-weight: 700; color: var(--accent); }
+.comp-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+.comp-table th, .comp-table td { border: 1px solid #ddd; padding: 10px; }
+.comp-table th { background: #f0f4f8; color: var(--accent); }
+.win { background: #e6f4ea; }
+.lose { background: #fce8e6; }
+.matrix-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.matrix-cell { border: 1px solid #ddd; padding: 10px; text-align: center; font-size: 0.85rem; }
+.matrix-cell.ok { background: #e6f4ea; }
+.matrix-cell.err { background: #fce8e6; }
+.matrix-cell.load { background: #fff8e6; }
+.decision-box { 
+  border: 2px solid var(--accent); padding: 20px; 
+  background: var(--accent-light); border-radius: 4px;
+}
+.exec-table { width: 100%; border-collapse: collapse; }
+.exec-table th, .exec-table td { border: 1px solid #ddd; padding: 10px; }
+.exec-table th { background: var(--accent); color: #fff; }
+.risk-hi { color: #c00; font-weight: 600; }
+.risk-med { color: #e67e22; }
+.checklist { 
+  columns: 2; column-gap: 24px; 
+  list-style: none; padding: 0; margin: 0;
+}
+.checklist li { 
+  break-inside: avoid; padding: 6px 0; 
+  border-bottom: 1px dashed #ddd; 
+  display: flex; align-items: flex-start; gap: 8px;
+}
+.checklist li::before { content: "☐"; font-size: 1.1rem; }
+.proto-embed { 
+  border: 2px dashed var(--accent); padding: 20px; 
+  background: var(--accent-light); border-radius: 4px;
+}
+</style>
+</head>
+<body>
+<main class="deck">
+
+<!-- ========== SLIDE 1: 封面 ========== -->
+<section class="slide" data-anim="fade-up">
+  <div class="deck-header">
+    <span class="section-tag">L5 SPEC</span>
+    <span class="deck-title">状态栏左侧 · 就绪状态与路径信息</span>
+  </div>
+  <div style="padding: 48px 60px;">
+    <h1 style="font-size:2.4rem; margin-bottom:8px;">SLICE-statusbar-left</h1>
+    <p style="font-size:1.2rem; color:#555; margin-bottom:32px;">
+      底部状态栏左侧 · 展示就绪状态和路径信息
+    </p>
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-top:40px;">
+      <div class="toc-item">
+        <div style="font-size:1.5rem;">🎯</div>
+        <div style="font-size:0.75rem; color:#888;">SPEC</div>
+        <div style="font-size:0.85rem; font-weight:600;">L5-slice</div>
+      </div>
+      <div class="toc-item">
+        <div style="font-size:1.5rem;">🏗️</div>
+        <div style="font-size:0.75rem; color:#888;">THEME</div>
+        <div style="font-size:0.85rem; font-weight:600;">engineering-whiteprint</div>
+      </div>
+      <div class="toc-item">
+        <div style="font-size:1.5rem;">📅</div>
+        <div style="font-size:0.75rem; color:#888;">DATE</div>
+        <div style="font-size:0.85rem; font-weight:600;">2025-01-20</div>
+      </div>
+      <div class="toc-item">
+        <div style="font-size:1.5rem;">👥</div>
+        <div style="font-size:0.75rem; color:#888;">AUDIENCE</div>
+        <div style="font-size:0.85rem; font-weight:600;">CTO/开发/测试/用户</div>
+      </div>
+    </div>
+    <div style="margin-top:48px; padding:16px; border:1px solid var(--accent); border-radius:4px;">
+      <strong style="color:var(--accent);">目标受众速览</strong>
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:12px; font-size:0.85rem;">
+        <div>👔 <strong>CTO</strong>：技术可行性、风险评估</div>
+        <div>💻 <strong>开发</strong>：API 契约、边界条件</div>
+        <div>🧪 <strong>测试</strong>：验收矩阵、触发路径</div>
+        <div>👤 <strong>用户</strong>：功能价值、反馈机制</div>
+      </div>
+    </div>
+  </div>
+  <div class="deck-footer">
+    <span>VibeX Workbench · L5 SPEC</span>
+    <span class="slide-number"></span>
+  </div>
+</section>
+
+<!-- ========== SLIDE 2: 实现目标与完成标准 ========== -->
+<section class="slide" data-anim="fade-up">
+  <div class="deck-header">
+    <span class="section-tag">GOALS</span>
+    <span class="deck-title">实现目标与完成标准</span>
+  </div>
+  <div style="padding:40px 60px;">
+    <h2 style="margin-bottom:24px;">🎯 What · 就绪状态与路径信息的精准呈现</h2>
+    <table class="spec-table">
+      <tr><th style="width:25%;">目标项</th><th>描述</th><th style="width:30%;">验收标准</th></tr>
+      <tr>
+        <td class="key">实时就绪状态</td>
+        <td>显示当前环境/文件的就绪状态（ready/not-ready/error）</td>
+        <td>状态切换延迟 &lt;100ms</td>
+      </tr>
+      <tr>
+        <td class="key">路径信息展示</td>
+        <td>显示当前工作目录或文件路径（可配置）</td>
+        <td>路径截断时显示省略号，hover 显示完整路径</td>
+      </tr>
+      <tr>
+        <td class="key">响应式布局</td>
+        <td>状态栏宽度变化时自动调整显示内容</td>
+        <td>无溢出、无截断错误</td>
+      </tr>
+      <tr>
+        <td class="key">无障碍支持</td>
+        <td>符合 WCAG 2.1 AA 级对比度要求</td>
+        <td>色盲友好、屏幕阅读器可读</td>
+      </tr>
+    </table>
+    <div style="margin-top:24px; padding:16px; background:#f5f8fa; border-radius:4px;">
+      <strong>✅ Done 条件</strong>：所有状态转换正确 → 路径展示完整 → 无视觉溢出 → 自动化测试覆盖
+    </div>
+    <div style="margin-top:12px; padding:16px; border:1px dashed var(--accent); border-radius:4px;">
+      <strong>🔄 切换条件</strong>：若状态展示与实际不符超过 3 秒 → 降级为 "unknown" 状态 → 触发告警
+    </div>
+  </div>
+  <div class="deck-footer">
+    <span>VibeX Workbench · L5 SPEC</span>
+    <span class="slide-number"></span>
+  </div>
+</section>
+
+<!-- ========== SLIDE 3: As-Is 现状分析 ========== -->
+<section class="slide" data-anim="fade-up">
+  <div class="deck-header">
+    <span class="section-tag">AS-IS</span>
+    <span class="deck-title">现状真实实现展示</span>
+  </div>
+  <div style="padding:40px 60px;">
+    <h2 style="margin-bottom:16px;">📋 当前实现状态</h2>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+      <div>
+        <h3 style="color:var(--accent); font-size:1rem; margin-bottom:12px;">✅ 已实现</h3>
+        <ul style="line-height:1.8; padding-left:20px;">
+          <li><code>statusbar-left</code> 组件骨架（TypeScript）</li>
+          <li><code>SLICE-statusbar-left.yaml</code> 规格定义</li>
+          <li>基础状态枚举定义（ready/not-ready/error）</li>
+          <li>组件卸载逻辑（onUniverSal）</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="color:#c00; font-size:1rem; margin-bottom:12px;">❌ 待实现</h3>
+        <ul style="line-height:1.8; padding-left:20px;">
+          <li>实时状态监听与更新机制</li>
+          <li>路径信息格式化组件</li>
+          <li>响应式布局适配</li>
+          <li>hover tooltip 交互</li>
+          <li>自动化测试用例</li>
+        </ul>
+      </div>
+    </div>
+    <div class="proto-embed" style="margin-top:20px;">
+      <strong>📂 追溯路径</strong>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; font-size:0.85rem;">
+        <div><code>src/components/statusbar/statusbar-left.ts</code> — 组件入口</div>
+        <div><code>src/store/status.ts</code> — 状态管理</div>
+        <div><code>src/utils/path-formatter.ts</code> — 路径格式化（待创建）</div>
+        <div><code>tests/statusbar-left.test.ts</code> — 测试文件（待创建）</div>
+      </div>
+    </div>
+    <div style="margin-top:16px; padding:12px; background:#fff8e6; border-radius:4px; font-size:0.9rem;">
+      <strong>⚠️ 可用性结论</strong>：当前组件为占位实现，缺少核心状态同步与路径渲染逻辑，需要后续迭代完成。
+    </div>
+  </div>
+  <div class="deck-footer">
+    <span>VibeX Workbench · L5 SPEC</span>
+    <span class="slide-number"></span>
+  </div>
+</section>
+
+<!-- ========== SLIDE 4: 状态矩阵 ========== -->
+<section class="slide" data-anim="fade-up">
+  <div class="deck-header">
+    <span class="section-tag">MATRIX</span>
+    <span class="deck-title">状态矩阵 · Loading/Empty/Error</span>
+  </div>
+  <div style="padding:40px 60px;">
+    <h2 style="margin-bottom:20px;">🔲 组件状态矩阵</h2>
+    <div style="overflow-x:auto;">
+      <table class="spec-table" style="font-size:0.9rem;">
+        <tr>
+          <th>状态</th><th>触发条件</th><th>视觉表现</th><th>数据源</th><th>超时处理</th>
+        </tr>
+        <tr>
+          <td class="key">✅ ready</td>
+          <td>环境就绪、文件已加载</td>
+          <td>绿色圆点 + "就绪" 文字</td>
+          <td><code>envStore.ready</code></td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td class="key">⏳ loading</td>
+          <td>初始化中、文件加载中</td>
+          <td>蓝色脉冲动画 + "加载中"</td>
+          <td><code>envStore.loading</code></td>
+          <td>5s 后降级为 error</td>
+        </tr>
+        <tr>
+          <td class="key">❌ error</td>
+          <td>环境异常、文件解析失败</td>
+          <td>红色三角 + 错误信息</td>
+          <td><code>envStore.error</code></td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td class="key">❓ unknown</td>
+          <td>状态同步超时、获取失败</td>
+          <td>灰色问号 + "状态未知"</td>
+          <td>fallback</td>
+          <td>自动重试 3 次</td>
+        </tr>
+        <tr>
+          <td class="key">📂 path</td>
+          <td>任意有效状态</td>
+          <td>路径文字（可截断）</td>
+          <td><code>workspaceStore.path</code></td>
+          <td>显示 "~" 兜底</td>
+        </tr>
+      </table>
+    </div>
+    <div style="margin-top:20px;">
+      <h3 style="font-size:1rem; margin-bottom:12px;">🔄 状态转换图</h3>
+      <div style="display:flex; align-items:center; gap:8px; font-size:0.85rem; flex-wrap:wrap;">
+        <span style="border:1px solid var(--accent); padding:6px 12px; border-radius:4px;">⏳ loading</span>
+        <span>→</span>
+        <span style="border:1px solid #2e7d32; background:#e6f4ea; padding:6px 12px; border-radius:4px;">✅ ready</span>
+        <span style="margin-left:16px;">或</span>
+        <span style="border:1px solid #c00; background:#fce8e6; padding:6px 12px; border-radius:4px;">❌ error</span>
+        <span>→</span>
+        <span style="border:1px solid #999; background:#f5f5f5; padding:6px 12px; border-radius:4px;">❓ unknown</span>
+      </div>
+    </div>
+  </div>
+  <div class="deck-footer">
+    <span>VibeX Workbench · L5 SPEC</span>
+    <span class="slide-number"></span>
+  </div>
+</section>
+
+<!-- ========== SLIDE 5: 边界演示 ========== -->
+<section class="slide" data-anim="fade-up">
+  <div class="deck-header">
+    <span class="section-tag">BOUNDARY</span>
+    <span class="deck-title">边界演示 · Constraints 与验收口径</span>
+  </div>
+  <div style="padding:40px 60px;">
+    <h2 style="margin-bottom:20px;">⚡ 边界条件与触发方式</h2>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+      <div>
+        <h3 style="font-size:0.95rem; color:var(--accent); margin-bottom:10px;">📐 布局边界</h3>
+        <table class="spec-table" style="font-size:0.85rem;">
+          <tr><th>条件</th><th>触发</th><th>行为</th></tr>
+          <tr><td>状态栏 &lt; 200px</td><td>窗口过窄</td><td>隐藏路径，仅显示状态</td></tr>
+          <tr><td>路径 &gt; 50 字符</td><td>长路径</td><td>截断 + tooltip</td></tr>
+          <tr><td>多字节字符 &gt; 25</td><td>中文路径</td><td>按字符截断</td></tr>
+        </table>
+      </div>
+      <div>
+        <h3 style="font-size:0.95rem; color:var(--accent); margin-bottom:10px;">🔌 状态边界</h3>
+        <table class="spec-table" style="font-size:0.85rem;">
+          <tr><th>条件</th><th>触发</th><th>行为</th></tr>
+          <tr><td>状态 3s 不更新</td><td>同步超时</td><td>降级为 unknown</td></tr>
+          <tr><td>store 不可用</td><td>初始化失败</td><td>显示 "unavailable"</td></tr>
+          <tr><td>路径为 null</td><td>无工作区</td><td>显示 "~"</td></tr>
+        </table>
+      </div>
+    </div>
+    <div style="margin-top:20px; padding:16px; background:#f5f8fa; border-radius:4px;">
+      <strong>📏 验收口径</strong>
+      <ul style="margin-top:8px; font-size:0.9rem; line-height:1.8; padding-left:20px;">
+        <li>所有边界条件必须通过自动化测试覆盖</li>
+        <li>手动测试清单：窗口 resize、长路径、特殊字符、网络离线</li>
+        <li>性能要求：状态切换 &lt; 100ms，tooltip 显示 &lt; 50ms</li>
+      </ul>
+    </div>
+    <div style="margin-top:12px; padding:12px; border:1px dashed #999; border-radius:4px; font-size:0.85rem;">
+      <strong>🔗 constraints.rules 引用</strong>：
+      <code>statusbar.always-visible</code>、<code>statusbar.left-priority</code>、<code>path.truncate-threshold=50</code>
+    </div>
+  </div>
+  <div class="deck-footer">
+    <span>VibeX Workbench · L5 SPEC</span>
+    <span class="slide-number"></span>
+  </div>
+</section>
+
+<!-- ========== SLIDE 6: 优化分析 ========== -->
+<section class="slide" data-anim="fade-up">
+  <div class="deck-header">
+    <span class="section-tag">ANALYSIS</span>
+    <span class="deck-title">优化分析 · Why / Why-Not</span>
+  </div>
+  <div style="padding:40px 60px;">
+    <h2 style="margin-bottom:20px;">🔍 关键决策点分析</h2>
+    <table class="comp-table" style="font-size:0.85rem;">
+      <tr>
+        <th>决策点</th>
+        <th>方案 A（选中）</th>
+        <th>方案 B（备选）</th>
+        <th>不选理由</th>
+      </tr>
+      <tr>
+        <td class="key">状态存储</td>
+        <td class="win">Pinia Store 订阅</td>
+        <td class="lose">Props drilling</td>
+        <td>Props 层级过深时维护成本高</td>
+      </tr>
+      <tr>
+        <td class="key">路径截断</td>
+        <td class="win">CSS + tooltip 双保险</td>
+        <td class="lose">JS 截断</td>
+        <td>性能更好，无重排</td>
+      </tr>
+      <tr>
+        <td class="key">动画方案</td>
+        <td class="win">CSS transition</td>
+        <td class="lose">JS 动画库</td>
+        <td>减少依赖，保持轻量</td>
+      </tr>
+      <tr>
+        <td class="key">错误兜底</td>
+        <td class="win">unknown + 告警</td>
+        <td class="lose">静默失败</td>
+        <td>便于排查，用户感知可控</td>
+      </tr>
+    </table>
+    <div style="margin-top:20px; padding:16px; border:1px solid var(--accent); border-radius:4px;">
+      <strong>📌 前提条件</strong>：
+      <ul style="margin-top:8px; font-size:0.9rem; line-height:1.7; padding-left:20px;">
+        <li>envStore 必须支持 subscribe 订阅</li>
+        <li>workspaceStore.path 必须可观测</li>
+        <li>Wails 桥接层必须正常通信</li>
+      </ul>
+    </div>
+    <div style="margin-top:12px; padding:12px; background:#fff8e6; border-radius:4px; font-size:0.85rem;">
+      <strong>🔄 切换条件</strong>：若 Wails 桥接出现兼容问题 → 降级为 polling 模式 → 频率 1Hz
+    </div>
+  </div>
+  <div class="deck-footer">
+    <span>VibeX Workbench · L5 SPEC</span>
+    <span class="slide-number"></span>
+  </div>
+</section>
+
+<!-- ========== SLIDE 7: 决策与执行 ========== -->
+<section class="slide" data-anim="fade-up">
+  <div class="deck-header">
+    <span class="section-tag">DECISION</span>
+    <span class="deck-title">决策页 · 推荐方案与执行计划</span>
+  </div>
+  <div style="padding:40px 60px;">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+      <div>
+        <h3 style="color:var(--accent); font-size:1rem; margin-bottom:12px;">✅ 推荐方案</h3>
+        <div class="decision-box">
+          <strong>Pinia Store + CSS 截断 + CSS Transition</strong>
+          <ul style="margin-top:8px; font-size:0.85rem; line-height:1.7; padding-left:16px;">
+            <li>复用现有 store 架构</li>
+            <li>性能优先，减少 JS 计算</li>
+            <li>动画流畅，GPU 加速</li>
+          </ul>
+          <div style="margin-top:8px; font-size:0.8rem;">
+            <span class="risk-hi">⚠️ 风险</span>：store 耦合度高<br>
+            <span class="risk-med">💰 成本</span>：约 2 人日
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3 style="color:var(--accent); font-size:1rem; margin-bottom:12px;">📋 执行计划</h3>
+        <table class="exec-table" style="font-size:0.85rem;">
+          <tr><th>里程碑</th><th>负责人</th><th>验收标准</th><th>回滚策略</th></tr>
+          <tr>
+            <td>M1: 状态同步</td>
+            <td>@dev-a</td>
+            <td>状态切换 &lt; 100ms</td>
+            <td>回退 store 版本</td>
+          </tr>
+          <tr>
+            <td>M2: 路径渲染</td>
+            <td>@dev-b</td>
+            <td>截断 + tooltip 正常</td>
+            <td>隐藏路径组件</td>
+          </tr>
+          <tr>
+            <td>M3: 测试覆盖</td>
+            <td>@qa</td>
+            <td>边界用例 100%</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>M4: 集成验收</td>
+            <td>@all</td>
+            <td>E2E 通过</td>
+            <td>feature flag 关闭</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+    <div style="margin-top:16px; padding:12px; background:#f5f8fa; border-radius:4px; font-size:0.85rem;">
+      <strong>👔 CTO 视角</strong>：预计工时 2 人日，风险可控，建议按 M1→M4 顺序迭代，每步可独立验收。
+    </div>
+    <div style="margin-top:8px; padding:12px; border:1px dashed #999; border-radius:4px; font-size:0.85rem;">
+      <strong>🧪 测试 视角</strong>：重点关注状态竞态、store 卸载后订阅清理、长路径截断边界。
+    </div>
+  </div>
+  <div class="deck-footer">
+    <span>VibeX Workbench · L5 SPEC</span>
+    <span class="slide-number"></span>
+  </div>
+</section>
+
+<!-- ========== SLIDE 8: 可复制问题清单 ========== -->
+<section class="slide" data-anim="fade-up">
+  <div class="deck-header">
+    <span class="section-tag">QA</span>
+    <span class="deck-title">可复制问题清单 · 详情抽屉对话模板</span>
+  </div>
+  <div style="padding:40px 60px;">
+    <h2 style="margin-bottom:16px;">❓ 详情抽屉对话问题（可直接复制给 Agent）</h2>
+    <div style="columns:2; column-gap:24px;">
+      <ol class="checklist">
+        <li>当前 envStore 的状态更新频率是多少？是否有抖动问题？</li>
+        <li>路径截断的字符数阈值是否需要可配置？默认值 50 是否合理？</li>
+        <li>tooltip 显示逻辑是否考虑键盘无障碍（focus 触发）？</li>
+        <li>error 状态下是否需要显示具体错误码或消息？</li>
+        <li>状态栏在多显示器/高 DPI 下的渲染是否有已知问题？</li>
+        <li>store 卸载时的订阅清理是否已通过单元测试验证？</li>
+        <li>就绪状态是否需要区分「环境就绪」和「文件就绪」？</li>
+        <li>路径展示是否需要支持多种格式（绝对/相对/简写）？</li>
+        <li>loading 状态的脉冲动画频率是否符合性能预算？</li>
+        <li>unknown 降级后的自动重试机制需要暴露给用户吗？</li>
+        <li>是否需要支持深色模式下的状态颜色调整？</li>
+        <li>组件是否需要暴露 ref 以支持父组件直接操作？</li>
+      </ol>
+    </div>
+    <div style="margin-top:24px; padding:16px; border:1px solid var(--accent); border-radius:4px;">
+      <strong>💡 建议操作</strong>：
+      <ol style="margin-top:8px; font-size:0.9rem; line-height:1.7; padding-left:20px;">
+        <li>将上述问题复制到详情抽屉与 Agent 对话</li>
+        <li>根据 Agent 回答更新 SLICE-statusbar-left.yaml 的 constraints</li>
+        <li>将决策结果同步到 CHANGELOG.md</li>
+      </ol>
+    </div>
+  </div>
+  <div class="deck-footer">
+    <span>VibeX Workbench · L5 SPEC · 生成完毕</span>
+    <span class="slide-number"></span>
+  </div>
+</section>
+
+</main>
+<script src="../assets/runtime.js"></script>
+<script src="../assets/vibex-ppt-nav.js"></script>
+<script src="../assets/runtime.js"><\/script>
+<script src="../assets/vibex-ppt-nav.js"><\/script>
+</body>
+</html>

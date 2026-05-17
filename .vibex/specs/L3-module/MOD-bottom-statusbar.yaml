@@ -1,8 +1,8 @@
 spec:
-  version: '0.1'
+  version: "0.1"
   level: 3_module
   name: MOD-bottom-statusbar
-  parent: vibex-workbench-mvp
+  parent: vibex-workbench-skeleton
   status: proposal
   ppt_file: .vibex/ppt/MOD-bottom-statusbar.html
 meta:
@@ -16,29 +16,27 @@ lifecycle:
 display:
   title: L3 · 底部状态栏
   summary: IDE 底部状态栏，含运行状态指示和快捷开关
-  description: 'IDE 底部状态栏，对应原型中的 .statusbar 容器。
-
+  description: |
+    IDE 底部状态栏，对应原型中的 .statusbar 容器。
     展示运行状态、路径信息、Canvas 开关等。
-
-    '
 structure:
   parent: vibex-workbench-mvp
   parent_selector: .statusbar
   children:
-  - SLICE-statusbar-left
-  - SLICE-statusbar-right
+    - .vibex/specs/L5-slice/SLICE-statusbar-left.yaml
+    - .vibex/specs/L5-slice/SLICE-statusbar-right.yaml
 l4_features: []
 io:
   input:
-  - 后端状态变化时状态栏实时更新。
+    - 后端状态变化时状态栏实时更新。
   output:
-  - 状态栏展示当前运行状态、路径信息和快捷开关按钮。
+    - 状态栏展示当前运行状态、路径信息和快捷开关按钮。
   boundary: 仅定义状态栏展示，不涉及状态获取逻辑。
 prototype:
   file: .vibex/prototypes/MOD-bottom-statusbar.html
   validates: []
   status: derived
-  generated_at: '2026-05-15'
+  generated_at: 2026-05-15
 content:
   l3_l4_lineage:
     summary: L3 定义底部状态栏模块边界，L5 直接归属 L3。

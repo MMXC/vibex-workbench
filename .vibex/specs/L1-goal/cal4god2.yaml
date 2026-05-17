@@ -1,0 +1,68 @@
+# cal4god2.yaml - L1 Goal Specification
+# 角色卡渲染 & 装备组合系统
+
+meta:
+  name: cal4god2
+  type: L1-Goal
+  version: 1.0.0
+  created: 2025-01-26
+
+ppt_file: .vibex/ppt/cal4god2.html
+
+data:
+  character_display:
+    type: object
+    description: 角色卡渲染数据
+    fields:
+      char_id: string
+      name: string
+      level: number
+      class: string
+
+  equipment_slots:
+    type: object
+    description: 装备槽位状态
+    slots:
+      - head
+      - body
+      - weapon
+      - shield
+      - acc1
+      - acc2
+
+  combo_status:
+    type: object
+    description: 组合激活状态（套装/羁绊/符文之语）
+    activation_types:
+      - sets
+      - bonds
+      - runes
+
+  effect_summary:
+    type: object
+    description: 组合效果汇总
+    computed_fields:
+      - atk_bonus
+      - def_bonus
+      - skills
+
+io_contract:
+  getCharacterDisplay:
+    input: char_id
+    output: character_display
+  updateEquipmentSlot:
+    input: [char_id, slot, item]
+    output: equipment_slots
+  getEffectSummary:
+    input: char_id
+    output: effect_summary
+
+constraints:
+  performance:
+    combo_activation: <50ms
+    effect_summary_accuracy: ">=99%"
+  compatibility:
+    typescript: ">=4.0"
+
+changelog:
+  - v1.0.0: 初始版本定义

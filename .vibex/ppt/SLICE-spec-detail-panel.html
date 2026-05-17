@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SLICE-spec-detail-panel · Spec 说明演示</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" href="../assets/themes/engineering-whiteprint.css">
+  <link rel="stylesheet" href="../assets/animations/animations.css">
+  <style>
+    :root {
+      --slide-max-w: 1200px;
+      --slide-ratio: 16/9;
+    }
+    .slide-meta { font-size: 0.85rem; color: var(--text-3); }
+    .slide-meta strong { color: var(--accent-1); }
+    .code-block {
+      background: var(--bg-2);
+      border: 1px solid var(--border-1);
+      border-radius: 6px;
+      padding: 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      overflow-x: auto;
+    }
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    .comparison-table th, .comparison-table td {
+      border: 1px solid var(--border-1);
+      padding: 0.6rem 0.8rem;
+      text-align: left;
+    }
+    .comparison-table th { background: var(--bg-2); font-weight: 600; }
+    .badge { 
+      display: inline-block; 
+      padding: 0.15rem 0.5rem; 
+      border-radius: 4px; 
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .badge-pass { background: #10b981; color: #fff; }
+    .badge-fail { background: #ef4444; color: #fff; }
+    .badge-warn { background: #f59e0b; color: #fff; }
+    .badge-idle { background: #6b7280; color: #fff; }
+    .flow-diagram {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      padding: 1rem;
+    }
+    .flow-step {
+      background: var(--bg-2);
+      border: 1px solid var(--border-1);
+      border-radius: 6px;
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+    }
+    .flow-arrow { color: var(--accent-1); font-size: 1.2rem; }
+    .q-list {
+      list-style: none;
+      padding: 0;
+      columns: 2;
+      column-gap: 2rem;
+    }
+    .q-list li {
+      padding: 0.4rem 0;
+      font-size: 0.85rem;
+      border-bottom: 1px dashed var(--border-1);
+      break-inside: avoid;
+    }
+    .q-list li::before { content: "□ "; color: var(--accent-1); }
+  </style>
+</head>
+<body>
+
+<main class="deck">
+
+<!-- ==================== SLIDE 1: 封面 ==================== -->
+<section class="slide" id="slide-1">
+  <div class="deck-header">
+    <span class="deck-title">SLICE-spec-detail-panel</span>
+    <span class="deck-meta">L5 Slice · SpecDetailPanel.svelte</span>
+  </div>
+  
+  <div class="slide-content" style="display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; height:100%;">
+    <div style="margin-bottom:2rem;">
+      <div class="badge badge-idle" style="font-size:1rem; padding:0.3rem 1rem;">L5_SLICE</div>
+    </div>
+    <h1 style="font-size:2.4rem; margin:0 0 1rem 0;">SpecDetailPanel.svelte</h1>
+    <p style="font-size:1.2rem; color:var(--text-2); margin:0 0 2rem 0;">
+      元信息侧栏 + Monaco Editor + Validate Bar
+    </p>
+    <div style="display:flex; gap:1rem; font-size:0.9rem; color:var(--text-3);">
+      <span>owner: <strong>hermes</strong></span>
+      <span>·</span>
+      <span>status: <strong class="badge badge-idle">proposal</strong></span>
+      <span>·</span>
+      <span>2026-04-28</span>
+    </div>
+  </div>
+
+  <div class="deck-footer">
+    <span>VibeX Workbench · SLICE-spec-detail-panel</span>
+    <span class="slide-number">1 / 9</span>
+  </div>
+  <div class="notes">【开场】这是 SLICE 级别的 spec 说明稿，面向 CTO/开发/测试/用户四类受众。今天我会讲清楚：这个组件要做什么、现状是什么、边界在哪、如何验证、以及为什么要这样做而非其他方案。</div>
+</section>
+
+<!-- ==================== SLIDE 2: 实现目标与完成标准 ==================== -->
+<section class="slide" id="slide-2">
+  <div class="deck-header">
+    <span class="deck-title">实现目标与完成标准</span>
+    <span class="deck-meta">SLICE-spec-detail-panel</span>
+  </div>
+  
+  <div class="slide-content">
+    <h2 style="margin-bottom:1.5rem;">🎯 实现目标</h2>
+    
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+      <div>
+        <h3 style="font-size:1rem; color:var(--accent-1); margin-bottom:0.8rem;">核心交付物</h3>
+        <ul style="font-size:0.9rem; line-height:1.8;">
+          <li><strong>SpecDetailPanel.svelte</strong> — 布局容器</li>
+          <li>HeaderBar — 元信息展示（L1-L5 Badge / Status / Name / Parent & Children Chips）</li>
+          <li>Monaco Editor 集成 — 复用 FEAT-spec-write 组件</li>
+          <li>Validate Bar — 底部固定 48px，结果展示区</li>
+          <li>Ctrl+S 保存快捷键 + 自动 validate</li>
+          <li>History 按钮 → 触发 SpecHistoryPanel</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="font-size:1rem; color:var(--accent-1); margin-bottom:0.8rem;">✅ 完成标准（Definition of Done）</h3>
+        <table class="comparison-table" style="font-size:0.85rem;">
+          <tr><th>维度</th><th>验收条件</th></tr>
+          <tr><td>功能</td><td>specPath 变化 → Monaco 正确显示内容</td></tr>
+          <tr><td>交互</td><td>Ctrl+S 保存后光标位置保持</td></tr>
+          <tr><td>验证</td><td>validate 错误列表可点击跳转行号</td></tr>
+          <tr><td>切换</td><td>切换 spec 时 Monaco 无内容残留</td></tr>
+          <tr><td>布局</td><td>窗口 resize 后布局不乱</td></tr>
+          <tr><td>边界</td><td>大量错误时错误列表不溢出视口</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="deck-footer">
+    <span>VibeX Workbench · SLICE-spec-detail-panel</span>
+    <span class="slide-number">2 / 9</span>
+  </div>
+  <div class="notes">【目标页】这里列出了我们要交付的组件结构。完成标准从 6 个维度定义：功能、交互、验证、切换、布局、边界。注意边界条件特别重要——大量错误时列表不能溢出，这是 spec 里明确的风险点。</div>
+</section>
+
+<!-- ==================== SLIDE 3: As-Is 现状（可验证证据） ==================== -->
+<section class="slide" id="slide-3">
+  <div class="deck-header">
+    <span class="deck-title">As-Is 现状</span>
+    <span class="deck-meta">真实工作区证据</span>
+  </div>
+  
+  <div class="slide-content">
+    <h2 style="margin-bottom:1.5rem;">📂 现状分析 — 来自工作区可验证证据</h2>
+    
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+      <div>
+        <h3 style="font-size:1rem; color:#10b981; margin-bottom:0.8rem;">✓ 已存在 / 已集成</h3>
+        <ul style="font-size:0.85rem; line-height:1.7;">
+          <li><code>MonacoEditor.svelte</code> — FEAT-spec-write 已集成</li>
+          <li><code>wails-runtime.ts</code> — wailsReadSpecFile / wailsWriteSpecFile 已封装</li>
+          <li><code>SpecHistoryPanel.svelte</code> — History 按钮可触发</li>
+          <li>HTTP fallback API — <code>/api/workspace/specs/read</code></li>
+          <li>Validate API — <code>POST /api/spec/validate</code></li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="font-size:1rem; color:#ef4444; margin-bottom:0.8rem;">✗ 待实现 / 不在本 slice 范围</h3>
+        <ul style="font-size:0.85rem; line-height:1.7;">
+          <li><code>SpecDetailPanel.svelte</code> — <strong>本 slice 目标文件</strong></li>
+          <li>Validate 逻辑 — Go agent 负责</li>
+          <li>Monaco 内部实现 — FEAT-spec-write 负责</li>
+          <li>git 操作 — 明确禁止</li>
+          <li>prototype.file — 当前为空（无原型）</li>
+        </ul>
+      </div>
+    </div>
+    
+    <div class="code-block" style="margin-top:1rem; font-size:0.8rem;">
+      <strong>impacted_files:</strong> frontend/src/lib/components/workbench/SpecDetailPanel.svelte<br>
+      <strong>parent:</strong> FEAT-spec-governance-viewer
+    </div>
+  </div>
+
+  <div class="deck-footer">
+    <span>VibeX Workbench · SLICE-spec-detail-panel</span>
+    <span class="slide-number">3 / 9</span>
+  </div>
+  <div class="notes">【现状页】现状必须来自真实证据。我列出了已存在的组件和接口，以及本 slice 需要新建的 SpecDetailPanel。注意 prototype.file 目前是空的，意味着没有可嵌入的原型页面，需要用表格标注待生成。</div>
+</section>
+
+<!-- ==================== SLIDE 4: 状态矩阵 ==================== -->
+<section class="slide" id="slide-4">
+  <div class="deck-header">
+    <span class="deck-title">状态矩阵</span>
+    <span class="deck-meta">Validate Bar 四态 + specPath 变化</span>
+  </div>
+  
+  <div class="slide-content">
+    <h2 style="margin-bottom:1.5rem;">📊 状态矩阵 — Validate Bar 与 specPath 切换</h2>
+    
+    <table class="comparison-table" style="font-size:0.85rem;">
+      <tr>
+        <th>场景</th>
+        <th>UI 状态</th>
+        <th>触发方式</th>
+        <th>预期行为</th>
+        <th>错误处理</th>
+      </tr>
+      <tr>
+        <td>specPath 变化</td>
+        <td><span class="badge badge-idle">loading</span> Monaco 清空</td>
+        <td>用户点击 tree 节点</td>
+        <td>加载内容 → 展示</td>
+        <td>读取失败时显示错误，不清空 Monaco</td>
+      </tr>
+      <tr>
+        <td>Validate 通过</td>
+        <td><span class="badge badge-pass">pass</span> 绿条</td>
+        <td>Ctrl+S 或 Validate 按钮</td>
+        <td>"✓ Valid" + 耗时</td>
+        <td>N/A</td>
+      </tr>
+      <tr>
+        <td>Validate 失败</td>
+        <td><span class="badge badge-fail">fail</span> 红条</td>
+        <td>同上</td>
+        <td>"✗ Invalid" + 错误列表</td>
+        <td>点击错误 → 跳转行号</td>
+      </tr>
+      <tr>
+        <td>Validate 警告</td>
+        <td><span class="badge badge-warn">warning</span> 黄条</td>
+        <td>部分字段缺失</td>
+        <td>"⚠ Warning" + 警告数</td>
+        <td>允许继续，但需关注</td>
+      </tr>
+      <tr>
+        <td>Validate 运行中</td>
+        <td><span class="badge badge-idle">running</span> 灰条 + 旋转</td>
+        <td>点击 Validate</td>
+        <td>"Validating..."</td>
+        <td>超时显示提示</td>
+      </tr>
+      <tr>
+        <td>读取失败</td>
+        <td><span class="badge badge-fail">error</span> 红字</td>
+        <td>spec 文件不存在</td>
+        <td>错误提示</td>
+        <td>Monaco 内容保留</td>
+      </tr>
+    </table>
+    
+    <div style="margin-top:1.5rem; padding:1rem; background:var(--bg-2); border-radius:6px; font-size:0.85rem;">
+      <strong>💡 设计决策：</strong>读取失败时<strong>不清空</strong> Monaco 当前内容，避免用户编辑数据丢失。这是保护用户体验的关键决策。
+    </div>
+  </div>
+
+  <div class="deck-footer">
+    <span>VibeX Workbench · SLICE-spec-detail-panel</span>
+    <span class="slide-number">4 / 9</span>
+  </div>
+  <div class="notes">【状态矩阵】这是 Validate Bar 的四态设计，以及 specPath 切换时的状态管理。关键决策点：读取失败不清空 Monaco，这是保护用户编辑数据的设计选择。为什么要这样做？因为 spec 编辑器频繁切换节点时，如果失败就清空，用户会丢失正在编辑的内容。</div>
+</section>
+
+<!-- ==================== SLIDE 5: 边界演示 / Constraints ==================== -->
+<section class="slide" id="slide-5">
+  <div class="deck-header">
+    <span class="deck-title">边界演示 · Constraints</span>
+    <span class="deck-meta">验收口径 · 禁止事项</span>
+  </div>
+  
+  <div class="slide-content">
+    <h2 style="margin-bottom:1.5rem;">🚧 边界演示 — 明确职责边界与触发方式</h2>
+    
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+      <div>
+        <h3 style="font-size:1rem; color:#10b981; margin-bottom:0.8rem;">✅ 本 Slice 负责</h3>
+        <ul style="font-size:0.85rem; line-height:1.8;">
+          <li>SpecDetailPanel 整体布局（header + editor + footer）</li>
+          <li>元信息侧栏渲染（LevelBadge / StatusChip / Name / Parent/Children Chips）</li>
+          <li>Validate Bar UI（按钮 + 状态 + 错误列表展示）</li>
+          <li>Monaco Editor 集成与布局适配</li>
+          <li>Ctrl+S 保存快捷键绑定</li>
+          <li>History 按钮事件 emit</li>
+          <li>错误列表点击 → Monaco 跳转行号</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="font-size:1rem; color:#ef4444; margin-bottom:0.8rem;">⛔ 明确禁止（其他模块负责）</h3>
+        <ul style="font-size:0.85rem; line-height:1.8;">
+          <li>Monaco Editor 内部实现 — <strong>FEAT-spec-write</strong></li>
+          <li>validate 验证逻辑 — <strong>Go agent</strong></li>
+          <li>git 操作（commit/push/pull）</li>
+          <li>文件浏览器（tree 组件）— 外部传入 specPath</li>
+          <li>wailsReadSpecFile / wailsWriteSpecFile 底层实现</li>
+        </ul>
+      </div>
+    </div>
+    
+    <div style="margin-top:1.5rem;">
+      <h3 style="font-size:1rem; color:var(--accent-1); margin-bottom:0.8rem;">🔗 边界协议 — 与外部模块的接口约定</h3>
+      <div class="code-block" style="font-size:0.8rem;">
+        <strong>Props:</strong> specPath: string, specContent: string<br>
+        <strong>Events:</strong> save({path, content}) | validate({path}) | openHistory({path})<br>
+        <strong>HTTP Fallback:</strong> GET /api/workspace/specs/read | POST /api/workspace/specs/write | POST /api/spec/validate
+      </div>
+    </div>
+  </div>
+
+  <div class="deck-footer">
+    <span>VibeX Workbench · SLICE-spec-detail-panel</span>
+    <span class="slide-number">5 / 9</span>
+  </div>
+  <div class="notes">【边界页】这张幻灯片明确划定了本 slice 的职责边界。为什么禁止实现 Monaco 和 validate 逻辑？因为这是复用策略。Monaco 已经在 FEAT-spec-write 集成好，validate 逻辑由 Go agent 处理，我们只需要负责布局和交互协议。这样做避免了重复开发，也明确了谁对什么负责。</div>
+</section>
+
+<!-- ==================== SLIDE 6: 四视角覆盖 ==================== -->
+<section class="slide" id="slide-6">
+  <div class="deck-header">
+    <span class="deck-title">四视角覆盖</span>
+    <span class="deck-meta">CTO · 开发 · 测试 · 用户</span>
+  </div>
+  
+  <div class="slide-content">
+    <h2 style="margin-bottom:1.5rem;">👥 四类视角 — 各自关注什么？</h2>
+    
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+      <div style="padding:1rem; background:var(--bg-2); border-radius:8px; border-left:3px solid #3b82f6;">
+        <h3 style="font-size:1rem; color:#3b82f6; margin-bottom:0.5rem;">👔 CTO</h3>
+        <ul style="font-size:0.85rem; line-height:1.6;">
+          <li><strong>模块化程度：</strong>MF 组件复用（KPICard/AlertBadge/DataTable）</li>
+          <li><strong>开发效率：</strong>Ctrl+S 保存 + 自动 validate，减少手动操作</li>
+          <li><strong>风险控制：</strong>边界清晰，禁止越界开发</li>
+          <li><strong>交付节奏：</strong>L5 slice 独立可测试</li>
+        </ul>
+      </div>
+      
+      <div style="padding:1rem; background:var(--bg-2); border-radius:8px; border-left:3px solid #10b981;">
+        <h3 style="font-size:1rem; color:#10b981; margin-bottom:0.5rem;">👨‍💻 开发</h3>
+        <ul style="font-size:0.85rem; line-height:1.6;">
+          <li><strong>实现边界：</strong>只做布局和交互，不碰 Monaco 内部和 validate 逻辑</li>
+          <li><strong>接口清晰：</strong>props/events 明确，HTTP fallback 有备无患</li>
+          <li><strong>复用已有：</strong>MonacoEditor.svelte、wails-runtime.ts</li>
+          <li><strong>行为定义：</strong>B1-B6 6 个行为用例，边界清晰</li>
+        </ul>
+      </div>
+      
+      <div style="padding:1rem; background:var(--bg-2); border-radius:8px; border-left:3px solid #f59e0b;">
+        <h3 style="font-size:1rem; color:#f59e0b; margin-bottom:0.5rem;">🧪 测试</h3>
+        <ul style="font-size:0.85rem; line-height:1.6;">
+          <li><strong>可测试性：</strong>6 个 behavior 场景 + failure_conditions</li>
+          <li><strong>手动检查清单：</strong>Ctrl+S 光标保持、错误点击跳转、切换无残留</li>
+          <li><strong>边界测试：</strong>读取失败、validate 超时、大量错误列表</li>
+          <li><strong>回归风险：</strong>复用已有组件，减少回归面</li>
+        </ul>
+      </div>
+      
+      <div style="padding:1rem; background:var(--bg-2); border-radius:8px; border-left:3px solid #8b5cf6;">
+        <h3 style="font-size:1rem; color:#8b5cf6; margin-bottom:0.5rem;">👤 用户</h3>
+        <ul style="font-size:0.85rem; line-height:1.6;">
+          <li><strong>操作流畅：</strong>选中 spec → 立即看到内容，无需额外操作</li>
+          <li><strong>即时反馈：</strong>Ctrl+S 保存 + validate 结果可视化</li>
+          <li><strong>错误定位：</strong>点击错误直接跳转行号</li>
+          <li><strong>元信息直观：</strong>Level/Status/Parent/Children 一目了然</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="deck-footer">
+    <span>VibeX Workbench · SLICE-spec-detail-panel</span>
+    <span class="slide-number">6 / 9</span>
+  </div>
+  <div class="notes">【四视角】这张幻灯片分别从 CTO、开发、测试、用户四个角度说明这个组件的价值。CTO 关注模块化和风险控制；开发关注实现边界和复用；测试关注可测试性和边界用例；用户关注操作流畅和即时反馈。每个视角都对应 spec 中的具体设计点。</div>
+</section>
+
+<!-- ==================== SLIDE 7: 决策页 ==================== -->
+<section class="slide" id="slide-7">
+  <div class="deck-header">
+    <span class="deck-title">决策页</span>
+    <span class="deck-meta">推荐方案 · 备选 · 取舍 · 风险</span>
+  </div>
+  
+  <div class="slide-content">
+    <h2 style="margin-bottom:1.5rem;">⚖️ 方案决策 — Why / Why-Not</h2>
+    
+    <table class="comparison-table" style="font-size:0.85rem;">
+      <tr>
+        <th>决策点</th>
+        <th>✅ 推荐方案</th>
+        <th>❌ 备选 / 为什么不选</th>
+        <th>前提条件</th>
+        <th>切换条件</th>
+      </tr>
+      <tr>
+        <td>Validate 逻辑归属</td>
+        <td>Go agent 负责，本 slice 只展示结果</td>
+        <td>自实现 validate → 增加开发成本，且与 Go agent 重复</td>
+        <td>Go agent validate API 可用</td>
+        <td>Go agent API 延迟 > 5s 或不可用</td>
+      </tr>
+      <tr>
+        <td>Monaco 集成</td>
+        <td>复用 FEAT-spec-write 的 MonacoEditor.svelte</td>
+        <td>自封装 Monaco → 重复造轮子，且维护成本高</td>
+        <td>MonacoEditor.svelte 已集成</td>
+        <td>MonacoEditor 不满足布局需求</td>
+      </tr>
+      <tr>
+        <td>读取失败处理</td>
+        <td>不清空 Monaco 当前内容</td>
+        <td>清空 → 用户编辑数据丢失，体验差</td>
+        <td>需要保留编辑状态</td>
+        <td>产品策略改为"失败即清空"</td>
+      </tr>
+      <tr>
+        <td>HTTP Fallback</td>
+        <td>browser dev 模式 fallback 到 HTTP</td>
+        <td>纯 Wails → dev 模式无法调试；纯 HTTP → 生产环境不稳定</td>
+        <td>dev 模式有 HTTP server</td>
+        <td>dev 模式也走 Wails</td>
+      </tr>
+      <tr>
+        <td>错误列表交互</td>
+        <td>点击错误 → Monaco 跳转行号 + 高亮</td>
+        <td>只展示错误 → 用户需要手动搜索，效率低</td>
+        <td>Monaco 支持 jumpToLine API</td>
+        <td>Monaco 行跳转 API 变更</td>
+      </tr>
+    </table>
+    
+    <div style="margin-top:1rem; padding:0.8rem; background:var(--accent-1); color:var(--bg-1); border-radius:6px; font-size:0.85rem;">
+      <strong>💡 核心决策原则：</strong>复用优先、边界清晰、用户体验优先。每一个"不做什么"都是经过权衡的主动选择。
+    </div>
+  </div>
+
+  <div class="deck-footer">
+    <span>VibeX Workbench · SLICE-spec-detail-panel</span>
+    <span class="slide-number">7 / 9</span>
+  </div>
+  <div class="notes">【决策页】每个关键点都给出了 Why（为什么这样做）和 Why-Not（为什么不做其他方案）。比如 Validate 逻辑归属 Go agent，是因为避免重复开发；HTTP Fallback 是因为 dev 模式需要调试能力。每个决策都有前提条件和切换条件，方便后续调整策略。</div>
+</section>
+
+<!-- ==================== SLIDE 8: 执行页 ==================== -->
+<section class="slide" id="slide-8">
+  <div class="deck-header">
+    <span class="deck-title">执行页</span>
+    <span class="deck-meta">里程碑 · 负责人 · 验收 · 回滚</span>
+  </div>
+  
+  <div class="slide-content">
+    <h2 style="margin-bottom:1.5rem;">🚀 执行计划 — 里程碑与验收</h2>
+    
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+      <div>
+        <h3 style="font-size:1rem; color:var(--accent-1); margin-bottom:0.8rem;">📅 里程碑（Milestones）</h3>
+        <table class="comparison-table" style="font-size:0.85rem;">
+          <tr><th>阶段</th><th>内容</th><th>负责人</th></tr>
+          <tr><td>M1</td><td>SpecDetailPanel 基础布局骨架</td><td>hermes</td></tr>
+          <tr><td>M2</td><td>HeaderBar 元信息栏（LevelBadge/StatusChip/Name/Chips）</td><td>hermes</td></tr>
+          <tr><td>M3</td><td>Monaco Editor 集成与布局适配</td><td>hermes</td></tr>
+          <tr><td>M4</td><td>Validate Bar UI + 状态展示</td><td>hermes</td></tr>
+          <tr><td>M5</td><td>Ctrl+S / validate / error jump 交互</td><td>hermes</td></tr>
+          <tr><td>M6</td><td>手动验收 + npm build 通过</td><td>hermes</td></tr>
+        </table>
+      </div>
+      <div>
+        <h3 style="font-size:1rem; color:var(--accent-1); margin-bottom:0.8rem;">🔄 回滚策略（Rollback）</h3>
+        <ul style="font-size:0.85rem; line-height:1.8;">
+          <li><strong>场景：</strong>npm build 失败</li>
+          <li><strong>策略：</strong>git revert 最近一次 commit</li>
+          <li><strong>验证：</strong>revert 后 build 确认</li>
+        </ul>
+        
+        <h3 style="font-size:1rem; color:var(--accent-1); margin:1rem 0 0.8rem;">🔍 排错线索</h3>
+        <ul style="font-size:0.85rem; line-height:1.8;">
+          <li>Monaco 不显示 → 检查 specPath 是否正确传入</li>
+          <li>保存失败 → 检查 wailsWriteSpecFile 返回值</li>
+          <li>validate 超时 → 检查 /api/spec/validate 接口</li>
+          <li>布局错乱 → 检查 flex-grow 是否正确应用</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="deck-footer">
+    <span>VibeX Workbench · SLICE-spec-detail-panel</span>
+    <span class="slide-number">8 / 9</span>
+  </div>
+  <div class="notes">【执行页】这是具体的执行计划。6 个里程碑对应开发节奏，每个都有负责人。回滚策略很简单——git revert。最后列出了 4 个常见问题的排错线索，方便测试和开发快速定位问题。</div>
+</section>
+
+<!-- ==================== SLIDE 9: 可复制的问题清单 ==================== -->
+<section class="slide" id="slide-9">
+  <div class="deck-header">
+    <span class="deck-title">待完善问题清单</span>
+    <span class="deck-meta">可复制 · 用于与 agent 继续对话</span>
+  </div>
+  
+  <div class="slide-content">
+    <h2 style="margin-bottom:1.5rem;">📋 后续讨论问题清单</h2>
+    <p style="font-size:0.9rem; color:var(--text-2); margin-bottom:1rem;">
+      以下问题用于在详情抽屉继续和 agent 对话完善 spec：
+    </p>
+    
+    <ul class="q-list">
+      <li>specPath 变化时，加载动画的时长阈值是多少？（何时显示 loading spinner）</li>
+      <li>错误列表最大展示条数限制是多少？超出如何处理？</li>
+      <li>Monaco 编辑器是否需要语法高亮配置（YAML schema 校验）？</li>
+      <li>Validate Bar 是否需要支持"自动 validate"开关？</li>
+      <li>History 按钮展开的 SpecHistoryPanel 位置是侧边还是底部？</li>
+      <li>Parent/Children Chips 点击后的行为是路由跳转还是展开 tree 节点？</li>
+      <li>SpecName 可编辑时，是否需要同步更新 Monaco 内容区的 name 字段？</li>
+      <li>大量 spec 文件时，是否需要实现虚拟滚动（virtual scroll）？</li>
+      <li>Validate 结果是否需要持久化到本地（localStorage）？</li>
+      <li>Ctrl+S 保存失败时，toast 提示的时长和样式规范是什么？</li>
+      <li>是否需要支持撤销/重做（undo/redo）功能？</li>
+      <li>spec 内容变更后，是否需要通知其他模块（如 tree 刷新）？</li>
+    </ul>
+    
+    <div style="margin-top:1.5rem; padding:1rem; background:var(--bg-2); border-radius:6px;">
+      <h3 style="font-size:0.95rem; color:var(--accent-1); margin-bottom:0.5rem;">🎯 优先高收益问题（建议优先讨论）</h3>
+      <ol style="font-size:0.85rem; line-height:1.8; padding-left:1.2rem;">
+        <li>错误列表条数限制 — 影响布局稳定性</li>
+        <li>Parent/Children Chips 交互行为 — 影响用户体验一致性</li>
+        <li>Validate 自动开关 — 影响交互流程</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="deck-footer">
+    <span>VibeX Workbench · SLICE-spec-detail-panel</span>
+    <span class="slide-number">9 / 9</span>
+  </div>
+  <div class="notes">【结尾页】这是发散引导环节。我列出了 12 个待完善的问题，覆盖交互细节、边界条件、性能优化等方面。建议优先讨论前 3 个高收益问题——错误列表条数限制影响布局稳定性，Parent/Children Chips 交互影响一致性，Validate 自动开关影响整体交互流程。复制这些问题到详情抽屉继续讨论。</div>
+</section>
+
+</main>
+
+<script src="../assets/runtime.js"></script>
+<script src="../assets/vibex-ppt-nav.js"></script>
+
+</body>
+</html>

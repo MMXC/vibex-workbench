@@ -154,10 +154,21 @@ class Handler(BaseHTTPRequestHandler):
             name = data.get('name', '')
             path2 = data.get('path', '')
             if name:
-                result = cli(['mf', 'register', name, path2])
+                # Pass contract fields as JSON strings
+                args = ['mf', 'register', name, path2]
+                inputs = data.get('inputs')
+                if inputs is not None:
+                    args += ['--inputs', json.dumps(inputs)]
+                outputs = data.get('outputs')
+                if outputs is not None:
+                    args += ['--outputs', json.dumps(outputs)]
+                events = data.get('events')
+                if events is not None:
+                    args += ['--events', json.dumps(events)]
+                result = cli(args)
                 self.send_json(result)
             else:
-                self.send_json({'error': 'name and path required'}, 400)
+                self.send_json({'error': 'name required'}, 400)
 
         elif path == '/api/mf/resolve':
             spec = data.get('spec', '')

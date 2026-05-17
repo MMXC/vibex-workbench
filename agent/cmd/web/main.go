@@ -96,6 +96,10 @@ func main() {
 	http.HandleFunc("/api/workbench/inspector/trace", withCORS(inspectorTraceHandler))
 	http.HandleFunc("/api/specpilot/status", withCORS(specpilotStatusHandler))
 	http.HandleFunc("/api/specpilot/bootstrap", withCORS(specpilotBootstrapHandler))
+	http.HandleFunc("/api/specpilot/dc", withCORS(specpilotDCHandler))
+	http.HandleFunc("/api/specpilot/dc/set", withCORS(specpilotDCSetHandler))
+	http.HandleFunc("/api/specpilot/ec/history", withCORS(specpilotECHistoryHandler))
+	http.HandleFunc("/api/specpilot/mf/components", withCORS(specpilotMFComponentsHandler))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

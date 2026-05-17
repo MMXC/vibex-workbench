@@ -8,6 +8,7 @@ import os
 from typing import Any, Optional, Dict, Callable
 from dataclasses import dataclass
 from datetime import datetime
+from workspace import dc_state_file
 
 
 @dataclass
@@ -36,7 +37,7 @@ class DataCenter:
             with cls._lock:
                 if cls._instance is None:
                     cls._instance = super().__new__(cls)
-                    cls._instance._state_file = os.path.expanduser('~/.specpilot/dc_state.json')
+                    cls._instance._state_file = dc_state_file()
                     cls._instance._data: Dict[str, DataEntry] = {}
                     cls._instance._watchers: Dict[str, list[Callable]] = {}
                     cls._instance._history: list[dict] = []

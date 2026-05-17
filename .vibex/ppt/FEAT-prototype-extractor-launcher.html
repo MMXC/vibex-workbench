@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FEAT-prototype-extractor-launcher — L4 Spec Deck</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" id="theme-link" href="../assets/themes/blueprint.css">
+  <link rel="stylesheet" href="../assets/animations/animations.css">
+</head>
+<body>
+<main class="deck">
+
+<!-- ===== SLIDE 1: 封面 ===== -->
+<section class="slide is-active" data-slide="1">
+  <div class="slide-inner">
+    <div class="deck-header"><span class="deck-title-tag">L4 Feature Spec</span></div>
+    <div class="hero-block">
+      <div class="hero-label">SPEC DECK</div>
+      <h1 class="hero-title">原型抽屉「浏览器完善区域」<br>入口按钮</h1>
+      <p class="hero-subtitle">FEAT-prototype-extractor-launcher · v0.1.0 · draft</p>
+      <div class="hero-meta">
+        <span class="badge">status: draft</span>
+        <span class="badge">level: L4</span>
+        <span class="badge">owner: vibex-team</span>
+      </div>
+    </div>
+    <div class="deck-footer">
+      <span>VibeX Workbench · 2026-05-13</span>
+      <span class="slide-number">1 / 9</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 2: 受众视角：CTO + 概览 ===== -->
+<section class="slide" data-slide="2">
+  <div class="slide-inner">
+    <div class="deck-header"><span class="deck-title-tag">受众 · CTO</span></div>
+    <h2 class="slide-title">功能目标 &amp; 战略价值</h2>
+    <div class="two-col-grid">
+      <div class="card">
+        <h3>🎯 核心目标</h3>
+        <ul class="bullet-list anim-stagger-list">
+          <li data-anim="fade-up">在原型抽屉新增「浏览器完善区域」按钮</li>
+          <li data-anim="fade-up">一键唤起 Chrome 扩展 sidepanel</li>
+          <li data-anim="fade-up">打通 Workbench → 插件 → HTML 原型的完整链路</li>
+        </ul>
+      </div>
+      <div class="card highlight-card">
+        <h3>💡 战略价值（CTO 关注）</h3>
+        <ul class="bullet-list anim-stagger-list">
+          <li data-anim="fade-up"><strong>自动化提效</strong>：减少人工抽取原型元素的时间成本</li>
+          <li data-anim="fade-up"><strong>生态闭环</strong>：插件 + Workbench 形成完整 spec → 原型 → 实现闭环</li>
+          <li data-anim="fade-up"><strong>可扩展</strong>：B2 支持多标签页并发（future）</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout-block warning">
+      <span class="callout-icon">⚠️</span>
+      <div><strong>前提条件</strong>：用户已安装 L2-prototype-extractor Chrome 扩展（V1 手动安装）。插件安装引导 UI 属于 out_of_scope。</div>
+    </div>
+    <div class="deck-footer">
+      <span>VibeX Workbench · FEAT-prototype-extractor-launcher</span>
+      <span class="slide-number">2 / 9</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 3: As-Is 现状分析 ===== -->
+<section class="slide" data-slide="3">
+  <div class="slide-inner">
+    <div class="deck-header"><span class="deck-title-tag">现状分析</span></div>
+    <h2 class="slide-title">As-Is 现状（无此功能）</h2>
+    <div class="three-col-grid">
+      <div class="card">
+        <h3>🔴 当前链路（手动）</h3>
+        <div class="flow-diagram">
+          <div class="flow-node error">原型抽屉</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node error">手动打开 Chrome</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node error">手动复制 spec 路径</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node error">手动粘贴到扩展</div>
+        </div>
+        <p class="small-text mt-2">平均操作步骤：5~7 步，路径易出错</p>
+      </div>
+      <div class="card">
+        <h3>📂 关键文件路径</h3>
+        <table class="mini-table">
+          <tr><td><code>PrototypePanel.svelte</code></td></tr>
+          <tr><td><code>.vibex/prototypes/</code>（目标目录）</td></tr>
+          <tr><td><code>chrome-extension://.../sidepanel.html</code></td></tr>
+          <tr><td><code>FileWatcher</code>（待集成）</td></tr>
+        </table>
+      </div>
+      <div class="card highlight-card">
+        <h3>❌ 差距（Gap）</h3>
+        <ul class="bullet-list">
+          <li>无入口按钮 → 用户不知道如何使用</li>
+          <li>无 context 传递 → 需手动复制路径</li>
+          <li>无错误处理 → 未安装插件时无提示</li>
+          <li>无文件监听 → 原型生成后需手动刷新</li>
+        </ul>
+      </div>
+    </div>
+    <div class="deck-footer">
+      <span>VibeX Workbench · FEAT-prototype-extractor-launcher</span>
+      <span class="slide-number">3 / 9</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 4: To-Be 目标状态 ===== -->
+<section class="slide" data-slide="4">
+  <div class="slide-inner">
+    <div class="deck-header"><span class="deck-title-tag">目标状态</span></div>
+    <h2 class="slide-title">To-Be 目标（一键直达）</h2>
+    <div class="two-col-grid">
+      <div class="card">
+        <h3>✅ 新链路（自动化）</h3>
+        <div class="flow-diagram">
+          <div class="flow-node success">原型抽屉</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node success">点击「浏览器完善区域」</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node success">Chrome sidepanel 打开</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node success">FileWatcher 自动刷新</div>
+        </div>
+        <p class="small-text mt-2">平均操作步骤：1 步，端到端自动化</p>
+      </div>
+      <div class="card">
+        <h3>📋 三步行为定义</h3>
+        <div class="step-list">
+          <div class="step-item" data-anim="fade-up">
+            <span class="step-num">B1</span>
+            <div><strong>点击触发</strong><br>获取 active spec → 构造 URL → chrome.tabs.create</div>
+          </div>
+          <div class="step-item" data-anim="fade-up">
+            <span class="step-num">B2</span>
+            <div><strong>提取完成</strong><br>FileWatcher 检测 → 刷新预览 → 触发 agent 推导</div>
+          </div>
+          <div class="step-item" data-anim="fade-up">
+            <span class="step-num">B3</span>
+            <div><strong>异常处理</strong><br>chrome.runtime.lastError → 提示安装指引</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="callout-block info mt-3">
+      <span class="callout-icon">ℹ️</span>
+      <div><strong>切换条件</strong>：用户安装插件后自动启用；未安装时优雅降级显示 B3 提示，不阻断其他功能。</div>
+    </div>
+    <div class="deck-footer">
+      <span>VibeX Workbench · FEAT-prototype-extractor-launcher</span>
+      <span class="slide-number">4 / 9</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 5: 状态矩阵 ===== -->
+<section class="slide" data-slide="5">
+  <div class="slide-inner">
+    <div class="deck-header"><span class="deck-title-tag">状态矩阵</span></div>
+    <h2 class="slide-title">场景 × 状态矩阵</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>场景</th>
+          <th>触发条件</th>
+          <th>预期行为</th>
+          <th>状态</th>
+          <th>备注</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>插件已安装 + spec 选中</td>
+          <td>点击按钮</td>
+          <td>打开 sidepanel，传递 context</td>
+          <td><span class="status-badge success">✅ 实现</span></td>
+          <td>核心链路</td>
+        </tr>
+        <tr>
+          <td>插件未安装</td>
+          <td>点击按钮</td>
+          <td>chrome.runtime.lastError → 提示安装</td>
+          <td><span class="status-badge pending">🔧 实现</span></td>
+          <td>B3 异常分支</td>
+        </tr>
+        <tr>
+          <td>无 active spec</td>
+          <td>点击按钮</td>
+          <td>禁用按钮 / 提示"请先打开 spec"</td>
+          <td><span class="status-badge pending">🔧 实现</span></td>
+          <td>UI 防护</td>
+        </tr>
+        <tr>
+          <td>提取完成，文件生成</td>
+          <td>FileWatcher 检测</td>
+          <td>刷新原型预览区</td>
+          <td><span class="status-badge pending">🔧 实现</td>
+          <td>依赖 FileWatcher</td>
+        </tr>
+        <tr>
+          <td>提取失败 / 网络错误</td>
+          <td>扩展返回错误</td>
+          <td>toast 提示 + 日志记录</td>
+          <td><span class="status-badge future">📋 计划</span></td>
+          <td>V2 扩展</td>
+        </tr>
+        <tr>
+          <td>loading（提取中）</td>
+          <td>用户等待</td>
+          <td>按钮显示 loading spinner</td>
+          <td><span class="status-badge future">📋 计划</span></td>
+          <td>V2 增强</td>
+        </tr>
+        <tr>
+          <td>empty（prototypes 目录为空）</td>
+          <td>首次使用</td>
+          <td>显示空状态引导</td>
+          <td><span class="status-badge future">📋 计划</span></td>
+          <td>可选优化</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="deck-footer">
+      <span>VibeX Workbench · FEAT-prototype-extractor-launcher</span>
+      <span class="slide-number">5 / 9</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 6: 边界演示 ===== -->
+<section class="slide" data-slide="6">
+  <div class="slide-inner">
+    <div class="deck-header"><span class="deck-title-tag">边界演示</span></div>
+    <h2 class="slide-title">边界条件 &amp; 约束规则</h2>
+    <div class="two-col-grid">
+      <div class="card">
+        <h3>🛡️ constraints.rules（来自 spec）</h3>
+        <table class="mini-table">
+          <tr>
+            <th>规则 ID</th>
+            <th>描述</th>
+            <th>触发方式</th>
+          </tr>
+          <tr>
+            <td>C1</td>
+            <td>仅支持 Chrome 浏览器（依赖 chrome.* API）</td>
+            <td>非 Chrome 环境下禁用按钮</td>
+          </tr>
+          <tr>
+            <td>C2</td>
+            <td>扩展必须在 Chrome Web Store 或本地加载</td>
+            <td>检测 chrome.runtime.id 是否存在</td>
+          </tr>
+          <tr>
+            <td>C3</td>
+            <td>传递 context 最大 2KB（chrome.storage.local 限制）</td>
+            <td>大型 spec 路径压缩</td>
+          </tr>
+          <tr>
+            <td>C4</td>
+            <td>FileWatcher 仅监听 .vibex/prototypes/ 目录</td>
+            <td>限定范围避免误触发</td>
+          </tr>
+        </table>
+      </div>
+      <div class="card">
+        <h3>🔄 Out-of-Scope（明确不做）</h3>
+        <ul class="bullet-list">
+          <li data-anim="fade-up">❌ 插件安装引导 UI（V1 手动安装）</li>
+          <li data-anim="fade-up">❌ 多标签页同时提取（单标签优先）</li>
+          <li data-anim="fade-up">❌ 提取进度实时推送（V2 WebSocket）</li>
+          <li data-anim="fade-up">❌ 提取失败自动重试（V2 retry queue）</li>
+        </ul>
+        <h3 class="mt-3">📦 Dependencies</h3>
+        <ul class="bullet-list">
+          <li data-anim="fade-up">✅ L2-prototype-extractor（Chrome 插件）</li>
+          <li data-anim="fade-up">✅ PrototypePanel（原型预览区，已实现）</li>
+          <li data-anim="fade-up">✅ FileWatcher（prototypes 目录监听）</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout-block danger mt-3">
+      <span class="callout-icon">🚫</span>
+      <div><strong>Why-Not 说明</strong>：插件安装引导 UI 不在 V1 范围 → 降低实现复杂度，优先验证核心链路；多标签页 → 等核心链路稳定后再扩展。</div>
+    </div>
+    <div class="deck-footer">
+      <span>VibeX Workbench · FEAT-prototype-extractor-launcher</span>
+      <span class="slide-number">6 / 9</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 7: 受众视角：开发 + 测试 ===== -->
+<section class="slide" data-slide="7">
+  <div class="slide-inner">
+    <div class="deck-header"><span class="deck-title-tag">受众 · 开发 &amp; 测试</span></div>
+    <h2 class="slide-title">开发 &amp; 测试关注点</h2>
+    <div class="two-col-grid">
+      <div class="card">
+        <h3>👨‍💻 开发视角</h3>
+        <ul class="bullet-list anim-stagger-list">
+          <li data-anim="fade-up"><strong>UI 组件</strong>：PrototypePanel → 新增按钮（ghost 风格）</li>
+          <li data-anim="fade-up"><strong>接口调用</strong>：chrome.tabs.create + chrome.storage.local</li>
+          <li data-anim="fade-up"><strong>文件路径</strong>：<code>.vibex/prototypes/{name}.html</code></li>
+          <li data-anim="fade-up"><strong>监听器</strong>：FileWatcher / fs.watch / chokidar</li>
+        </ul>
+        <h4 class="mt-2">技术选型 Why</h4>
+        <table class="mini-table">
+          <tr><th>选型</th><th>理由</th></tr>
+          <tr><td>chrome.tabs.create</td><td>官方 API，sidepanel 最佳打开方式</td></tr>
+          <tr><td>chokidar 而非 fs.watch</td><td>跨平台兼容，事件更可靠</td></tr>
+          <tr><td>chrome.storage.local</td><td>sidepanel 共享数据的标准方案</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h3>🧪 测试视角</h3>
+        <ul class="bullet-list anim-stagger-list">
+          <li data-anim="fade-up"><strong>E2E</strong>：点击按钮 → sidepanel 打开 → 文件生成 → 预览刷新</li>
+          <li data-anim="fade-up"><strong>异常</strong>：未安装插件、Chrome 不可用、无 active spec</li>
+          <li data-anim="fade-up"><strong>边界</strong>：spec 路径超长（>2KB）、文件监听延迟</li>
+        </ul>
+        <h4 class="mt-2">验收标准（测试 checklist）</h4>
+        <ul class="bullet-list">
+          <li>✅ 按钮在非 Chrome 浏览器下禁用</li>
+          <li>✅ 未安装插件时显示 toast 提示</li>
+          <li>✅ 文件生成后 3s 内预览刷新</li>
+          <li>✅ context 正确传递（spec 路径 + workspace 根）</li>
+        </ul>
+      </div>
+    </div>
+    <div class="deck-footer">
+      <span>VibeX Workbench · FEAT-prototype-extractor-launcher</span>
+      <span class="slide-number">7 / 9</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 8: 受众视角：用户 + 决策页 ===== -->
+<section class="slide" data-slide="8">
+  <div class="slide-inner">
+    <div class="deck-header"><span class="deck-title-tag">受众 · 用户 &amp; 决策</span></div>
+    <h2 class="slide-title">用户体验 &amp; 方案决策</h2>
+    <div class="two-col-grid">
+      <div class="card">
+        <h3>👤 用户视角</h3>
+        <ul class="bullet-list anim-stagger-list">
+          <li data-anim="fade-up"><strong>入口</strong>：原型抽屉内 → 「浏览器完善区域」按钮</li>
+          <li data-anim="fade-up"><strong>操作</strong>：1 次点击 → Chrome 插件自动提取</li>
+          <li data-anim="fade-up"><strong>反馈</strong>：提取完成 → 原型预览自动刷新</li>
+          <li data-anim="fade-up"><strong>错误</strong>：未安装插件 → 友好提示 + 安装指引</li>
+        </ul>
+        <h4 class="mt-2">用户旅程</h4>
+        <div class="flow-diagram">
+          <div class="flow-node">打开原型抽屉</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node">点击按钮</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node">Chrome 插件提取</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node">预览自动更新</div>
+        </div>
+      </div>
+      <div class="card highlight-card">
+        <h3>⚖️ 方案决策</h3>
+        <table class="mini-table">
+          <thead>
+            <tr><th>方案</th><th>推荐</th><th>理由</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>A: 直接打开 sidepanel</strong></td>
+              <td><span class="status-badge success">✅ 选用</span></td>
+              <td>官方推荐，用户体验最佳，无需额外页面</td>
+            </tr>
+            <tr>
+              <td><strong>B: 弹窗输入 URL</strong></td>
+              <td><span class="status-badge error">❌ 不选</span></td>
+              <td>增加用户操作成本，与 sidepanel 体验差距大</td>
+            </tr>
+            <tr>
+              <td><strong>C: 新标签页打开</strong></td>
+              <td><span class="status-badge error">❌ 不选</span></td>
+              <td>sidepanel 是 Chrome 原生面板，与 Workbench 更紧密集成</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="callout-block mt-2">
+          <strong>成本 &amp; 风险</strong>：开发成本低（~2pd）；主要风险为插件安装率低（需手动安装引导）。缓解：提供安装文档 + B3 友好提示。
+        </div>
+      </div>
+    </div>
+    <div class="deck-footer">
+      <span>VibeX Workbench · FEAT-prototype-extractor-launcher</span>
+      <span class="slide-number">8 / 9</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 9: 执行页 + 可复制问题清单 ===== -->
+<section class="slide" data-slide="9">
+  <div class="slide-inner">
+    <div class="deck-header"><span class="deck-title-tag">执行 &amp; 风险</span></div>
+    <h2 class="slide-title">执行计划 &amp; 可复制问题清单</h2>
+    <div class="two-col-grid">
+      <div class="card">
+        <h3>🚀 执行页</h3>
+        <table class="mini-table">
+          <tr><th>里程碑</th><th>负责人</th><th>验收标准</th></tr>
+          <tr><td>M1: 按钮 UI + B1 逻辑</td><td>FE 开发</td><td>点击后 sidepanel 打开</td></tr>
+          <tr><td>M2: B3 异常处理</td><td>FE 开发</td><td>未安装插件时显示提示</td></tr>
+          <tr><td>M3: FileWatcher + B2</td><td>BE/集成</td><td>文件生成后预览刷新</td></tr>
+          <tr><td>M4: E2E 测试</td><td>QA</td><td>覆盖所有状态矩阵场景</td></tr>
+        </table>
+        <h4 class="mt-2">回滚策略</h4>
+        <ul class="bullet-list">
+          <li>功能开关控制（F2/F3 可独立禁用）</li>
+          <li>FileWatcher 热卸载，不影响原型抽屉基础功能</li>
+          <li>按钮降级为纯外部链接（不传 context）</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>📋 可复制的问题清单（详情抽屉对话用）</h3>
+        <ol class="numbered-list">
+          <li>按钮位置是否放在「浏览器完善区域」还是独立工具栏？</li>
+          <li>context 传递是否需要加密或签名（防止篡改）？</li>
+          <li>FileWatcher 是否需要支持 debounce（防抖）避免频繁刷新？</li>
+          <li>B2 触发后是否需要 agent 推导确认弹窗？</li>
+          <li>插件未安装时的提示文案和链接路径是什么？</li>
+          <li>是否需要支持从 sidepanel 回调 Workbench（postMessage）？</li>
+          <li>prototypes 目录初始为空时是否需要引导页？</li>
+          <li>多语言（i18n）文案是否需要提取到 locale 文件？</li>
+          <li>插件提取超时时间设置多少秒合理（建议 30s）？</li>
+          <li>是否需要埋点记录提取成功率用于监控？</li>
+          <li>V2 多标签页并发时如何处理 context 冲突？</li>
+          <li>FileWatcher 在 Windows WSL 环境下是否需要特殊处理？</li>
+        </ol>
+      </div>
+    </div>
+    <div class="callout-block info mt-3">
+      <span class="callout-icon">📌</span>
+      <div><strong>Spec 偏差 &amp; 风险</strong>：目前 spec 缺少 <code>display.summary</code>，agent 需在下次修改时补齐；V1 不含插件安装引导可能影响用户激活率，建议在 README 中增加手动安装说明。</div>
+    </div>
+    <div class="deck-footer">
+      <span>VibeX Workbench · FEAT-prototype-extractor-launcher</span>
+      <span class="slide-number">9 / 9</span>
+    </div>
+  </div>
+</section>
+
+</main>
+<script src="../assets/runtime.js"></script>
+<script src="../assets/vibex-ppt-nav.js"></script>
+</body>
+</html>

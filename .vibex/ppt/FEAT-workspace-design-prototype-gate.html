@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FEAT-workspace-design-prototype-gate — 工作区设计门禁与原型物料库</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" id="theme-link" href="../assets/themes/blueprint.css">
+  <link rel="stylesheet" href="../assets/animations/animations.css">
+</head>
+<body>
+
+<main class="deck">
+
+  <!-- ========== SLIDE 1: 封面 ========== -->
+  <section class="slide is-active" data-slide="1">
+    <div class="slide-inner">
+      <div class="deck-header"><span class="deck-title">VibeX Workbench · L4 Feature Spec</span></div>
+      <div class="cover-hero">
+        <div class="cover-badge">L4 · 工作区设计门禁</div>
+        <h1 class="cover-title">工作区设计门禁与<br>原型物料库</h1>
+        <p class="cover-subtitle">FEAT-workspace-design-prototype-gate</p>
+        <div class="cover-meta">
+          <span>spec_version: 1.0.0</span>
+          <span>status: review</span>
+          <span>theme: blueprint</span>
+        </div>
+        <div class="cover-tags">
+          <span class="tag">工作区</span>
+          <span class="tag">原型物料</span>
+          <span class="tag">门禁策略</span>
+          <span class="tag">设计确认</span>
+        </div>
+      </div>
+      <div class="deck-footer"><span class="slide-number">1 / 9</span></div>
+    </div>
+  </section>
+
+  <!-- ========== SLIDE 2: 功能目标 ========== -->
+  <section class="slide" data-slide="2">
+    <div class="slide-inner">
+      <div class="deck-header"><span class="deck-title">功能目标</span></div>
+      <h2 class="slide-title">功能目标 — 核心能力矩阵</h2>
+      <div class="two-col">
+        <div class="card-block">
+          <h3 class="card-title">🎯 目标 1：双轨维护机制</h3>
+          <ul class="bullet-list">
+            <li>每个仓库根目录维护 <code>DESIGN.md</code></li>
+            <li>每个模块维护 <code>prototypes/</code> 物料目录</li>
+            <li>spec 与 prototype 修改均经显式确认后写盘</li>
+            <li>禁止静默覆盖历史版本</li>
+          </ul>
+        </div>
+        <div class="card-block">
+          <h3 class="card-title">🎯 目标 2：原型槽策略条</h3>
+          <ul class="bullet-list">
+            <li>工作台提供可操作的策略条（ActionStrip）</li>
+            <li>支持快速查看/切换原型状态</li>
+            <li>支持从原型深链到 spec 详情抽屉</li>
+            <li>支持 spec 变更触发原型刷新提示</li>
+          </ul>
+        </div>
+      </div>
+      <div class="highlight-box">
+        <strong>why（为何做）：</strong>当前工作区缺少设计意图的持久化存储，spec 与 prototype 分散管理，导致设计与实现脱节、历史追溯困难。
+      </div>
+      <div class="deck-footer"><span class="slide-number">2 / 9</span></div>
+    </div>
+  </section>
+
+  <!-- ========== SLIDE 3: As-Is 现状 ========== -->
+  <section class="slide" data-slide="3">
+    <div class="slide-inner">
+      <div class="deck-header"><span class="deck-title">As-Is 现状</span></div>
+      <h2 class="slide-title">现状分析 — 无持久化设计上下文</h2>
+      <div class="three-col">
+        <div class="card-block">
+          <h3 class="card-title">❌ 工作区状态</h3>
+          <ul class="bullet-list">
+            <li>无 <code>DESIGN.md</code> 存储设计意图</li>
+            <li>无 <code>prototypes/</code> 统一物料管理</li>
+            <li>spec 文件分散于 <code>.vibex/specs/</code></li>
+            <li>原型文件无版本追踪与关联</li>
+          </ul>
+        </div>
+        <div class="card-block">
+          <h3 class="card-title">❌ 原型槽缺失</h3>
+          <ul class="bullet-list">
+            <li>无 ActionStrip 策略条组件</li>
+            <li>无原型状态可视化</li>
+            <li>无 spec ↔ prototype 双向深链</li>
+            <li>无变更感知与刷新提示</li>
+          </ul>
+        </div>
+        <div class="card-block">
+          <h3 class="card-title">❌ 确认机制缺失</h3>
+          <ul class="bullet-list">
+            <li>spec/prototype 修改无确认流程</li>
+            <li>无 diff 对比与变更记录</li>
+            <li>无回滚能力</li>
+            <li>多人协作存在覆盖风险</li>
+          </ul>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>维度</th><th>当前状态</th><th>文件路径/接口</th></tr></thead>
+          <tbody>
+            <tr><td>spec 存储</td><td>仅内存/本地</td><td><code>.vibex/specs/</code></td></tr>
+            <tr><td>DESIGN.md</td><td>不存在</td><td>待创建</td></tr>
+            <tr><td>prototypes/</td><td>不存在</td><td>待创建</td></tr>
+            <tr><td>确认写盘</td><td>无</td><td>待实现</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="deck-footer"><span class="slide-number">3 / 9</span></div>
+    </div>
+  </section>
+
+  <!-- ========== SLIDE 4: To-Be 目标 ========== -->
+  <section class="slide" data-slide="4">
+    <div class="slide-inner">
+      <div class="deck-header"><span class="deck-title">To-Be 目标</span></div>
+      <h2 class="slide-title">目标状态 — 设计上下文持久化</h2>
+      <div class="flow-diagram">
+        <div class="flow-step">
+          <div class="flow-icon">📄</div>
+          <div class="flow-label">DESIGN.md</div>
+          <div class="flow-desc">每仓库根目录维护设计意图文档</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-icon">📁</div>
+          <div class="flow-label">prototypes/</div>
+          <div class="flow-desc">模块级原型物料统一管理</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-icon">⚙️</div>
+          <div class="flow-label">确认写盘</div>
+          <div class="flow-desc">spec/prototype 修改显式确认</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-icon">🔗</div>
+          <div class="flow-label">ActionStrip</div>
+          <div class="flow-desc">工作台策略条快速访问</div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>目标</th><th>实现方式</th><th>验收标准</th></tr></thead>
+          <tbody>
+            <tr><td>DESIGN.md 生成</td><td>spec → DESIGN.md 转换</td><td>内容完整、可追溯 diff</td></tr>
+            <tr><td>prototypes/ 目录</td><td>按模块组织原型文件</td><td>与 spec 一一对应</td></tr>
+            <tr><td>确认写盘机制</td><td>确认对话框 + diff 展示</td><td>无静默覆盖</td></tr>
+            <tr><td>ActionStrip 原型槽</td><td>策略条组件化</td><td>点击可展开详情抽屉</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="deck-footer"><span class="slide-number">4 / 9</span></div>
+    </div>
+  </section>
+
+  <!-- ========== SLIDE 5: 状态矩阵 ========== -->
+  <section class="slide" data-slide="5">
+    <div class="slide-inner">
+      <div class="deck-header"><span class="deck-title">状态矩阵</span></div>
+      <h2 class="slide-title">状态矩阵 — 三种原型场景</h2>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>场景</th><th>触发条件</th><th>UI 表现</th><th>ActionStrip 状态</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="badge badge-success">✅ 有原型</span></td>
+              <td><code>prototypes/</code> 存在且有内容</td>
+              <td>显示缩略图 + 版本号 + 最后修改时间</td>
+              <td>绿色状态条，可点击展开</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-info">📭 空原型</span></td>
+              <td>目录存在但无文件</td>
+              <td>空状态提示 + "生成原型" 按钮</td>
+              <td>灰色状态条 + 创建入口</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-warning">⏳ Loading</span></td>
+              <td>原型加载中 / 网络延迟</td>
+              <td>骨架屏 + loading 动画</td>
+              <td>脉冲动画表示加载中</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-danger">❌ 错误态</span></td>
+              <td>文件损坏 / 路径不存在 / 无权限</td>
+              <td>错误提示 + 重试按钮</td>
+              <td>红色状态条 + 警告图标</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="highlight-box">
+        <strong>why（为何矩阵重要）：</strong>原型槽是用户高频交互入口，状态不一致会直接导致信任崩塌；loading/error/empty 三态必须完整覆盖。
+      </div>
+      <div class="deck-footer"><span class="slide-number">5 / 9</span></div>
+    </div>
+  </section>
+
+  <!-- ========== SLIDE 6: 边界演示 ========== -->
+  <section class="slide" data-slide="6">
+    <div class="slide-inner">
+      <div class="deck-header"><span class="deck-title">边界演示</span></div>
+      <h2 class="slide-title">边界条件与约束规则</h2>
+      <div class="three-col">
+        <div class="card-block">
+          <h3 class="card-title">🔒 规则 1：禁止静默覆盖</h3>
+          <ul class="bullet-list">
+            <li>DESIGN.md 修改必须 diff 展示</li>
+            <li>prototype 修改必须版本快照</li>
+            <li>用户点击确认后才写盘</li>
+          </ul>
+          <div class="trigger-box">触发：修改文件 → 弹出确认对话框</div>
+        </div>
+        <div class="card-block">
+          <h3 class="card-title">🔒 规则 2：跨仓库隔离</h3>
+          <ul class="bullet-list">
+            <li>每个仓库独立 DESIGN.md</li>
+            <li>不允许跨仓库引用 prototype</li>
+            <li>原型路径基于 <code>workspace.root</code></li>
+          </ul>
+          <div class="trigger-box">触发：切换工作区 → 刷新 ActionStrip</div>
+        </div>
+        <div class="card-block">
+          <h3 class="card-title">🔒 规则 3：版本回滚</h3>
+          <ul class="bullet-list">
+            <li>每次写盘生成版本快照</li>
+            <li>支持回滚到任意历史版本</li>
+            <li>回滚操作需要二次确认</li>
+          </ul>
+          <div class="trigger-box">触发：详情抽屉 → 历史版本 → 回滚</div>
+        </div>
+      </div>
+      <div class="highlight-box">
+        <strong>why-not（为何不用自动保存）：</strong>自动保存虽有便利性，但设计文档和原型是高价值资产，静默覆盖风险极高；显式确认是必要的摩擦成本。
+      </div>
+      <div class="deck-footer"><span class="slide-number">6 / 9</span></div>
+    </div>
+  </section>
+
+  <!-- ========== SLIDE 7: 决策页 ========== -->
+  <section class="slide" data-slide="7">
+    <div class="slide-inner">
+      <div class="deck-header"><span class="deck-title">决策与执行</span></div>
+      <h2 class="slide-title">方案决策 — 推荐 vs 备选</h2>
+      <div class="table-wrap">
+        <table class="data-table decision-table">
+          <thead><tr><th>维度</th><th>推荐方案 A</th><th>备选方案 B</th><th>不选理由</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>存储位置</strong></td>
+              <td>每仓库根目录 <code>DESIGN.md</code></td>
+              <td>统一 <code>.vibex/design/</code> 集中存储</td>
+              <td>集中存储不便于 Git 管理与代码同生命周期</td>
+            </tr>
+            <tr>
+              <td><strong>确认时机</strong></td>
+              <td>修改后立即确认写盘</td>
+              <td>批量确认（定时/退出时）</td>
+              <td>批量确认增加数据丢失风险，即时确认更安全</td>
+            </tr>
+            <tr>
+              <td><strong>版本快照</strong></td>
+              <td>每次写盘生成快照 + diff</td>
+              <td>仅保留最新版本</td>
+              <td>无快照则无法回溯，高风险场景必须保留历史</td>
+            </tr>
+            <tr>
+              <td><strong>原型关联</strong></td>
+              <td>spec.id → prototype 一对一映射</td>
+              <td>多原型可关联同一 spec</td>
+              <td>多对多增加歧义，一对一更清晰可追溯</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="highlight-box">
+        <strong>成本估算：</strong>开发 3 天 · 测试 2 天 · 文档 1 天 · 总工时 ≈ 6 人天<br>
+        <strong>风险等级：</strong>中（依赖文件系统 I/O，无网络依赖）
+      </div>
+      <div class="deck-footer"><span class="slide-number">7 / 9</span></div>
+    </div>
+  </section>
+
+  <!-- ========== SLIDE 8: 四视角覆盖 ========== -->
+  <section class="slide" data-slide="8">
+    <div class="slide-inner">
+      <div class="deck-header"><span class="deck-title">四视角覆盖</span></div>
+      <h2 class="slide-title">受众视角 — CTO / 开发 / 测试 / 用户</h2>
+      <div class="four-col">
+        <div class="card-block perspective-card cto">
+          <h3 class="card-title">👔 CTO</h3>
+          <ul class="bullet-list">
+            <li>设计意图可追溯、可审计</li>
+            <li>跨仓库设计资产统一管控</li>
+            <li>降低团队成员离职知识流失风险</li>
+          </ul>
+          <div class="perspective-tag">决策价值</div>
+        </div>
+        <div class="card-block perspective-card dev">
+          <h3 class="card-title">💻 开发</h3>
+          <ul class="bullet-list">
+            <li>DESIGN.md 即设计文档</li>
+            <li>原型物料快速访问</li>
+            <li>spec ↔ prototype 双向跳转</li>
+          </ul>
+          <div class="perspective-tag">开发效率</div>
+        </div>
+        <div class="card-block perspective-card test">
+          <h3 class="card-title">🧪 测试</h3>
+          <ul class="bullet-list">
+            <li>基于 spec 设计验收用例</li>
+            <li>原型变更触发测试用例更新提示</li>
+            <li>diff 对比便于回归分析</li>
+          </ul>
+          <div class="perspective-tag">测试覆盖</div>
+        </div>
+        <div class="card-block perspective-card user">
+          <h3 class="card-title">👤 用户</h3>
+          <ul class="bullet-list">
+            <li>原型槽提供直观的原型预览</li>
+            <li>详情抽屉快速访问设计上下文</li>
+            <li>版本回滚提升使用信心</li>
+          </ul>
+          <div class="perspective-tag">用户体验</div>
+        </div>
+      </div>
+      <div class="deck-footer"><span class="slide-number">8 / 9</span></div>
+    </div>
+  </section>
+
+  <!-- ========== SLIDE 9: 可复制问题清单 ========== -->
+  <section class="slide" data-slide="9">
+    <div class="slide-inner">
+      <div class="deck-header"><span class="deck-title">可复制问题清单</span></div>
+      <h2 class="slide-title">Spec 完善问题清单 — 用于详情抽屉对话</h2>
+      <div class="two-col">
+        <div class="card-block">
+          <h3 class="card-title">📋 基础配置</h3>
+          <ol class="ordered-list">
+            <li>DESIGN.md 的 Markdown 模板结构是什么？</li>
+            <li>prototypes/ 目录的文件命名规范？</li>
+            <li>spec.id 与 prototype 文件名的映射规则？</li>
+            <li>确认对话框的 UI 组件是复用还是新建？</li>
+            <li>版本快照的存储格式（JSON / Git blob）？</li>
+            <li>历史版本保留期限（7天/30天/永久）？</li>
+          </ol>
+        </div>
+        <div class="card-block">
+          <h3 class="card-title">🔧 进阶问题</h3>
+          <ol class="ordered-list">
+            <li>DESIGN.md 修改时是否触发 Git commit？</li>
+            <li>原型深链 URL 的格式规范？</li>
+            <li>多人并发编辑同一 DESIGN.md 的冲突策略？</li>
+            <li>ActionStrip 策略条是否支持拖拽排序？</li>
+            <li>旧版 spec 迁移到 DESIGN.md 的批量工具？</li>
+            <li>spec 与 prototype 双向同步的失败补偿机制？</li>
+            <li>大型原型文件（>10MB）的加载策略？</li>
+            <li>回滚后是否自动更新相关引用？</li>
+            <li>国际化（i18n）场景下 DESIGN.md 的处理？</li>
+            <li>性能基准：ActionStrip 加载耗时应 ≤？</li>
+          </ol>
+        </div>
+      </div>
+      <div class="highlight-box">
+        <strong>使用方式：</strong>复制以上问题到详情抽屉，与 agent 对话完善 spec 描述。每条问题均标注前提条件与切换条件。
+      </div>
+      <div class="deck-footer"><span class="slide-number">9 / 9</span></div>
+    </div>
+  </section>
+
+</main>
+
+<script src="../assets/runtime.js"></script>
+<script src="../assets/vibex-ppt-nav.js"></script>
+
+</body>
+</html>

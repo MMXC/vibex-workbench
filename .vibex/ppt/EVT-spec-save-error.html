@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EVT-spec-save-error | Spec Save Error Handling</title>
+  <link rel="stylesheet" href="../assets/base.css">
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" id="theme-link" href="../assets/themes/engineering-whiteprint.css">
+  <link rel="stylesheet" href="../assets/animations/animations.css">
+</head>
+<body>
+  <main class="deck">
+
+    <!-- ========== Slide 1: Cover ========== -->
+    <section class="slide is-active" data-slide="1">
+      <div class="slide-header">
+        <span class="badge">L5-Slice</span>
+        <span class="tag">Event Spec</span>
+      </div>
+      <div class="slide-body">
+        <h1 class="title">spec:save:error</h1>
+        <p class="subtitle">Spec 保存失败事件规范</p>
+        <div class="meta-row">
+          <span class="meta-item">📦 event_bus</span>
+          <span class="meta-item">👤 owner: user</span>
+          <span class="meta-item">📅 2026-05-15</span>
+        </div>
+        <div class="status-badge-row">
+          <span class="status-badge status-proposal">proposal</span>
+          <span class="status-badge status-l5">L5-Slice</span>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>VibeX Workbench · EVT-spec-save-error</span>
+        <span class="page-num">1 / 10</span>
+      </div>
+    </section>
+
+    <!-- ========== Slide 2: Goals & Criteria ========== -->
+    <section class="slide" data-slide="2">
+      <div class="slide-header">
+        <h2 class="slide-title">实现目标与完成标准</h2>
+      </div>
+      <div class="slide-body">
+        <div class="two-col">
+          <div class="col">
+            <h3 class="section-title">🎯 核心目标</h3>
+            <ul class="bullet-list anim-stagger-list">
+              <li class="anim-item">捕获 <code>wailsWriteSpecFile</code> 写入失败</li>
+              <li class="anim-item">向 SpecViewer + toast 广播错误事件</li>
+              <li class="anim-item">保留用户编辑状态，不丢失数据</li>
+              <li class="anim-item">提供可追溯的错误码与路径信息</li>
+            </ul>
+          </div>
+          <div class="col">
+            <h3 class="section-title">✅ 完成标准</h3>
+            <ul class="bullet-list anim-stagger-list">
+              <li class="anim-item">保存失败时 UI 保留编辑内容</li>
+              <li class="anim-item">toast 显示错误摘要（≤ 80 字符）</li>
+              <li class="anim-item">错误码映射表完整覆盖 5 种类型</li>
+              <li class="anim-item">SpecViewer 响应延迟 &lt; 200ms</li>
+              <li class="anim-item">console 有完整 error 对象输出</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>VibeX Workbench · EVT-spec-save-error</span>
+        <span class="page-num">2 / 10</span>
+      </div>
+    </section>
+
+    <!-- ========== Slide 3: As-Is State ========== -->
+    <section class="slide" data-slide="3">
+      <div class="slide-header">
+        <h2 class="slide-title">现状：As-Is 分析</h2>
+        <span class="tag tag-warn">待实现</span>
+      </div>
+      <div class="slide-body">
+        <div class="callout callout-warn">
+          <span class="icon">⚠️</span>
+          <span>当前 spec 未定义 save 失败处理逻辑</span>
+        </div>
+        <div class="two-col">
+          <div class="col">
+            <h3 class="section-title">🔴 当前行为</h3>
+            <ul class="bullet-list">
+              <li>wailsWriteSpecFile 失败时无事件广播</li>
+              <li>SpecViewer 状态不可预期（可能清空）</li>
+              <li>toast 错误信息未规范化</li>
+              <li>错误码未定义，无法区分故障类型</li>
+            </ul>
+          </div>
+          <div class="col">
+            <h3 class="section-title">📂 关联代码路径</h3>
+            <div class="code-ref">
+              <code>FEAT-spec-write_L5</code>
+              <span class="file-hint">io_contract.output</span>
+            </div>
+            <div class="code-ref">
+              <code>content.ui_spec.acceptance</code>
+              <span class="file-hint">失败 → 显示 saveErr</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>VibeX Workbench · EVT-spec-save-error</span>
+        <span class="page-num">3 / 10</span>
+      </div>
+    </section>
+
+    <!-- ========== Slide 4: To-Be Target ========== -->
+    <section class="slide" data-slide="4">
+      <div class="slide-header">
+        <h2 class="slide-title">目标：To-Be 状态</h2>
+        <span class="tag tag-ok">规划</span>
+      </div>
+      <div class="slide-body">
+        <div class="flow-diagram">
+          <div class="flow-step">
+            <span class="step-num">1</span>
+            <span class="step-label">用户点击「保存」</span>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step">
+            <span class="step-num">2</span>
+            <span class="step-label">wailsWriteSpecFile 失败</span>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step step-highlight">
+            <span class="step-num">3</span>
+            <span class="step-label">emit spec:save:error</span>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step step-ok">
+            <span class="step-num">4a</span>
+            <span class="step-label">SpecViewer 保留编辑</span>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step step-ok">
+            <span class="step-num">4b</span>
+            <span class="step-label">toast 显示错误摘要</span>
+          </div>
+        </div>
+        <div class="payload-box">
+          <h4>Event Payload 结构</h4>
+          <table class="data-table">
+            <thead>
+              <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>path</code></td><td>string</td><td>失败文件相对路径</td></tr>
+              <tr><td><code>error</code></td><td>string</td><td>错误信息原文</td></tr>
+              <tr><td><code>code</code></td><td>string</td><td>错误码（5选1）</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>VibeX Workbench · EVT-spec-save-error</span>
+        <span class="page-num">4 / 10</span>
+      </div>
+    </section>
+
+    <!-- ========== Slide 5: State Matrix ========== -->
+    <section class="slide" data-slide="5">
+      <div class="slide-header">
+        <h2 class="slide-title">状态矩阵</h2>
+      </div>
+      <div class="slide-body">
+        <table class="data-table full-width">
+          <thead>
+            <tr>
+              <th>场景</th>
+              <th>SpecViewer 状态</th>
+              <th>toast 提示</th>
+              <th>console 输出</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="status-badge status-ok">disk_full</span></td>
+              <td>保留编辑 + 显示 saveErr banner</td>
+              <td>「磁盘已满，请清理空间」</td>
+              <td>error.code = disk_full</td>
+            </tr>
+            <tr>
+              <td><span class="status-badge status-warn">permission_denied</span></td>
+              <td>保留编辑 + 显示 saveErr banner</td>
+              <td>「无写入权限，请检查文件」</td>
+              <td>error.code = permission_denied</td>
+            </tr>
+            <tr>
+              <td><span class="status-badge status-warn">network_error</span></td>
+              <td>保留编辑 + 显示 saveErr banner</td>
+              <td>「网络异常，保存失败」</td>
+              <td>error.code = network_error</td>
+            </tr>
+            <tr>
+              <td><span class="status-badge status-err">wails_binding_missing</span></td>
+              <td>保留编辑 + 显示 saveErr banner</td>
+              <td>「Wails 绑定异常，请重启」</td>
+              <td>error.code = wails_binding_missing</td>
+            </tr>
+            <tr>
+              <td><span class="status-badge status-unknown">unknown</span></td>
+              <td>保留编辑 + 显示 saveErr banner</td>
+              <td>「保存失败，请重试」</td>
+              <td>error.code = unknown</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="slide-footer">
+        <span>VibeX Workbench · EVT-spec-save-error</span>
+        <span class="page-num">5 / 10</span>
+      </div>
+    </section>
+
+    <!-- ========== Slide 6: Boundary Cases ========== -->
+    <section class="slide" data-slide="6">
+      <div class="slide-header">
+        <h2 class="slide-title">边界演示 / 触发方式</h2>
+      </div>
+      <div class="slide-body">
+        <div class="three-col">
+          <div class="col">
+            <h3 class="section-title">💾 磁盘满</h3>
+            <div class="trigger-box">
+              <p class="trigger-desc">触发方式：</p>
+              <code>fill disk; wailsWriteSpecFile()</code>
+              <p class="trigger-hint">os.Stat().Size() == 0 时</p>
+            </div>
+          </div>
+          <div class="col">
+            <h3 class="section-title">🔒 权限拒绝</h3>
+            <div class="trigger-box">
+              <p class="trigger-desc">触发方式：</p>
+              <code>chmod 000 spec.yaml; save()</code>
+              <p class="trigger-hint">os.WriteFile() returns EPERM</p>
+            </div>
+          </div>
+          <div class="col">
+            <h3 class="section-title">🌐 网络错误</h3>
+            <div class="trigger-box">
+              <p class="trigger-desc">触发方式：</p>
+              <code>network down; save()</code>
+              <p class="trigger-hint">if using remote sync mode</p>
+            </div>
+          </div>
+        </div>
+        <div class="callout callout-info">
+          <span class="icon">ℹ️</span>
+          <span>constraints.rules: 必须区分 5 种错误码，同一 UI 行为不同提示文案</span>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>VibeX Workbench · EVT-spec-save-error</span>
+        <span class="page-num">6 / 10</span>
+      </div>
+    </section>
+
+    <!-- ========== Slide 7: Gap Analysis ========== -->
+    <section class="slide" data-slide="7">
+      <div class="slide-header">
+        <h2 class="slide-title">偏差分析 &amp; 优化方向</h2>
+      </div>
+      <div class="slide-body">
+        <table class="data-table full-width">
+          <thead>
+            <tr><th>维度</th><th>As-Is</th><th>To-Be</th><th>Gap</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>事件定义</td>
+              <td>❌ 无</td>
+              <td>✅ spec:save:error</td>
+              <td class="gap-cell">需新增 event</td>
+            </tr>
+            <tr>
+              <td>错误码</td>
+              <td>❌ 无</td>
+              <td>✅ 5 种错误码</td>
+              <td class="gap-cell">需定义枚举</td>
+            </tr>
+            <tr>
+              <td>状态保留</td>
+              <td>⚠️ 未知</td>
+              <td>✅ 保留编辑</td>
+              <td class="gap-cell">需验证 + spec</td>
+            </tr>
+            <tr>
+              <td>toast 规范</td>
+              <td>⚠️ 不一致</td>
+              <td>✅ 统一模板</td>
+              <td class="gap-cell">需统一组件</td>
+            </tr>
+            <tr>
+              <td>console 可观测</td>
+              <td>❌ 无</td>
+              <td>✅ 完整对象</td>
+              <td class="gap-cell">需新增 logging</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="slide-footer">
+        <span>VibeX Workbench · EVT-spec-save-error</span>
+        <span class="page-num">7 / 10</span>
+      </div>
+    </section>
+
+    <!-- ========== Slide 8: Decision Page ========== -->
+    <section class="slide" data-slide="8">
+      <div class="slide-header">
+        <h2 class="slide-title">决策页</h2>
+      </div>
+      <div class="slide-body">
+        <div class="two-col">
+          <div class="col">
+            <div class="decision-box recommended">
+              <h4>✅ 推荐方案</h4>
+              <p><strong>事件驱动统一处理</strong></p>
+              <ul class="bullet-list small">
+                <li>统一 event 总线，不限前端框架</li>
+                <li>错误码枚举 + i18n 映射</li>
+                <li>SpecViewer 订阅，toast 订阅</li>
+              </ul>
+              <div class="tradeoff">
+                <strong>成本：</strong>低（现有 event_bus 可复用）<br>
+                <strong>风险：</strong>低（渐进增强）<br>
+                <strong>Why not other:</strong> 硬编码 try-catch 不可复用
+              </div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="decision-box alternative">
+              <h4>🔶 备选方案</h4>
+              <p><strong>Callback 回调模式</strong></p>
+              <ul class="bullet-list small">
+                <li>save() 返回 Promise&lt;Result&gt;</li>
+                <li>调用方自行处理 error</li>
+              </ul>
+              <div class="tradeoff">
+                <strong>成本：</strong>中（需改 API 签名）<br>
+                <strong>风险：</strong>中（破坏性变更）<br>
+                <strong>Why not:</strong> 分散错误处理，易遗漏
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>VibeX Workbench · EVT-spec-save-error</span>
+        <span class="page-num">8 / 10</span>
+      </div>
+    </section>
+
+    <!-- ========== Slide 9: Execution Page ========== -->
+    <section class="slide" data-slide="9">
+      <div class="slide-header">
+        <h2 class="slide-title">执行页</h2>
+      </div>
+      <div class="slide-body">
+        <table class="data-table full-width">
+          <thead>
+            <tr><th>里程碑</th><th>负责人</th><th>验收标准</th><th>回滚策略</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>① 定义 event spec</td>
+              <td>owner: user</td>
+              <td>spec:save:error 在 YAML 中声明</td>
+              <td>删除 event 定义</td>
+            </tr>
+            <tr>
+              <td>② Wails 层 emit</td>
+              <td>Go developer</td>
+              <td>失败时 emit，payload 完整</td>
+              <td>注释 emit 调用</td>
+            </tr>
+            <tr>
+              <td>③ SpecViewer 订阅</td>
+              <td>FE dev</td>
+              <td>retain edit state + show saveErr</td>
+              <td>disable listener</td>
+            </tr>
+            <tr>
+              <td>④ toast 集成</td>
+              <td>FE dev</td>
+              <td>5 种错误码 → 正确文案</td>
+              <td>disable toast emit</td>
+            </tr>
+            <tr>
+              <td>⑤ 单元测试覆盖</td>
+              <td>QA</td>
+              <td>覆盖率 &gt; 80%</td>
+              <td>rollback to test skip</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="callout callout-info">
+          <span class="icon">ℹ️</span>
+          <span>前提条件：FEAT-spec-write_L5 已实现基础 save 流程；切换条件：若 event_bus 重构则需同步更新</span>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>VibeX Workbench · EVT-spec-save-error</span>
+        <span class="page-num">9 / 10</span>
+      </div>
+    </section>
+
+    <!-- ========== Slide 10: Discussion Prompts ========== -->
+    <section class="slide" data-slide="10">
+      <div class="slide-header">
+        <h2 class="slide-title">讨论问题清单</h2>
+        <span class="tag">可复制 → 详情抽屉</span>
+      </div>
+      <div class="slide-body">
+        <div class="copy-box" id="prompts-box">
+          <ol class="prompt-list">
+            <li>event_bus 当前实现是否支持带 payload 的事件广播？</li>
+            <li>SpecViewer 保留编辑状态的具体实现方案是什么？</li>
+            <li>toast 组件是否已有统一的错误码 → 文案映射配置？</li>
+            <li>错误码枚举应放在哪个模块？Wails 层还是 FE 层？</li>
+            <li>console 输出格式是否需要结构化（JSON）以便日志分析？</li>
+            <li>「磁盘已满」的检测阈值是什么？用户可感知到什么？</li>
+            <li>「权限拒绝」场景下，是否需要引导用户重新选择路径？</li>
+            <li>网络同步模式暂未实现，network_error 码是否需要预埋？</li>
+            <li>wails_binding_missing 是否需要提供自动修复入口（如重启）？</li>
+            <li>saveErr banner 的展示样式（位置、时长、是否可关闭）？</li>
+            <li>是否需要增加 save 重试机制？还是仅展示错误？</li>
+            <li>display.summary 缺失（见 spec hint）—— 是否需要补齐？</li>
+          </ol>
+        </div>
+        <button class="copy-btn" onclick="copyPrompts()">📋 复制问题清单</button>
+      </div>
+      <div class="slide-footer">
+        <span>VibeX Workbench · EVT-spec-save-error</span>
+        <span class="page-num">10 / 10</span>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="../assets/runtime.js"></script>
+  <script src="../assets/vibex-ppt-nav.js"></script>
+  <script>
+    function copyPrompts() {
+      const box = document.getElementById('prompts-box');
+      const text = Array.from(box.querySelectorAll('li'))
+        .map((li, i) => `${i + 1}. ${li.textContent}`)
+        .join('\n');
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.querySelector('.copy-btn');
+        btn.textContent = '✅ 已复制';
+        setTimeout(() => btn.textContent = '📋 复制问题清单', 2000);
+      });
+    }
+  </script>
+</body>
+</html>

@@ -4,6 +4,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { specSlotSessionStore } from '$lib/stores/spec-slot-session-store';
+	import { specpilotStatusStore } from '$lib/stores/specpilot-status-store';
 
 	interface Props {
 		workspaceRoot?: string;
@@ -22,8 +23,40 @@
 	}: Props = $props();
 
 	// SpecPilot service status — polled every 10s
-	interface SpStatus { installed: boolean; dcRunning: boolean; mfRunning: boolean; dcPort: number; mfPort: number; }
+	interface SpStatus { installed: boolean; dcRunning: boolean; mfRunning: boolean; dcPort: number; mfPort: number; panelOpen?: boolean; }
 	let spStatus: SpStatus | null = $state(null);
+
+	// Sync spStatus → shared store (供 SpecSlotPrototypePreview / SpecBottomPanel 读取)
+	$effect(() => {
+		if (spStatus) {
+			specpilotStatusStore.update((s) => ({
+				...(s ?? {}),
+				installed: spStatus!.installed,
+				dcRunning: spStatus!.dcRunning,
+				mfRunning: spStatus!.mfRunning,
+				dcPort: spStatus!.dcPort,
+				mfPort: spStatus!.mfPort,
+				panelOpen: spStatus!.panelOpen ?? s?.panelOpen ?? false,
+			} as any));
+		}
+	});
+
+	// Sync panelOpen from store back to local state
+	$effect(() => {
+		const unsub = specpilotStatusStore.subscribe((s) => {
+			if (s && spStatus) {
+				spStatus.panelOpen = s.panelOpen;
+			}
+		});
+		return unsub;
+	});
+
+	function toggleBottomPanel() {
+		if (!spStatus) return;
+		const next = !spStatus.panelOpen;
+		spStatus = { ...spStatus, panelOpen: next };
+		specpilotStatusStore.update((s) => (s ? { ...s, panelOpen: next } : s));
+	}
 	let spPollTimer: ReturnType<typeof setInterval> | null = null;
 	let spBootstrapping = $state(false);
 	let spError = $state('');
@@ -82,8 +115,9 @@
 					message: d.message ?? 'SpecPilot 服务已启动',
 				};
 				specSlotSessionStore.injectToolResult(JSON.stringify(payload));
-				// Ensure the drawer is open so the user can see the result card
 				specSlotSessionStore.openDrawer();
+				// Open bottom panel too
+				if (!spStatus?.panelOpen) toggleBottomPanel();
 				await pollSpStatus();
 			}
 		} catch (e: any) {
@@ -96,6 +130,20 @@
 	onMount(() => {
 		pollSpStatus();
 		spPollTimer = setInterval(pollSpStatus, 10000);
+	});
+
+	// workspaceRoot 变化时：清除旧服务状态 → 触发 bootstrap 重检
+	let prevWs = workspaceRoot;
+	$effect(() => {
+		const ws = workspaceRoot;
+		if (ws && ws !== prevWs) {
+			prevWs = ws;
+			spStatus = null;
+			specpilotStatusStore.set(null);
+			pollSpStatus();
+		} else if (ws) {
+			prevWs = ws;
+		}
 	});
 
 	onDestroy(() => {
@@ -176,22 +224,19 @@
 		</button>
 		<span class="sb-sep" aria-hidden="true">|</span>
 
-		<!-- SpecPilot DC status -->
+		<!-- SpecPilot DC status — 点击展开/收起底部分屏面板 -->
 		{#if spStatus}
-			<span class="sb-sp" title="SpecPilot DataCenter: {spStatus.dcPort}">
+			<button
+				type="button"
+				class="sb-sp-btn"
+				class:sb-sp-active={spStatus.panelOpen}
+				title="展开/收起 SpecPilot 分屏面板"
+				onclick={toggleBottomPanel}
+			>
 				<span class="sp-dot" style="color: var(--accent-green, #87cf8a)">●</span>
-				DC:{spStatus.dcPort}
-			</span>
-			<span class="sb-sep" aria-hidden="true">|</span>
-			<span class="sb-sp" title="SpecPilot MF Server: {spStatus.mfPort}">
-				<span class="sp-dot" style="color: var(--accent-green, #87cf8a)">●</span>
-				MF:{spStatus.mfPort}
-			</span>
-		{:else}
-			<span class="sb-sp sb-sp-off" title="SpecPilot 未启动">
-				<span class="sp-dot" style="color: var(--accent-orange, #f09a6a)">○</span>
-				DC:—
-			</span>
+				DC:{spStatus.dcPort} MF:{spStatus.mfPort}
+				<span style="font-size:9px;opacity:.6">{spStatus.panelOpen ? '▲' : '▼'}</span>
+			</button>
 			<span class="sb-sep" aria-hidden="true">|</span>
 			<button
 				type="button"
@@ -316,6 +361,11 @@
 
 	.sb-sp-btn:hover:not(:disabled) {
 		background: rgba(240, 154, 106, 0.12);
+	}
+
+	.sb-sp-btn.sb-sp-active {
+		background: rgba(88, 101, 242, 0.2);
+		color: #9fc0ff;
 	}
 
 	.sb-sp-btn:disabled {

@@ -6,6 +6,7 @@ spec:
   parent: "FEAT-spec-write_L5"
   status: "proposal"
   prototype_ref: ""
+  ppt_file: ".vibex/ppt/EVT-spec-save-error.html"
 meta:
   type: "event_bus"
   owner: "user"
