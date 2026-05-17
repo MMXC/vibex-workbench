@@ -28,6 +28,7 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 	import SpecSlotDrawer from '$lib/components/workbench/SpecSlotDrawer.svelte';
 	import SpecChildDraftDrawer from '$lib/components/workbench/SpecChildDraftDrawer.svelte';
 	import WindowResizeFrame from '$lib/components/workbench/WindowResizeFrame.svelte';
+	import SpecBottomPanel from '$lib/components/workbench/SpecBottomPanel.svelte';
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
 	import {
 		currentFocusedSpecContext,
@@ -42,7 +43,6 @@ VibeX Workbench — Cursor 式：左侧活动栏+文件树 / 中央画布或 Spe
 	import { extractSpecDisplay, type SpecSlotSummary } from '$lib/workbench/spec-display';
 	import { agentApiUrl, getAgentApiBase, postAgentChat } from '$lib/runtime/agent-transport';
 	import { uiPreferencesStore } from '$lib/stores/ui-preferences-store';
-	import SpecBottomPanel from '$lib/components/workbench/SpecBottomPanel.svelte';
 
 	const useMockBackend =
 		import.meta.env.VITE_MOCK_SSE === '1' || import.meta.env.VITE_MOCK_SSE === 'true';
@@ -604,10 +604,10 @@ ${latestExcerpt}`;
 			/>
 		{/snippet}
 	</WorkbenchLayoutResizable>
-	<SpecSlotDrawer />
+	<SpecSlotDrawer {workspaceRoot} />
 	<SpecChildDraftDrawer />
 	<WindowResizeFrame />
-	<SpecBottomPanel {workspaceRoot} />
+	<SpecBottomPanel />
 </div>
 
 <style>
