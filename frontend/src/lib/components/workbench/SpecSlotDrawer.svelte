@@ -25,6 +25,40 @@
 	});
 
 	const session = $derived.by(() => activeSpecSlotSession(state));
+
+	// Fetch MF port from StatusBar's spStatus — accessed via parent window
+	async function getMfUrl(): Promise<string> {
+		const port = (window as any).__specpilotMfPort;
+		if (port) return `http://localhost:${port}/#/Dashboard`;
+		// Try DC health endpoint
+		try {
+			const r = await fetch('http://127.0.0.1:7890/api/health', { signal: AbortSignal.timeout(2000) });
+			if (r.ok) {
+				const d = await r.json();
+				const p = (d as any).mfPort ?? 5177;
+				return `http://localhost:${p}/#/Dashboard`;
+			}
+		} catch {}
+		return 'http://localhost:5177/#/Dashboard';
+	}
+
+	async function openMfInTab() {
+		const url = await getMfUrl();
+		window.open(url, '_blank');
+	}
+
+	async function openMfInDrawer() {
+		const mfUrl = await getMfUrl();
+		const payload = {
+			type: 'specpilot_bootstrap',
+			mfPort: 5177,
+			dcPort: 7890,
+			mfUrl,
+			mfRemoteUrl: mfUrl,
+			message: 'MF 原型已加载，点击「新窗口打开」可全屏查看',
+		};
+		specSlotSessionStore.injectToolResult(JSON.stringify(payload));
+	}
 </script>
 
 {#if state.drawerOpen}
@@ -67,6 +101,28 @@
 			<div class="empty-icon">📋</div>
 			<p class="empty-title">暂无激活的 Spec 槽位</p>
 			<p class="empty-hint">请在左侧或中央面板选择一个 spec 节点，<br>然后点击「打开槽位」按钮</p>
+			<div class="mf-preview-card">
+				<div class="mf-preview-header">
+					<span class="mf-badge">🚀 MF Prototype</span>
+					<span class="mf-desc">Module Federation 组件原型 · DataCenter 驱动</span>
+				</div>
+				<div class="mf-preview-actions">
+					<button
+						type="button"
+						class="mf-btn primary"
+						onclick={openMfInDrawer}
+					>
+						在抽屉内打开
+					</button>
+					<button
+						type="button"
+						class="mf-btn secondary"
+						onclick={openMfInTab}
+					>
+						新窗口打开 →
+					</button>
+				</div>
+			</div>
 			<div class="empty-actions">
 				<button type="button" class="empty-btn" onclick={() => specSlotSessionStore.close()}>
 					关闭
@@ -207,6 +263,61 @@
 		font-size: 13px;
 		text-align: center;
 		line-height: 1.6;
+	}
+
+	.mf-preview-card {
+		background: var(--bg-2, #1e1e2e);
+		border: 1px solid var(--border, #3a3a5c);
+		border-radius: 10px;
+		padding: 16px;
+		margin: 16px 0;
+	}
+
+	.mf-preview-header {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		margin-bottom: 12px;
+	}
+
+	.mf-badge {
+		font-size: 13px;
+		font-weight: 600;
+		color: #a78bfa;
+	}
+
+	.mf-desc {
+		font-size: 12px;
+		color: var(--text-muted, #888);
+	}
+
+	.mf-preview-actions {
+		display: flex;
+		gap: 8px;
+	}
+
+	.mf-btn {
+		flex: 1;
+		padding: 8px 12px;
+		border-radius: 6px;
+		border: none;
+		font-size: 13px;
+		cursor: pointer;
+		font-family: inherit;
+		transition: opacity 0.15s;
+	}
+
+	.mf-btn:hover { opacity: 0.85; }
+
+	.mf-btn.primary {
+		background: #7c3aed;
+		color: #fff;
+	}
+
+	.mf-btn.secondary {
+		background: var(--bg-1, #161622);
+		color: var(--text-secondary, #c0c0d0);
+		border: 1px solid var(--border, #3a3a5c);
 	}
 
 	.empty-actions {
