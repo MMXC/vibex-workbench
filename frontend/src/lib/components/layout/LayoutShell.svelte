@@ -1,176 +1,199 @@
+<!-- LayoutShell.svelte
+三栏布局外壳：左 AgentHub(340px) | 中 SpecPilot 原型(flex) | 右 ProtoDesign(360px)
+顶部导航栏 42px，底部状态栏 24px。
+不删除现有组件文件，逐步迁移。
+-->
 <script lang="ts">
 	import TopNavBar from './TopNavBar.svelte';
 	import AgentHubPanel from '$lib/components/agents/AgentHubPanel.svelte';
 	import SpecPilotPreview from '$lib/components/prototype/SpecPilotPreview.svelte';
 	import ProtoDesignPanel from '$lib/components/proto/ProtoDesignPanel.svelte';
 	import StatusBar from '$lib/components/workbench/StatusBar.svelte';
+	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
+	import { onDestroy } from 'svelte';
 
-	// Props
-	let { workspaceRoot = '—' }: { workspaceRoot?: string } = $props();
+	interface Props {
+		backendStatus?: 'connecting' | 'ready' | 'error';
+		workspaceState?: 'empty' | 'partial' | 'ready';
+		canvasAutoUiEnabled?: boolean;
+		ontoggleCanvasAutoUi?: () => void;
+	}
+	let { backendStatus = 'connecting', workspaceState = 'empty', canvasAutoUiEnabled = true, ontoggleCanvasAutoUi }: Props = $props();
 
-	// Panel widths
-	let leftW = $state(340);
-	let rightW = $state(380);
-	let leftCollapsed = $state(false);
-	let rightCollapsed = $state(false);
+	const TOP_H = 42;
+	const BOT_H = 24;
+	const LEFT_MIN = 200;
+	const LEFT_MAX = 500;
+	const RIGHT_MIN = 240;
+	const RIGHT_MAX = 560;
 
-	// Resizing state
+	let leftOpen = $state(true);
+	let rightOpen = $state(true);
+	let leftWidth = $state(340);
+	let rightWidth = $state(360);
+
+	let workspaceRoot = $derived($specExplorerStore.workspaceRoot ?? '—');
+
+	// Drag left divider
 	let draggingLeft = $state(false);
-	let draggingRight = $state(false);
-
-	function startDragLeft(e: PointerEvent) {
+	let dragLeftX = 0;
+	let dragLeftW = 0;
+	function startLeftDrag(e: MouseEvent) {
 		draggingLeft = true;
-		(e.target as HTMLElement).setPointerCapture(e.pointerId);
-		e.preventDefault();
+		dragLeftX = e.clientX;
+		dragLeftW = leftWidth;
+		window.addEventListener('mousemove', moveLeftDrag);
+		window.addEventListener('mouseup', stopLeftDrag);
 	}
-	function startDragRight(e: PointerEvent) {
-		draggingRight = true;
-		(e.target as HTMLElement).setPointerCapture(e.pointerId);
-		e.preventDefault();
+	function moveLeftDrag(e: MouseEvent) {
+		if (!draggingLeft) return;
+		leftWidth = Math.max(LEFT_MIN, Math.min(LEFT_MAX, dragLeftW + (e.clientX - dragLeftX)));
 	}
-	function onPointerMove(e: PointerEvent) {
-		if (draggingLeft) {
-			const nw = e.clientX;
-			leftW = Math.min(500, Math.max(200, nw));
-		}
-		if (draggingRight) {
-			const nw = window.innerWidth - e.clientX;
-			rightW = Math.min(560, Math.max(240, nw));
-		}
-	}
-	function onPointerUp() {
+	function stopLeftDrag() {
 		draggingLeft = false;
-		draggingRight = false;
+		window.removeEventListener('mousemove', moveLeftDrag);
+		window.removeEventListener('mouseup', stopLeftDrag);
 	}
 
-	function toggleLeft() { leftCollapsed = !leftCollapsed; }
-	function toggleRight() { rightCollapsed = !rightCollapsed; }
+	// Drag right divider
+	let draggingRight = $state(false);
+	let dragRightX = 0;
+	let dragRightW = 0;
+	function startRightDrag(e: MouseEvent) {
+		draggingRight = true;
+		dragRightX = e.clientX;
+		dragRightW = rightWidth;
+		window.addEventListener('mousemove', moveRightDrag);
+		window.addEventListener('mouseup', stopRightDrag);
+	}
+	function moveRightDrag(e: MouseEvent) {
+		if (!draggingRight) return;
+		rightWidth = Math.max(RIGHT_MIN, Math.min(RIGHT_MAX, dragRightW + (dragRightX - e.clientX)));
+	}
+	function stopRightDrag() {
+		draggingRight = false;
+		window.removeEventListener('mousemove', moveRightDrag);
+		window.removeEventListener('mouseup', stopRightDrag);
+	}
 
-	const actualLeftW = $derived(leftCollapsed ? 40 : leftW);
-	const actualRightW = $derived(rightCollapsed ? 40 : rightW);
+	onDestroy(() => {
+		window.removeEventListener('mousemove', moveLeftDrag);
+		window.removeEventListener('mouseup', stopLeftDrag);
+		window.removeEventListener('mousemove', moveRightDrag);
+		window.removeEventListener('mouseup', stopRightDrag);
+	});
 </script>
 
-<svelte:window onpointermove={onPointerMove} onpointerup={onPointerUp} />
-
-<TopNavBar />
-
-<div class="shell" class:dragging={draggingLeft || draggingRight}>
-	<!-- Left Panel -->
-	<div class="left" style:width="{actualLeftW}px" style:min-width="{actualLeftW}px">
-		{#if !leftCollapsed}
-			<AgentHubPanel {workspaceRoot} />
-		{/if}
-		<button class="collapse-btn left-btn" onclick={toggleLeft} title={leftCollapsed ? '展开左侧' : '收起左侧'}>
-			{leftCollapsed ? '▶' : '◀'}
-		</button>
-	</div>
-
-	<!-- Left Drag Handle -->
-	{#if !leftCollapsed}
-		<div
-			class="drag-handle"
-			onpointerdown={startDragLeft}
-			role="separator"
-			aria-orientation="vertical"
-			title="拖动调整宽度"
-		></div>
-	{/if}
-
-	<!-- Center -->
-	<div
-		class="center"
-		style:left="{actualLeftW + (leftCollapsed ? 0 : 6)}px"
-		style:right="{actualRightW + (rightCollapsed ? 0 : 6)}px"
-	>
-		<SpecPilotPreview />
-	</div>
-
-	<!-- Right Drag Handle -->
-	{#if !rightCollapsed}
-		<div
-			class="drag-handle right"
-			onpointerdown={startDragRight}
-			role="separator"
-			aria-orientation="vertical"
-			title="拖动调整宽度"
-		></div>
-	{/if}
-
-	<!-- Right Panel -->
-	<div class="right" style:width="{actualRightW}px" style:min-width="{actualRightW}px">
-		<button class="collapse-btn right-btn" onclick={toggleRight} title={rightCollapsed ? '展开右侧' : '收起右侧'}>
-			{rightCollapsed ? '◀' : '▶'}
-		</button>
-		{#if !rightCollapsed}
-			<ProtoDesignPanel />
-		{/if}
-	</div>
+<!-- Top NavBar: fixed top -->
+<div class="ls-top">
+	<TopNavBar />
 </div>
 
-<StatusBar />
+	<!-- Bottom StatusBar: fixed bottom -->
+	<div class="ls-bot">
+		<StatusBar {workspaceRoot} {backendStatus} {workspaceState} {canvasAutoUiEnabled} {ontoggleCanvasAutoUi} />
+	</div>
+
+<!-- Middle row: flex -->
+<div class="ls-middle">
+
+	{#if leftOpen}
+	<!-- Left Agent Hub -->
+	<aside class="ls-left" style="width:{leftWidth}px">
+		<AgentHubPanel />
+	</aside>
+	<!-- Left resize handle -->
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<div
+		class="ls-divider"
+		class:active={draggingLeft}
+		onmousedown={startLeftDrag}
+		role="separator"
+		aria-orientation="vertical"
+	></div>
+	{/if}
+
+	<!-- Center Prototype Preview -->
+	<main class="ls-center">
+		<SpecPilotPreview />
+	</main>
+
+	{#if rightOpen}
+	<!-- Right resize handle -->
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<div
+		class="ls-divider"
+		class:active={draggingRight}
+		onmousedown={startRightDrag}
+		role="separator"
+		aria-orientation="vertical"
+	></div>
+	<!-- Right ProtoDesign Panel -->
+	<aside class="ls-right" style="width:{rightWidth}px">
+		<ProtoDesignPanel />
+	</aside>
+	{/if}
+
+</div>
 
 <style>
-	.shell {
-		position: fixed;
-		top: 42px;
-		left: 0;
-		right: 0;
-		bottom: 24px;
-		display: flex;
-		overflow: hidden;
-		user-select: none;
-	}
-	.shell.dragging { cursor: col-resize; }
-
-	.left, .right {
-		position: relative;
-		flex-shrink: 0;
-		height: 100%;
-		overflow: hidden;
-		transition: width 0.15s ease;
-	}
-	.left { background: #0b0d12; }
-	.right { background: #0b0d12; }
-
-	.center {
-		position: absolute;
-		top: 0;
-		bottom: 0;
-		overflow: hidden;
-	}
-
-	.drag-handle {
-		width: 6px;
-		flex-shrink: 0;
-		background: transparent;
-		cursor: col-resize;
-		z-index: 10;
-		transition: background 0.15s;
-	}
-	.drag-handle:hover, .dragging .drag-handle {
-		background: rgba(122, 162, 255, 0.25);
-	}
-	.drag-handle.right { order: 3; }
-
-	.collapse-btn {
-		position: absolute;
-		top: 50%;
-		transform: translateY(-50%);
-		z-index: 20;
-		width: 16px;
-		height: 48px;
-		border: none;
-		border-radius: 4px;
-		background: #1e2030;
-		color: #556;
-		font-size: 9px;
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		transition: background 0.15s, color 0.15s;
-	}
-	.collapse-btn:hover { background: #2a2d42; color: #99a; }
-	.left-btn { right: -10px; border-left: 1px solid #1e2030; }
-	.right-btn { left: -10px; border-right: 1px solid #1e2030; }
+.ls-top {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 42px;
+	z-index: 100;
+}
+.ls-bot {
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: 24px;
+	z-index: 100;
+}
+.ls-middle {
+	display: flex;
+	flex-direction: row;
+	position: fixed;
+	top: 42px;
+	bottom: 24px;
+	left: 0;
+	right: 0;
+	overflow: hidden;
+}
+.ls-left {
+	flex-shrink: 0;
+	height: 100%;
+	overflow: hidden;
+	border-right: 1px solid var(--wb-border, rgba(255,255,255,0.07));
+	background: var(--wb-bg, #0b0d12);
+}
+.ls-center {
+	flex: 1;
+	height: 100%;
+	overflow: hidden;
+}
+.ls-right {
+	flex-shrink: 0;
+	height: 100%;
+	overflow: hidden;
+	border-left: 1px solid var(--wb-border, rgba(255,255,255,0.07));
+	background: var(--wb-bg-panel, #10131a);
+}
+.ls-divider {
+	width: 4px;
+	height: 100%;
+	cursor: col-resize;
+	background: transparent;
+	transition: background 0.15s;
+	margin: 0 -2px;
+	z-index: 10;
+	flex-shrink: 0;
+}
+.ls-divider:hover,
+.ls-divider.active {
+	background: var(--wb-accent, #72d6d0);
+}
 </style>

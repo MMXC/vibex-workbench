@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -126,15 +127,13 @@ func isPortOpen(port int) bool {
 func waitForPort(port int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		if !isPortOpen(port) {
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
-		// Double-check with actual connection
-		conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second)
-		if err == nil {
-			conn.Close()
-			return nil
+		if isPortOpen(port) {
+			// Double-check with actual connection
+			conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second)
+			if err == nil {
+				conn.Close()
+				return nil
+			}
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
@@ -146,27 +145,30 @@ func waitForPort(port int, timeout time.Duration) error {
 // ---------------------------------------------------------------------------
 
 func seedData(wsRoot, component string) {
-	cli := wsInstall(wsRoot)
-	baseArgs := []string{"-m", "cli"}
+	dp := dcPort()
+	mp := mfPort()
+	apiBase := fmt.Sprintf("http://127.0.0.1:%d", dp)
+	mfBase := fmt.Sprintf("http://127.0.0.1:%d", mp)
 
-	seedCmds := [][2]string{
-		{"dc", "set kpi.revenue 1284500"},
-		{"dc", "set kpi.users 48291"},
-		{"dc", "set kpi.conversion 3.8"},
-		{"dc", "set kpi.latency 142"},
-		{"dc", "set kpi.trend 12.3"},
-		{"dc", `set alert.status healthy`},
-		{"dc", "set alert.count 0"},
-		{"dc", `set table.users [{"id":1,"name":"Alice Chen","email":"alice@example.com","status":"active","score":98},{"id":2,"name":"Bob Kim","email":"bob@example.com","status":"active","score":85},{"id":3,"name":"Carol Wu","email":"carol@example.com","status":"inactive","score":72},{"id":4,"name":"David Lee","email":"david@example.com","status":"active","score":91}]`},
-		{"mf", fmt.Sprintf("register %s %s", component, component)},
+	seedKeys := []struct {
+		key, val string
+	}{
+		{"kpi.revenue", "1284500"},
+		{"kpi.users", "48291"},
+		{"kpi.conversion", "3.8"},
+		{"kpi.latency", "142"},
+		{"kpi.trend", "12.3"},
+		{"alert.status", "healthy"},
+		{"alert.count", "0"},
+		{"table.users", `[{"id":1,"name":"Alice Chen","email":"alice@example.com","status":"active","score":98},{"id":2,"name":"Bob Kim","email":"bob@example.com","status":"active","score":85},{"id":3,"name":"Carol Wu","email":"carol@example.com","status":"inactive","score":72},{"id":4,"name":"David Lee","email":"david@example.com","status":"active","score":91}]`},
+	}
+	for _, s := range seedKeys {
+		body := fmt.Sprintf(`{"key":%q,"value":%q}`, s.key, s.val)
+		http.Post(apiBase+"/api/dc/set", "application/json", strings.NewReader(body))
 	}
 
-	for _, pair := range seedCmds {
-		subcmd, arg := pair[0], pair[1]
-		cmd := exec.Command("python3", append(baseArgs, subcmd, arg)...)
-		cmd.Dir = cli
-		cmd.Run()
-	}
+	mfBody := fmt.Sprintf(`{"name":%q}`, component)
+	http.Post(mfBase+"/api/mf/components/register", "application/json", strings.NewReader(mfBody))
 }
 
 // ---------------------------------------------------------------------------
@@ -202,11 +204,12 @@ func mfBootstrapHandlerImpl(arguments string, bgMgr *background.Manager) string 
 		return fmt.Sprintf(`{"error": "install failed: %v"}`, err)
 	}
 
-	// 2. Start DC API server (true daemon with setsid — survives parent)
+	// 2. Start DC API server
 	dcRunning := isPortOpen(dp)
 	if !dcRunning {
-		script := filepath.Join(skillRef(wsRoot), "scripts", "start-dc.sh")
-		cmd := exec.Command("bash", script, strconv.Itoa(dp), wsInstall(wsRoot))
+		apiScript := filepath.Join(wsInstall(wsRoot), "api_server.py")
+		cmd := exec.Command("python", apiScript)
+		cmd.Dir = wsInstall(wsRoot)
 		cmd.Stdout = nil
 		cmd.Stderr = nil
 		if err := cmd.Start(); err != nil {
@@ -214,10 +217,10 @@ func mfBootstrapHandlerImpl(arguments string, bgMgr *background.Manager) string 
 		}
 	}
 
-	// 3. Start MF dev server (true daemon with setsid — survives parent)
+	// 3. Start MF dev server
 	mfRunning := isPortOpen(mp)
 	if !mfRunning {
-		cmd := exec.Command("setsid", "python3", "-m", "http.server", strconv.Itoa(mp))
+		cmd := exec.Command("python", "-m", "http.server", strconv.Itoa(mp))
 		cmd.Dir = wsMF(wsRoot)
 		cmd.Stdout = nil
 		cmd.Stderr = nil
@@ -276,7 +279,7 @@ func mfStatusHandler(arguments string) string {
 // ---------------------------------------------------------------------------
 
 func runSP(wsRoot string, args ...string) string {
-	cmd := exec.Command("python3", append([]string{"-m", "cli"}, args...)...)
+	cmd := exec.Command("python", append([]string{"-m", "cli"}, args...)...)
 	cmd.Dir = wsInstall(wsRoot)
 	out, err := cmd.Output()
 	if err != nil {
@@ -464,7 +467,7 @@ func SpecpilotBootstrap(wsRoot, component string, dp, mp int) map[string]any {
 	// 2. Start DC API
 	if !isPortOpen(dp) {
 		apiScript := filepath.Join(wsInstall(wsRoot), "api_server.py")
-		cmd := exec.Command("python3", apiScript)
+		cmd := exec.Command("python", apiScript)
 		cmd.Dir = wsInstall(wsRoot)
 		cmd.Stdout = nil
 		cmd.Stderr = nil
@@ -473,7 +476,7 @@ func SpecpilotBootstrap(wsRoot, component string, dp, mp int) map[string]any {
 
 	// 3. Start MF dev server
 	if !isPortOpen(mp) {
-		cmd := exec.Command("python3", "-m", "http.server", strconv.Itoa(mp))
+		cmd := exec.Command("python", "-m", "http.server", strconv.Itoa(mp))
 		cmd.Dir = wsMF(wsRoot)
 		cmd.Stdout = nil
 		cmd.Stderr = nil

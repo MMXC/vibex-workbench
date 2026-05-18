@@ -23,39 +23,40 @@
 	}: Props = $props();
 
 	// SpecPilot service status — polled every 10s
-	interface SpStatus { installed: boolean; dcRunning: boolean; mfRunning: boolean; dcPort: number; mfPort: number; panelOpen?: boolean; }
+	interface SpStatus { installed: boolean; dcRunning: boolean; mfRunning: boolean; dcPort: number; mfPort: number; }
 	let spStatus: SpStatus | null = $state(null);
 
 	// Sync spStatus → shared store (供 SpecSlotPrototypePreview / SpecBottomPanel 读取)
 	$effect(() => {
 		if (spStatus) {
 			specpilotStatusStore.update((s) => ({
-				...(s ?? {}),
+				...(s ?? { panelOpen: false }),
 				installed: spStatus!.installed,
 				dcRunning: spStatus!.dcRunning,
 				mfRunning: spStatus!.mfRunning,
 				dcPort: spStatus!.dcPort,
 				mfPort: spStatus!.mfPort,
-				panelOpen: spStatus!.panelOpen ?? s?.panelOpen ?? false,
-			} as any));
+			}));
 		}
 	});
 
-	// Sync panelOpen from store back to local state
+	// Local panelOpen state (read from store, updated on toggle)
+	let panelOpen = $state(false);
+
 	$effect(() => {
 		const unsub = specpilotStatusStore.subscribe((s) => {
-			if (s && spStatus) {
-				spStatus.panelOpen = s.panelOpen;
-			}
+			panelOpen = s?.panelOpen ?? false;
 		});
 		return unsub;
 	});
 
 	function toggleBottomPanel() {
-		if (!spStatus) return;
-		const next = !spStatus.panelOpen;
-		spStatus = { ...spStatus, panelOpen: next };
-		specpilotStatusStore.update((s) => (s ? { ...s, panelOpen: next } : s));
+		const next = !panelOpen;
+		panelOpen = next;
+		specpilotStatusStore.update((s) => {
+			if (s) return { ...s, panelOpen: next };
+			return { installed: false, dcRunning: false, mfRunning: false, dcPort: 7890, mfPort: 5177, panelOpen: next };
+		});
 	}
 	let spPollTimer: ReturnType<typeof setInterval> | null = null;
 	let spBootstrapping = $state(false);
@@ -64,7 +65,7 @@
 	async function pollSpStatus() {
 		try {
 			// Poll the Go backend HTTP endpoint
-			const r = await fetch('http://localhost:33338/api/specpilot/status', { signal: AbortSignal.timeout(3000) });
+			const r = await fetch('/api/specpilot/status', { signal: AbortSignal.timeout(3000) });
 			if (r.ok) {
 				const d = await r.json();
 				spStatus = {
@@ -95,14 +96,25 @@
 		spBootstrapping = true;
 		spError = '';
 		try {
-			const r = await fetch('http://localhost:33338/api/specpilot/bootstrap', {
+			const controller = new AbortController();
+			const timer = setTimeout(() => controller.abort(), 30000);
+			const r = await fetch('/api/specpilot/bootstrap', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ component: 'Dashboard' }),
+				signal: controller.signal,
 			});
+			clearTimeout(timer);
+			if (!r.ok) {
+				spError = `HTTP ${r.status}: ${r.statusText}`;
+				console.error('[SpecPilot bootstrap] HTTP error:', spError);
+				return;
+			}
 			const d = await r.json();
+			console.log('[SpecPilot bootstrap] result:', d);
 			if (d.error) {
-				spError = d.error;
+				spError = String(d.error);
+				console.error('[SpecPilot bootstrap] error field:', spError);
 			} else {
 				// Inject structured bootstrap result as a tool message in the active session
 				const payload = {
@@ -117,7 +129,7 @@
 				specSlotSessionStore.injectToolResult(JSON.stringify(payload));
 				specSlotSessionStore.openDrawer();
 				// Open bottom panel too
-				if (!spStatus?.panelOpen) toggleBottomPanel();
+				toggleBottomPanel();
 				await pollSpStatus();
 			}
 		} catch (e: any) {
@@ -229,13 +241,13 @@
 			<button
 				type="button"
 				class="sb-sp-btn"
-				class:sb-sp-active={spStatus.panelOpen}
+				class:sb-sp-active={panelOpen}
 				title="展开/收起 SpecPilot 分屏面板"
 				onclick={toggleBottomPanel}
 			>
 				<span class="sp-dot" style="color: var(--accent-green, #87cf8a)">●</span>
 				DC:{spStatus.dcPort} MF:{spStatus.mfPort}
-				<span style="font-size:9px;opacity:.6">{spStatus.panelOpen ? '▲' : '▼'}</span>
+				<span style="font-size:9px;opacity:.6">{panelOpen ? '▲' : '▼'}</span>
 			</button>
 			<span class="sb-sep" aria-hidden="true">|</span>
 			<button
