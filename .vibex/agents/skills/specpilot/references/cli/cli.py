@@ -88,16 +88,11 @@ def cmd_init(args):
 
 
 # ── Start / Stop ─────────────────────────────────────────────
-def _spawn_server(script_path: str, port: int, env_extra: dict = None):
-    """Spawn a server as a true daemon subprocess (survives parent death)."""
-    cli_root = os.path.dirname(__file__)  # /path/to/.specpilot/ (contains dc/, preview/)
-    env = {**os.environ, "PYTHONPATH": cli_root}
-    if env_extra:
-        env.update(env_extra)
-    # start_new_session=True → setsid() → process becomes session leader, survives parent
+def _spawn_server_dc(dc_port: int):
+    """Spawn DC as true daemon: setsid() survives parent death."""
     proc = subprocess.Popen(
-        [sys.executable, script_path, "--port", str(port)],
-        env=env,
+        [sys.executable, "-m", "specpilot.dc", "--port", str(dc_port)],
+        env={**os.environ, "SPECPILOT_WORKSPACE": _WS()},
         cwd=_WS(),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -107,17 +102,28 @@ def _spawn_server(script_path: str, port: int, env_extra: dict = None):
 
 
 def start_dc(dc_port: int):
-    script = os.path.join(os.path.dirname(__file__), "dc", "server.py")
-    pid = _spawn_server(script, dc_port)
+    pid = _spawn_server_dc(dc_port)
     wait_port(dc_port)
     print(f"[specpilot] DataCenter: http://127.0.0.1:{dc_port}  (pid={pid})")
 
 
 def start_preview(mf_port: int):
-    script = os.path.join(os.path.dirname(__file__), "preview", "server.py")
-    pid = _spawn_server(script, mf_port, {"SPECPILOT_MF_PORT": str(mf_port), "SPECPILOT_WORKSPACE": _WS()})
+    pid = _spawn_server_preview(mf_port)
     wait_port(mf_port)
     print(f"[specpilot] Preview:    http://127.0.0.1:{mf_port}/preview  (pid={pid})")
+
+
+def _spawn_server_preview(mf_port: int):
+    env = {**os.environ, "SPECPILOT_MF_PORT": str(mf_port), "SPECPILOT_WORKSPACE": _WS()}
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "specpilot.preview.server", "--port", str(mf_port)],
+        env=env,
+        cwd=_WS(),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    return proc.pid
 
 
 def cmd_start(args):
