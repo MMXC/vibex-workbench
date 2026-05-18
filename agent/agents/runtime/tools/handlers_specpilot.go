@@ -202,21 +202,22 @@ func mfBootstrapHandlerImpl(arguments string, bgMgr *background.Manager) string 
 		return fmt.Sprintf(`{"error": "install failed: %v"}`, err)
 	}
 
-	// 2. Start DC API server
+	// 2. Start DC API server (true daemon with setsid — survives parent)
 	dcRunning := isPortOpen(dp)
 	if !dcRunning {
-		apiScript := filepath.Join(wsInstall(wsRoot), "api_server.py")
-		cmd := exec.Command("python3", apiScript)
-		cmd.Dir = wsInstall(wsRoot)
+		script := filepath.Join(skillRef(wsRoot), "scripts", "start-dc.sh")
+		cmd := exec.Command("bash", script, strconv.Itoa(dp), wsInstall(wsRoot))
 		cmd.Stdout = nil
 		cmd.Stderr = nil
-		cmd.Start()
+		if err := cmd.Start(); err != nil {
+			return fmt.Sprintf(`{"error": "start DC failed: %v"}`, err)
+		}
 	}
 
-	// 3. Start MF dev server
+	// 3. Start MF dev server (true daemon with setsid — survives parent)
 	mfRunning := isPortOpen(mp)
 	if !mfRunning {
-		cmd := exec.Command("python3", "-m", "http.server", strconv.Itoa(mp))
+		cmd := exec.Command("setsid", "python3", "-m", "http.server", strconv.Itoa(mp))
 		cmd.Dir = wsMF(wsRoot)
 		cmd.Stdout = nil
 		cmd.Stderr = nil
