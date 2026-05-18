@@ -90,7 +90,8 @@ def cmd_init(args):
 # ── Start / Stop ─────────────────────────────────────────────
 def _spawn_server(script_path: str, port: int, env_extra: dict = None):
     """Spawn a server as a true daemon subprocess (survives parent death)."""
-    env = {**os.environ, "PYTHONPATH": os.path.dirname(__file__)}
+    cli_root = os.path.dirname(__file__)  # /path/to/.specpilot/ (contains dc/, preview/)
+    env = {**os.environ, "PYTHONPATH": cli_root}
     if env_extra:
         env.update(env_extra)
     # start_new_session=True → setsid() → process becomes session leader, survives parent
