@@ -1486,6 +1486,22 @@ function parseValidationTemplate(raw: string | undefined): ParsedValidationTempl
 				return state;
 			});
 		},
+		/** 设置当前会话绑定的原型 HTML 路径（用于 SpecPilot 原型预览） */
+		setPrototypePath(path: string) {
+			commit(state => {
+				const key = state.activeKey;
+				if (!key) return state;
+				const sess = state.sessions[key];
+				if (!sess) return state;
+				return {
+					...state,
+					sessions: {
+						...state.sessions,
+						[key]: { ...sess, pptDemoPath: path, updatedAt: nowIso() },
+					},
+				};
+			});
+		},
 		/** 原型物料库等工具条：向左侧对话预填可发送文本 */
 		prefillActiveChat(text: string) {
 			const t = text.trim();
