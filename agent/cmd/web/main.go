@@ -100,6 +100,8 @@ func main() {
 	http.HandleFunc("/api/specpilot/dc/set", withCORS(specpilotDCSetHandler))
 	http.HandleFunc("/api/specpilot/ec/history", withCORS(specpilotECHistoryHandler))
 	http.HandleFunc("/api/specpilot/mf/components", withCORS(specpilotMFComponentsHandler))
+	http.HandleFunc("/api/specpilot/prototypes", withCORS(specpilotPrototypesHandler))
+	http.HandleFunc("/api/specpilot/prototype/", withCORS(specpilotPrototypeHandler))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

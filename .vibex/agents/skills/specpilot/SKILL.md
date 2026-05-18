@@ -1,145 +1,143 @@
 ---
 name: specpilot-agent
 description: |
-  SpecPilot Agent — Agent-accessible prototype workspace manager.
-  触发条件：用户提到"原型"、"preview"、"specpilot"、"MF组件"、"数据中心"、"生成原型"、"看原型"、"启动服务"。
-  触发词：prototype、preview、specpilot、mf、datacenter、start、generate。
-  当用户在项目中需要生成/预览原型、管理 MF 组件、或通过 AI Agent 驱动原型迭代时，加载此技能。
+  SpecPilot — file-based prototype workspace manager (simplified, no backend services).
+  触发条件：用户提到"原型"、"preview"、"生成原型"、"看原型"、"做界面"。
+  触发词：prototype、preview、generate、sketch、做、界面。
 ---
 
-# SpecPilot Agent
+# SpecPilot — File-Based Prototype Workspace
 
-SpecPilot 是一个 workspace 级别的 prototype workspace manager，每个 workspace 独立运行自己的 SpecPilot CLI 实例（init → start 后台常驻）。
+**设计原则：文件系统即架构，无后台服务。**
 
-## 核心架构
+## 目录结构
 
 ```
-workspace/
+{workspace}/
   .specpilot/
-    cli/                   # SpecPilot CLI（python -m specpilot）
-    components/            # 已注册的 MF 组件
-    previews/              # 原型 HTML 文件
-    static/                # 静态资源
-    .meta.json             # 端口等元信息
-    .pids.json             # 运行中的服务进程
+    prototypes/              # Agent 生成的 HTML 原型，按 spec-id 命名
+      {spec-id}.html        # 绑定 spec YAML 的 HTML 原型
+    components/             # 可复用 HTML 片段
+    specs/                  # SPEC YAML 副本（可选，用于归档）
 ```
 
-## CLI 路径
+## 核心约束
 
-```bash
-cd <workspace>
-python3 -m specpilot          # 从 workspace 根运行（自动找 .specpilot/）
-# 或
-specpilot                     # 需 pip install -e .specpilot/cli
+- **无 Python 服务**：不需要 DataCenter/EC/MF shell 后台进程
+- **无端口依赖**：不需要 7890/5177 等端口
+- **文件系统是唯一状态**：原型就是 HTML 文件，绑定关系在文件名
+- **Go backend 负责文件读写**：Agent 通过 Go tool handler 写文件，前端通过 Go HTTP API 读文件
+
+## 端到端链路
+
+```
+用户说意图
+  → spec-designer 写 spec YAML (claude-design)
+  → claude-design / sketch 生成 HTML 原型
+  → Agent 写文件 → {workspace}/.specpilot/prototypes/{spec-id}.html
+  → SpecSlot 原型区 iframe 加载
+  → done
 ```
 
-## 命令速查
+## Agent 工作流
 
-### 初始化（首次打开 workspace）
-```bash
-specpilot init
-# 输出: [specpilot] Initialized at <workspace>/.specpilot
-#       [specpilot] Run 'specpilot start' to launch services.
+### 流程 1：生成新原型
+
+```
+1. 理解用户意图（clarify/grill-me）
+2. spec-designer 生成 SPEC.yaml（写入 workspace）
+3. 决定 spec-id（通常取自 spec.name 或 L5 的 slug）
+4. claude-design 生成 HTML 原型（单文件 HTML，含内联 CSS/JS）
+5. Agent 写文件：
+   write_file(
+     path="{workspace}/.specpilot/prototypes/{spec-id}.html",
+     content="<html>..."
+   )
+6. 前端自动检测到文件 → iframe 加载
 ```
 
-### 启动服务（init 后执行一次，之后每次打开 workspace 复用）
-```bash
-specpilot start
-# 前台阻塞，直到 Ctrl+C
-# 启动 DataCenter (:7890) + Preview (:5177) 两个 HTTP 服务
-# 幂等：检测到端口已监听则跳过
+### 流程 2：修改原型
+
+```
+1. 用户说"把按钮改成红色"
+2. Agent 读文件 → read_file("{workspace}/.specpilot/prototypes/{spec-id}.html")
+3. 修改 HTML
+4. 写回 → write_file(..., content=修改后内容)
+5. 前端 iframe 自动热刷新（location.reload()）
 ```
 
-### 查看状态
-```bash
-specpilot status
-# Workspace : /path/to/workspace
-# SpecPilot : initialized
-# DataCenter: 🟢 running  (port 7890)
-# Preview   : 🟢 running  (port 5177)
-# DC keys   : 7
+### 流程 3：绑定 spec → 原型
+
+```
+spec YAML 文件中加：
+  prototype:
+    type: file
+    path: .specpilot/prototypes/{spec-id}.html
+
+前端加载 spec 时，读取 prototype.path → 拼接 workspaceRoot → 加载 iframe
 ```
 
-### 停止服务
-```bash
-specpilot stop
+## 路由约定
+
+| 操作 | 工具 | 路径 |
+|------|------|------|
+| 写原型 | `write_file` | `{workspace}/.specpilot/prototypes/{spec-id}.html` |
+| 读原型 | `read_file` | `{workspace}/.specpilot/prototypes/{spec-id}.html` |
+| 列表原型 | `bash` | `ls {workspace}/.specpilot/prototypes/` |
+| 删除原型 | `bash` | `rm {workspace}/.specpilot/prototypes/{spec-id}.html` |
+
+## 前端集成
+
+### 预览加载
+
+SpecSlot 原型区通过 Go backend HTTP API 加载 HTML：
+
+```
+GET /api/specpilot/prototype/{spec-id}
+→ 返回 {exists: bool, html?: string, path?: string, updatedAt?: string}
 ```
 
-### 生成原型（从 spec YAML 生成 HTML）
-```bash
-specpilot generate <spec.yaml> [-o <output.html>]
-# 输出: [specpilot] Generated: .specpilot/previews/index.html
-#       [specpilot] Preview:   http://127.0.0.1:5177/preview
+iframe 加载：
+```
+/api/specpilot/prototype/{spec-id} → 返回完整 HTML（Content-Type: text/html）
 ```
 
-### DataCenter 读写
-```bash
-specpilot dc list
-# {"ok":true,"keys":{"kpi.revenue":"1.2M","table.users":{...},...}}
+### 原型列表
 
-specpilot dc get <key>
-# {"ok":true,"key":"kpi.revenue","value":"1.2M"}
-
-specpilot dc set <key> <value>
-# {"ok":true,"key":"kpi.revenue","value":"2.0M"}
+```
+GET /api/specpilot/prototypes
+→ 返回 {prototypes: [{specId, path, size, updatedAt}, ...]}
 ```
 
-### MF 组件注册
-```bash
-specpilot register <component> --mf-url "/#/KPICard" --dc-key "kpi.revenue"
-# [specpilot] Registered: KPICard → /#/KPICard
-```
+### spec → prototype 绑定
 
-### 打开预览 URL
-```bash
-specpilot preview
-```
+spec YAML 的 `prototype.type = file` 时，前端用 `prototype.path` 字段拼接 workspaceRoot。
 
-## 端到端流程（Agent 驱动）
+## Go Backend Endpoints
 
-### 流程 1：首次打开项目，原型预览
-```
-1. specpilot init                        # 初始化 workspace
-2. specpilot start                       # 启动 DC + Preview
-3. specpilot generate .specpilot/specs/L3-dashboard.yaml
-4. → iframe 加载 http://127.0.0.1:5177/preview
-```
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/specpilot/prototype/{specId}` | 获取单个原型（HTML 或元信息） |
+| GET | `/api/specpilot/prototypes` | 列出所有原型 |
+| GET | `/api/specpilot/status` | 工作区状态（.specpilot 目录是否存在） |
 
-### 流程 2：用户说"把收入改成 2.0M"
-```
-1. specpilot dc set kpi.revenue 2.0M
-2. → iframe 自动热刷新（WebSocket reload）
-```
+## 与旧版 Python Service 的区别
 
-### 流程 3：用户说"做一个新的按钮"
-```
-1. Agent 生成新的 HTML 内容
-2. 写入 .specpilot/previews/index.html
-3. → iframe 自动热刷新
-```
+| 维度 | 旧版（Python Services） | 新版（File-Based） |
+|------|----------------------|-------------------|
+| DC 状态 | Python Flask 服务 (7890) | spec YAML 中的 `data: {}` |
+| EC 事件 | Python SSE 服务 | HTML 中的 JS 事件 |
+| MF 组件 | Python http.server (5177) | 内联 HTML 片段 |
+| 热更新 | WebSocket reload | location.reload() |
+| 启动 | specpilot init + start | 无需启动 |
+| 端口依赖 | 需要 7890/5177 | 无 |
 
-### 流程 4：注册新组件
-```
-1. specpilot register KPICard --mf-url "/#/KPICard" --dc-key "kpi.revenue"
-2. curl http://127.0.0.1:5177/api/components
-```
+## 适用场景
 
-## 前端集成（iframe 预览）
+✅ 纯 UI 原型（HTML + CSS + JS）  
+✅ 单页面交互原型  
+✅ 快速设计验证  
 
-- 预览 URL：`http://127.0.0.1:5177/preview`
-- DataCenter API：`http://127.0.0.1:7890/api/dc/<key>`
-- 端口可通过环境变量覆盖：`SPECPILOT_DC_PORT=18090 SPECPILOT_MF_PORT=18077`
-
-## 幂等性保证
-
-- **目录层**：每个 workspace 有独立的 `.specpilot/`，多 workspace 并行
-- **安装层**：`init` 发现已存在则跳过
-- **进程层**：`start` 检测端口已监听则跳过
-- **Meta 层**：`init` 写入 `.meta.json`，`start` 读取决定端口
-
-## 注意事项
-
-- CLI 从 workspace 根目录运行，自动找 `.specpilot/` 子目录
-- `start` 是前台阻塞命令，Go Agent 需要后台 fork subprocess
-- 预览 iframe 的 HTML 会自动注入 DataCenter API helper（`window.__dc.get/set/list`）
-- 热加载通过 WebSocket `ws://127.0.0.1:5177/__live` 触发页面 reload
+❌ 需要实时数据流（用实时数据改 spec YAML）  
+❌ 需要跨组件状态共享（改用 sessionStorage/localStorage）  
+❌ 需要多人协作（文件系统不适合）  

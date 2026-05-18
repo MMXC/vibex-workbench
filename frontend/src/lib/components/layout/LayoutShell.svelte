@@ -34,6 +34,15 @@
 
 	let workspaceRoot = $derived($specExplorerStore.workspaceRoot ?? '—');
 
+	// specId = basename of selected spec path (without .yaml)
+	let specId = $derived.by(() => {
+		const path = $specExplorerStore.selectedSpecPath;
+		if (!path) return '';
+		// e.g. /path/to/workspace/specs/L5-slice-name.yaml → L5-slice-name
+		const base = path.split('/').pop() ?? '';
+		return base.replace(/\.ya?ml$/, '');
+	});
+
 	// Drag left divider
 	let draggingLeft = $state(false);
 	let dragLeftX = 0;
@@ -115,7 +124,7 @@
 
 	<!-- Center Prototype Preview -->
 	<main class="ls-center">
-		<SpecPilotPreview />
+		<SpecPilotPreview {specId} />
 	</main>
 
 	{#if rightOpen}

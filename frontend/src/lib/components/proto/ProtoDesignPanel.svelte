@@ -2,18 +2,41 @@
 右侧 ProtoDesign 面板：5 个 Tab — Spec / DataCenter / EventCenter / MF / Adapter
 -->
 <script lang="ts">
-	type TabId = 'spec' | 'dc' | 'ec' | 'mf' | 'adapter';
+	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
+	import { dslCanvasStore } from '$lib/stores/dsl-canvas-store';
+	type TabId = 'spec' | 'dc' | 'ec' | 'prototype';
 	let activeTab = $state<TabId>('spec');
 
 	const TABS: { id: TabId; label: string }[] = [
 		{ id: 'spec', label: 'Spec' },
 		{ id: 'dc', label: 'DataCenter' },
 		{ id: 'ec', label: 'EventCenter' },
-		{ id: 'mf', label: 'MF' },
-		{ id: 'adapter', label: 'Adapter' },
+		{ id: 'prototype', label: 'Prototypes' },
 	];
 
-	// ── DC tab ─────────────────────────────────────────────
+	// Spec tab: current spec info
+	let currentSpecPath = $derived($specExplorerStore.selectedSpecPath ?? '');
+	let currentSpecName = $derived(
+		currentSpecPath ? (currentSpecPath.split('/').pop()?.replace(/\.ya?ml$/, '') ?? '—') : '—'
+	);
+	let workspaceRoot = $derived($specExplorerStore.workspaceRoot ?? '—');
+
+	// Prototype tab: list from Go backend
+	interface ProtoEntry { specId: string; path: string; size: number; updatedAt: string; }
+	let prototypes = $state<ProtoEntry[]>([]);
+	let protoLoading = $state(false);
+
+	async function loadPrototypes() {
+		protoLoading = true;
+		try {
+			const r = await fetch('/api/specpilot/prototypes');
+			const d = await r.json();
+			prototypes = d.prototypes ?? [];
+		} catch { prototypes = []; }
+		finally { protoLoading = false; }
+	}
+
+	// DC tab
 	interface DCEntry { key: string; value: unknown; }
 	let dcData = $state<{ key: string; value: unknown }[]>([]);
 	let dcLoading = $state(false);
@@ -82,22 +105,12 @@
 		} catch {}
 	}
 
-	// ── MF tab ─────────────────────────────────────────────
-	interface MFComponent { name: string; path: string; status: string; contract?: unknown; }
-	let mfComponents = $state<MFComponent[]>([]);
-
-	async function loadMF() {
-		try {
-			const res = await fetch('/api/specpilot/mf/components');
-			const r = await res.json();
-			mfComponents = Array.isArray(r.components) ? r.components : [];
-		} catch {}
-	}
-
 	$effect(() => {
+		// eslint-disable-next-line @typescript-eslint/no-unused-expressions
+		activeTab;
 		if (activeTab === 'dc') loadDC();
 		else if (activeTab === 'ec') loadEC();
-		else if (activeTab === 'mf') loadMF();
+		else if (activeTab === 'prototype') loadPrototypes();
 	});
 
 	function fmtVal(v: unknown): string {
@@ -128,18 +141,30 @@
 	<div class="pdp-body">
 
 		<!-- Spec tab -->
-		{#if activeTab === 'spec'}
+		{:else if activeTab === 'spec'}
 		<div class="pdp-spec">
+			{#if currentSpecPath}
+				<div class="pdp-spec-card">
+					<div class="pdp-spec-name">{currentSpecName}</div>
+					<div class="pdp-spec-path">{currentSpecPath}</div>
+					<div class="pdp-spec-hint">原型路径：.specpilot/prototypes/{currentSpecName}.html</div>
+				</div>
+			{:else}
 			<div class="pdp-placeholder">
 				<div class="pdp-icon">📋</div>
-				<div>当前 spec 元数据</div>
-				<div class="pdp-sub">选中 spec 后显示 title / description / path / status</div>
+				<div>未选中 Spec</div>
+				<div class="pdp-sub">在 Spec Explorer 中选择一个文件</div>
 			</div>
+			{/if}
 		</div>
 
 		<!-- DataCenter tab -->
 		{:else if activeTab === 'dc'}
 		<div class="pdp-dc">
+			<div class="pdp-dc-header">
+				<span class="pdp-label">DATACENTER</span>
+				<button type="button" class="pdp-btn-sm" onclick={loadDC}>↻</button>
+			</div>
 			{#if dcError}
 			<div class="pdp-error">{dcError}</div>
 			{/if}
@@ -206,35 +231,26 @@
 			{/if}
 		</div>
 
-		<!-- MF tab -->
-		{:else if activeTab === 'mf'}
-		<div class="pdp-mf">
-			{#if mfComponents.length === 0}
-			<div class="pdp-empty">
-				<div class="pdp-icon">⬡</div>
-				<div>暂无注册的 MF 组件</div>
+		<!-- Prototype tab -->
+		{:else if activeTab === 'prototype'}
+		<div class="pdp-prototypes">
+			<div class="pdp-prototypes-header">
+				<span class="pdp-label">PROTOTYPES · {workspaceRoot}/.specpilot/prototypes/</span>
+				<button type="button" class="pdp-btn-sm" onclick={loadPrototypes}>↻</button>
 			</div>
+			{#if protoLoading}
+				<div class="pdp-loading">加载中…</div>
+			{:else if prototypes.length === 0}
+				<div class="pdp-empty">暂无原型文件<br/><span class="pdp-sub">Agent 生成 HTML 原型后自动出现</span></div>
 			{:else}
-			{#each mfComponents as comp}
-			<div class="pdp-mf-card">
-				<div class="pdp-mf-name">{comp.name}</div>
-				<div class="pdp-mf-path">{comp.path}</div>
-				<div class="pdp-mf-status" class:ready={comp.status === 'ready'}>
-					{comp.status === 'ready' ? '● 就绪' : '◌ 等待中'}
+				{#each prototypes as p}
+				<div class="pdp-prototype-row">
+					<span class="pdp-proto-id">{p.specId}</span>
+					<span class="pdp-proto-size">{(p.size / 1024).toFixed(1)}KB</span>
+					<span class="pdp-proto-time">{fmtTime(p.updatedAt)}</span>
 				</div>
-			</div>
-			{/each}
+				{/each}
 			{/if}
-		</div>
-
-		<!-- Adapter tab -->
-		{:else if activeTab === 'adapter'}
-		<div class="pdp-adapter">
-			<div class="pdp-placeholder">
-				<div class="pdp-icon">🔌</div>
-				<div>适配器连接状态</div>
-				<div class="pdp-sub">显示已配置的 adapter 及其运行状态</div>
-			</div>
 		</div>
 		{/if}
 
@@ -370,4 +386,19 @@
 .pdp-mf-path { font-size: 10px; color: var(--wb-text-sec, #787c99); margin-top: 2px; font-family: ui-monospace, monospace; word-break: break-all; }
 .pdp-mf-status { font-size: 10px; margin-top: 4px; color: var(--accent-yellow, #efc66b); }
 .pdp-mf-status.ready { color: var(--accent-green, #87cf8a); }
-</style>
+
+/* Spec tab */
+.pdp-spec-card { background: var(--wb-bg, #0d0d0e); border: 1px solid var(--wb-border, rgba(255,255,255,0.07)); border-radius: 8px; padding: 12px 14px; }
+.pdp-spec-name { font-size: 14px; font-weight: 700; color: var(--wb-text, #c0caf5); font-family: ui-monospace, monospace; }
+.pdp-spec-path { font-size: 10px; color: var(--wb-text-sec, #787c99); margin-top: 6px; word-break: break-all; font-family: ui-monospace, monospace; }
+.pdp-spec-hint { font-size: 10px; color: var(--wb-accent, #72d6d0); margin-top: 8px; font-family: ui-monospace, monospace; }
+
+/* Prototype tab */
+.pdp-prototypes-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.pdp-prototype-row { display: flex; gap: 8px; align-items: center; padding: 5px 4px; border-radius: 4px; font-size: 11px; }
+.pdp-prototype-row:hover { background: rgba(255,255,255,0.03); }
+.pdp-proto-id { color: var(--wb-accent, #72d6d0); flex: 1; font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pdp-proto-size { color: var(--wb-text-sec, #787c99); font-size: 10px; flex-shrink: 0; }
+.pdp-proto-time { color: #3d4656; font-size: 10px; flex-shrink: 0; }
+.pdp-dc-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+

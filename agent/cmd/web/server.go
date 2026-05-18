@@ -1172,7 +1172,64 @@ func clarificationHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // workspaceSpecHandler: GET /api/workspace/specs/read?path=<relative>
-// Reads a spec file from the workspace and returns { path, content }.
+// specpilotPrototypesHandler: GET /api/specpilot/prototypes → list all prototype files
+func specpilotPrototypesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	wsRoot := cfg.WorkspaceDir
+	prototypes := rtools.PrototypeList(wsRoot)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"prototypes": prototypes})
+}
+
+// specpilotPrototypeHandler: GET /api/specpilot/prototype/{specId} → serve HTML for iframe
+//                            POST /api/specpilot/prototype/{specId} → write prototype HTML
+func specpilotPrototypeHandler(w http.ResponseWriter, r *http.Request) {
+	wsRoot := cfg.WorkspaceDir
+
+	// Extract specId from path: /api/specpilot/prototype/{specId}
+	specId := strings.TrimPrefix(r.URL.Path, "/api/specpilot/prototype/")
+	specId = strings.TrimSuffix(specId, "/")
+
+	if specId == "" || strings.Contains(specId, "/") {
+		http.Error(w, "invalid specId", http.StatusBadRequest)
+		return
+	}
+
+	if r.Method == http.MethodGet {
+		html, exists := rtools.PrototypeGet(wsRoot, specId)
+		if !exists {
+			http.Error(w, "prototype not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Write([]byte(html))
+		return
+	}
+
+	if r.Method == http.MethodPost {
+		var req struct {
+			HTML string `json:"html"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			return
+		}
+		if err := rtools.PrototypeWrite(wsRoot, specId, req.HTML); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"ok": true, "specId": specId})
+		return
+	}
+
+	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+}
+
 func workspaceSpecHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

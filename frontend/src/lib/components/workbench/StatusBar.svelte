@@ -79,17 +79,8 @@
 				return;
 			}
 		} catch {}
-		// Fallback: try DC health directly
-		try {
-			const r = await fetch('http://127.0.0.1:7890/api/health', { signal: AbortSignal.timeout(2000) });
-			if (r.ok) {
-				const d = await r.json();
-				spStatus = { installed: true, dcRunning: true, mfRunning: true, dcPort: d.port ?? 7890, mfPort: d.mfPort ?? 5177 };
-				spError = '';
-				return;
-			}
-		} catch {}
-		spStatus = null;
+		// File-based mode: if Go backend responds, services are available
+		spStatus = { installed: false, dcRunning: false, mfRunning: false, dcPort: 7890, mfPort: 5177 };
 	}
 
 	async function bootstrap() {
