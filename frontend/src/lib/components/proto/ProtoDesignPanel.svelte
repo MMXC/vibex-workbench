@@ -1,8 +1,10 @@
 <!-- ProtoDesignPanel.svelte
-右侧 ProtoDesign 面板：5 个 Tab — Spec / DataCenter / EventCenter / MF / Adapter
+右侧 ProtoDesign 面板：Spec / DataCenter / EventCenter / Prototypes
+ProtoDesign Spec = 四栏数据聚合视图
 -->
 <script lang="ts">
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
+	import { specSlotSessionStore } from '$lib/stores/spec-slot-session-store';
 	import { dslCanvasStore } from '$lib/stores/dsl-canvas-store';
 
 	type TabId = 'spec' | 'dc' | 'ec' | 'prototype';
@@ -15,12 +17,73 @@
 		{ id: 'prototype', label: 'Prototypes' },
 	];
 
-	// Spec tab
+	// ── Spec Explorer ────────────────────────────────────────────────────────────
 	let currentSpecPath = $derived($specExplorerStore.selectedSpecPath ?? '');
 	let currentSpecName = $derived(
 		currentSpecPath ? (currentSpecPath.split('/').pop()?.replace(/\.ya?ml$/, '') ?? '—') : '—'
 	);
 	let workspaceRoot = $derived($specExplorerStore.workspaceRoot ?? '—');
+
+	// ── Session state ──────────────────────────────────────────────────────────
+	let sessionState = $state({ activeKey: null as string | null, sessions: {} as Record<string, { spec?: { display?: { title?: string } }; slot?: { label?: string }; pptDemoPath?: string | null; messages?: unknown[] }> });
+	$effect(() => {
+		const unsub = specSlotSessionStore.subscribe(v => {
+			sessionState = { activeKey: v.activeKey, sessions: v.sessions };
+		});
+		return unsub;
+	});
+	let activeSession = $derived(
+		sessionState.activeKey ? sessionState.sessions[sessionState.activeKey] ?? null : null
+	);
+	let boundProtoPath = $derived(activeSession?.pptDemoPath ?? '');
+	let boundProtoName = $derived(
+		boundProtoPath ? (boundProtoPath.split('/').pop()?.replace(/\.html$/, '') ?? '—') : '—'
+	);
+	let sessionSpecTitle = $derived(activeSession?.spec?.display?.title ?? currentSpecName);
+	let sessionSlotLabel = $derived(activeSession?.slot?.label ?? 'prototype');
+	let sessionMsgCount = $derived(activeSession?.messages?.length ?? 0);
+
+	// ── Spec tab: aggregated data ─────────────────────────────────────────────
+	// DC top keys (for Spec tab overview)
+	interface DCEntry { key: string; value: unknown; }
+	let dcTopKeys = $state<DCEntry[]>([]);
+	let dcTotal = $state(0);
+
+	// EC recent events (for Spec tab overview)
+	interface ECEvent { event: string; payload?: unknown; emitted_at?: string; }
+	let ecRecent = $state<ECEvent[]>([]);
+
+	async function loadDCTopKeys() {
+		try {
+			const r = await fetch('/api/specpilot/dc');
+			if (r.ok) {
+				const d = await r.json();
+				const entries = Object.entries(d.data ?? {});
+				dcTotal = entries.length;
+				dcTopKeys = entries.slice(0, 5).map(([key, value]) => ({ key, value }));
+			}
+		} catch {}
+	}
+
+	async function loadECRecent() {
+		try {
+			const r = await fetch('/api/specpilot/ec/events?limit=5');
+			if (r.ok) {
+				const d = await r.json();
+				ecRecent = (d.events ?? []).slice(0, 5);
+			}
+		} catch {}
+	}
+
+	// Reload on tab change
+	$effect(() => {
+		// eslint-disable-next-line @typescript-eslint/no-unused-expressions
+		activeTab;
+		if (activeTab === 'spec') {
+			void loadDCTopKeys();
+			void loadECRecent();
+		}
+	});
 
 	// Prototype tab
 	interface ProtoEntry { specId: string; path: string; size: number; updatedAt: string; }
@@ -154,17 +217,76 @@
 
 {#snippet specTab()}
 <div class="pdp-spec">
-	{#if currentSpecPath}
-	<div class="pdp-spec-card">
-		<div class="pdp-spec-name">{currentSpecName}</div>
-		<div class="pdp-spec-path">{currentSpecPath}</div>
-		<div class="pdp-spec-hint">原型路径：.specpilot/prototypes/{currentSpecName}.html</div>
+	<!-- Session overview header -->
+	<div class="pdp-spec-header">
+		<div class="pdp-spec-title">{sessionSpecTitle}</div>
+		<div class="pdp-spec-tags">
+			<span class="pdp-tag pdp-tag-slot">{sessionSlotLabel}</span>
+			{#if activeSession}
+				<span class="pdp-tag pdp-tag-msgs">{sessionMsgCount} 条</span>
+			{:else}
+				<span class="pdp-tag pdp-tag-idle">空闲</span>
+			{/if}
+		</div>
 	</div>
-	{:else}
-	<div class="pdp-placeholder">
-		<div class="pdp-icon">📋</div>
-		<div>未选中 Spec</div>
-		<div class="pdp-sub">在 Spec Explorer 中选择一个文件</div>
+
+	<!-- 1. Prototype bound -->
+	<div class="pdp-spec-section">
+		<div class="pdp-spec-section-label">◎ Prototype</div>
+		{#if boundProtoPath}
+			<div class="pdp-spec-row">
+				<code class="pdp-spec-path">{boundProtoPath}</code>
+			</div>
+		{:else}
+			<div class="pdp-spec-hint-row">左侧会话绑定原型文件后显示</div>
+		{/if}
+	</div>
+
+	<!-- 2. DataCenter summary -->
+	<div class="pdp-spec-section">
+		<div class="pdp-spec-section-label">◈ DataCenter · {dcTotal} keys</div>
+		{#if dcTopKeys.length > 0}
+			{#each dcTopKeys as e}
+				<div class="pdp-dc-mini-row">
+					<code class="pdp-dc-key-sm">{e.key}</code>
+					<code class="pdp-dc-val-sm">{fmtVal(e.value)}</code>
+				</div>
+			{/each}
+			{#if dcTotal > 5}
+				<button type="button" class="pdp-spec-link" onclick={() => (activeTab = 'dc')}>
+					+ {dcTotal - 5} more →
+				</button>
+			{/if}
+		{:else}
+			<div class="pdp-spec-hint-row">DC 中暂无数据</div>
+		{/if}
+	</div>
+
+	<!-- 3. EventCenter summary -->
+	<div class="pdp-spec-section">
+		<div class="pdp-spec-section-label">◈ EventCenter</div>
+		{#if ecRecent.length > 0}
+			{#each ecRecent as ev}
+				<div class="pdp-ec-mini-row">
+					<span class="pdp-ev-name">{ev.event}</span>
+					{#if ev.emitted_at}
+						<span class="pdp-ev-time">{fmtTime(ev.emitted_at)}</span>
+					{/if}
+				</div>
+			{/each}
+			<button type="button" class="pdp-spec-link" onclick={() => (activeTab = 'ec')}>
+				查看全部 →
+			</button>
+		{:else}
+			<div class="pdp-spec-hint-row">EC 中暂无事件</div>
+		{/if}
+	</div>
+
+	<!-- 4. Spec Explorer path -->
+	{#if currentSpecPath}
+	<div class="pdp-spec-section">
+		<div class="pdp-spec-section-label">◈ Spec 文件</div>
+		<code class="pdp-spec-path pdp-spec-path-sm">{currentSpecPath}</code>
 	</div>
 	{/if}
 </div>
@@ -343,4 +465,28 @@
 .pdp-proto-id { color: var(--wb-accent, #72d6d0); flex: 1; font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pdp-proto-size { color: var(--wb-text-sec, #787c99); font-size: 10px; flex-shrink: 0; }
 .pdp-proto-time { color: #3d4656; font-size: 10px; flex-shrink: 0; }
+/* ProtoDesign Spec tab */
+.pdp-spec { display: flex; flex-direction: column; gap: 0; padding: 8px; }
+.pdp-spec-header { padding: 0 0 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 4px; }
+.pdp-spec-title { font-size: 13px; font-weight: 700; color: var(--wb-text, #c0caf5); margin-bottom: 4px; }
+.pdp-spec-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.pdp-tag { font-size: 10px; border-radius: 3px; padding: 1px 5px; }
+.pdp-tag-slot { background: rgba(124,58,237,0.2); color: #a78bfa; }
+.pdp-tag-msgs { background: rgba(114,214,208,0.12); color: var(--wb-accent, #72d6d0); }
+.pdp-tag-idle { background: rgba(255,255,255,0.05); color: var(--wb-text-sec, #787c99); }
+.pdp-spec-section { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.pdp-spec-section:last-child { border-bottom: none; }
+.pdp-spec-section-label { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--wb-text-sec, #787c99); text-transform: uppercase; margin-bottom: 4px; }
+.pdp-spec-row { display: flex; align-items: center; gap: 4px; }
+.pdp-spec-path { font-size: 10px; color: var(--wb-accent, #72d6d0); font-family: ui-monospace, monospace; word-break: break-all; }
+.pdp-spec-path-sm { font-size: 9px; color: var(--wb-text-sec, #787c99); }
+.pdp-spec-hint-row { font-size: 10px; color: var(--wb-text-sec, #787c99); font-style: italic; }
+.pdp-spec-link { background: none; border: none; color: var(--wb-accent, #72d6d0); font-size: 10px; cursor: pointer; padding: 0; text-align: left; }
+.pdp-spec-link:hover { text-decoration: underline; }
+.pdp-dc-mini-row { display: flex; gap: 6px; align-items: baseline; padding: 1px 0; font-size: 10px; }
+.pdp-dc-key-sm { color: var(--wb-text, #c0caf5); font-family: ui-monospace, monospace; flex-shrink: 0; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pdp-dc-val-sm { color: var(--wb-text-sec, #787c99); font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pdp-ec-mini-row { display: flex; gap: 6px; align-items: center; padding: 1px 0; font-size: 10px; }
+.pdp-ev-name { color: var(--wb-accent, #72d6d0); font-family: ui-monospace, monospace; }
+.pdp-ev-time { color: #3d4656; font-size: 9px; margin-left: auto; }
 </style>

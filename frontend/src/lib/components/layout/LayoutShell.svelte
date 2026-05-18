@@ -10,6 +10,7 @@
 	import ProtoDesignPanel from '$lib/components/proto/ProtoDesignPanel.svelte';
 	import StatusBar from '$lib/components/workbench/StatusBar.svelte';
 	import { specExplorerStore } from '$lib/stores/spec-explorer-store';
+	import { specSlotSessionStore } from '$lib/stores/spec-slot-session-store';
 	import { onDestroy } from 'svelte';
 
 	interface Props {
@@ -41,6 +42,25 @@
 		// e.g. /path/to/workspace/specs/L5-slice-name.yaml → L5-slice-name
 		const base = path.split('/').pop() ?? '';
 		return base.replace(/\.ya?ml$/, '');
+	});
+
+	// protoSpecId = derived from session's bound prototype path
+	// pptDemoPath = ".specpilot/prototypes/{protoSpecId}.html" → protoSpecId
+	let sessionState = $state({ activeKey: null as string | null, sessions: {} as Record<string, { pptDemoPath?: string | null }> });
+	$effect(() => {
+		const unsub = specSlotSessionStore.subscribe(v => {
+			sessionState = { activeKey: v.activeKey, sessions: v.sessions };
+		});
+		return unsub;
+	});
+	let protoSpecId = $derived.by(() => {
+		const key = sessionState.activeKey;
+		if (!key) return '';
+		const ppt = sessionState.sessions[key]?.pptDemoPath ?? '';
+		if (!ppt) return '';
+		// ".specpilot/prototypes/foo.html" → "foo"
+		const m = ppt.match(/([^/]+)\.html$/);
+		return m ? m[1] : '';
 	});
 
 	// Drag left divider
@@ -124,7 +144,7 @@
 
 	<!-- Center Prototype Preview -->
 	<main class="ls-center">
-		<SpecPilotPreview {specId} />
+		<SpecPilotPreview specId={protoSpecId || specId} />
 	</main>
 
 	{#if rightOpen}
